@@ -16,6 +16,7 @@ export function randInt(rng: Rng, min: number, max: number): number {
 }
 
 export function pick<T>(rng: Rng, arr: readonly T[]): T {
+  if (arr.length === 0) throw new Error("pick: empty array");
   return arr[Math.floor(rng() * arr.length)];
 }
 

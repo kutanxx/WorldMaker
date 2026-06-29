@@ -20,6 +20,9 @@ describe("rng", () => {
   it("pick returns an element", () => {
     expect(["x", "y"]).toContain(pick(mulberry32(5), ["x", "y"]));
   });
+  it("pick throws on an empty array", () => {
+    expect(() => pick(mulberry32(1), [])).toThrow();
+  });
   it("hashStringToSeed and deriveSeed are deterministic", () => {
     expect(hashStringToSeed("abc")).toBe(hashStringToSeed("abc"));
     expect(deriveSeed(10, 3)).toBe(deriveSeed(10, 3));
