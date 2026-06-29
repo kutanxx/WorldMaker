@@ -68,3 +68,104 @@ export function pointInPolygon(pt: Point, poly: Polygon): boolean {
   }
   return inside;
 }
+
+function cross(o: Point, a: Point, b: Point): number {
+  return (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+}
+
+export function convexHull(pts: Point[]): Polygon {
+  const p = pts.slice().sort((u, v) => (u[0] === v[0] ? u[1] - v[1] : u[0] - v[0]));
+  if (p.length < 3) return p.slice();
+  const lower: Point[] = [];
+  for (const pt of p) {
+    while (lower.length >= 2 && cross(lower[lower.length - 2], lower[lower.length - 1], pt) <= 0) lower.pop();
+    lower.push(pt);
+  }
+  const upper: Point[] = [];
+  for (let i = p.length - 1; i >= 0; i--) {
+    const pt = p[i];
+    while (upper.length >= 2 && cross(upper[upper.length - 2], upper[upper.length - 1], pt) <= 0) upper.pop();
+    upper.push(pt);
+  }
+  lower.pop();
+  upper.pop();
+  return lower.concat(upper);
+}
+
+function ensureCCW(poly: Polygon): Polygon {
+  return signedArea(poly) < 0 ? poly.slice().reverse() : poly;
+}
+
+export function clipToConvex(subject: Polygon, clip: Polygon): Polygon {
+  const c = ensureCCW(clip);
+  let output: Point[] = subject.slice();
+  for (let i = 0; i < c.length; i++) {
+    const a = c[i];
+    const b = c[(i + 1) % c.length];
+    const input = output;
+    output = [];
+    const inside = (p: Point) => cross(a, b, p) >= -1e-9;
+    for (let j = 0; j < input.length; j++) {
+      const cur = input[j];
+      const prev = input[(j + input.length - 1) % input.length];
+      const curIn = inside(cur);
+      const prevIn = inside(prev);
+      if (curIn) {
+        if (!prevIn) output.push(lineIntersect(prev, cur, a, b));
+        output.push(cur);
+      } else if (prevIn) {
+        output.push(lineIntersect(prev, cur, a, b));
+      }
+    }
+    if (output.length === 0) return [];
+  }
+  return output;
+}
+
+function lineIntersect(p1: Point, p2: Point, a: Point, b: Point): Point {
+  const A1 = p2[1] - p1[1];
+  const B1 = p1[0] - p2[0];
+  const C1 = A1 * p1[0] + B1 * p1[1];
+  const A2 = b[1] - a[1];
+  const B2 = a[0] - b[0];
+  const C2 = A2 * a[0] + B2 * a[1];
+  const det = A1 * B2 - A2 * B1;
+  if (Math.abs(det) < 1e-12) return p2;
+  return [(B2 * C1 - B1 * C2) / det, (A1 * C2 - A2 * C1) / det];
+}
+
+export function splitByLine(poly: Polygon, a: Point, b: Point): Polygon[] {
+  const side = (p: Point) => (b[0] - a[0]) * (p[1] - a[1]) - (b[1] - a[1]) * (p[0] - a[0]);
+  const pos: Point[] = [];
+  const neg: Point[] = [];
+  for (let i = 0; i < poly.length; i++) {
+    const cur = poly[i];
+    const nxt = poly[(i + 1) % poly.length];
+    const sc = side(cur);
+    const sn = side(nxt);
+    if (sc >= 0) pos.push(cur);
+    if (sc <= 0) neg.push(cur);
+    if ((sc > 0 && sn < 0) || (sc < 0 && sn > 0)) {
+      const t = sc / (sc - sn);
+      const ip: Point = [cur[0] + t * (nxt[0] - cur[0]), cur[1] + t * (nxt[1] - cur[1])];
+      pos.push(ip);
+      neg.push(ip);
+    }
+  }
+  const out: Polygon[] = [];
+  if (pos.length >= 3) out.push(pos);
+  if (neg.length >= 3) out.push(neg);
+  return out;
+}
+
+export function insetPolygon(poly: Polygon, d: number): Polygon {
+  const c = centroid(poly);
+  return poly.map(([x, y]) => {
+    const dx = c[0] - x;
+    const dy = c[1] - y;
+    const len = Math.hypot(dx, dy);
+    if (len < 1e-6) return [x, y] as Point;
+    const move = Math.min(d, len * 0.9);
+    return [x + (dx / len) * move, y + (dy / len) * move] as Point;
+  });
+}

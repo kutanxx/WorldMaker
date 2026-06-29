@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { signedArea, area, centroid, bbox, perimeter, pointInPolygon } from "./geometry";
+import { convexHull, clipToConvex, splitByLine, insetPolygon } from "./geometry";
 import type { Polygon } from "./geometry";
 
 const square: Polygon = [[0, 0], [10, 0], [10, 10], [0, 10]];
@@ -22,5 +23,32 @@ describe("geometry measures", () => {
   it("tests point in polygon", () => {
     expect(pointInPolygon([5, 5], square)).toBe(true);
     expect(pointInPolygon([15, 5], square)).toBe(false);
+  });
+});
+
+describe("geometry ops", () => {
+  it("convexHull returns CCW hull of a point cloud", () => {
+    const hull = convexHull([[0, 0], [10, 0], [10, 10], [0, 10], [5, 5]]);
+    expect(area(hull)).toBeCloseTo(100, 6);
+    expect(hull.length).toBe(4);
+  });
+  it("clipToConvex clips a square to a smaller square", () => {
+    const sub: Polygon = [[0, 0], [10, 0], [10, 10], [0, 10]];
+    const clip: Polygon = [[2, 2], [8, 2], [8, 8], [2, 8]];
+    const out = clipToConvex(sub, clip);
+    expect(area(out)).toBeCloseTo(36, 4);
+  });
+  it("splitByLine splits a square into two halves preserving total area", () => {
+    const sq: Polygon = [[0, 0], [10, 0], [10, 10], [0, 10]];
+    const parts = splitByLine(sq, [5, -1], [5, 11]);
+    expect(parts.length).toBe(2);
+    expect(area(parts[0]) + area(parts[1])).toBeCloseTo(100, 4);
+    expect(area(parts[0])).toBeCloseTo(50, 4);
+  });
+  it("insetPolygon shrinks area and stays inside", () => {
+    const sq: Polygon = [[0, 0], [10, 0], [10, 10], [0, 10]];
+    const inner = insetPolygon(sq, 2);
+    expect(area(inner)).toBeLessThan(100);
+    expect(area(inner)).toBeGreaterThan(0);
   });
 });
