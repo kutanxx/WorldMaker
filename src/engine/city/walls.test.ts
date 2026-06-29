@@ -27,4 +27,13 @@ describe("walls", () => {
     const moat = buildMoat(wall.ring, 6);
     expect(area(moat)).toBeGreaterThan(area(wall.ring));
   });
+  it("never places more gates than ring edges and never duplicates them", () => {
+    const wall = buildWall(innerWards(), 99);
+    expect(wall.gates.length).toBeLessThanOrEqual(wall.ring.length);
+    const uniq = new Set(wall.gates.map((g) => g.join(",")));
+    expect(uniq.size).toBe(wall.gates.length);
+  });
+  it("defaults to at least one gate when asked for zero", () => {
+    expect(buildWall(innerWards(), 0).gates.length).toBeGreaterThanOrEqual(1);
+  });
 });

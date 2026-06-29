@@ -14,8 +14,9 @@ export function buildWall(innerWards: ZonedWard[], gateCount: number): Wall {
   const hull = convexHull(pts);
   const ring = insetPolygon(hull, -3);
   const towers = ring.slice();
+  if (ring.length < 3) return { ring, towers, gates: [] };
   const gates: Point[] = [];
-  const n = Math.max(1, gateCount);
+  const n = Math.max(1, Math.min(gateCount, ring.length));
   for (let g = 0; g < n; g++) {
     const i = Math.floor((g / n) * ring.length);
     const a = ring[i];
