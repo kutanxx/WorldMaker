@@ -50,5 +50,11 @@ describe("geometry ops", () => {
     const inner = insetPolygon(sq, 2);
     expect(area(inner)).toBeLessThan(100);
     expect(area(inner)).toBeGreaterThan(0);
+    expect(area(inner)).toBeCloseTo(51.43, 1);
+  });
+  it("insetPolygon with negative d expands outward", () => {
+    const sq: Polygon = [[0, 0], [10, 0], [10, 10], [0, 10]];
+    const outer = insetPolygon(sq, -2);
+    expect(area(outer)).toBeGreaterThan(100);
   });
 });
