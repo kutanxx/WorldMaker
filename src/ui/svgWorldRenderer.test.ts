@@ -12,11 +12,13 @@ describe("renderWorld", () => {
     const svg = renderWorld(world);
     const paths = svg.querySelectorAll(".regions path");
     expect(paths.length).toBe(world.polities.length);
+    expect(svg.querySelectorAll(".regions path.region").length).toBe(world.polities.length);
   });
   it("renders a marker per city with a data-city id", () => {
     const { world } = generateWorld(small);
     const svg = renderWorld(world);
     expect(svg.querySelectorAll(".markers circle").length).toBe(world.cities.length);
     expect(svg.querySelector(".markers circle")?.getAttribute("data-city")).not.toBeNull();
+    expect(svg.querySelector(".markers circle")?.getAttribute("data-city")).toBe(String(world.cities[0].id));
   });
 });

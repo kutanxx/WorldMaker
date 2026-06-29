@@ -26,7 +26,7 @@ export function renderWorld(world: World): SVGSVGElement {
   const regions = svgEl("g", { class: "regions" });
   for (const pol of world.polities) {
     const d = byPolity.get(pol.id);
-    if (d) regions.appendChild(svgEl("path", { d, fill: pol.color, stroke: "#5a5a5a", "stroke-width": 0.3 }));
+    if (d) regions.appendChild(svgEl("path", { class: "region", d, fill: pol.color, stroke: "#5a5a5a", "stroke-width": 0.3 }));
   }
   root.appendChild(regions);
 
