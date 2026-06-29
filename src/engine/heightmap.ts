@@ -9,7 +9,7 @@ export function assignHeights(
 ): Float32Array {
   const scale = opts?.scale ?? 2.5;
   const octaves = opts?.octaves ?? 4;
-  const falloff = opts?.falloff ?? 0.85;
+  const falloff = opts?.falloff ?? 0.45;
   const noise = createNoise2D(rng);
   const h = new Float32Array(grid.count);
   const cx = grid.width / 2, cy = grid.height / 2;

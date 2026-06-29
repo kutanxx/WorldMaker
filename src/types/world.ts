@@ -55,8 +55,8 @@ export const DEFAULT_PARAMS: WorldParams = {
   width: 1000,
   height: 700,
   cellCount: 4000,
-  seaLevel: 0.4,
-  mountainLevel: 0.8,
+  seaLevel: 0.3,
+  mountainLevel: 0.55,
   polityCount: 8,
   townCount: 20,
 };
