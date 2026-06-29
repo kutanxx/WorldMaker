@@ -35,6 +35,7 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
   const R = 50 + ctx.size * 8;
 
   const sides = 10 + (ctx.isCapital ? 4 : 0);
+  // wall is an open ring of vertices; the SVG renderer closes it (polygon)
   const wall: [number, number][] = [];
   for (let i = 0; i < sides; i++) {
     const a = (i / sides) * Math.PI * 2;
@@ -42,11 +43,12 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
     wall.push([cx + Math.cos(a) * r, cy + Math.sin(a) * r]);
   }
 
+  const jitter = (m: number) => (rng() - 0.5) * m;
   const river: [number, number][] | null = ctx.coastal
     ? [
-        [cx - R * 1.5, cy + 25],
-        [cx, cy + 8],
-        [cx + R * 1.5, cy - 12],
+        [cx - R * 1.5 + jitter(20), cy + 25 + jitter(30)],
+        [cx + jitter(30), cy + 8 + jitter(20)],
+        [cx + R * 1.5 + jitter(20), cy - 12 + jitter(30)],
       ]
     : null;
 

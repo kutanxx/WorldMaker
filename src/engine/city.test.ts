@@ -28,4 +28,10 @@ describe("city", () => {
     expect(generateCityLayout(cityContext({ ...base, coastal: false }), 5).river).toBeNull();
     expect(generateCityLayout(cityContext({ ...base, coastal: true }), 5).river).not.toBeNull();
   });
+  it("river path varies with the world seed for a coastal city", () => {
+    const ctx = cityContext({ ...base, coastal: true });
+    const a = generateCityLayout(ctx, 1).river;
+    const b = generateCityLayout(ctx, 2).river;
+    expect(JSON.stringify(a)).not.toBe(JSON.stringify(b));
+  });
 });
