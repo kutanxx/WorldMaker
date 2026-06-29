@@ -27,6 +27,7 @@ export function assignZones(
   radius: number,
   opts: { hasCastle: boolean; coastal: boolean }
 ): ZonedWard[] {
+  if (wards.length === 0) return [];
   const ranked = wards
     .map((w) => ({ w, dist: Math.hypot(w.site[0] - center[0], w.site[1] - center[1]) }))
     .sort((a, b) => a.dist - b.dist);

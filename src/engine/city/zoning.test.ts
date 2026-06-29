@@ -38,5 +38,7 @@ describe("zoning.assignZones", () => {
     const z = assignZones(mulberry32(4), ringWards(14), [150, 150], 100, { hasCastle: true, coastal: false });
     const plaza = z.find((w) => w.type === "plaza")!;
     expect(plaza.inner).toBe(true);
+    const far = z.find((w) => w.dist > 60)!;
+    expect(far.inner).toBe(false);
   });
 });
