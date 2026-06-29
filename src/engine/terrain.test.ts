@@ -20,4 +20,12 @@ describe("terrain", () => {
     expect(comp[2]).toBe(-1);
     expect(comp[3]).not.toBe(comp[0]);
   });
+  it("groups mountains with adjacent land", () => {
+    const grid = { count: 3, neighbors: [[1], [0, 2], [1]] } as unknown as Grid;
+    const t = new Uint8Array([LAND, MOUNTAIN, LAND]);
+    const comp = landmasses(grid, t);
+    expect(comp[1]).not.toBe(-1);
+    expect(comp[1]).toBe(comp[0]);
+    expect(comp[2]).toBe(comp[0]);
+  });
 });
