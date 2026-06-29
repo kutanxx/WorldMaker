@@ -15,7 +15,7 @@ describe("wards", () => {
     expect(wards.length).toBeLessThanOrEqual(12);
     for (const w of wards) {
       expect(w.polygon.length).toBeGreaterThanOrEqual(3);
-      expect(area(w.polygon)).toBeGreaterThan(0);
+      expect(area(w.polygon)).toBeGreaterThan(1);
       expect(pointInPolygon(w.site, discPolygon(150, 150, 100, 48))).toBe(true);
     }
   });

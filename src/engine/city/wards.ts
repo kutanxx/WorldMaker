@@ -19,9 +19,7 @@ export function discPolygon(cx: number, cy: number, r: number, segments = 32): P
 
 export function generateWards(rng: Rng, cx: number, cy: number, radius: number, count: number): WardCell[] {
   const sites: Point[] = [];
-  let guard = 0;
-  while (sites.length < count && guard < count * 100) {
-    guard++;
+  for (let i = 0; i < count; i++) {
     const a = rng() * Math.PI * 2;
     const rr = Math.sqrt(rng()) * radius * 0.92;
     sites.push([cx + Math.cos(a) * rr, cy + Math.sin(a) * rr]);
@@ -34,6 +32,7 @@ export function generateWards(rng: Rng, cx: number, cy: number, radius: number, 
     const cell = voronoi.cellPolygon(i);
     if (!cell) continue;
     const poly = clipToConvex(cell.map(([x, y]) => [x, y] as Point), disc);
+    // drop degenerate clipped cells (< 1 sq unit)
     if (poly.length >= 3 && area(poly) > 1) wards.push({ polygon: poly, site: sites[i] });
   }
   return wards;
