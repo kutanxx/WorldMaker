@@ -25,4 +25,19 @@ describe("water", () => {
     // a tiny road in the dry centre yields no bridge
     expect(waterBridges([[[150, 150], [152, 152]]], w.polygon).length).toBe(0);
   });
+  it("can place the band on all four sides across seeds", () => {
+    const sides = new Set<string>();
+    for (let s = 0; s < 40; s++) {
+      const poly = buildWater(mulberry32(s), { w: 300, h: 300 }).polygon;
+      const xs = poly.map((p) => p[0]);
+      const ys = poly.map((p) => p[1]);
+      const minX = Math.min(...xs), maxX = Math.max(...xs);
+      const minY = Math.min(...ys), maxY = Math.max(...ys);
+      if (maxX >= 300 && minX > 150) sides.add("right");
+      else if (minX <= 0 && maxX < 150) sides.add("left");
+      else if (maxY >= 300 && minY > 150) sides.add("bottom");
+      else if (minY <= 0 && maxY < 150) sides.add("top");
+    }
+    expect(sides.size).toBe(4);
+  });
 });
