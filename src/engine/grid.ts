@@ -35,10 +35,11 @@ export function generateGrid(
     for (let i = 0; i < count; i++) {
       const poly = voronoi.cellPolygon(i);
       if (!poly) continue;
+      const n = poly.length - 1;
       let cx = 0, cy = 0;
-      for (const [x, y] of poly) { cx += x; cy += y; }
-      pts[i * 2] = cx / poly.length;
-      pts[i * 2 + 1] = cy / poly.length;
+      for (let k = 0; k < n; k++) { cx += poly[k][0]; cy += poly[k][1]; }
+      pts[i * 2] = cx / n;
+      pts[i * 2 + 1] = cy / n;
     }
     delaunay = buildDelaunay(pts, count);
     voronoi = delaunay.voronoi([0, 0, width, height]);
