@@ -19,6 +19,13 @@ const PALETTE = [
   "#d4e6b8", "#e6d0b8", "#c2b8e6", "#b8e6dd", "#e6c2b8",
 ];
 
+/**
+ * Seed up to `count` polities on random land cells, then multi-source BFS so
+ * each connected land cell is claimed by exactly one polity.
+ * Contract: `polityOf[i]` is -1 for ocean or unclaimed cells. On sparse maps
+ * with little land, fewer than `count` polities may be seeded (best-effort);
+ * callers must treat `seeds.length` as authoritative, not `count`.
+ */
 export function assignPolities(
   rng: Rng,
   grid: Grid,

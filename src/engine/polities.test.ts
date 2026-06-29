@@ -41,4 +41,15 @@ describe("polities", () => {
     expect(Array.from(a.polityOf)).toEqual(Array.from(b.polityOf));
     for (const s of a.seeds) expect(terrain[s.capital]).not.toBe(OCEAN);
   });
+  it("seeds at most one polity per land cell and never throws when count exceeds land", () => {
+    const grid = ringGrid(3);
+    const terrain = new Uint8Array(3).fill(LAND);
+    const { polityOf, seeds } = assignPolities(mulberry32(4), grid, terrain, 10);
+    expect(seeds.length).toBeLessThanOrEqual(3);
+    expect(seeds.length).toBeGreaterThan(0);
+    for (let i = 0; i < 3; i++) {
+      expect(polityOf[i]).toBeGreaterThanOrEqual(0);
+      expect(polityOf[i]).toBeLessThan(seeds.length);
+    }
+  });
 });
