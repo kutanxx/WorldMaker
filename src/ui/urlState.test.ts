@@ -4,7 +4,7 @@ import { encodeParams, decodeParams } from "./urlState";
 
 describe("urlState", () => {
   it("round-trips params", () => {
-    const p = { ...DEFAULT_PARAMS, seed: 1234, polityCount: 5 };
+    const p = { seed: 1234, width: 800, height: 600, cellCount: 1500, seaLevel: 0.35, mountainLevel: 0.82, polityCount: 5, townCount: 12 };
     expect(decodeParams(encodeParams(p))).toEqual(p);
   });
   it("falls back to defaults on garbage", () => {

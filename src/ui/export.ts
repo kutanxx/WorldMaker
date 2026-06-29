@@ -13,7 +13,9 @@ export function downloadBlob(name: string, blob: Blob): void {
   const a = document.createElement("a");
   a.href = url;
   a.download = name;
+  document.body.appendChild(a);
   a.click();
+  document.body.removeChild(a);
   URL.revokeObjectURL(url);
 }
 
@@ -35,7 +37,10 @@ export function svgToPngBlob(svg: SVGSVGElement, width: number, height: number):
       URL.revokeObjectURL(url);
       canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("toBlob failed"))), "image/png");
     };
-    img.onerror = () => reject(new Error("svg image load failed"));
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("svg image load failed"));
+    };
     img.src = url;
   });
 }
