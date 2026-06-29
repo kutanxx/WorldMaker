@@ -1,6 +1,11 @@
 <!doctype html>
 <html lang="ko">
-  <head><meta charset="utf-8" /><title>WorldMaker</title></head>
+  <head><meta charset="utf-8" /><title>WorldMaker</title><style>
+  body { margin: 0; font-family: system-ui, sans-serif; }
+  .controls { display: flex; gap: 8px; padding: 8px; align-items: center; }
+  .stage svg { display: block; width: 100%; height: auto; }
+  button, input { padding: 4px 8px; }
+</style></head>
   <body>
     <div id="app"></div>
     <script type="module" src="/src/main.ts"></script>
