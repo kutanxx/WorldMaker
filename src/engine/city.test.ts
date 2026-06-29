@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { generateCityLayout, cityContext } from "./city";
-import { pointInPolygon } from "./geometry";
+import { pointInPolygon, centroid } from "./geometry";
 import type { CityMarker } from "../types/world";
 
 const base: CityMarker = {
@@ -47,14 +47,8 @@ describe("city v2", () => {
     const layout = generateCityLayout(cityContext({ ...base, coastal: true }), 8);
     for (const w of layout.wards) {
       for (const b of w.buildings) {
-        expect(pointInPolygon(centroidOf(b), layout.water!.polygon)).toBe(false);
+        expect(pointInPolygon(centroid(b), layout.water!.polygon)).toBe(false);
       }
     }
   });
 });
-
-function centroidOf(poly: [number, number][]): [number, number] {
-  let x = 0, y = 0;
-  for (const [px, py] of poly) { x += px; y += py; }
-  return [x / poly.length, y / poly.length];
-}

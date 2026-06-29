@@ -92,13 +92,7 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
     if (!NO_BUILDINGS.includes(z.type)) {
       buildings = subdivide(rng, z.polygon, { minArea: buildingMinArea(z.type), margin: 1.5 });
       if (water) {
-        buildings = buildings.filter((b) => {
-          // Drop building if area-weighted centroid is inside water
-          if (pointInPolygon(centroid(b), water.polygon)) return false;
-          // Also drop if any vertex is inside water (stricter boundary filter)
-          if (b.some((v) => pointInPolygon(v, water.polygon))) return false;
-          return true;
-        });
+        buildings = buildings.filter((b) => !pointInPolygon(centroid(b), water.polygon));
       }
     }
     return { polygon: z.polygon, type: z.type, buildings, inner: z.inner };
