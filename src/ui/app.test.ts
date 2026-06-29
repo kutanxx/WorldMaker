@@ -33,4 +33,10 @@ describe("createApp", () => {
     circle.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     expect(root.querySelector("svg.city")).not.toBeNull();
   });
+  it("exposes an SVG export button", () => {
+    const root = document.createElement("div");
+    createApp(root, small);
+    const labels = Array.from(root.querySelectorAll(".controls button")).map((b) => b.textContent);
+    expect(labels).toContain("Export SVG");
+  });
 });

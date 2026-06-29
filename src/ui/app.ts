@@ -5,7 +5,7 @@ import { renderWorld } from "./svgWorldRenderer";
 import { renderCity } from "./svgCityRenderer";
 import { generateCityLayout, cityContext } from "../engine/city";
 import { encodeParams } from "./urlState";
-import { worldToJSON, svgToPngBlob, downloadBlob } from "./export";
+import { worldToJSON, svgToString, svgToPngBlob, downloadBlob } from "./export";
 
 export interface App {
   regenerate(p: WorldParams): void;
@@ -34,7 +34,9 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
   jsonBtn.textContent = "Export JSON";
   const pngBtn = document.createElement("button");
   pngBtn.textContent = "Export PNG";
-  controls.append(seedInput, regenBtn, jsonBtn, pngBtn);
+  const svgBtn = document.createElement("button");
+  svgBtn.textContent = "Export SVG";
+  controls.append(seedInput, regenBtn, jsonBtn, pngBtn, svgBtn);
 
   function showWorld(): void {
     stage.innerHTML = "";
@@ -78,6 +80,10 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     } catch (e) {
       console.error("PNG export failed", e);
     }
+  });
+  svgBtn.addEventListener("click", () => {
+    const svg = renderWorld(generated.world);
+    downloadBlob("world.svg", new Blob([svgToString(svg)], { type: "image/svg+xml" }));
   });
 
   showWorld();
