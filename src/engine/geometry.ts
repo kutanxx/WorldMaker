@@ -18,6 +18,7 @@ export function area(p: Polygon): number {
 }
 
 export function centroid(p: Polygon): Point {
+  if (p.length === 0) return [0, 0];
   const a = signedArea(p);
   if (Math.abs(a) < 1e-9) {
     let sx = 0, sy = 0;
@@ -35,7 +36,7 @@ export function centroid(p: Polygon): Point {
   return [cx / (6 * a), cy / (6 * a)];
 }
 
-export function bbox(p: Polygon) {
+export function bbox(p: Polygon): { minX: number; minY: number; maxX: number; maxY: number } {
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
   for (const [x, y] of p) {
     if (x < minX) minX = x;

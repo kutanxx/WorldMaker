@@ -8,6 +8,7 @@ describe("geometry measures", () => {
   it("computes signed area (CCW positive) and absolute area", () => {
     expect(signedArea(square)).toBeCloseTo(100, 6);
     expect(area([[0, 0], [0, 10], [10, 10], [10, 0]])).toBeCloseTo(100, 6);
+    expect(signedArea([[0, 0], [0, 10], [10, 10], [10, 0]])).toBeCloseTo(-100, 6);
   });
   it("computes centroid of a square", () => {
     const c = centroid(square);
