@@ -16,6 +16,7 @@ describe("createApp", () => {
     const app = createApp(root, small);
     app.openCity(0);
     expect(root.querySelector("svg.city")).not.toBeNull();
+    expect(root.querySelector("svg.world")).toBeNull();
   });
   it("returns to the world view", () => {
     const root = document.createElement("div");

@@ -41,8 +41,8 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     const svg = renderWorld(generated.world);
     svg.addEventListener("click", (e) => {
       const target = e.target as Element;
-      const id = target.getAttribute?.("data-city");
-      if (id !== null && id !== undefined) openCity(Number(id));
+      const id = target.getAttribute("data-city");
+      if (id !== null && id !== "") openCity(Number(id));
     });
     stage.appendChild(svg);
     location.hash = encodeParams(params).slice(1);
@@ -61,6 +61,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
 
   function regenerate(p: WorldParams): void {
     params = { ...p };
+    seedInput.value = String(params.seed);
     generated = generateWorld(params);
     showWorld();
   }
@@ -70,9 +71,13 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     downloadBlob("world.json", new Blob([worldToJSON(generated.world)], { type: "application/json" }))
   );
   pngBtn.addEventListener("click", async () => {
-    const svg = renderWorld(generated.world);
-    const blob = await svgToPngBlob(svg, params.width, params.height);
-    downloadBlob("world.png", blob);
+    try {
+      const svg = renderWorld(generated.world);
+      const blob = await svgToPngBlob(svg, params.width, params.height);
+      downloadBlob("world.png", blob);
+    } catch (e) {
+      console.error("PNG export failed", e);
+    }
   });
 
   showWorld();
