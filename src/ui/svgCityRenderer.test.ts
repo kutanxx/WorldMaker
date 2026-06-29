@@ -6,21 +6,21 @@ import type { CityMarker } from "../types/world";
 
 const marker: CityMarker = {
   id: 1, cell: 0, x: 0, y: 0, name: "Testburg",
-  polityId: 0, isCapital: true, size: 4, coastal: true,
+  polityId: 0, isCapital: true, size: 5, coastal: true,
 };
 
-describe("renderCity", () => {
-  it("draws wall, river, and districts", () => {
+describe("renderCity v2", () => {
+  it("draws a closed wall, many buildings, water, and a legend", () => {
     const layout = generateCityLayout(cityContext(marker), 7);
     const svg = renderCity(layout);
     expect(svg.querySelectorAll(".wall").length).toBe(1);
-    expect(svg.querySelectorAll(".river").length).toBe(1);
-    expect(svg.querySelectorAll(".district").length).toBe(layout.districts.length);
+    expect(svg.querySelectorAll(".building").length).toBeGreaterThan(20);
+    expect(svg.querySelectorAll(".water").length).toBe(1);
+    expect(svg.querySelectorAll(".legend-item").length).toBeGreaterThan(2);
   });
-
-  it("omits the river for a non-coastal city", () => {
-    const layout = generateCityLayout(cityContext({ ...marker, coastal: false }), 7);
+  it("renders ward groups for every ward", () => {
+    const layout = generateCityLayout(cityContext(marker), 7);
     const svg = renderCity(layout);
-    expect(svg.querySelectorAll(".river").length).toBe(0);
+    expect(svg.querySelectorAll(".ward").length).toBe(layout.wards.length);
   });
 });
