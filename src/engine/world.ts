@@ -40,12 +40,16 @@ export function generateWorld(params: WorldParams): GeneratedWorld {
     });
   }
 
+  // polityOf[i] is both the polity id and its index into polities[] (seeds are id-ordered)
   const claimedLand: number[] = [];
   for (let i = 0; i < grid.count; i++) {
     if (polityOf[i] >= 0 && i !== polities[polityOf[i]].capital) claimedLand.push(i);
   }
   for (let t = 0; t < params.townCount && claimedLand.length > 0; t++) {
-    const cell = claimedLand[randInt(rng, 0, claimedLand.length - 1)];
+    const idx = randInt(rng, 0, claimedLand.length - 1);
+    const cell = claimedLand[idx];
+    claimedLand[idx] = claimedLand[claimedLand.length - 1];
+    claimedLand.pop();
     cities.push({
       id: cityId++,
       cell,

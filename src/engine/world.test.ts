@@ -30,4 +30,9 @@ describe("world", () => {
     const c = world.cities[0];
     expect(find(c.x, c.y)).toBe(c.cell);
   });
+  it("never places two cities on the same cell", () => {
+    const { world } = generateWorld(small);
+    const cells = world.cities.map((c) => c.cell);
+    expect(new Set(cells).size).toBe(cells.length);
+  });
 });
