@@ -17,4 +17,10 @@ describe("renderCity", () => {
     expect(svg.querySelectorAll(".river").length).toBe(1);
     expect(svg.querySelectorAll(".district").length).toBe(layout.districts.length);
   });
+
+  it("omits the river for a non-coastal city", () => {
+    const layout = generateCityLayout(cityContext({ ...marker, coastal: false }), 7);
+    const svg = renderCity(layout);
+    expect(svg.querySelectorAll(".river").length).toBe(0);
+  });
 });

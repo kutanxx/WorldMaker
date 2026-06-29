@@ -34,7 +34,7 @@ export function renderCity(layout: CityLayout): SVGSVGElement {
       svgEl("rect", {
         class: "district",
         x: d.x.toFixed(1), y: d.y.toFixed(1), width: d.w.toFixed(1), height: d.h.toFixed(1),
-        fill: FILL[d.kind], stroke: "#6b4f2a", "stroke-width": 0.8,
+        fill: FILL[d.kind] ?? "#cdbb96", stroke: "#6b4f2a", "stroke-width": 0.8,
       })
     );
   }
