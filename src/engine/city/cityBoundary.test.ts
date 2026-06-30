@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { mulberry32 } from "../rng";
-import { bbox, pointInPolygon } from "../geometry";
+import { pointInPolygon } from "../geometry";
 import type { Point } from "../geometry";
 import { buildWater } from "./water";
 import { makeBoundary } from "./cityBoundary";
@@ -25,11 +25,17 @@ describe("cityBoundary", () => {
       for (const body of water.bodies) expect(pointInPolygon(p, body)).toBe(false);
     }
   });
-  it("elongates a linear archetype along one axis", () => {
-    const b = makeBoundary(mulberry32(3), arch({ id: "ridgeLinear", streetField: "linear" }), 4, C, buildWater(mulberry32(3), "none", { w: 300, h: 300 }));
-    const bb = bbox(b);
-    const ratio = (bb.maxX - bb.minX) / (bb.maxY - bb.minY);
-    expect(ratio < 0.8 || ratio > 1.2).toBe(true);
+  it("elongates a linear archetype more than a compact one (axis-independent)", () => {
+    const w = buildWater(mulberry32(3), "none", { w: 300, h: 300 });
+    const polarSpread = (a: Archetype) => {
+      const b = makeBoundary(mulberry32(3), a, 4, C, w);
+      const rs = b.map((p) => Math.hypot(p[0] - 150, p[1] - 150));
+      return Math.max(...rs) / Math.min(...rs);
+    };
+    const linear = polarSpread(arch({ id: "ridgeLinear", streetField: "linear" }));
+    const compact = polarSpread(arch({ id: "hilltopFortress", streetField: "radial", wallShape: "contour" }));
+    expect(linear).toBeGreaterThan(compact * 1.1);
+    expect(linear).toBeGreaterThan(1.4);
   });
   it("is deterministic", () => {
     const w = buildWater(mulberry32(5), "none", { w: 300, h: 300 });
