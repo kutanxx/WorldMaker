@@ -26,11 +26,13 @@
 
 두 별도 노이즈를 시드 파생으로 생성: `tNoise = createNoise2D(mulberry32(deriveSeed(seed, 7001)))`, `mNoise = createNoise2D(mulberry32(deriveSeed(seed, 7002)))`. 샘플 주파수 `F = 0.006`.
 
+**기온은 육지의 실제 y 범위로 정규화한다**(중요): 하이트맵이 섬형이라 대륙이 지도 중앙에 몰려 `y/height`로는 거의 다 온대가 된다. 먼저 육지(terrain≠OCEAN) 셀의 `landMinY, landMaxY`를 한 번 구하고, `latNorm = (y − landMinY) / max(1, landMaxY − landMinY)`로 0(북/추움)~1(남/더움)을 대륙 전체에 펼친다.
+
 셀 i(중심 x,y, 높이 h)에 대해:
-- **기온** `temp = clamp01( y/height + tNoise(x*F, y*F)*0.12 − max(0, h − seaLevel)*0.8 )` — 위(y=0)=추움, 아래=더움; 고도 높을수록 추움; 노이즈로 띠가 물결침.
+- **기온** `temp = clamp01( latNorm + tNoise(x*F, y*F)*0.12 − max(0, h − seaLevel)*0.8 )` — 위=추움, 아래=더움; 고도 높을수록 추움; 노이즈로 띠가 물결침. (고도 보정은 보조 — 산 셀은 어차피 ALPINE으로 분기.)
 - **습도** `moist = clamp01( (mNoise(x*F, y*F)*0.5 + 0.5) + (coastal ? 0.12 : 0) )` — coastal = 해양 이웃 보유.
 
-`clamp01(v)=max(0,min(1,v))`.
+`clamp01(v)=max(0,min(1,v))`. `latNorm`·노이즈·`params`만 쓰고 메인 `rng`는 건드리지 않는다.
 
 ## 4. 바이오미 분류
 
@@ -68,11 +70,13 @@
 |---|---|
 | `engine/biome.ts` ⭐신규 | 바이오미 상수 + `BIOME_COLORS` + `classifyBiomes(grid, heights, terrain, params): Uint8Array` (별도 시드 노이즈) |
 | `engine/borders.ts` ⭐신규 | `sharedEdge(polyA, polyB): [Point,Point] \| null` 헬퍼; `politicalBorders(grid, polityOf): Segment[]`(인접·폴리티 상이 육지 변); `coastline(grid, terrain): Segment[]`(육지-바다 변) |
-| `types/world.ts` | `World.biome: number[]` 추가, `CityMarker.biome: number` 추가 |
+| `types/world.ts` | `World.biome: number[]` 추가, `CityMarker.biome: number` 추가 (필수 필드) |
 | `engine/world.ts` | terrain 직후 `classifyBiomes` 호출(메인 rng 불변), world·cities에 biome 주입 |
-| `ui/svgWorldRenderer.ts` | 셀을 바이오미별 그룹 path로 채움; 해안선·국경선 선; 산 오버레이 제거(알파인 색이 대신); 바이오미 범례 추가 |
+| `ui/svgWorldRenderer.ts` | OCEAN 외 셀을 바이오미별 그룹 path로 채움(바다는 배경 rect); 해안선·국경선 선; 산 오버레이 제거(알파인 색이 대신); 그 지도에 존재하는 바이오미만 범례에 표시 |
 
 `Segment = [Point, Point]`, `Point = [number, number]`. 재사용: grid(polygons·neighbors), terrain 상수.
+
+**필수 필드 추가 리플(계획이 반드시 처리):** `CityMarker.biome`/`World.biome`를 필수로 추가하면 이들을 직접 생성하는 모든 리터럴이 tsc(`noUnusedLocals`/타입)에서 깨진다 — 최소 `src/engine/city.test.ts`(`base: CityMarker`), `src/engine/world.test.ts`, `src/ui/svgWorldRenderer.test.ts`, `src/ui/app.test.ts`, `src/ui/export.test.ts`, `src/ui/svgCityRenderer.test.ts`의 World/CityMarker 리터럴에 `biome` 추가 필요. 산 오버레이 제거 시 `.mountains` 그룹을 단언하던 렌더 테스트도 갱신. `export.ts`는 World를 직렬화하므로 JSON에 biome 배열만큼 커진다(허용).
 
 ## 7. 데이터 흐름
 
@@ -83,18 +87,18 @@
 `sharedEdge(a,b)`: 두 셀 폴리곤에서 좌표가 ε(=0.01) 이내로 일치하는 정점 2개를 찾아 그 선분 반환; 2개 미만(모서리만 접함/클립됨)이면 null.
 `politicalBorders`: 각 셀 i(폴리티≥0), 이웃 j(중복 방지 `j>i`)에서 `polityOf[j]≥0 && polityOf[j]≠polityOf[i]`면 `sharedEdge`로 선분 수집.
 `coastline`: 각 육지 셀 i, 이웃 j가 OCEAN이면 `sharedEdge` 선분 수집.
-성능: 4000셀 × ~6이웃 × 정점 — 충분히 빠름.
+성능: 4000셀 × ~6이웃 × 정점 — 충분히 빠름. **렌더는 선분 수백~수천이 될 수 있으므로 카테고리별로 한 `<path>`(`M x,y L x,y` 연결)로 그려 DOM 요소 수를 줄인다**(`<line>` N개 금지).
 
 ## 9. 테스트
 
-- 바이오미: 추운 위쪽(작은 y)→TUNDRA/TAIGA, 더운 아래쪽→DESERT/TROPICAL(습도별); 늪지 오버라이드(저지대+고습); 산→ALPINE; 바다→OCEAN; 결정성(같은 시드 동일 배열).
-- **기존 시드 불변 회귀:** 바이오미 추가 전후 `polityOf`/`cities` 동일(메인 rng 불변 증명) — 별도 시드 사용 검증.
+- 바이오미 결정적 분기(노이즈 무관)는 정확히 단언: 바다→OCEAN, 산(terrain MOUNTAIN)→ALPINE. 기후 띠는 노이즈(±0.12)로 경계가 흔들리므로 **통계적 속성**으로 검증: 생성된 월드에서 한대 바이오미(TUNDRA·TAIGA) 셀들의 **평균 셀 중심 y** < 열대 바이오미(DESERT·TROPICAL)의 평균 y(latNorm은 y에 단조 비례하므로 y로 직접 검증; 고도 보정이 가끔 남쪽 고지대를 한대로 만들 수 있어 **여러 시드 평균**으로 견고하게). 늪지 오버라이드·결정성(같은 시드 동일 배열)은 별도 단언.
+- **기존 시드 불변 회귀(골든 스냅샷):** 변경 전 main에서 seed=1의 `polityOf` 합/해시와 도시 `cell` 목록을 캡처해 고정값으로 둔다(계획 첫 태스크가 캡처). 변경 후 `generateWorld({seed:1,...})`의 `polityOf`·도시 `cell`이 그 고정값과 동일해야 함 → 바이오미 분류가 메인 rng를 안 건드림을 입증. (도시 객체에 `biome` 필드가 추가되므로 "도시 객체 전체 동일"이 아니라 `cell`만 비교.)
 - borders: 같은 폴리티 변 제외, 폴리티 다른 변만; coastline은 육지-바다만; `sharedEdge` 정점 2개 매칭.
 - 렌더 jsdom 스모크: 바이오미 그룹 path 존재(여러 색), 국경선·해안선 선 존재, 범례 존재.
 
 ## 10. 위험
 
-기후 임계값·팔레트 튜닝(스크린샷 막힘 → DOM 검증 + localhost 육안), `sharedEdge` 정점 매칭의 부동소수 견고성, 색 10개의 가독성/조화가 까다롭다. 늪지/알파인이 드물게만 나올 수 있어(저지대+고습, 산) 분포 확인 필요.
+기후 임계값·팔레트 튜닝(스크린샷 막힘 → DOM 검증 + localhost 육안), `sharedEdge` 정점 매칭의 부동소수 견고성, 색 10개(특히 4가지 녹색: 타이가·온대림·열대림·늪지)의 가독성/조화가 까다롭다. 늪지/알파인이 드물게만 나올 수 있어(저지대+고습, 산) 분포 확인 필요. 산이 평평한 알파인 색이 되어 입체감을 잃음 — **산 글리프/해칭은 후속 범위**(이번엔 색까지).
 
 ## 11. 다음 단계(범위 밖)
 
