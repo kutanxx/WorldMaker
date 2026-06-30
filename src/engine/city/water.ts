@@ -61,7 +61,7 @@ export function buildWater(rng: Rng, kind: WaterKind, bounds: { w: number; h: nu
   const base = vertical ? w * (0.4 + rng() * 0.2) : h * (0.4 + rng() * 0.2);
   for (let i = 0; i <= steps; i++) {
     const t = i / steps;
-    const off = Math.sin(t * Math.PI * (kind === "meander" ? 3 : 2) + rng() * 0.0) * amp;
+    const off = Math.sin(t * Math.PI * (kind === "meander" ? 3 : 2)) * amp * (0.75 + rng() * 0.5);
     if (vertical) center.push([base + off, t * h]);
     else center.push([t * w, base + off]);
   }
