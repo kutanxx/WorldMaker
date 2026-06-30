@@ -1,7 +1,17 @@
 import { describe, it, expect } from "vitest";
 import { area, pointInPolygon } from "../geometry";
+import type { Polygon } from "../geometry";
 import type { ZonedWard } from "./zoning";
-import { buildWall, buildMoat } from "./walls";
+import { buildWall, buildMoat, wallFromDefenses } from "./walls";
+import type { Water } from "./water";
+
+const ring: Polygon = [];
+for (let i = 0; i < 16; i++) {
+  const a = (i / 16) * Math.PI * 2;
+  ring.push([150 + Math.cos(a) * 60, 150 + Math.sin(a) * 60]);
+}
+const noWater: Water = { kind: "none", bodies: [], bridges: [] };
+const rightSea: Water = { kind: "sea", bodies: [[[185, 0], [300, 0], [300, 300], [185, 300]]], bridges: [] };
 
 function innerWards(): ZonedWard[] {
   const pts: [number, number][] = [[120, 120], [180, 120], [180, 180], [120, 180], [150, 150]];
@@ -37,18 +47,6 @@ describe("walls", () => {
     expect(buildWall(innerWards(), 0).gates.length).toBeGreaterThanOrEqual(1);
   });
 });
-
-import { wallFromDefenses } from "./walls";
-import type { Polygon } from "../geometry";
-import type { Water } from "./water";
-
-const ring: Polygon = [];
-for (let i = 0; i < 16; i++) {
-  const a = (i / 16) * Math.PI * 2;
-  ring.push([150 + Math.cos(a) * 60, 150 + Math.sin(a) * 60]);
-}
-const noWater: Water = { kind: "none", bodies: [], bridges: [] };
-const rightSea: Water = { kind: "sea", bodies: [[[185, 0], [300, 0], [300, 300], [185, 300]]], bridges: [] };
 
 describe("wallFromDefenses", () => {
   it("a landlocked city walls the whole boundary (one closed ring, no sea gates)", () => {

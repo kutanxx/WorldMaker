@@ -1,6 +1,8 @@
-import type { Point, Polygon } from "../geometry";
-import { convexHull, insetPolygon } from "../geometry";
+import type { Point, Polygon, Polyline } from "../geometry";
+import { convexHull, insetPolygon, centroid } from "../geometry";
 import type { ZonedWard } from "./zoning";
+import type { Water } from "./water";
+import { inWater } from "./water";
 
 export interface Wall {
   ring: Polygon;
@@ -29,11 +31,6 @@ export function buildWall(innerWards: ZonedWard[], gateCount: number): Wall {
 export function buildMoat(ring: Polygon, d: number): Polygon {
   return insetPolygon(ring, -d);
 }
-
-import type { Polyline } from "../geometry";
-import { centroid } from "../geometry";
-import type { Water } from "./water";
-import { inWater } from "./water";
 
 export interface DefenseWall {
   segments: Polyline[];
