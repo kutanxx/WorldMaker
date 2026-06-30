@@ -3,6 +3,24 @@ import { DEFAULT_PARAMS } from "../types/world";
 import { generateWorld } from "./world";
 import { OCEAN } from "./terrain";
 
+describe("biome integration", () => {
+  it("does not shift existing seeds (biome uses a separate rng stream)", () => {
+    const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });
+    let h = 2166136261 >>> 0;
+    for (const p of world.polityOf) { h ^= (p + 1); h = Math.imul(h, 16777619) >>> 0; }
+    let ch = 2166136261 >>> 0;
+    for (const c of world.cities) { ch ^= c.cell; ch = Math.imul(ch, 16777619) >>> 0; }
+    expect(h >>> 0).toBe(1350115163);
+    expect(ch >>> 0).toBe(4294534188);
+    expect(world.cities.length).toBe(28);
+  });
+  it("exposes a biome per cell and per city", () => {
+    const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });
+    expect(world.biome.length).toBe(world.grid.count);
+    for (const c of world.cities) expect(world.biome[c.cell]).toBe(c.biome);
+  });
+});
+
 const small = { ...DEFAULT_PARAMS, width: 300, height: 300, cellCount: 600, townCount: 8 };
 
 describe("world", () => {

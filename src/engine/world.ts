@@ -3,6 +3,7 @@ import { mulberry32, randInt } from "./rng";
 import { generateGrid } from "./grid";
 import { assignHeights } from "./heightmap";
 import { classifyTerrain, OCEAN } from "./terrain";
+import { classifyBiomes } from "./biome";
 import { makeNameGen } from "./names";
 import { assignPolities } from "./polities";
 
@@ -11,6 +12,7 @@ export function generateWorld(params: WorldParams): GeneratedWorld {
   const grid = generateGrid(rng, params.width, params.height, params.cellCount);
   const heights = assignHeights(rng, grid);
   const terrain = classifyTerrain(heights, params.seaLevel, params.mountainLevel);
+  const biome = classifyBiomes(grid, heights, terrain, params);
   const { polityOf, seeds } = assignPolities(rng, grid, terrain, params.polityCount);
   const names = makeNameGen(rng);
 
@@ -38,6 +40,7 @@ export function generateWorld(params: WorldParams): GeneratedWorld {
       size: randInt(rng, 3, 6),
       coastal: isCoastal(p.capital),
       elevation: heights[p.capital],
+      biome: biome[p.capital],
     });
   }
 
@@ -62,6 +65,7 @@ export function generateWorld(params: WorldParams): GeneratedWorld {
       size: randInt(rng, 1, 3),
       coastal: isCoastal(cell),
       elevation: heights[cell],
+      biome: biome[cell],
     });
   }
 
@@ -77,6 +81,7 @@ export function generateWorld(params: WorldParams): GeneratedWorld {
     },
     heights: Array.from(heights),
     terrain: Array.from(terrain),
+    biome: Array.from(biome),
     polityOf: Array.from(polityOf),
     polities,
     cities,
