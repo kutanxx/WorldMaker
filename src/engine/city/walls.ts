@@ -10,7 +10,44 @@ export interface DefenseWall {
   seaGates: Point[];
 }
 
-export function wallFromDefenses(boundary: Polygon, water: Water, gateCount: number): DefenseWall {
+// nearest point on a polyline to p, with its squared distance
+function nearestOnPolyline(p: Point, line: Polyline): { pt: Point; d2: number } {
+  let best: Point = line[0], bd2 = Infinity;
+  for (let i = 0; i + 1 < line.length; i++) {
+    const a = line[i], b = line[i + 1];
+    const dx = b[0] - a[0], dy = b[1] - a[1];
+    const l2 = dx * dx + dy * dy || 1;
+    let t = ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / l2;
+    t = Math.max(0, Math.min(1, t));
+    const q: Point = [a[0] + dx * t, a[1] + dy * t];
+    const d2 = (p[0] - q[0]) ** 2 + (p[1] - q[1]) ** 2;
+    if (d2 < bd2) { bd2 = d2; best = q; }
+  }
+  return { pt: best, d2: bd2 };
+}
+
+// gates sit where a main road reaches the wall: snap each road endpoint onto the
+// nearest wall segment when it is close enough, merging gates that nearly coincide.
+function placeGates(segments: Polyline[], roads: Polyline[]): Point[] {
+  const NEAR = 15, MERGE2 = 12 * 12;
+  const gates: Point[] = [];
+  for (const r of roads) {
+    if (r.length < 2) continue;
+    for (const end of [r[0], r[r.length - 1]]) {
+      let best: Point | null = null, bd2 = NEAR * NEAR;
+      for (const s of segments) {
+        const { pt, d2 } = nearestOnPolyline(end, s);
+        if (d2 < bd2) { bd2 = d2; best = pt; }
+      }
+      if (best && !gates.some((g) => (g[0] - best![0]) ** 2 + (g[1] - best![1]) ** 2 < MERGE2)) {
+        gates.push(best);
+      }
+    }
+  }
+  return gates;
+}
+
+export function wallFromDefenses(boundary: Polygon, water: Water, mainRoads: Polyline[]): DefenseWall {
   const n = boundary.length;
   const c = centroid(boundary);
   const isWall: boolean[] = [];
@@ -46,12 +83,6 @@ export function wallFromDefenses(boundary: Polygon, water: Water, gateCount: num
   }
   const towers: Point[] = [];
   for (const s of segments) for (const p of s) towers.push(p);
-  const gates: Point[] = [];
-  const flat: Point[] = segments.flat();
-  const want = Math.max(1, Math.min(gateCount, Math.max(1, flat.length - 1)));
-  for (let g = 0; g < want; g++) {
-    const idx = Math.floor(((g + 0.5) / want) * flat.length) % flat.length;
-    gates.push(flat[idx]);
-  }
+  const gates = placeGates(segments, mainRoads);
   return { segments, towers, gates, seaGates };
 }
