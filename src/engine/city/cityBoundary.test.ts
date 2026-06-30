@@ -3,6 +3,7 @@ import { mulberry32 } from "../rng";
 import { pointInPolygon } from "../geometry";
 import type { Point } from "../geometry";
 import { buildWater } from "./water";
+import type { Water } from "./water";
 import { makeBoundary } from "./cityBoundary";
 import type { Archetype } from "./archetypes";
 
@@ -41,5 +42,11 @@ describe("cityBoundary", () => {
     const w = buildWater(mulberry32(5), "none", { w: 300, h: 300 });
     expect(JSON.stringify(makeBoundary(mulberry32(5), arch({}), 3, C, w)))
       .toBe(JSON.stringify(makeBoundary(mulberry32(5), arch({}), 3, C, w)));
+  });
+  it("does not collapse a vertex toward the centre when water covers the core", () => {
+    const lake: Water = { kind: "lake", bodies: [[[60, 60], [240, 60], [240, 240], [60, 240]]], bridges: [] };
+    const b = makeBoundary(mulberry32(3), arch({}), 4, C, lake);
+    const rs = b.map((p) => Math.hypot(p[0] - 150, p[1] - 150));
+    expect(Math.min(...rs)).toBeGreaterThan(25);
   });
 });
