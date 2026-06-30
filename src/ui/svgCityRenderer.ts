@@ -39,16 +39,22 @@ export function renderCity(layout: CityLayout): SVGSVGElement {
 
   if (layout.moat) root.appendChild(svgEl("polygon", { class: "moat", points: pts(layout.moat), fill: "none", stroke: "#bcd6e0", "stroke-width": 5, "stroke-opacity": 0.85 }));
 
+  // Cased roads like a real map: all casings under all fills so junctions
+  // read as connected. Main = muted gold, minor = cream white.
+  const road = (cls: string, r: Polyline, stroke: string, w: number) =>
+    svgEl("polyline", { class: cls, points: pts(r), fill: "none", stroke, "stroke-width": w, "stroke-linecap": "round", "stroke-linejoin": "round" });
+
+  const casings = svgEl("g", { class: "roads-casing" });
+  for (const r of layout.minorRoads) casings.appendChild(road("road-minor-casing", r, "#c4b594", 2.6));
+  for (const r of layout.mainRoads) casings.appendChild(road("road-main-casing", r, "#a07c3e", 4.6));
+  root.appendChild(casings);
+
   const minorG = svgEl("g", { class: "roads-minor" });
-  for (const r of layout.minorRoads) {
-    minorG.appendChild(svgEl("polyline", { class: "road-minor", points: pts(r), fill: "none", stroke: "#c2b39a", "stroke-width": 1.4, "stroke-linecap": "round" }));
-  }
+  for (const r of layout.minorRoads) minorG.appendChild(road("road-minor", r, "#f8f3e6", 1.4));
   root.appendChild(minorG);
 
   const mainG = svgEl("g", { class: "roads-main" });
-  for (const r of layout.mainRoads) {
-    mainG.appendChild(svgEl("polyline", { class: "road-main", points: pts(r), fill: "none", stroke: "#7a6a52", "stroke-width": 3, "stroke-linecap": "round", "stroke-linejoin": "round" }));
-  }
+  for (const r of layout.mainRoads) mainG.appendChild(road("road-main", r, "#d8b65e", 3));
   root.appendChild(mainG);
 
   const buildG = svgEl("g", { class: "buildings" });
