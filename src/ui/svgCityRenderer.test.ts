@@ -17,6 +17,7 @@ describe("renderCity organic", () => {
     expect(svg.querySelectorAll(".boundary").length).toBe(1);
     expect(svg.querySelectorAll(".wall-seg").length).toBe(layout.wall ? layout.wall.segments.length : 0);
     expect(svg.querySelectorAll(".road-main").length).toBe(layout.mainRoads.length);
+    expect(svg.querySelectorAll(".road-minor").length).toBe(layout.minorRoads.length);
     expect(svg.querySelectorAll(".building").length).toBeGreaterThan(0);
   });
 });

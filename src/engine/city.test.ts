@@ -26,6 +26,10 @@ describe("city organic", () => {
     const ctx = cityContext(base);
     expect(JSON.stringify(generateCityLayout(ctx, 9))).toBe(JSON.stringify(generateCityLayout(ctx, 9)));
   });
+  it("varies with the world seed", () => {
+    const ctx = cityContext(base);
+    expect(JSON.stringify(generateCityLayout(ctx, 1))).not.toBe(JSON.stringify(generateCityLayout(ctx, 2)));
+  });
   it("exposes an irregular boundary polygon (radius varies)", () => {
     const l = generateCityLayout(cityContext(base), 5);
     const rs = l.boundary.map((p) => Math.hypot(p[0] - 150, p[1] - 150));

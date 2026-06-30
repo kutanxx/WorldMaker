@@ -94,6 +94,7 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
   const boundary = makeBoundary(rng, archetype, ctx.size, center, water);
 
   const noiseAmp = archetype.streetField === "grid" || archetype.streetField === "linear" ? 0.2 : 0.26;
+  // determinism: fieldsFor() consumes rng (3 draws) BEFORE makeTensorField()'s noise draw — keep this call order.
   const field = makeTensorField(rng, fieldsFor(archetype, center, radius, rng), noiseAmp);
   const insideRegion = (p: Point) => pointInPolygon(p, boundary) && !inWater(water, p);
   const stop = (p: Vec) => !insideRegion(p);
