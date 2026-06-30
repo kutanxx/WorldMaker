@@ -73,6 +73,9 @@ const NO_BUILDINGS: WardType[] = ["plaza", "park", "field"];
 const DENSITY: Partial<Record<WardType, number>> = {
   slum: 70, craftsmen: 110, gate: 120, merchant: 150, market: 170, patriciate: 240, suburb: 200, military: 260,
 };
+// Lowland walled towns get a defensive water ditch; hilltop forts rely on
+// elevation, meander towns use the river itself, and ridge towns stay dry.
+const MOAT_ARCHETYPES = new Set(["coastalPort", "bridgeTown", "plainsMarket"]);
 
 export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLayout {
   const rng: Rng = mulberry32(deriveSeed(worldSeed, ctx.id));
@@ -112,7 +115,7 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
 
   const innerWards = zoned.filter((w) => w.inner);
   const wall = innerWards.length >= 3 ? buildWall(innerWards, 2 + (ctx.size >= 3 ? 1 : 0) + (ctx.isCapital ? 1 : 0)) : null;
-  const moat = wall ? buildMoat(wall.ring, 6) : null;
+  const moat = wall && MOAT_ARCHETYPES.has(archetype.id) ? buildMoat(wall.ring, 6) : null;
 
   const parks: Polygon[] = [];
   const wards: Ward[] = zoned.map((z) => {

@@ -37,7 +37,7 @@ export function renderCity(layout: CityLayout): SVGSVGElement {
   }
   root.appendChild(wardsG);
 
-  if (layout.moat) root.appendChild(svgEl("polygon", { class: "moat", points: pts(layout.moat), fill: "none", stroke: "#9fc1d6", "stroke-width": 3 }));
+  if (layout.moat) root.appendChild(svgEl("polygon", { class: "moat", points: pts(layout.moat), fill: "none", stroke: "#bcd6e0", "stroke-width": 5, "stroke-opacity": 0.85 }));
 
   const minorG = svgEl("g", { class: "roads-minor" });
   for (const r of layout.minorRoads) {
@@ -65,7 +65,8 @@ export function renderCity(layout: CityLayout): SVGSVGElement {
   }
 
   if (layout.wall) {
-    root.appendChild(svgEl("polygon", { class: "wall", points: pts(layout.wall.ring), fill: "none", stroke: "#6b5b45", "stroke-width": 2.5 }));
+    root.appendChild(svgEl("polygon", { class: "wall", points: pts(layout.wall.ring), fill: "none", stroke: "#43392d", "stroke-width": 4, "stroke-linejoin": "round" }));
+    root.appendChild(svgEl("polygon", { class: "wall-inner", points: pts(layout.wall.ring), fill: "none", stroke: "#8a7a60", "stroke-width": 1, "stroke-linejoin": "round" }));
     const tg = svgEl("g", { class: "towers" });
     for (const t of layout.wall.towers) tg.appendChild(svgEl("circle", { class: "tower", cx: t[0], cy: t[1], r: 2.6, fill: "#8a7858", stroke: "#5a4a36", "stroke-width": 0.8 }));
     root.appendChild(tg);
