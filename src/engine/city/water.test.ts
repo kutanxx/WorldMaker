@@ -45,4 +45,22 @@ describe("water", () => {
     expect(JSON.stringify(buildWater(mulberry32(7), "meander", B)))
       .toBe(JSON.stringify(buildWater(mulberry32(7), "meander", B)));
   });
+  it("sea has a wavy (non-straight) land-facing edge", () => {
+    // try several seeds; the land edge must deviate from a straight line
+    let wavy = false;
+    for (let s = 0; s < 8; s++) {
+      const w = buildWater(mulberry32(s), "sea", { w: 300, h: 300 });
+      const poly = w.bodies[0];
+      // land-facing edge = the vertices NOT on the canvas border (x in (0,300), y in (0,300))
+      const inner = poly.filter((p) => p[0] > 1 && p[0] < 299 && p[1] > 1 && p[1] < 299);
+      if (inner.length >= 3) {
+        const xs = inner.map((p) => p[0]), ys = inner.map((p) => p[1]);
+        const spreadX = Math.max(...xs) - Math.min(...xs);
+        const spreadY = Math.max(...ys) - Math.min(...ys);
+        // a straight side band has ~0 spread on the depth axis; waviness gives > 6
+        if (Math.min(spreadX, spreadY) > 6) wavy = true;
+      }
+    }
+    expect(wavy).toBe(true);
+  });
 });

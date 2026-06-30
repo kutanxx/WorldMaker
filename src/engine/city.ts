@@ -1,7 +1,7 @@
 import { mulberry32, deriveSeed } from "./rng";
 import type { Rng } from "./rng";
 import type { Point, Polygon, Polyline } from "./geometry";
-import { centroid } from "./geometry";
+import { centroid, pointInPolygon } from "./geometry";
 import { selectArchetype } from "./city/archetypes";
 import type { Archetype } from "./city/archetypes";
 import { makeTensorField } from "./city/tensorField";
@@ -9,12 +9,13 @@ import type { BasisField, Vec } from "./city/tensorField";
 import { generateStreets } from "./city/streets";
 import { buildWater, inWater, waterBridges } from "./city/water";
 import type { Water } from "./city/water";
+import { makeBoundary } from "./city/cityBoundary";
+import { wallFromDefenses } from "./city/walls";
+import type { DefenseWall } from "./city/walls";
 import { generateWards } from "./city/wards";
 import { assignZones } from "./city/zoning";
 import type { WardType } from "./city/zoning";
 import { subdivide } from "./city/buildings";
-import { buildWall, buildMoat } from "./city/walls";
-import type { Wall } from "./city/walls";
 import type { CityMarker } from "../types/world";
 
 export interface Ward {
@@ -31,9 +32,10 @@ export interface CityLayout {
   isCapital: boolean;
   archetype: Archetype;
   bounds: { w: number; h: number };
+  boundary: Polygon;
   water: Water;
-  wall: Wall | null;
-  moat: Polygon | null;
+  wall: DefenseWall | null;
+  moat: Polyline[] | null;
   mainRoads: Polyline[];
   minorRoads: Polyline[];
   wards: Ward[];
@@ -54,27 +56,31 @@ export function cityContext(c: CityMarker): CityContext {
   return { id: c.id, name: c.name, size: c.size, coastal: c.coastal, isCapital: c.isCapital, elevation: c.elevation };
 }
 
-function fieldsFor(arch: Archetype, center: Vec, rng: Rng): BasisField[] {
+function fieldsFor(arch: Archetype, center: Vec, radius: number, rng: Rng): BasisField[] {
   const fields: BasisField[] = [];
-  if (arch.streetField === "radial") {
-    fields.push({ kind: "radial", center, size: 260, decay: 1, theta: 0 });
-  } else if (arch.streetField === "grid") {
-    fields.push({ kind: "grid", center, size: 400, decay: 1, theta: rng() * Math.PI });
-  } else if (arch.streetField === "linear") {
-    fields.push({ kind: "grid", center, size: 400, decay: 1, theta: rng() < 0.5 ? 0 : Math.PI / 2 });
-  } else {
-    fields.push({ kind: "grid", center, size: 220, decay: 1, theta: rng() * Math.PI });
-    fields.push({ kind: "radial", center, size: 160, decay: 0.7, theta: 0 });
+  if (arch.streetField === "radial") fields.push({ kind: "radial", center, size: radius * 3, decay: 1, theta: 0 });
+  else fields.push({ kind: "grid", center, size: radius * 4, decay: 1, theta: rng() * Math.PI });
+  // offset secondary centres bend the field so streamlines genuinely curve
+  for (let i = 0; i < 2; i++) {
+    const a = rng() * Math.PI * 2;
+    const oc: Vec = [center[0] + Math.cos(a) * radius * 0.7, center[1] + Math.sin(a) * radius * 0.7];
+    fields.push({ kind: i === 0 ? "radial" : "grid", center: oc, size: radius * 1.4, decay: 0.6, theta: rng() * Math.PI });
   }
   return fields;
+}
+
+function offsetSegment(seg: Polyline, c: Point, d: number): Polyline {
+  return seg.map((p) => {
+    const dx = p[0] - c[0], dy = p[1] - c[1];
+    const len = Math.hypot(dx, dy) || 1;
+    return [p[0] + (dx / len) * d, p[1] + (dy / len) * d] as Point;
+  });
 }
 
 const NO_BUILDINGS: WardType[] = ["plaza", "park", "field"];
 const DENSITY: Partial<Record<WardType, number>> = {
   slum: 70, craftsmen: 110, gate: 120, merchant: 150, market: 170, patriciate: 240, suburb: 200, military: 260,
 };
-// Lowland walled towns get a defensive water ditch; hilltop forts rely on
-// elevation, meander towns use the river itself, and ridge towns stay dry.
 const MOAT_ARCHETYPES = new Set(["coastalPort", "bridgeTown", "plainsMarket"]);
 
 export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLayout {
@@ -85,12 +91,12 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
   const archetype = selectArchetype({ coastal: ctx.coastal, elevation: ctx.elevation, size: ctx.size }, rng);
 
   const water = buildWater(rng, archetype.water, bounds);
-  // Even planned medieval towns had winding streets, so grid/linear plans get a
-  // gentle organic wobble rather than rigid straight lines.
+  const boundary = makeBoundary(rng, archetype, ctx.size, center, water);
+
   const noiseAmp = archetype.streetField === "grid" || archetype.streetField === "linear" ? 0.2 : 0.26;
-  const field = makeTensorField(rng, fieldsFor(archetype, center, rng), noiseAmp);
-  const insideRegion = (p: Point) =>
-    Math.hypot(p[0] - center[0], p[1] - center[1]) <= radius && !inWater(water, p);
+  // determinism: fieldsFor() consumes rng (3 draws) BEFORE makeTensorField()'s noise draw — keep this call order.
+  const field = makeTensorField(rng, fieldsFor(archetype, center, radius, rng), noiseAmp);
+  const insideRegion = (p: Point) => pointInPolygon(p, boundary) && !inWater(water, p);
   const stop = (p: Vec) => !insideRegion(p);
 
   const seedCandidates: Vec[] = [center];
@@ -101,9 +107,12 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
   const drySeeds = seedCandidates.filter((p) => insideRegion(p));
   const seeds: Vec[] = drySeeds.length > 0 ? drySeeds : [center];
 
-  const mainRoads = generateStreets(field, { dsep: 34, dtest: 17, step: 3, maxLength: 220, bounds, useMinor: false }, stop, seeds);
-  const minorRoads = generateStreets(field, { dsep: 15, dtest: 7, step: 3, maxLength: 160, bounds, useMinor: true }, stop, seeds);
+  const mainRoads = generateStreets(field, { dsep: 34, dtest: 17, step: 3, maxLength: 240, bounds, useMinor: false }, stop, seeds);
+  const minorRoads = generateStreets(field, { dsep: 15, dtest: 7, step: 3, maxLength: 180, bounds, useMinor: true }, stop, seeds);
   water.bridges = waterBridges([...mainRoads, ...minorRoads], water);
+
+  const wall = wallFromDefenses(boundary, water, 2 + (ctx.size >= 3 ? 1 : 0) + (ctx.isCapital ? 1 : 0));
+  const moat = MOAT_ARCHETYPES.has(archetype.id) ? wall.segments.map((s) => offsetSegment(s, center, 6)) : null;
 
   const allRoads = [...mainRoads, ...minorRoads];
   const nearRoad = (p: Point) => {
@@ -111,13 +120,9 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
     return false;
   };
 
-  let cells = generateWards(rng, center[0], center[1], radius, 8 + ctx.size * 3);
-  cells = cells.filter((c) => !inWater(water, c.site));
-  const zoned = assignZones(rng, cells, center, radius, { hasCastle: ctx.isCapital || ctx.size >= 4, coastal: ctx.coastal });
-
-  const innerWards = zoned.filter((w) => w.inner);
-  const wall = innerWards.length >= 3 ? buildWall(innerWards, 2 + (ctx.size >= 3 ? 1 : 0) + (ctx.isCapital ? 1 : 0)) : null;
-  const moat = wall && MOAT_ARCHETYPES.has(archetype.id) ? buildMoat(wall.ring, 6) : null;
+  let cells = generateWards(rng, center[0], center[1], radius * 1.15, 8 + ctx.size * 3);
+  cells = cells.filter((c) => pointInPolygon(c.site, boundary) && !inWater(water, c.site));
+  const zoned = assignZones(rng, cells, [center[0], center[1]], radius, { hasCastle: ctx.isCapital || ctx.size >= 4, coastal: ctx.coastal });
 
   const parks: Polygon[] = [];
   const wards: Ward[] = zoned.map((z) => {
@@ -127,7 +132,7 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
       buildings = subdivide(rng, z.polygon, { minArea: DENSITY[z.type] ?? 130, margin: 1.5 });
       buildings = buildings.filter((b) => {
         const c = centroid(b);
-        return !inWater(water, c) && !nearRoad(c);
+        return pointInPolygon(c, boundary) && !inWater(water, c) && !nearRoad(c);
       });
     }
     return { polygon: z.polygon, type: z.type, buildings, inner: z.inner };
@@ -142,6 +147,6 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
 
   return {
     name: ctx.name, size: ctx.size, coastal: ctx.coastal, isCapital: ctx.isCapital,
-    archetype, bounds, water, wall, moat, mainRoads, minorRoads, wards, parks, labels,
+    archetype, bounds, boundary, water, wall, moat, mainRoads, minorRoads, wards, parks, labels,
   };
 }
