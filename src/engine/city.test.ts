@@ -49,6 +49,20 @@ describe("city organic", () => {
     expect(l.wall).not.toBeNull();
     expect(l.wall!.seaGates.length).toBeGreaterThan(0);
   });
+  it("gives a moated city one gate bridge per gate, each spanning the moat", () => {
+    const l = generateCityLayout(cityContext({ ...base, coastal: true }), 5);
+    expect(l.moat).not.toBeNull(); // coastalPort has a moat
+    expect(l.gateBridges.length).toBe(l.wall!.gates.length);
+    for (const br of l.gateBridges) {
+      const len = Math.hypot(br[1][0] - br[0][0], br[1][1] - br[0][1]);
+      expect(len).toBeGreaterThan(6); // crosses the ~6px moat band
+    }
+  });
+  it("has no gate bridges when there is no moat", () => {
+    const l = generateCityLayout(cityContext({ ...base, coastal: false, elevation: 0.85 }), 5);
+    expect(l.moat).toBeNull(); // hilltopFortress has no moat
+    expect(l.gateBridges.length).toBe(0);
+  });
   it("keeps roads and building centroids inside the boundary and out of water", () => {
     const l = generateCityLayout(cityContext({ ...base, coastal: true }), 8);
     for (const r of [...l.mainRoads, ...l.minorRoads]) for (const p of r) {
