@@ -18,6 +18,8 @@ describe("renderWorld biomes", () => {
   });
   it("keeps a marker per city and shows a biome legend", () => {
     expect(svg.querySelectorAll(".markers circle").length).toBe(world.cities.length);
+    const first = svg.querySelector(".markers circle");
+    expect(first?.getAttribute("data-city")).not.toBeNull();
     expect(svg.querySelectorAll(".legend .legend-item").length).toBeGreaterThan(0);
   });
 });

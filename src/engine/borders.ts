@@ -4,6 +4,8 @@ import { OCEAN } from "./terrain";
 export type Point = [number, number];
 export type Segment = [Point, Point];
 
+type GridLike = Pick<Grid, "count" | "polygons" | "neighbors">;
+
 const EPS = 0.01;
 
 export function sharedEdge(a: number[][], b: number[][]): Segment | null {
@@ -22,7 +24,7 @@ export function sharedEdge(a: number[][], b: number[][]): Segment | null {
   return shared.length === 2 ? [shared[0], shared[1]] : null;
 }
 
-export function politicalBorders(grid: Grid, polityOf: number[]): Segment[] {
+export function politicalBorders(grid: GridLike, polityOf: number[]): Segment[] {
   const segs: Segment[] = [];
   for (let i = 0; i < grid.count; i++) {
     if (polityOf[i] < 0) continue;
@@ -37,7 +39,7 @@ export function politicalBorders(grid: Grid, polityOf: number[]): Segment[] {
   return segs;
 }
 
-export function coastline(grid: Grid, terrain: number[] | Uint8Array): Segment[] {
+export function coastline(grid: GridLike, terrain: number[] | Uint8Array): Segment[] {
   const segs: Segment[] = [];
   for (let i = 0; i < grid.count; i++) {
     if (terrain[i] === OCEAN) continue;

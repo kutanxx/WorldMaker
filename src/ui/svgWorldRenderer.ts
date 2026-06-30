@@ -3,7 +3,6 @@ import { svgEl } from "./renderer";
 import { OCEAN, BIOME_COLORS, BIOME_NAMES } from "../engine/biome";
 import { politicalBorders, coastline } from "../engine/borders";
 import type { Segment } from "../engine/borders";
-import type { Grid } from "../engine/grid";
 
 function cellPath(poly: number[][]): string {
   if (!poly.length) return "";
@@ -15,7 +14,7 @@ function segPath(segs: Segment[]): string {
 }
 
 export function renderWorld(world: World): SVGSVGElement {
-  const grid = world.grid as unknown as Grid;
+  const grid = world.grid;
   const root = svgEl("svg", {
     width: "100%",
     viewBox: `0 0 ${grid.width} ${grid.height}`,
