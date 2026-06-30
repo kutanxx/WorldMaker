@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { generateCityLayout, cityContext } from "./city";
-import { pointInPolygon, centroid } from "./geometry";
+import { centroid } from "./geometry";
+import { inWater } from "./city/water";
 import type { CityMarker } from "../types/world";
 
 const base: CityMarker = {
@@ -8,7 +9,7 @@ const base: CityMarker = {
   polityId: 0, isCapital: true, size: 4, coastal: false, elevation: 0.5,
 };
 
-describe("city v2", () => {
+describe("city v3", () => {
   it("is deterministic for the same world seed and id", () => {
     const ctx = cityContext(base);
     expect(JSON.stringify(generateCityLayout(ctx, 99))).toBe(JSON.stringify(generateCityLayout(ctx, 99)));
@@ -17,38 +18,30 @@ describe("city v2", () => {
     const ctx = cityContext(base);
     expect(JSON.stringify(generateCityLayout(ctx, 1))).not.toBe(JSON.stringify(generateCityLayout(ctx, 2)));
   });
-  it("produces many wards and buildings", () => {
+  it("builds a street network (main + minor roads)", () => {
     const layout = generateCityLayout(cityContext(base), 5);
-    expect(layout.wards.length).toBeGreaterThan(6);
-    const totalBuildings = layout.wards.reduce((n, w) => n + w.buildings.length, 0);
-    expect(totalBuildings).toBeGreaterThan(20);
+    expect(layout.mainRoads.length).toBeGreaterThan(0);
+    expect(layout.minorRoads.length).toBeGreaterThan(layout.mainRoads.length);
   });
-  it("a capital has a castle and a closed wall", () => {
-    const layout = generateCityLayout(cityContext({ ...base, isCapital: true, size: 5 }), 5);
-    expect(layout.wards.some((w) => w.type === "castle")).toBe(true);
-    expect(layout.wall).not.toBeNull();
-    expect(layout.wall!.ring.length).toBeGreaterThanOrEqual(3);
-  });
-  it("a coastal city has water and a harbor", () => {
+  it("a coastal city is a coastalPort with sea water", () => {
     const layout = generateCityLayout(cityContext({ ...base, coastal: true }), 5);
-    expect(layout.water).not.toBeNull();
-    expect(layout.wards.some((w) => w.type === "harbor")).toBe(true);
+    expect(layout.archetype.id).toBe("coastalPort");
+    expect(layout.water.kind).toBe("sea");
   });
-  it("a non-coastal city has no water", () => {
-    const layout = generateCityLayout(cityContext({ ...base, coastal: false }), 5);
-    expect(layout.water).toBeNull();
+  it("a high inland city is a hilltopFortress", () => {
+    const layout = generateCityLayout(cityContext({ ...base, coastal: false, elevation: 0.8 }), 5);
+    expect(layout.archetype.id).toBe("hilltopFortress");
   });
-  it("scales ward count with size", () => {
-    const small = generateCityLayout(cityContext({ ...base, size: 1 }), 5);
-    const big = generateCityLayout(cityContext({ ...base, size: 6 }), 5);
-    expect(big.wards.length).toBeGreaterThan(small.wards.length);
-  });
-  it("never places building footprints inside the water", () => {
+  it("never routes a road point through water", () => {
     const layout = generateCityLayout(cityContext({ ...base, coastal: true }), 8);
-    for (const w of layout.wards) {
-      for (const b of w.buildings) {
-        expect(pointInPolygon(centroid(b), layout.water!.polygon)).toBe(false);
-      }
+    for (const r of [...layout.mainRoads, ...layout.minorRoads]) {
+      for (const p of r) expect(inWater(layout.water, p)).toBe(false);
+    }
+  });
+  it("never places a building centroid in water", () => {
+    const layout = generateCityLayout(cityContext({ ...base, coastal: true }), 8);
+    for (const w of layout.wards) for (const b of w.buildings) {
+      expect(inWater(layout.water, centroid(b))).toBe(false);
     }
   });
 });
