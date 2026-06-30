@@ -36,6 +36,7 @@ export interface CityLayout {
   water: Water;
   wall: DefenseWall | null;
   moat: Polyline[] | null;
+  gateBridges: Polyline[];
   mainRoads: Polyline[];
   minorRoads: Polyline[];
   wards: Ward[];
@@ -113,6 +114,15 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
 
   const wall = wallFromDefenses(boundary, water, mainRoads); // gates sit where main roads meet the wall
   const moat = MOAT_ARCHETYPES.has(archetype.id) ? wall.segments.map((s) => offsetSegment(s, center, 6)) : null;
+  // a causeway crossing the moat in front of each gate, so there is a way in
+  const gateBridges: Polyline[] = moat
+    ? wall.gates.map((g) => {
+        const dx = g[0] - center[0], dy = g[1] - center[1];
+        const L = Math.hypot(dx, dy) || 1;
+        const ux = dx / L, uy = dy / L;
+        return [[g[0] - ux * 3, g[1] - uy * 3], [g[0] + ux * 11, g[1] + uy * 11]];
+      })
+    : [];
 
   const allRoads = [...mainRoads, ...minorRoads];
   const nearRoad = (p: Point) => {
@@ -147,6 +157,6 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
 
   return {
     name: ctx.name, size: ctx.size, coastal: ctx.coastal, isCapital: ctx.isCapital,
-    archetype, bounds, boundary, water, wall, moat, mainRoads, minorRoads, wards, parks, labels,
+    archetype, bounds, boundary, water, wall, moat, gateBridges, mainRoads, minorRoads, wards, parks, labels,
   };
 }

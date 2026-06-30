@@ -62,6 +62,11 @@ export function renderCity(layout: CityLayout): SVGSVGElement {
   if (layout.moat) for (const s of layout.moat) {
     root.appendChild(svgEl("polyline", { class: "moat", points: pts(s), fill: "none", stroke: "#bcd6e0", "stroke-width": 5, "stroke-opacity": 0.85 }));
   }
+  // causeways across the moat in front of each gate (drawn over the water)
+  for (const [a, b] of layout.gateBridges) {
+    root.appendChild(svgEl("line", { class: "gate-bridge", x1: a[0], y1: a[1], x2: b[0], y2: b[1], stroke: "#c2b189", "stroke-width": 6, "stroke-linecap": "round" }));
+    root.appendChild(svgEl("line", { class: "gate-bridge-top", x1: a[0], y1: a[1], x2: b[0], y2: b[1], stroke: "#e6dcc8", "stroke-width": 2.6, "stroke-linecap": "round" }));
+  }
 
   if (layout.wall) {
     for (const s of layout.wall.segments) {
