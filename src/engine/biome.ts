@@ -14,16 +14,18 @@ export const TROPICAL = 6;
 export const WETLAND = 7;
 export const ALPINE = 8;
 
+// muted parchment-friendly palette spread across lightness + hue so all
+// biomes stay distinguishable (every CIELAB pairwise ΔE >= ~20)
 export const BIOME_COLORS: Record<number, string> = {
   [OCEAN]: "#a9c7e0",
-  [TUNDRA]: "#cdccc0",
-  [TAIGA]: "#5f7d63",
-  [TEMPERATE_FOREST]: "#86a85e",
-  [GRASSLAND]: "#cdbf7a",
-  [DESERT]: "#e3cd92",
-  [TROPICAL]: "#3f8f57",
-  [WETLAND]: "#7fae96",
-  [ALPINE]: "#b9b2a6",
+  [TUNDRA]: "#dadcd3",
+  [TAIGA]: "#487460",
+  [TEMPERATE_FOREST]: "#87a861",
+  [GRASSLAND]: "#cbbd83",
+  [DESERT]: "#e6bd66",
+  [TROPICAL]: "#2f885a",
+  [WETLAND]: "#77b199",
+  [ALPINE]: "#9c948a",
 };
 
 export const BIOME_NAMES: Record<number, string> = {
