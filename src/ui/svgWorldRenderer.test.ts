@@ -1,24 +1,23 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from "vitest";
-import { DEFAULT_PARAMS } from "../types/world";
 import { generateWorld } from "../engine/world";
+import { DEFAULT_PARAMS } from "../types/world";
 import { renderWorld } from "./svgWorldRenderer";
 
-const small = { ...DEFAULT_PARAMS, width: 300, height: 300, cellCount: 600, townCount: 8 };
-
-describe("renderWorld", () => {
-  it("creates one region path per polity that owns cells", () => {
-    const { world } = generateWorld(small);
-    const svg = renderWorld(world);
-    const paths = svg.querySelectorAll(".regions path");
-    expect(paths.length).toBe(world.polities.length);
-    expect(svg.querySelectorAll(".regions path.region").length).toBe(world.polities.length);
+describe("renderWorld biomes", () => {
+  const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });
+  const svg = renderWorld(world);
+  it("fills cells by biome (several biome paths, no political region fills)", () => {
+    expect(svg.querySelectorAll(".biomes path.biome").length).toBeGreaterThan(1);
+    expect(svg.querySelectorAll(".regions").length).toBe(0);
+    expect(svg.querySelectorAll(".mountains").length).toBe(0);
   });
-  it("renders a marker per city with a data-city id", () => {
-    const { world } = generateWorld(small);
-    const svg = renderWorld(world);
+  it("draws coastline and borders as one path each", () => {
+    expect(svg.querySelectorAll("path.coastline").length).toBe(1);
+    expect(svg.querySelectorAll("path.border").length).toBe(1);
+  });
+  it("keeps a marker per city and shows a biome legend", () => {
     expect(svg.querySelectorAll(".markers circle").length).toBe(world.cities.length);
-    expect(svg.querySelector(".markers circle")?.getAttribute("data-city")).not.toBeNull();
-    expect(svg.querySelector(".markers circle")?.getAttribute("data-city")).toBe(String(world.cities[0].id));
+    expect(svg.querySelectorAll(".legend .legend-item").length).toBeGreaterThan(0);
   });
 });
