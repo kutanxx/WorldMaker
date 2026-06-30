@@ -1,8 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { area, pointInPolygon } from "../geometry";
 import type { Polygon } from "../geometry";
-import type { ZonedWard } from "./zoning";
-import { buildWall, buildMoat, wallFromDefenses } from "./walls";
+import { wallFromDefenses } from "./walls";
 import type { Water } from "./water";
 
 const ring: Polygon = [];
@@ -12,41 +10,6 @@ for (let i = 0; i < 16; i++) {
 }
 const noWater: Water = { kind: "none", bodies: [], bridges: [] };
 const rightSea: Water = { kind: "sea", bodies: [[[185, 0], [300, 0], [300, 300], [185, 300]]], bridges: [] };
-
-function innerWards(): ZonedWard[] {
-  const pts: [number, number][] = [[120, 120], [180, 120], [180, 180], [120, 180], [150, 150]];
-  return pts.map((site) => ({
-    site, dist: 0, inner: true, type: "craftsmen" as const,
-    polygon: [[site[0] - 8, site[1] - 8], [site[0] + 8, site[1] - 8], [site[0] + 8, site[1] + 8], [site[0] - 8, site[1] + 8]],
-  }));
-}
-
-describe("walls", () => {
-  it("wall ring encloses the inner wards and has towers at each vertex", () => {
-    const wall = buildWall(innerWards(), 3);
-    expect(wall.ring.length).toBeGreaterThanOrEqual(3);
-    expect(wall.towers.length).toBe(wall.ring.length);
-    expect(pointInPolygon([150, 150], wall.ring)).toBe(true);
-  });
-  it("produces the requested number of gates", () => {
-    const wall = buildWall(innerWards(), 3);
-    expect(wall.gates.length).toBe(3);
-  });
-  it("moat is larger than the wall ring", () => {
-    const wall = buildWall(innerWards(), 3);
-    const moat = buildMoat(wall.ring, 6);
-    expect(area(moat)).toBeGreaterThan(area(wall.ring));
-  });
-  it("never places more gates than ring edges and never duplicates them", () => {
-    const wall = buildWall(innerWards(), 99);
-    expect(wall.gates.length).toBeLessThanOrEqual(wall.ring.length);
-    const uniq = new Set(wall.gates.map((g) => g.join(",")));
-    expect(uniq.size).toBe(wall.gates.length);
-  });
-  it("defaults to at least one gate when asked for zero", () => {
-    expect(buildWall(innerWards(), 0).gates.length).toBeGreaterThanOrEqual(1);
-  });
-});
 
 describe("wallFromDefenses", () => {
   it("a landlocked city walls the whole boundary (one closed ring, no sea gates)", () => {
