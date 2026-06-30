@@ -3,6 +3,7 @@ import { randInt } from "../rng";
 import type { Point, Polygon, Polyline } from "../geometry";
 import { pointInPolygon } from "../geometry";
 import type { WaterKind } from "./archetypes";
+import { createNoise2D } from "simplex-noise";
 
 export interface Water {
   kind: WaterKind;
@@ -30,14 +31,25 @@ export function buildWater(rng: Rng, kind: WaterKind, bounds: { w: number; h: nu
   if (kind === "none") return { kind, bodies: [], bridges: [] };
 
   if (kind === "sea") {
-    const side = randInt(rng, 0, 3);
+    const side = randInt(rng, 0, 3); // 0 right, 1 bottom, 2 left, 3 top
+    const noise = createNoise2D(rng);
     const depth = (0.24 + rng() * 0.1) * (side % 2 === 0 ? w : h);
-    let poly: Polygon;
-    if (side === 0) poly = [[w - depth, 0], [w, 0], [w, h], [w - depth, h]];
-    else if (side === 1) poly = [[0, h - depth], [w, h - depth], [w, h], [0, h]];
-    else if (side === 2) poly = [[0, 0], [depth, 0], [depth, h], [0, h]];
-    else poly = [[0, 0], [w, 0], [w, depth], [0, depth]];
-    return { kind, bodies: [poly], bridges: [] };
+    const K = 12, amp = 13;
+    const edge: Point[] = [];
+    for (let i = 0; i <= K; i++) {
+      const t = i / K;
+      const n = noise(t * 3.2, side * 1.7) * amp;
+      if (side === 0) edge.push([w - depth + n, t * h]);
+      else if (side === 1) edge.push([t * w, h - depth + n]);
+      else if (side === 2) edge.push([depth + n, t * h]);
+      else edge.push([t * w, depth + n]);
+    }
+    let polygon: Polygon;
+    if (side === 0) polygon = [[w, 0], ...edge, [w, h]];
+    else if (side === 1) polygon = [[0, h], ...edge, [w, h]];
+    else if (side === 2) polygon = [[0, 0], ...edge, [0, h]];
+    else polygon = [[0, 0], ...edge, [w, 0]];
+    return { kind, bodies: [polygon], bridges: [] };
   }
 
   if (kind === "lake") {
