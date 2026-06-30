@@ -20,6 +20,7 @@ export interface CityMarker {
   size: number;
   coastal: boolean;
   elevation: number;
+  biome: number;
 }
 
 export interface Polity {
@@ -41,6 +42,7 @@ export interface World {
   };
   heights: number[];
   terrain: number[];
+  biome: number[];
   polityOf: number[];
   polities: Polity[];
   cities: CityMarker[];

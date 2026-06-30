@@ -6,7 +6,7 @@ import type { CityMarker } from "../types/world";
 
 const base: CityMarker = {
   id: 2, cell: 0, x: 0, y: 0, name: "Testburg",
-  polityId: 0, isCapital: true, size: 4, coastal: false, elevation: 0.5,
+  polityId: 0, isCapital: true, size: 4, coastal: false, elevation: 0.5, biome: 4,
 };
 
 function curvaturePct(road: [number, number][]): number {
