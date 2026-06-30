@@ -85,7 +85,9 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
   const archetype = selectArchetype({ coastal: ctx.coastal, elevation: ctx.elevation, size: ctx.size }, rng);
 
   const water = buildWater(rng, archetype.water, bounds);
-  const noiseAmp = archetype.streetField === "grid" || archetype.streetField === "linear" ? 0.08 : 0.22;
+  // Even planned medieval towns had winding streets, so grid/linear plans get a
+  // gentle organic wobble rather than rigid straight lines.
+  const noiseAmp = archetype.streetField === "grid" || archetype.streetField === "linear" ? 0.2 : 0.26;
   const field = makeTensorField(rng, fieldsFor(archetype, center, rng), noiseAmp);
   const insideRegion = (p: Point) =>
     Math.hypot(p[0] - center[0], p[1] - center[1]) <= radius && !inWater(water, p);
