@@ -37,6 +37,7 @@ export function generateWorld(params: WorldParams): GeneratedWorld {
       isCapital: true,
       size: randInt(rng, 3, 6),
       coastal: isCoastal(p.capital),
+      elevation: heights[p.capital],
     });
   }
 
@@ -60,6 +61,7 @@ export function generateWorld(params: WorldParams): GeneratedWorld {
       isCapital: false,
       size: randInt(rng, 1, 3),
       coastal: isCoastal(cell),
+      elevation: heights[cell],
     });
   }
 

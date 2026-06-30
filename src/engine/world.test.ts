@@ -35,4 +35,12 @@ describe("world", () => {
     const cells = world.cities.map((c) => c.cell);
     expect(new Set(cells).size).toBe(cells.length);
   });
+  it("gives each city the elevation of its cell", () => {
+    const { world } = generateWorld(small);
+    for (const c of world.cities) {
+      expect(c.elevation).toBeCloseTo(world.heights[c.cell], 5);
+      expect(c.elevation).toBeGreaterThanOrEqual(0);
+      expect(c.elevation).toBeLessThanOrEqual(1);
+    }
+  });
 });

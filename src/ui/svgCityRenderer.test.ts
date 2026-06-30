@@ -6,7 +6,7 @@ import type { CityMarker } from "../types/world";
 
 const marker: CityMarker = {
   id: 1, cell: 0, x: 0, y: 0, name: "Testburg",
-  polityId: 0, isCapital: true, size: 5, coastal: true,
+  polityId: 0, isCapital: true, size: 5, coastal: true, elevation: 0.5,
 };
 
 describe("renderCity v2", () => {

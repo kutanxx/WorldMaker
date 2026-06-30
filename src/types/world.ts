@@ -19,6 +19,7 @@ export interface CityMarker {
   isCapital: boolean;
   size: number;
   coastal: boolean;
+  elevation: number;
 }
 
 export interface Polity {
