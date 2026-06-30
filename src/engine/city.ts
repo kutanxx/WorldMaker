@@ -111,7 +111,7 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
   const minorRoads = generateStreets(field, { dsep: 15, dtest: 7, step: 3, maxLength: 180, bounds, useMinor: true }, stop, seeds);
   water.bridges = waterBridges([...mainRoads, ...minorRoads], water);
 
-  const wall = wallFromDefenses(boundary, water, 2 + (ctx.size >= 3 ? 1 : 0) + (ctx.isCapital ? 1 : 0));
+  const wall = wallFromDefenses(boundary, water, mainRoads); // gates sit where main roads meet the wall
   const moat = MOAT_ARCHETYPES.has(archetype.id) ? wall.segments.map((s) => offsetSegment(s, center, 6)) : null;
 
   const allRoads = [...mainRoads, ...minorRoads];

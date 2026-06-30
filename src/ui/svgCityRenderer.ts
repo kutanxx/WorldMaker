@@ -72,7 +72,7 @@ export function renderCity(layout: CityLayout): SVGSVGElement {
     for (const t of layout.wall.towers) tg.appendChild(svgEl("circle", { class: "tower", cx: t[0], cy: t[1], r: 2.6, fill: "#8a7858", stroke: "#5a4a36", "stroke-width": 0.8 }));
     root.appendChild(tg);
     const gg = svgEl("g", { class: "gates" });
-    for (const ga of layout.wall.gates) gg.appendChild(svgEl("rect", { class: "gate", x: ga[0] - 2.5, y: ga[1] - 2.5, width: 5, height: 5, fill: "#5a4a36" }));
+    for (const ga of layout.wall.gates) gg.appendChild(svgEl("rect", { class: "gate", x: ga[0] - 3, y: ga[1] - 3, width: 6, height: 6, rx: 1, fill: "#9a9a9a", stroke: "#43392d", "stroke-width": 1 }));
     root.appendChild(gg);
   }
 
