@@ -35,4 +35,8 @@ describe("borders", () => {
     expect(coastline(grid, [1, 1, 0]).length).toBe(1); // cell1 touches ocean cell2
     expect(coastline(grid, [1, 1, 1]).length).toBe(0);
   });
+  it("skips unassigned cells (polityOf < 0)", () => {
+    expect(politicalBorders(grid, [-1, 1, 2]).length).toBe(1); // cell0 unassigned; cells1,2 differ -> 1 border
+    expect(politicalBorders(grid, [-1, -1, 1]).length).toBe(0); // every border touches an unassigned cell
+  });
 });

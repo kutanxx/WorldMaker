@@ -16,6 +16,7 @@ export function sharedEdge(a: number[][], b: number[][]): Segment | null {
     if (!match) continue;
     if (shared.some((s) => Math.abs(s[0] - pa[0]) < EPS && Math.abs(s[1] - pa[1]) < EPS)) continue; // dedup closing vertex
     shared.push([pa[0], pa[1]]);
+    // convex Voronoi cells share exactly one edge (2 vertices); stop at 2
     if (shared.length === 2) break;
   }
   return shared.length === 2 ? [shared[0], shared[1]] : null;
@@ -42,6 +43,7 @@ export function coastline(grid: Grid, terrain: number[] | Uint8Array): Segment[]
     if (terrain[i] === OCEAN) continue;
     for (const j of grid.neighbors[i]) {
       if (terrain[j] === OCEAN) {
+        // no j>i guard needed: the ocean cell is skipped by the outer OCEAN check, so each land-ocean edge emits once
         const e = sharedEdge(grid.polygons[i], grid.polygons[j]);
         if (e) segs.push(e);
       }
