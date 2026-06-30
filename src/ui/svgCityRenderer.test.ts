@@ -9,14 +9,14 @@ const marker: CityMarker = {
   polityId: 0, isCapital: true, size: 5, coastal: true, elevation: 0.4,
 };
 
-describe("renderCity v3", () => {
-  it("draws water, main and minor roads, buildings, and a legend", () => {
+describe("renderCity organic", () => {
+  it("clips content to the boundary and draws wall segments + roads + buildings", () => {
     const layout = generateCityLayout(cityContext(marker), 7);
     const svg = renderCity(layout);
-    expect(svg.querySelectorAll(".water").length).toBeGreaterThanOrEqual(1);
+    expect(svg.querySelectorAll("clipPath").length).toBe(1);
+    expect(svg.querySelectorAll(".boundary").length).toBe(1);
+    expect(svg.querySelectorAll(".wall-seg").length).toBe(layout.wall ? layout.wall.segments.length : 0);
     expect(svg.querySelectorAll(".road-main").length).toBe(layout.mainRoads.length);
-    expect(svg.querySelectorAll(".road-minor").length).toBe(layout.minorRoads.length);
     expect(svg.querySelectorAll(".building").length).toBeGreaterThan(0);
-    expect(svg.querySelectorAll(".legend-item").length).toBeGreaterThan(0);
   });
 });

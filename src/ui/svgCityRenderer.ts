@@ -22,57 +22,52 @@ export function renderCity(layout: CityLayout): SVGSVGElement {
   const root = svgEl("svg", { width: "100%", viewBox: `0 0 ${w} ${h}`, class: "city" }) as SVGSVGElement;
   root.appendChild(svgEl("rect", { x: 0, y: 0, width: w, height: h, fill: "#f3efe4" }));
 
+  const clipId = "cityclip";
+  const defs = svgEl("defs", {});
+  const clip = svgEl("clipPath", { id: clipId });
+  clip.appendChild(svgEl("polygon", { points: pts(layout.boundary) }));
+  defs.appendChild(clip);
+  root.appendChild(defs);
+
   for (const body of layout.water.bodies) {
     root.appendChild(svgEl("polygon", { class: "water-shallow", points: pts(body), fill: "#bfd8e4" }));
     root.appendChild(svgEl("polygon", { class: "water", points: pts(body), fill: "#9fc1d6", transform: "scale(0.985)", "transform-origin": "150 150" }));
   }
-  for (const park of layout.parks) {
-    root.appendChild(svgEl("polygon", { class: "park", points: pts(park), fill: "#cfe0b8" }));
-  }
 
-  const wardsG = svgEl("g", { class: "wards" });
+  const clipped = svgEl("g", { "clip-path": `url(#${clipId})` });
+  clipped.appendChild(svgEl("polygon", { class: "boundary", points: pts(layout.boundary), fill: "#efe7d2" }));
+  for (const park of layout.parks) clipped.appendChild(svgEl("polygon", { class: "park", points: pts(park), fill: "#cfe0b8" }));
   for (const ward of layout.wards) {
     const tint = TINT[ward.type];
-    if (tint) wardsG.appendChild(svgEl("polygon", { class: "ward", points: pts(ward.polygon), fill: tint, "fill-opacity": 0.6 }));
+    if (tint) clipped.appendChild(svgEl("polygon", { class: "ward", points: pts(ward.polygon), fill: tint, "fill-opacity": 0.6 }));
   }
-  root.appendChild(wardsG);
 
-  if (layout.moat) root.appendChild(svgEl("polygon", { class: "moat", points: pts(layout.moat), fill: "none", stroke: "#bcd6e0", "stroke-width": 5, "stroke-opacity": 0.85 }));
+  const road = (cls: string, r: Polyline, stroke: string, wd: number) =>
+    svgEl("polyline", { class: cls, points: pts(r), fill: "none", stroke, "stroke-width": wd, "stroke-linecap": "round", "stroke-linejoin": "round" });
+  for (const r of layout.minorRoads) clipped.appendChild(road("road-minor-casing", r, "#c4b594", 2.6));
+  for (const r of layout.mainRoads) clipped.appendChild(road("road-main-casing", r, "#a07c3e", 4.6));
+  for (const r of layout.minorRoads) clipped.appendChild(road("road-minor", r, "#f8f3e6", 1.4));
+  for (const r of layout.mainRoads) clipped.appendChild(road("road-main", r, "#d8b65e", 3));
 
-  // Cased roads like a real map: all casings under all fills so junctions
-  // read as connected. Main = muted gold, minor = cream white.
-  const road = (cls: string, r: Polyline, stroke: string, w: number) =>
-    svgEl("polyline", { class: cls, points: pts(r), fill: "none", stroke, "stroke-width": w, "stroke-linecap": "round", "stroke-linejoin": "round" });
-
-  const casings = svgEl("g", { class: "roads-casing" });
-  for (const r of layout.minorRoads) casings.appendChild(road("road-minor-casing", r, "#c4b594", 2.6));
-  for (const r of layout.mainRoads) casings.appendChild(road("road-main-casing", r, "#a07c3e", 4.6));
-  root.appendChild(casings);
-
-  const minorG = svgEl("g", { class: "roads-minor" });
-  for (const r of layout.minorRoads) minorG.appendChild(road("road-minor", r, "#f8f3e6", 1.4));
-  root.appendChild(minorG);
-
-  const mainG = svgEl("g", { class: "roads-main" });
-  for (const r of layout.mainRoads) mainG.appendChild(road("road-main", r, "#d8b65e", 3));
-  root.appendChild(mainG);
-
-  const buildG = svgEl("g", { class: "buildings" });
   for (const ward of layout.wards) {
     const fill = ward.type === "castle" ? "#cfcabe" : ward.type === "cathedral" ? "#ddd2e0" : "#e6dcc8";
-    for (const b of ward.buildings) {
-      buildG.appendChild(svgEl("polygon", { class: "building", points: pts(b), fill, stroke: "#9a8a70", "stroke-width": 0.4 }));
-    }
+    for (const b of ward.buildings) clipped.appendChild(svgEl("polygon", { class: "building", points: pts(b), fill, stroke: "#9a8a70", "stroke-width": 0.4 }));
   }
-  root.appendChild(buildG);
+  root.appendChild(clipped);
 
   for (const [a, b] of layout.water.bridges) {
     root.appendChild(svgEl("line", { class: "bridge", x1: a[0], y1: a[1], x2: b[0], y2: b[1], stroke: "#7a6a52", "stroke-width": 4, "stroke-linecap": "round" }));
   }
 
+  if (layout.moat) for (const s of layout.moat) {
+    root.appendChild(svgEl("polyline", { class: "moat", points: pts(s), fill: "none", stroke: "#bcd6e0", "stroke-width": 5, "stroke-opacity": 0.85 }));
+  }
+
   if (layout.wall) {
-    root.appendChild(svgEl("polygon", { class: "wall", points: pts(layout.wall.ring), fill: "none", stroke: "#43392d", "stroke-width": 4, "stroke-linejoin": "round" }));
-    root.appendChild(svgEl("polygon", { class: "wall-inner", points: pts(layout.wall.ring), fill: "none", stroke: "#8a7a60", "stroke-width": 1, "stroke-linejoin": "round" }));
+    for (const s of layout.wall.segments) {
+      root.appendChild(svgEl("polyline", { class: "wall-seg", points: pts(s), fill: "none", stroke: "#43392d", "stroke-width": 4, "stroke-linejoin": "round", "stroke-linecap": "round" }));
+      root.appendChild(svgEl("polyline", { class: "wall-seg-inner", points: pts(s), fill: "none", stroke: "#8a7a60", "stroke-width": 1, "stroke-linejoin": "round" }));
+    }
     const tg = svgEl("g", { class: "towers" });
     for (const t of layout.wall.towers) tg.appendChild(svgEl("circle", { class: "tower", cx: t[0], cy: t[1], r: 2.6, fill: "#8a7858", stroke: "#5a4a36", "stroke-width": 0.8 }));
     root.appendChild(tg);
@@ -104,7 +99,7 @@ export function renderCity(layout: CityLayout): SVGSVGElement {
   root.appendChild(title);
 
   const legend = svgEl("g", { class: "legend" });
-  const items: [string, string][] = [["#9fc1d6", "Water"], ["#cfe0b8", "Park"], ["#7a6a52", "Main road"], ["#e6dcc8", "Buildings"]];
+  const items: [string, string][] = [["#9fc1d6", "Water"], ["#cfe0b8", "Park"], ["#d8b65e", "Main road"], ["#e6dcc8", "Buildings"]];
   const x0 = 6, y0 = h - 8 - items.length * 11;
   legend.appendChild(svgEl("rect", { x: x0 - 4, y: y0 - 8, width: 86, height: items.length * 11 + 12, rx: 3, fill: "#f7f2e6", stroke: "#cbb784", "stroke-width": 0.5 }));
   items.forEach(([color, label], i) => {
