@@ -42,7 +42,7 @@ describe("classifyBiomes", () => {
     const { grid, heights, terrain } = build(2);
     const b = classifyBiomes(grid, heights, terrain, { ...DEFAULT_PARAMS, seed: 2 });
     for (let i = 0; i < grid.count; i++) {
-      if (b[i] === WETLAND) expect(heights[i]).toBeLessThan(0.3 + 0.05);
+      if (b[i] === WETLAND) expect(heights[i]).toBeLessThan(DEFAULT_PARAMS.seaLevel + 0.05);
     }
   });
   it("is deterministic", () => {
