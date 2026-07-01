@@ -42,4 +42,8 @@ describe("renderWorld political view", () => {
     expect(svg.querySelectorAll(".nation-label").length).toBeGreaterThan(0);
     expect(svg.querySelectorAll(".nation-legend").length).toBe(1);
   });
+  it("is self-contained for export: biomes muted inline, no biome legend", () => {
+    expect(svg.querySelector(".biomes")?.getAttribute("opacity")).toBe("0.45");
+    expect(svg.querySelectorAll(".biome-legend").length).toBe(0);
+  });
 });
