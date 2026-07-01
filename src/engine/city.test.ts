@@ -81,4 +81,14 @@ describe("city organic", () => {
     expect(forest.features.wallMaterial).toBe("timber");
     expect(forest.features.groundColor).toBe("#e3e7d0");
   });
+  it("scatters trees on open ground for a forest city (none for plains)", () => {
+    const forest = generateCityLayout(cityContext({ ...base, coastal: false, elevation: 0.5, biome: 3 }), 7);
+    expect(forest.features.trees.length).toBeGreaterThan(0);
+    for (const t of forest.features.trees) {
+      expect(pointInPolygon(t, forest.boundary)).toBe(true);
+      expect(inWater(forest.water, t)).toBe(false);
+    }
+    const plains = generateCityLayout(cityContext({ ...base, coastal: false, elevation: 0.5, biome: 4 }), 7);
+    expect(plains.features.trees).toEqual([]);
+  });
 });

@@ -1,7 +1,7 @@
 import { mulberry32, deriveSeed } from "./rng";
 import type { Rng } from "./rng";
 import type { Point, Polygon, Polyline } from "./geometry";
-import { centroid, pointInPolygon } from "./geometry";
+import { centroid, pointInPolygon, bbox } from "./geometry";
 import { selectArchetype } from "./city/archetypes";
 import type { Archetype } from "./city/archetypes";
 import { makeTensorField } from "./city/tensorField";
@@ -165,9 +165,25 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
     if (t) { const c = centroid(z.polygon); labels.push({ x: c[0], y: c[1], text: t }); }
   }
 
+  const allBuildings = wards.flatMap((w) => w.buildings);
+  const scatterTrees = (n: number): Point[] => {
+    const out: Point[] = [];
+    const bb = bbox(boundary);
+    let tries = 0;
+    while (out.length < n && tries < n * 10) {
+      tries++;
+      const p: Point = [bb.minX + rng() * (bb.maxX - bb.minX), bb.minY + rng() * (bb.maxY - bb.minY)];
+      if (!pointInPolygon(p, boundary) || inWater(water, p) || nearRoad(p)) continue;
+      if (allBuildings.some((b) => pointInPolygon(p, b))) continue;
+      if (out.some((t) => Math.hypot(t[0] - p[0], t[1] - p[1]) < 6)) continue;
+      out.push(p);
+    }
+    return out;
+  };
+
   const features: CityFeatures = {
     wallMaterial: archetype.wallMaterial,
-    trees: [],
+    trees: archetype.vegetation === "trees" ? scatterTrees(18 + ctx.size * 4) : [],
     onStilts: archetype.onStilts,
     oasis: null,
     groundColor: archetype.groundColor,

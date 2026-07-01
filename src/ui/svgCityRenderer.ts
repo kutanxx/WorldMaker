@@ -55,6 +55,14 @@ export function renderCity(layout: CityLayout): SVGSVGElement {
   }
   root.appendChild(clipped);
 
+  if (layout.features.trees.length) {
+    const treesG = svgEl("g", { class: "trees", "clip-path": `url(#${clipId})` });
+    for (const [x, y] of layout.features.trees) {
+      treesG.appendChild(svgEl("circle", { class: "tree", cx: x, cy: y, r: 2.2, fill: "#6f9457", stroke: "#4c6b3c", "stroke-width": 0.4 }));
+    }
+    root.appendChild(treesG);
+  }
+
   for (const [a, b] of layout.water.bridges) {
     root.appendChild(svgEl("line", { class: "bridge", x1: a[0], y1: a[1], x2: b[0], y2: b[1], stroke: "#7a6a52", "stroke-width": 4, "stroke-linecap": "round" }));
   }

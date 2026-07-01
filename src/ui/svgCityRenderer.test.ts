@@ -26,4 +26,10 @@ describe("renderCity organic", () => {
     expect(svg.querySelector(".boundary")?.getAttribute("fill")).toBe("#e3e7d0");
     expect(svg.querySelector(".wall-seg")?.getAttribute("stroke")).toBe("#6b4f34");
   });
+  it("draws a tree glyph per forest tree", () => {
+    const layout = generateCityLayout(cityContext({ ...marker, coastal: false, elevation: 0.5, biome: 3 }), 7);
+    const svg = renderCity(layout);
+    expect(svg.querySelectorAll(".tree").length).toBe(layout.features.trees.length);
+    expect(svg.querySelectorAll(".tree").length).toBeGreaterThan(0);
+  });
 });
