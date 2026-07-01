@@ -33,6 +33,8 @@ export interface CityFeatures {
   groundColor: string;
 }
 
+export interface Outwork { type: "watermill" | "windmill"; at: Point; angle: number; }
+
 export interface CityLayout {
   name: string;
   size: number;
@@ -51,6 +53,9 @@ export interface CityLayout {
   parks: Polygon[];
   labels: { x: number; y: number; text: string }[];
   features: CityFeatures;
+  suburbRoads: Polyline[];
+  suburbs: Polygon[];
+  outworks: Outwork[];
 }
 
 export interface CityContext {
@@ -199,8 +204,64 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
     groundColor: archetype.groundColor,
   };
 
+  // ---- extramural suburbs (faubourg) + outworks: OUTSIDE the wall, in the canvas margin ----
+  const inCanvas = (p: Point) => p[0] > 3 && p[0] < bounds.w - 3 && p[1] > 3 && p[1] < bounds.h - 3;
+  const suburbRoads: Polyline[] = [];
+  const suburbs: Polygon[] = [];
+  const gateBudget = 1 + Math.floor(ctx.size / 2);
+  let gatesUsed = 0;
+  for (const g of wall.gates) {
+    if (gatesUsed >= gateBudget) break;
+    const dx = g[0] - center[0], dy = g[1] - center[1];
+    const gl = Math.hypot(dx, dy) || 1;
+    const ux = dx / gl, uy = dy / gl;        // outward unit
+    const nx = -uy, ny = ux;                  // perpendicular unit
+    const start: Point = [g[0] + ux * 8, g[1] + uy * 8]; // clear wall + moat
+    const distX = ux > 0.001 ? (bounds.w - 3 - start[0]) / ux : ux < -0.001 ? (3 - start[0]) / ux : Infinity;
+    const distY = uy > 0.001 ? (bounds.h - 3 - start[1]) / uy : uy < -0.001 ? (3 - start[1]) / uy : Infinity;
+    const room = Math.min(distX, distY);
+    if (room < 14 || inWater(water, start) || !inCanvas(start)) continue;
+    const L = Math.min(38, room - 4);
+    const end: Point = [start[0] + ux * L, start[1] + uy * L];
+    suburbRoads.push([[g[0], g[1]], end]);
+    gatesUsed++;
+    for (let d = 6; d < L; d += 9) {
+      const prob = 0.9 - (d / L) * 0.5;
+      for (const side of [-1, 1]) {
+        if (rng() > prob) continue;
+        const off = 4 + rng() * 4;
+        const cx = start[0] + ux * d + nx * side * off;
+        const cy = start[1] + uy * d + ny * side * off;
+        if (pointInPolygon([cx, cy], boundary) || inWater(water, [cx, cy]) || !inCanvas([cx, cy])) continue;
+        if (suburbs.some((b) => { const c = centroid(b); return Math.hypot(c[0] - cx, c[1] - cy) < 6; })) continue;
+        const hw = 2.5, hh = 2;
+        suburbs.push([
+          [cx - ux * hw - nx * hh, cy - uy * hw - ny * hh],
+          [cx + ux * hw - nx * hh, cy + uy * hw - ny * hh],
+          [cx + ux * hw + nx * hh, cy + uy * hw + ny * hh],
+          [cx - ux * hw + nx * hh, cy - uy * hw + ny * hh],
+        ]);
+      }
+    }
+  }
+  const outworks: Outwork[] = [];
+  const nearWater = (p: Point) =>
+    inWater(water, [p[0] + 4, p[1]]) || inWater(water, [p[0] - 4, p[1]]) ||
+    inWater(water, [p[0], p[1] + 4]) || inWater(water, [p[0], p[1] - 4]);
+  for (let tries = 0; tries < 80 && outworks.length === 0; tries++) {
+    const p: Point = [3 + rng() * (bounds.w - 6), 3 + rng() * (bounds.h - 6)];
+    if (pointInPolygon(p, boundary) || inWater(water, p) || !inCanvas(p)) continue;
+    if (nearWater(p)) outworks.push({ type: "watermill", at: p, angle: rng() * Math.PI * 2 });
+  }
+  for (let tries = 0; tries < 80 && outworks.length === 0; tries++) {
+    const p: Point = [3 + rng() * (bounds.w - 6), 3 + rng() * (bounds.h - 6)];
+    if (pointInPolygon(p, boundary) || inWater(water, p) || !inCanvas(p)) continue;
+    if (suburbs.some((b) => { const c = centroid(b); return Math.hypot(c[0] - p[0], c[1] - p[1]) < 10; })) continue;
+    outworks.push({ type: "windmill", at: p, angle: rng() * Math.PI * 2 });
+  }
+
   return {
     name: ctx.name, size: ctx.size, coastal: ctx.coastal, isCapital: ctx.isCapital,
-    archetype, bounds, boundary, water, wall, moat, gateBridges, mainRoads, minorRoads, wards, parks, labels, features,
+    archetype, bounds, boundary, water, wall, moat, gateBridges, mainRoads, minorRoads, wards, parks, labels, features, suburbRoads, suburbs, outworks,
   };
 }
