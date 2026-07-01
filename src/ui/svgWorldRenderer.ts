@@ -11,6 +11,40 @@ export function politicalOpts(view: MapView): PoliticalOpts {
   return view === "political" ? { fills: true, labels: true, legend: true } : {};
 }
 
+const INK = "#3c2f1c";
+const PARCHMENT = "#f3ead2";
+
+// n-point star centered at (cx,cy), alternating outer/inner radius, tip pointing up.
+function starPath(cx: number, cy: number, points: number, outer: number, inner: number): string {
+  let d = "";
+  for (let i = 0; i < points * 2; i++) {
+    const r = i % 2 === 0 ? outer : inner;
+    const a = -Math.PI / 2 + (i * Math.PI) / points;
+    d += (i === 0 ? "M" : "L") + (cx + r * Math.cos(a)).toFixed(1) + "," + (cy + r * Math.sin(a)).toFixed(1);
+  }
+  return d + "Z";
+}
+
+function compassRose(cx: number, cy: number, r: number): SVGElement {
+  const g = svgEl("g", { class: "compass" });
+  g.appendChild(svgEl("circle", { cx, cy, r, fill: PARCHMENT, "fill-opacity": 0.55, stroke: INK, "stroke-width": 0.8 }));
+  g.appendChild(svgEl("path", { d: starPath(cx, cy, 4, r * 0.92, r * 0.3), fill: INK }));
+  const n = svgEl("text", { class: "compass-n", x: cx, y: cy - r - 2, "text-anchor": "middle", "font-size": 7, fill: INK });
+  n.textContent = "N";
+  g.appendChild(n);
+  return g;
+}
+
+function mapFrame(w: number, h: number): SVGElement {
+  const g = svgEl("g", { class: "map-frame" });
+  g.appendChild(svgEl("rect", { x: 4, y: 4, width: w - 8, height: h - 8, fill: "none", stroke: INK, "stroke-width": 2 }));
+  g.appendChild(svgEl("rect", { x: 8, y: 8, width: w - 16, height: h - 16, fill: "none", stroke: INK, "stroke-width": 0.6 }));
+  for (const [x, y] of [[8, 8], [w - 8, 8], [8, h - 8], [w - 8, h - 8]]) {
+    g.appendChild(svgEl("circle", { cx: x, cy: y, r: 2, fill: INK }));
+  }
+  return g;
+}
+
 export function renderWorld(world: World, view: MapView = "terrain"): SVGSVGElement {
   const grid = world.grid;
   const root = svgEl("svg", {
@@ -44,12 +78,23 @@ export function renderWorld(world: World, view: MapView = "terrain"): SVGSVGElem
 
   const markers = svgEl("g", { class: "markers" });
   for (const c of world.cities) {
-    markers.appendChild(svgEl("circle", {
-      cx: c.x, cy: c.y, r: c.isCapital ? 4 : 2.5,
-      fill: "#222", stroke: "#fff", "stroke-width": 1,
-      "data-city": c.id, style: "cursor:pointer",
-    }));
-    const label = svgEl("text", { x: c.x + 5, y: c.y + 3, "font-size": 9, fill: "#222" });
+    if (c.isCapital) {
+      markers.appendChild(svgEl("path", {
+        class: "marker-capital", d: starPath(c.x, c.y, 5, 4.2, 1.9),
+        fill: INK, stroke: PARCHMENT, "stroke-width": 0.7,
+        "data-city": c.id, style: "cursor:pointer",
+      }));
+    } else {
+      markers.appendChild(svgEl("circle", {
+        class: "marker-town", cx: c.x, cy: c.y, r: 2.3,
+        fill: INK, stroke: PARCHMENT, "stroke-width": 0.9,
+        "data-city": c.id, style: "cursor:pointer",
+      }));
+    }
+    const label = svgEl("text", {
+      class: "city-label", x: c.x + 5, y: c.y + 3, "font-size": 8.5,
+      fill: "#2a2118", stroke: PARCHMENT, "stroke-width": 1.6, "paint-order": "stroke",
+    });
     label.textContent = c.name;
     markers.appendChild(label);
   }
@@ -58,7 +103,7 @@ export function renderWorld(world: World, view: MapView = "terrain"): SVGSVGElem
   // legend: only biomes present on this map
   const present = [...byBiome.keys()].sort((a, b) => a - b);
   const legend = svgEl("g", { class: "legend biome-legend" });
-  const x0 = 8, y0 = grid.height - 10 - present.length * 14;
+  const x0 = 14, y0 = grid.height - 14 - present.length * 14;
   legend.appendChild(svgEl("rect", {
     x: x0 - 5, y: y0 - 10, width: 104, height: present.length * 14 + 14, rx: 3,
     fill: "#f7f2e6", "fill-opacity": 0.92, stroke: "#cbb784", "stroke-width": 0.5,
@@ -71,6 +116,9 @@ export function renderWorld(world: World, view: MapView = "terrain"): SVGSVGElem
     legend.appendChild(t);
   });
   root.appendChild(legend);
+
+  root.appendChild(compassRose(grid.width - 26, 28, 14));
+  root.appendChild(mapFrame(grid.width, grid.height));
 
   return root;
 }

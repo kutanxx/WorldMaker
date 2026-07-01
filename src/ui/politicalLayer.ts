@@ -71,8 +71,8 @@ export function politicalLayer(
         .sort((a, b) => b[1].cells - a[1].cells)
         .slice(0, 10);
       const legend = svgEl("g", { class: "nation-legend" });
-      const x0 = grid.width - LEGEND_W;
-      const y0 = grid.height - 10 - rows.length * 14;
+      const x0 = grid.width - LEGEND_W - 10;
+      const y0 = grid.height - 14 - rows.length * 14;
       legend.appendChild(svgEl("rect", {
         x: x0 - 5, y: y0 - 10, width: LEGEND_W, height: rows.length * 14 + 14, rx: 3,
         fill: "#f7f2e6", "fill-opacity": 0.92, stroke: "#cbb784", "stroke-width": 0.5,

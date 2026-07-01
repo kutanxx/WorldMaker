@@ -20,9 +20,16 @@ describe("renderWorld biomes", () => {
     expect(svg.querySelectorAll("path.border").length).toBe(1);
     expect(svg.querySelectorAll(".biome-legend .legend-item").length).toBeGreaterThan(0);
   });
-  it("keeps a marker per city", () => {
-    expect(svg.querySelectorAll(".markers circle").length).toBe(world.cities.length);
-    expect(svg.querySelector(".markers circle")?.getAttribute("data-city")).not.toBeNull();
+  it("keeps a clickable marker per city (capitals as stars, towns as dots)", () => {
+    expect(svg.querySelectorAll(".markers [data-city]").length).toBe(world.cities.length);
+    const capitals = world.cities.filter((c) => c.isCapital).length;
+    expect(svg.querySelectorAll(".marker-capital").length).toBe(capitals);
+    expect(svg.querySelectorAll(".marker-town").length).toBe(world.cities.length - capitals);
+  });
+  it("draws a decorative map frame and a compass rose (parchment theme)", () => {
+    expect(svg.querySelectorAll(".map-frame").length).toBe(1);
+    expect(svg.querySelectorAll(".compass").length).toBe(1);
+    expect(svg.querySelector(".compass-n")?.textContent).toBe("N");
   });
 });
 
