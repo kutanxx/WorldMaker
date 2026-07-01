@@ -43,7 +43,7 @@ describe("createApp", () => {
     const root = document.createElement("div");
     createApp(root, small);
     expect(root.querySelector(".timeline input[type=range]")).not.toBeNull();
-    expect(root.querySelector(".political-slot .territory")).not.toBeNull();
+    expect(root.querySelector(".political-slot .border")).not.toBeNull();
   });
   it("scrubbing the timeline updates the year readout", () => {
     const root = document.createElement("div");
@@ -51,6 +51,34 @@ describe("createApp", () => {
     const slider = root.querySelector(".timeline input[type=range]") as HTMLInputElement;
     slider.value = slider.max; // last frame = year 500
     slider.dispatchEvent(new Event("input"));
+    expect((root.querySelector(".timeline-year") as HTMLElement).textContent).toBe("500년");
+  });
+  it("defaults to terrain view (no territory fills)", () => {
+    const root = document.createElement("div");
+    createApp(root, small);
+    expect(root.querySelector("svg.world.view-terrain")).not.toBeNull();
+    expect(root.querySelector(".political-slot .territory")).toBeNull();
+  });
+  it("toggling to 정치 fills and labels nations; back to 지형 clears them", () => {
+    const root = document.createElement("div");
+    createApp(root, small);
+    const btns = Array.from(root.querySelectorAll(".view-toggle button")) as HTMLButtonElement[];
+    const political = btns.find((b) => b.textContent === "정치")!;
+    const terrain = btns.find((b) => b.textContent === "지형")!;
+    political.click();
+    expect(root.querySelector("svg.world.view-political")).not.toBeNull();
+    expect(root.querySelector(".political-slot .territory")).not.toBeNull();
+    expect(root.querySelector(".nation-label")).not.toBeNull();
+    terrain.click();
+    expect(root.querySelector(".political-slot .territory")).toBeNull();
+  });
+  it("keeps the scrubbed year when switching views", () => {
+    const root = document.createElement("div");
+    createApp(root, small);
+    const slider = root.querySelector(".timeline input[type=range]") as HTMLInputElement;
+    slider.value = slider.max;
+    slider.dispatchEvent(new Event("input"));
+    (Array.from(root.querySelectorAll(".view-toggle button")).find((b) => b.textContent === "정치") as HTMLButtonElement).click();
     expect((root.querySelector(".timeline-year") as HTMLElement).textContent).toBe("500년");
   });
 });

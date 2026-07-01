@@ -1,7 +1,7 @@
 import type { WorldParams, GeneratedWorld } from "../types/world";
 import { DEFAULT_PARAMS } from "../types/world";
 import { generateWorld } from "../engine/world";
-import { renderWorld } from "./svgWorldRenderer";
+import { renderWorld, politicalOpts, type MapView } from "./svgWorldRenderer";
 import { renderCity } from "./svgCityRenderer";
 import { generateCityLayout, cityContext } from "../engine/city";
 import { encodeParams } from "./urlState";
@@ -31,6 +31,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
   let history = simulateHistory(generated.world, params.seed);
   let timeline: Timeline | null = null;
   let currentYearIndex = 0;
+  let currentView: MapView = "terrain";
 
   const seedInput = document.createElement("input");
   seedInput.type = "number";
@@ -43,12 +44,29 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
   pngBtn.textContent = "Export PNG";
   const svgBtn = document.createElement("button");
   svgBtn.textContent = "Export SVG";
-  controls.append(seedInput, regenBtn, jsonBtn, pngBtn, svgBtn);
+  const viewToggle = document.createElement("div");
+  viewToggle.className = "view-toggle";
+  const terrainBtn = document.createElement("button");
+  terrainBtn.textContent = "지형";
+  const politicalBtn = document.createElement("button");
+  politicalBtn.textContent = "정치";
+  viewToggle.append(terrainBtn, politicalBtn);
+  controls.append(seedInput, regenBtn, jsonBtn, pngBtn, svgBtn, viewToggle);
+
+  function setView(v: MapView): void {
+    if (v === currentView) return;
+    currentView = v;
+    showWorld(); // re-render at the current year in the new view
+  }
+  terrainBtn.addEventListener("click", () => setView("terrain"));
+  politicalBtn.addEventListener("click", () => setView("political"));
 
   function showWorld(): void {
     timeline?.destroy();
     stage.innerHTML = "";
-    const svg = renderWorld(generated.world);
+    terrainBtn.classList.toggle("active", currentView === "terrain");
+    politicalBtn.classList.toggle("active", currentView === "political");
+    const svg = renderWorld(generated.world, currentView);
     svg.addEventListener("click", (e) => {
       const target = e.target as Element;
       const id = target.getAttribute("data-city");
@@ -62,13 +80,13 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     const renderYear = (index: number): void => {
       currentYearIndex = index;
       const snap = history.snapshots[index];
-      slot.replaceChildren(politicalLayer(world.grid, snap.owner, history.polities));
+      slot.replaceChildren(politicalLayer(world.grid, snap.owner, history.polities, politicalOpts(currentView)));
       applyChronicleYear(chronicle, snap.year);
     };
 
     timeline = createTimeline(history, renderYear);
     stage.append(timeline.element, chronicle);
-    renderYear(0);
+    timeline.setIndex(currentYearIndex); // renders the current year in the current view
     location.hash = encodeParams(params).slice(1);
   }
 
@@ -89,15 +107,16 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     seedInput.value = String(params.seed);
     generated = generateWorld(params);
     history = simulateHistory(generated.world, params.seed);
+    currentYearIndex = 0;
     showWorld();
   }
 
-  // Export the world at the year the timeline is currently showing (not always year 0).
+  // Export the world at the year + view the timeline is currently showing.
   function exportWorldSvg(): SVGSVGElement {
-    const svg = renderWorld(generated.world);
+    const svg = renderWorld(generated.world, currentView);
     const slot = svg.querySelector(".political-slot") as SVGGElement;
     const snap = history.snapshots[currentYearIndex];
-    slot.replaceChildren(politicalLayer(generated.world.grid, snap.owner, history.polities));
+    slot.replaceChildren(politicalLayer(generated.world.grid, snap.owner, history.polities, politicalOpts(currentView)));
     return svg;
   }
 
