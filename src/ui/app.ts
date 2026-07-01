@@ -6,6 +6,8 @@ import { renderCity } from "./svgCityRenderer";
 import { generateCityLayout, cityContext } from "../engine/city";
 import { encodeParams } from "./urlState";
 import { worldToJSON, svgToString, svgToPngBlob, downloadBlob } from "./export";
+import { simulateHistory } from "../engine/history";
+import { renderChronicle } from "./chronicle";
 
 export interface App {
   regenerate(p: WorldParams): void;
@@ -24,6 +26,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
 
   let params: WorldParams = { ...initial };
   let generated: GeneratedWorld = generateWorld(params);
+  let history = simulateHistory(generated.world, params.seed);
 
   const seedInput = document.createElement("input");
   seedInput.type = "number";
@@ -47,6 +50,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
       if (id !== null && id !== "") openCity(Number(id));
     });
     stage.appendChild(svg);
+    stage.appendChild(renderChronicle(history));
     location.hash = encodeParams(params).slice(1);
   }
 
@@ -65,6 +69,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     params = { ...p };
     seedInput.value = String(params.seed);
     generated = generateWorld(params);
+    history = simulateHistory(generated.world, params.seed);
     showWorld();
   }
 
