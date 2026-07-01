@@ -176,4 +176,18 @@ describe("city harbor (Phase 3)", () => {
     const l = generateCityLayout(cityContext({ ...base, coastal: false, elevation: 0.4, biome: 4 }), 5);
     expect(l.harbor).toBeNull();
   });
+  it("never runs gate bridges, suburb roads, or the moat into the sea", () => {
+    for (const s of [3, 5, 7, 8, 11, 14]) {
+      const l = generateCityLayout(cityContext({ ...base, coastal: true }), s);
+      for (const br of l.gateBridges) for (const p of br) {
+        expect(inWater(l.water, p)).toBe(false);
+      }
+      for (const r of l.suburbRoads) for (const p of r) {
+        expect(inWater(l.water, p)).toBe(false);
+      }
+      for (const seg of l.moat ?? []) for (const p of seg) {
+        expect(inWater(l.water, p)).toBe(false);
+      }
+    }
+  });
 });
