@@ -5,10 +5,10 @@ import { makeNameGen } from "./names";
 
 const TICKS = 50, YEARS_PER_TICK = 10;
 const SOL_INIT = 0.5, SOL_RISE = 0.03, SOL_DECAY = 0.02;
-const W_POWER = 0.01, W_LOCAL = 1.0, W_DIST = 0.004, CONTEST_THRESH = 1.05;
+const W_POWER = 0.01, W_LOCAL = 1.0, W_DIST = 0.006, CONTEST_THRESH = 1.08;
 const HISTORY_SALT = 9001;
-const FRAG_MIN_CELLS = 120, FRAG_MAX_AVGSOL = 0.42, FRAG_PROB = 0.2, FRAG_CLUSTER = 30;
-const CITY_MIN_CELLS = 60, CITY_MIN_AVGSOL = 0.6, CITY_PROB = 0.1;
+const FRAG_MIN_CELLS = 150, FRAG_MAX_AVGSOL = 0.40, FRAG_PROB = 0.08, FRAG_CLUSTER = 30;
+const CITY_MIN_CELLS = 40, CITY_MIN_AVGSOL = 0.42, CITY_PROB = 0.14;
 const HPALETTE = ["#cabfe6", "#bfe0d4", "#f0d9a8", "#e6b8c2", "#b8cce6", "#d4e6b8", "#e6d0b8", "#c2b8e6", "#b8e6dd", "#e6c2b8"];
 
 interface Agg { cells: number; power: number; }

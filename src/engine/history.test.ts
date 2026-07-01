@@ -85,4 +85,24 @@ describe("simulateHistory skeleton", () => {
     }
     expect(found).toBe(true);
   });
+  it("produces interesting dynamics across seeds (conquest, fragmentation, cities, no instant collapse)", () => {
+    const seeds = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+    let conquestSeeds = 0, fragmentSeeds = 0, citySeeds = 0, aliveVaries = 0;
+    for (const s of seeds) {
+      const w = build(s);
+      if (w.polities.length < 2) continue;
+      const h = simulateHistory(w, s);
+      if (h.events.some((e) => e.type === "conquer")) conquestSeeds++;
+      if (h.events.some((e) => e.type === "fragment")) fragmentSeeds++;
+      if (h.events.some((e) => e.type === "newCity")) citySeeds++;
+      const mid = h.snapshots[Math.floor(h.snapshots.length / 2)];
+      const ids = new Set<number>();
+      for (let c = 0; c < mid.owner.length; c++) if (mid.owner[c] >= 0) ids.add(mid.owner[c]);
+      if (ids.size >= 2) aliveVaries++;
+    }
+    expect(conquestSeeds).toBeGreaterThan(0);      // some worlds see empires conquered
+    expect(fragmentSeeds).toBeGreaterThan(0);      // some worlds see realms splinter
+    expect(citySeeds).toBeGreaterThan(0);          // lore cities are founded
+    expect(aliveVaries).toBeGreaterThanOrEqual(7); // most worlds keep >=2 powers mid-run (no instant collapse)
+  });
 });
