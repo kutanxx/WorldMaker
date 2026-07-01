@@ -4,7 +4,7 @@ import { generateWorld } from "../engine/world";
 import { renderWorld, politicalOpts, type MapView } from "./svgWorldRenderer";
 import { renderCity } from "./svgCityRenderer";
 import { generateCityLayout, cityContext } from "../engine/city";
-import { encodeParams } from "./urlState";
+import { encodeParams, randomSeed } from "./urlState";
 import { worldToJSON, svgToString, svgToPngBlob, downloadBlob } from "./export";
 import { simulateHistory } from "../engine/history";
 import { renderChronicle, applyChronicleYear } from "./chronicle";
@@ -38,6 +38,9 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
   seedInput.value = String(params.seed);
   const regenBtn = document.createElement("button");
   regenBtn.textContent = "Generate";
+  const randomBtn = document.createElement("button");
+  randomBtn.className = "random-seed";
+  randomBtn.textContent = "🎲 랜덤 시드";
   const jsonBtn = document.createElement("button");
   jsonBtn.textContent = "Export JSON";
   const pngBtn = document.createElement("button");
@@ -51,7 +54,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
   const politicalBtn = document.createElement("button");
   politicalBtn.textContent = "정치";
   viewToggle.append(terrainBtn, politicalBtn);
-  controls.append(seedInput, regenBtn, jsonBtn, pngBtn, svgBtn, viewToggle);
+  controls.append(seedInput, regenBtn, randomBtn, jsonBtn, pngBtn, svgBtn, viewToggle);
 
   function setView(v: MapView): void {
     if (v === currentView) return;
@@ -121,6 +124,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
   }
 
   regenBtn.addEventListener("click", () => regenerate({ ...params, seed: Number(seedInput.value) }));
+  randomBtn.addEventListener("click", () => regenerate({ ...params, seed: randomSeed() }));
   jsonBtn.addEventListener("click", () =>
     downloadBlob("world.json", new Blob([worldToJSON(generated.world)], { type: "application/json" }))
   );

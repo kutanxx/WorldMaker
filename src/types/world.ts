@@ -30,8 +30,17 @@ export interface Polity {
   name: string;
 }
 
+export interface Region {
+  name: string;
+  kind: number;
+  centroid: [number, number];
+  cells: number;
+}
+
 export interface World {
   params: WorldParams;
+  name: string;
+  regions: Region[];
   grid: {
     width: number;
     height: number;

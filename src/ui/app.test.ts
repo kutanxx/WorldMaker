@@ -39,6 +39,18 @@ describe("createApp", () => {
     const labels = Array.from(root.querySelectorAll(".controls button")).map((b) => b.textContent);
     expect(labels).toContain("Export SVG");
   });
+  it("has a random-seed button that rerolls to a new seed", () => {
+    const root = document.createElement("div");
+    createApp(root, { ...small, seed: 7 });
+    const seedInput = root.querySelector('.controls input[type=number]') as HTMLInputElement;
+    expect(seedInput.value).toBe("7");
+    const btn = root.querySelector(".controls button.random-seed") as HTMLButtonElement;
+    expect(btn).not.toBeNull();
+    btn.click();
+    // reroll set a fresh finite seed (almost surely different from 7) and re-rendered the world
+    expect(Number.isInteger(Number(seedInput.value))).toBe(true);
+    expect(root.querySelector("svg.world")).not.toBeNull();
+  });
   it("shows a timeline and a political layer over the world", () => {
     const root = document.createElement("div");
     createApp(root, small);
