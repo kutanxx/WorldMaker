@@ -91,4 +91,20 @@ describe("city organic", () => {
     const plains = generateCityLayout(cityContext({ ...base, coastal: false, elevation: 0.5, biome: 4 }), 7);
     expect(plains.features.trees).toEqual([]);
   });
+  it("gives a desert city a central oasis (water body) and no green parks", () => {
+    const desert = generateCityLayout(cityContext({ ...base, coastal: false, elevation: 0.5, biome: 5 }), 7);
+    expect(desert.features.oasis).not.toBeNull();
+    expect(desert.parks.length).toBe(0);
+    // the oasis was added to the water bodies (so buildings/roads avoid it via the water filter)
+    const o = desert.features.oasis!;
+    const hasOasisBody = desert.water.bodies.some((body) => {
+      const c = centroid(body);
+      return Math.hypot(c[0] - o.center[0], c[1] - o.center[1]) < 3;
+    });
+    expect(hasOasisBody).toBe(true);
+    // buildings never sit in water (oasis included)
+    for (const w of desert.wards) for (const b of w.buildings) {
+      expect(inWater(desert.water, centroid(b))).toBe(false);
+    }
+  });
 });

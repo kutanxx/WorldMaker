@@ -32,4 +32,10 @@ describe("renderCity organic", () => {
     expect(svg.querySelectorAll(".tree").length).toBe(layout.features.trees.length);
     expect(svg.querySelectorAll(".tree").length).toBeGreaterThan(0);
   });
+  it("draws palms around a desert oasis", () => {
+    const layout = generateCityLayout(cityContext({ ...marker, coastal: false, elevation: 0.5, biome: 5 }), 7);
+    const svg = renderCity(layout);
+    expect(layout.features.oasis).not.toBeNull();
+    expect(svg.querySelectorAll(".palm").length).toBeGreaterThan(0);
+  });
 });

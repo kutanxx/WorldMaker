@@ -102,6 +102,12 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
   const archetype = selectArchetype({ coastal: ctx.coastal, elevation: ctx.elevation, size: ctx.size, biome: ctx.biome });
 
   const water = buildWater(rng, archetype.water, bounds);
+  if (archetype.oasis) {
+    const or = radius * 0.12;
+    const oasisPoly: Polygon = [];
+    for (let k = 0; k < 16; k++) { const a = (k / 16) * Math.PI * 2; oasisPoly.push([center[0] + Math.cos(a) * or, center[1] + Math.sin(a) * or]); }
+    water.bodies.push(oasisPoly);
+  }
   const boundary = makeBoundary(rng, archetype, ctx.size, center, water);
 
   const noiseAmp = archetype.streetField === "grid" || archetype.streetField === "linear" ? 0.2 : 0.26;
@@ -146,7 +152,10 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
 
   const parks: Polygon[] = [];
   const wards: Ward[] = zoned.map((z) => {
-    if (z.type === "park") { parks.push(z.polygon); return { polygon: z.polygon, type: z.type, buildings: [], inner: z.inner }; }
+    if (z.type === "park") {
+      if (!archetype.oasis) parks.push(z.polygon); // desert: no green parks
+      return { polygon: z.polygon, type: z.type, buildings: [], inner: z.inner };
+    }
     let buildings: Polygon[] = [];
     if (!NO_BUILDINGS.includes(z.type)) {
       buildings = subdivide(rng, z.polygon, { minArea: DENSITY[z.type] ?? 130, margin: 1.5 });
@@ -185,7 +194,7 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
     wallMaterial: archetype.wallMaterial,
     trees: archetype.vegetation === "trees" ? scatterTrees(18 + ctx.size * 4) : [],
     onStilts: archetype.onStilts,
-    oasis: null,
+    oasis: archetype.oasis ? { center: [center[0], center[1]], radius: radius * 0.12 } : null,
     groundColor: archetype.groundColor,
   };
 
