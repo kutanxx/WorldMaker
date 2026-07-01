@@ -20,9 +20,26 @@ export function renderChronicle(history: History): HTMLElement {
     }
     const row = document.createElement("li");
     row.className = `chronicle-event evt-${e.type}`;
+    row.dataset.year = String(e.year);
     row.textContent = e.text;
     list.appendChild(row);
   }
   root.appendChild(list);
   return root;
+}
+
+export function applyChronicleYear(root: HTMLElement, year: number): void {
+  const rows = root.querySelectorAll<HTMLElement>(".chronicle-event");
+  let lastCurrent: HTMLElement | null = null;
+  for (const row of rows) {
+    if (Number(row.dataset.year) > year) {
+      row.classList.add("future");
+    } else {
+      row.classList.remove("future");
+      lastCurrent = row;
+    }
+  }
+  if (lastCurrent && typeof lastCurrent.scrollIntoView === "function") {
+    lastCurrent.scrollIntoView({ block: "nearest" });
+  }
 }

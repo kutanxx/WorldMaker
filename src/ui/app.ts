@@ -7,7 +7,9 @@ import { generateCityLayout, cityContext } from "../engine/city";
 import { encodeParams } from "./urlState";
 import { worldToJSON, svgToString, svgToPngBlob, downloadBlob } from "./export";
 import { simulateHistory } from "../engine/history";
-import { renderChronicle } from "./chronicle";
+import { renderChronicle, applyChronicleYear } from "./chronicle";
+import { createTimeline, type Timeline } from "./timeline";
+import { politicalLayer } from "./politicalLayer";
 
 export interface App {
   regenerate(p: WorldParams): void;
@@ -27,6 +29,8 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
   let params: WorldParams = { ...initial };
   let generated: GeneratedWorld = generateWorld(params);
   let history = simulateHistory(generated.world, params.seed);
+  let timeline: Timeline | null = null;
+  let currentYearIndex = 0;
 
   const seedInput = document.createElement("input");
   seedInput.type = "number";
@@ -42,6 +46,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
   controls.append(seedInput, regenBtn, jsonBtn, pngBtn, svgBtn);
 
   function showWorld(): void {
+    timeline?.destroy();
     stage.innerHTML = "";
     const svg = renderWorld(generated.world);
     svg.addEventListener("click", (e) => {
@@ -50,13 +55,27 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
       if (id !== null && id !== "") openCity(Number(id));
     });
     stage.appendChild(svg);
-    stage.appendChild(renderChronicle(history));
+
+    const chronicle = renderChronicle(history);
+    const slot = svg.querySelector(".political-slot") as SVGGElement;
+    const world = generated.world;
+    const renderYear = (index: number): void => {
+      currentYearIndex = index;
+      const snap = history.snapshots[index];
+      slot.replaceChildren(politicalLayer(world.grid, snap.owner, history.polities));
+      applyChronicleYear(chronicle, snap.year);
+    };
+
+    timeline = createTimeline(history, renderYear);
+    stage.append(timeline.element, chronicle);
+    renderYear(0);
     location.hash = encodeParams(params).slice(1);
   }
 
   function openCity(cityId: number): void {
     const marker = generated.world.cities.find((c) => c.id === cityId);
     if (!marker) return;
+    timeline?.destroy();
     stage.innerHTML = "";
     const back = document.createElement("button");
     back.textContent = "Back to world";
@@ -73,22 +92,29 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     showWorld();
   }
 
+  // Export the world at the year the timeline is currently showing (not always year 0).
+  function exportWorldSvg(): SVGSVGElement {
+    const svg = renderWorld(generated.world);
+    const slot = svg.querySelector(".political-slot") as SVGGElement;
+    const snap = history.snapshots[currentYearIndex];
+    slot.replaceChildren(politicalLayer(generated.world.grid, snap.owner, history.polities));
+    return svg;
+  }
+
   regenBtn.addEventListener("click", () => regenerate({ ...params, seed: Number(seedInput.value) }));
   jsonBtn.addEventListener("click", () =>
     downloadBlob("world.json", new Blob([worldToJSON(generated.world)], { type: "application/json" }))
   );
   pngBtn.addEventListener("click", async () => {
     try {
-      const svg = renderWorld(generated.world);
-      const blob = await svgToPngBlob(svg, params.width, params.height);
+      const blob = await svgToPngBlob(exportWorldSvg(), params.width, params.height);
       downloadBlob("world.png", blob);
     } catch (e) {
       console.error("PNG export failed", e);
     }
   });
   svgBtn.addEventListener("click", () => {
-    const svg = renderWorld(generated.world);
-    downloadBlob("world.svg", new Blob([svgToString(svg)], { type: "image/svg+xml" }));
+    downloadBlob("world.svg", new Blob([svgToString(exportWorldSvg())], { type: "image/svg+xml" }));
   });
 
   showWorld();

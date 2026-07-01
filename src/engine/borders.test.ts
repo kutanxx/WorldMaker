@@ -39,4 +39,11 @@ describe("borders", () => {
     expect(politicalBorders(grid, [-1, 1, 2]).length).toBe(1); // cell0 unassigned; cells1,2 differ -> 1 border
     expect(politicalBorders(grid, [-1, -1, 1]).length).toBe(0); // every border touches an unassigned cell
   });
+  it("politicalBorders accepts an Int32Array (snapshot) owner and matches the array result", () => {
+    const arr = Int32Array.from([0, 0, 1]);
+    const a = politicalBorders(grid, [0, 0, 1]);
+    const b = politicalBorders(grid, arr);
+    expect(b.length).toBe(a.length);
+    expect(b.length).toBe(1); // only the cell1|cell2 edge differs
+  });
 });
