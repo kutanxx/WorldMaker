@@ -110,9 +110,9 @@ describe("simulateHistory skeleton", () => {
       return;
     }
   });
-  it("no single power inevitably conquers everything (varied fates across seeds)", () => {
+  it("no single power inevitably conquers everything (varied fates, not one-nation-dominates)", () => {
     const seeds = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
-    let totalConquest = 0, multiPower = 0, conquestSeeds = 0, citySeeds = 0;
+    let totalConquest = 0, hegemony = 0, multiPower = 0, conquestSeeds = 0, citySeeds = 0;
     for (const s of seeds) {
       const w = build(s);
       if (w.polities.length < 2) continue;
@@ -125,11 +125,15 @@ describe("simulateHistory skeleton", () => {
       for (let c = 0; c < last.length; c++) { const o = last[c]; if (o >= 0) { land++; count.set(o, (count.get(o) ?? 0) + 1); } }
       const top = Math.max(...count.values());
       if (top / land > 0.8) totalConquest++;      // one polity holds >80% of land
+      if (top / land > 0.7) hegemony++;            // one polity dominates the map
       if (count.size >= 3) multiPower++;           // ≥3 powers survive
     }
     expect(conquestSeeds).toBeGreaterThan(0);      // conquest still happens
     expect(citySeeds).toBeGreaterThan(0);          // lore cities founded
     expect(totalConquest).toBeLessThanOrEqual(4);  // NOT every world unifies (the whole point)
-    expect(multiPower).toBeGreaterThanOrEqual(4);  // many worlds stay multipolar
+    // the user's complaint: the flow always resolved to one dominant nation. Most worlds must NOT
+    // end dominated by a single power (this fails on the pre-fix ~83% snowball plateau: 6/10).
+    expect(hegemony).toBeLessThanOrEqual(4);
+    expect(multiPower).toBeGreaterThanOrEqual(6);  // most worlds stay genuinely multipolar
   });
 });

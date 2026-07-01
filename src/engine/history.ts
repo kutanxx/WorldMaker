@@ -9,9 +9,15 @@ const SOL_INIT = 0.5, SOL_RISE = 0.03, SOL_DECAY = 0.02;
 // asabiyya drives it (Turchin), but a cohesive core can absorb small neighbours within reach;
 // sqrt(cells) saturates so it never runs away, and W_DIST caps how far an empire projects.
 const W_ASA = 1.0, W_LOCAL = 0.5, W_POWER = 0.03, W_DIST = 0.002, CONTEST_THRESH = 1.03;
+// the size edge saturates HARD: a mid-size realm can field an army, but a sprawling empire
+// gets no extra edge from sheer size (its overextension shows up via W_DIST instead). Without
+// this cap, √cells grows unbounded and the biggest power wins every contest → a durable hegemon.
+const SIZE_CAP = 24; // sqrt(cells) capped ≈ 580 cells; max size term ≈ 0.72
 const HISTORY_SALT = 9001;
-// civil war: a large, low-cohesion empire disintegrates into 2-3 successor states
-const CIVILWAR_MIN_CELLS = 220, CIVILWAR_MAX_ASA = 0.42, CIVILWAR_PROB = 0.06;
+// civil war: a large, low-cohesion empire disintegrates into 2-3 successor states.
+// successors are FRESH realms forged in the upheaval → high birth cohesion, so they can
+// resist re-absorption by the old power (otherwise the biggest fragment just swallows them again).
+const CIVILWAR_MIN_CELLS = 220, CIVILWAR_MAX_ASA = 0.42, CIVILWAR_PROB = 0.06, CIVILWAR_BIRTH_SOL = 0.7;
 // free cities: a city beyond admin reach (or an economic zone) declares independence
 const FREE_REACH = 250, FREE_MAX_ASA = 0.5, FREE_PROB = 0.035, FREE_ZONE_PROB = 0.09;
 const FREE_SOL = 0.85, FREE_CLUSTER = 5, FREE_MAX_ALIVE = 4;
@@ -139,8 +145,8 @@ export function simulateHistory(world: World, worldSeed: number): History {
         if (agg[p].avg > bestAvg) { bestAvg = agg[p].avg; best = p; bestCell = nb; }
       }
       if (best < 0) continue;
-      const attack = agg[best].avg * W_ASA + solidarity[bestCell] * W_LOCAL + Math.sqrt(agg[best].cells) * W_POWER - dist(c, capitals[best]) * W_DIST + zoneBonus(best);
-      const defend = o < 0 ? 0 : agg[o].avg * W_ASA + solidarity[c] * W_LOCAL + Math.sqrt(agg[o].cells) * W_POWER - dist(c, capitals[o]) * W_DIST + zoneBonus(o);
+      const attack = agg[best].avg * W_ASA + solidarity[bestCell] * W_LOCAL + Math.min(Math.sqrt(agg[best].cells), SIZE_CAP) * W_POWER - dist(c, capitals[best]) * W_DIST + zoneBonus(best);
+      const defend = o < 0 ? 0 : agg[o].avg * W_ASA + solidarity[c] * W_LOCAL + Math.min(Math.sqrt(agg[o].cells), SIZE_CAP) * W_POWER - dist(c, capitals[o]) * W_DIST + zoneBonus(o);
       if (attack > defend * CONTEST_THRESH) nextOwner[c] = best;
     }
     owner.set(nextOwner);
@@ -181,6 +187,7 @@ export function simulateHistory(world: World, worldSeed: number): History {
         let bi = 0, bd = Infinity;
         for (let i = 0; i < allCaps.length; i++) { const d = dist(c, allCaps[i]); if (d < bd) { bd = d; bi = i; } }
         owner[c] = capPolity[bi];
+        solidarity[c] = CIVILWAR_BIRTH_SOL; // fresh cohesion so successors can stand on their own
       }
       events.push({ year, type: "civilwar", text: `${year}년, 내란이 ${polities[o].name}을(를) ${names.join("·")}(으)로 쪼갬`, polityId: o, cell: capitals[o] });
       break;
