@@ -48,12 +48,15 @@ export function assignZones(
   setType("plaza");
   setType("cathedral");
   setType("guildhall");
+  // capture the harbor ward BEFORE any castle-anchor swap so the swap can't steal it
+  const farthest = out[out.length - 1];
   if (opts.hasCastle) {
     const anchor = opts.castleAnchor;
     if (anchor) {
       // keep sits on the high ground: swap the ward nearest the anchor into the castle slot
       let bi = idx, bd = Infinity;
       for (let j = idx; j < out.length; j++) {
+        if (out[j] === farthest && opts.coastal) continue; // don't consume the harbor ward
         const d = Math.hypot(out[j].site[0] - anchor[0], out[j].site[1] - anchor[1]);
         if (d < bd) { bd = d; bi = j; }
       }
@@ -62,7 +65,6 @@ export function assignZones(
     setType("castle");
   }
 
-  const farthest = out[out.length - 1];
   if (opts.coastal) farthest.type = "harbor";
 
   for (; idx < out.length; idx++) {
