@@ -12,8 +12,10 @@ describe("renderWorld biomes", () => {
     expect(svg.querySelectorAll(".regions").length).toBe(0);
     expect(svg.querySelectorAll(".mountains").length).toBe(0);
   });
-  it("draws coastline and borders as one path each", () => {
+  it("draws coastline once and a political slot with territories + one border", () => {
     expect(svg.querySelectorAll("path.coastline").length).toBe(1);
+    expect(svg.querySelectorAll(".political-slot").length).toBe(1);
+    expect(svg.querySelectorAll(".political-slot .territory").length).toBeGreaterThan(1);
     expect(svg.querySelectorAll("path.border").length).toBe(1);
   });
   it("keeps a marker per city and shows a biome legend", () => {

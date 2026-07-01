@@ -24,7 +24,7 @@ export function sharedEdge(a: number[][], b: number[][]): Segment | null {
   return shared.length === 2 ? [shared[0], shared[1]] : null;
 }
 
-export function politicalBorders(grid: GridLike, polityOf: number[]): Segment[] {
+export function politicalBorders(grid: GridLike, polityOf: ArrayLike<number>): Segment[] {
   const segs: Segment[] = [];
   for (let i = 0; i < grid.count; i++) {
     if (polityOf[i] < 0) continue;

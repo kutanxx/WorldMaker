@@ -7,7 +7,9 @@ import { generateCityLayout, cityContext } from "../engine/city";
 import { encodeParams } from "./urlState";
 import { worldToJSON, svgToString, svgToPngBlob, downloadBlob } from "./export";
 import { simulateHistory } from "../engine/history";
-import { renderChronicle } from "./chronicle";
+import { renderChronicle, applyChronicleYear } from "./chronicle";
+import { createTimeline, type Timeline } from "./timeline";
+import { politicalLayer } from "./politicalLayer";
 
 export interface App {
   regenerate(p: WorldParams): void;
@@ -27,6 +29,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
   let params: WorldParams = { ...initial };
   let generated: GeneratedWorld = generateWorld(params);
   let history = simulateHistory(generated.world, params.seed);
+  let timeline: Timeline | null = null;
 
   const seedInput = document.createElement("input");
   seedInput.type = "number";
@@ -42,6 +45,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
   controls.append(seedInput, regenBtn, jsonBtn, pngBtn, svgBtn);
 
   function showWorld(): void {
+    timeline?.destroy();
     stage.innerHTML = "";
     const svg = renderWorld(generated.world);
     svg.addEventListener("click", (e) => {
@@ -50,13 +54,26 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
       if (id !== null && id !== "") openCity(Number(id));
     });
     stage.appendChild(svg);
-    stage.appendChild(renderChronicle(history));
+
+    const chronicle = renderChronicle(history);
+    const slot = svg.querySelector(".political-slot") as SVGGElement;
+    const world = generated.world;
+    const renderYear = (index: number): void => {
+      const snap = history.snapshots[index];
+      slot.replaceChildren(politicalLayer(world.grid, snap.owner, history.polities));
+      applyChronicleYear(chronicle, snap.year);
+    };
+
+    timeline = createTimeline(history, renderYear);
+    stage.append(timeline.element, chronicle);
+    renderYear(0);
     location.hash = encodeParams(params).slice(1);
   }
 
   function openCity(cityId: number): void {
     const marker = generated.world.cities.find((c) => c.id === cityId);
     if (!marker) return;
+    timeline?.destroy();
     stage.innerHTML = "";
     const back = document.createElement("button");
     back.textContent = "Back to world";

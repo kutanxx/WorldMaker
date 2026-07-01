@@ -1,17 +1,9 @@
 import type { World } from "../types/world";
 import { svgEl } from "./renderer";
 import { OCEAN, BIOME_COLORS, BIOME_NAMES } from "../engine/biome";
-import { politicalBorders, coastline } from "../engine/borders";
-import type { Segment } from "../engine/borders";
-
-function cellPath(poly: number[][]): string {
-  if (!poly.length) return "";
-  return "M" + poly.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join("L") + "Z";
-}
-
-function segPath(segs: Segment[]): string {
-  return segs.map(([a, b]) => `M${a[0].toFixed(1)},${a[1].toFixed(1)}L${b[0].toFixed(1)},${b[1].toFixed(1)}`).join("");
-}
+import { coastline } from "../engine/borders";
+import { cellPath, segPath } from "./svgPaths";
+import { politicalLayer } from "./politicalLayer";
 
 export function renderWorld(world: World): SVGSVGElement {
   const grid = world.grid;
@@ -40,10 +32,9 @@ export function renderWorld(world: World): SVGSVGElement {
     class: "coastline", d: segPath(coastline(grid, world.terrain)),
     fill: "none", stroke: "#5f7888", "stroke-width": 0.6,
   }));
-  root.appendChild(svgEl("path", {
-    class: "border", d: segPath(politicalBorders(grid, world.polityOf)),
-    fill: "none", stroke: "#3c2f1c", "stroke-width": 0.8, "stroke-linejoin": "round",
-  }));
+  const slot = svgEl("g", { class: "political-slot" });
+  slot.appendChild(politicalLayer(grid, world.polityOf, world.polities));
+  root.appendChild(slot);
 
   const markers = svgEl("g", { class: "markers" });
   for (const c of world.cities) {

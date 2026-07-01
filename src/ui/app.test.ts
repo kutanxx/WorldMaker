@@ -39,4 +39,18 @@ describe("createApp", () => {
     const labels = Array.from(root.querySelectorAll(".controls button")).map((b) => b.textContent);
     expect(labels).toContain("Export SVG");
   });
+  it("shows a timeline and a political layer over the world", () => {
+    const root = document.createElement("div");
+    createApp(root, small);
+    expect(root.querySelector(".timeline input[type=range]")).not.toBeNull();
+    expect(root.querySelector(".political-slot .territory")).not.toBeNull();
+  });
+  it("scrubbing the timeline updates the year readout", () => {
+    const root = document.createElement("div");
+    createApp(root, small);
+    const slider = root.querySelector(".timeline input[type=range]") as HTMLInputElement;
+    slider.value = slider.max; // last frame = year 500
+    slider.dispatchEvent(new Event("input"));
+    expect((root.querySelector(".timeline-year") as HTMLElement).textContent).toBe("500년");
+  });
 });
