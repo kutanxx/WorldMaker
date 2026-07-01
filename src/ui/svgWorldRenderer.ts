@@ -124,7 +124,8 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
 
   // economic special zones (free ports / staple towns): a gold diamond on the city
   if (econZones.length) {
-    const eg = svgEl("g", { class: "econ-zones" });
+    const eg = svgEl("g", { class: "econ-zones", style: "pointer-events:none" }); // badge only; don't block city clicks
+
     for (const cell of econZones) {
       const x = grid.points[cell * 2], y = grid.points[cell * 2 + 1];
       eg.appendChild(svgEl("path", {

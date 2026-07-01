@@ -35,6 +35,8 @@ describe("renderWorld biomes", () => {
     const zones = [world.cities[0].cell, world.cities[1].cell];
     const withZones = renderWorld(world, "terrain", zones);
     expect(withZones.querySelectorAll(".econ-zones .econ-zone").length).toBe(2);
+    // the gold badge must not intercept the city-marker click underneath it
+    expect((withZones.querySelector(".econ-zones") as SVGElement).getAttribute("style")).toContain("pointer-events:none");
     expect(svg.querySelectorAll(".econ-zone").length).toBe(0); // none without zones
   });
 });
