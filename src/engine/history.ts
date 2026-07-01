@@ -1,9 +1,15 @@
 import { OCEAN } from "./terrain";
 import type { World } from "../types/world";
+import { mulberry32, deriveSeed } from "./rng";
+import { makeNameGen } from "./names";
 
 const TICKS = 50, YEARS_PER_TICK = 10;
 const SOL_INIT = 0.5, SOL_RISE = 0.03, SOL_DECAY = 0.02;
 const W_POWER = 0.01, W_LOCAL = 1.0, W_DIST = 0.004, CONTEST_THRESH = 1.05;
+const HISTORY_SALT = 9001;
+const FRAG_MIN_CELLS = 120, FRAG_MAX_AVGSOL = 0.42, FRAG_PROB = 0.2, FRAG_CLUSTER = 30;
+const CITY_MIN_CELLS = 60, CITY_MIN_AVGSOL = 0.6, CITY_PROB = 0.1;
+const HPALETTE = ["#cabfe6", "#bfe0d4", "#f0d9a8", "#e6b8c2", "#b8cce6", "#d4e6b8", "#e6d0b8", "#c2b8e6", "#b8e6dd", "#e6c2b8"];
 
 interface Agg { cells: number; power: number; }
 
@@ -25,7 +31,7 @@ export interface History {
   snapshots: HistorySnapshot[];
 }
 
-export function simulateHistory(world: World, _worldSeed: number): History {
+export function simulateHistory(world: World, worldSeed: number): History {
   const { grid, terrain, polityOf } = world;
   const n = grid.count;
   const neighbors = grid.neighbors;
@@ -34,6 +40,8 @@ export function simulateHistory(world: World, _worldSeed: number): History {
   const dist = (a: number, b: number) => Math.hypot(px(a) - px(b), py(a) - py(b));
 
   const owner = Int32Array.from(polityOf);
+  const rng = mulberry32(deriveSeed(worldSeed, HISTORY_SALT));
+  const nameGen = makeNameGen(mulberry32(deriveSeed(worldSeed, HISTORY_SALT + 1)));
   let solidarity = new Float32Array(n);
   for (let c = 0; c < n; c++) solidarity[c] = owner[c] >= 0 ? SOL_INIT : 0;
 
@@ -96,6 +104,42 @@ export function simulateHistory(world: World, _worldSeed: number): History {
         alive[o] = false; polities[o].endedYear = year;
         events.push({ year, type: "conquer", text: `${year}년, ${polities[capOwner].name}이(가) ${polities[o].name}을(를) 정복`, polityId: capOwner, otherId: o, cell: capitals[o] });
       }
+    }
+    // --- fragmentation: one large, low-solidarity polity may shed a border cluster ---
+    const agg2 = aggregate();
+    for (let o = 0; o < polities.length; o++) {
+      if (!alive[o] || agg2[o].cells < FRAG_MIN_CELLS) continue;
+      if (agg2[o].power / agg2[o].cells >= FRAG_MAX_AVGSOL) continue;
+      if (rng() > FRAG_PROB) continue;
+      // seed = a border cell of o that is not the capital
+      let seed = -1;
+      for (let c = 0; c < n; c++) {
+        if (owner[c] !== o || c === capitals[o]) continue;
+        if (neighbors[c].some((nb) => terrain[nb] !== OCEAN && owner[nb] !== o)) { seed = c; break; }
+      }
+      if (seed < 0) continue;
+      // grow a bounded cluster within o's cells (BFS), excluding the capital
+      const cluster: number[] = [seed]; const inCluster = new Set([seed]);
+      for (let qi = 0; qi < cluster.length && cluster.length < FRAG_CLUSTER; qi++) {
+        for (const nb of neighbors[cluster[qi]]) {
+          if (owner[nb] === o && nb !== capitals[o] && !inCluster.has(nb)) { inCluster.add(nb); cluster.push(nb); if (cluster.length >= FRAG_CLUSTER) break; }
+        }
+      }
+      if (cluster.length < 6) continue;
+      const newId = polities.length;
+      polities.push({ id: newId, name: nameGen.nation(), color: HPALETTE[newId % HPALETTE.length], capital: seed, foundedYear: year, endedYear: null, origin: "fragment" });
+      capitals.push(seed); alive.push(true);
+      for (const c of cluster) owner[c] = newId;
+      events.push({ year, type: "fragment", text: `${year}년, 내란이 ${polities[o].name}을(를) 갈라 ${polities[newId].name} 탄생`, polityId: o, otherId: newId, cell: seed });
+      break; // at most one fragmentation per tick
+    }
+    // --- new city: one large, stable polity may found a lore city ---
+    for (let o = 0; o < agg2.length; o++) {
+      if (!alive[o] || agg2[o].cells < CITY_MIN_CELLS) continue;
+      if (agg2[o].power / agg2[o].cells < CITY_MIN_AVGSOL) continue;
+      if (rng() > CITY_PROB) continue;
+      events.push({ year, type: "newCity", text: `${year}년, ${polities[o].name}이(가) ${nameGen.place()} 건설`, polityId: o, cell: capitals[o] });
+      break; // at most one per tick
     }
     snapshots.push({ year, owner: owner.slice() });
   }

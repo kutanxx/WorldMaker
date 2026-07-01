@@ -77,4 +77,12 @@ describe("simulateHistory skeleton", () => {
     // if no seed produced a conquest, the tuning task (Task 6) addresses it; don't fail here
     expect(true).toBe(true);
   });
+  it("can spawn a fragment polity across seeds (new polity with origin 'fragment')", () => {
+    let found = false;
+    for (const s of [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]) {
+      const h = simulateHistory(build(s), s);
+      if (h.polities.some((p) => p.origin === "fragment")) { found = true; break; }
+    }
+    expect(found).toBe(true);
+  });
 });
