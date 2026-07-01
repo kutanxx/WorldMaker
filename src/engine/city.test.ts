@@ -72,4 +72,13 @@ describe("city organic", () => {
       expect(pointInPolygon(centroid(b), l.boundary)).toBe(true);
     }
   });
+  it("always exposes features with archetype-derived defaults", () => {
+    const plains = generateCityLayout(cityContext({ ...base, coastal: false, elevation: 0.5, biome: 4 }), 5);
+    expect(plains.features.wallMaterial).toBe("stone");
+    expect(plains.features.groundColor).toBe("#efe7d2");
+    expect(plains.features.trees).toEqual([]);
+    const forest = generateCityLayout(cityContext({ ...base, coastal: false, elevation: 0.5, biome: 3 }), 5);
+    expect(forest.features.wallMaterial).toBe("timber");
+    expect(forest.features.groundColor).toBe("#e3e7d0");
+  });
 });

@@ -25,6 +25,14 @@ export interface Ward {
   inner: boolean;
 }
 
+export interface CityFeatures {
+  wallMaterial: "stone" | "timber";
+  trees: Point[];
+  onStilts: boolean;
+  oasis: { center: Point; radius: number } | null;
+  groundColor: string;
+}
+
 export interface CityLayout {
   name: string;
   size: number;
@@ -42,6 +50,7 @@ export interface CityLayout {
   wards: Ward[];
   parks: Polygon[];
   labels: { x: number; y: number; text: string }[];
+  features: CityFeatures;
 }
 
 export interface CityContext {
@@ -156,8 +165,16 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
     if (t) { const c = centroid(z.polygon); labels.push({ x: c[0], y: c[1], text: t }); }
   }
 
+  const features: CityFeatures = {
+    wallMaterial: archetype.wallMaterial,
+    trees: [],
+    onStilts: archetype.onStilts,
+    oasis: null,
+    groundColor: archetype.groundColor,
+  };
+
   return {
     name: ctx.name, size: ctx.size, coastal: ctx.coastal, isCapital: ctx.isCapital,
-    archetype, bounds, boundary, water, wall, moat, gateBridges, mainRoads, minorRoads, wards, parks, labels,
+    archetype, bounds, boundary, water, wall, moat, gateBridges, mainRoads, minorRoads, wards, parks, labels, features,
   };
 }

@@ -35,7 +35,7 @@ export function renderCity(layout: CityLayout): SVGSVGElement {
   }
 
   const clipped = svgEl("g", { "clip-path": `url(#${clipId})` });
-  clipped.appendChild(svgEl("polygon", { class: "boundary", points: pts(layout.boundary), fill: "#efe7d2" }));
+  clipped.appendChild(svgEl("polygon", { class: "boundary", points: pts(layout.boundary), fill: layout.features.groundColor }));
   for (const park of layout.parks) clipped.appendChild(svgEl("polygon", { class: "park", points: pts(park), fill: "#cfe0b8" }));
   for (const ward of layout.wards) {
     const tint = TINT[ward.type];
@@ -69,9 +69,11 @@ export function renderCity(layout: CityLayout): SVGSVGElement {
   }
 
   if (layout.wall) {
+    const wallStroke = layout.features.wallMaterial === "timber" ? "#6b4f34" : "#43392d";
+    const wallInner = layout.features.wallMaterial === "timber" ? "#8a6a44" : "#8a7a60";
     for (const s of layout.wall.segments) {
-      root.appendChild(svgEl("polyline", { class: "wall-seg", points: pts(s), fill: "none", stroke: "#43392d", "stroke-width": 4, "stroke-linejoin": "round", "stroke-linecap": "round" }));
-      root.appendChild(svgEl("polyline", { class: "wall-seg-inner", points: pts(s), fill: "none", stroke: "#8a7a60", "stroke-width": 1, "stroke-linejoin": "round" }));
+      root.appendChild(svgEl("polyline", { class: "wall-seg", points: pts(s), fill: "none", stroke: wallStroke, "stroke-width": 4, "stroke-linejoin": "round", "stroke-linecap": "round" }));
+      root.appendChild(svgEl("polyline", { class: "wall-seg-inner", points: pts(s), fill: "none", stroke: wallInner, "stroke-width": 1, "stroke-linejoin": "round" }));
     }
     const tg = svgEl("g", { class: "towers" });
     for (const t of layout.wall.towers) tg.appendChild(svgEl("circle", { class: "tower", cx: t[0], cy: t[1], r: 2.6, fill: "#8a7858", stroke: "#5a4a36", "stroke-width": 0.8 }));
