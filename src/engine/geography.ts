@@ -73,7 +73,12 @@ export function detectRegions(grid: GridLike, biome: number[], terrain: number[]
     if (comp.length < MIN_CELLS) continue;
     let sx = 0, sy = 0;
     for (const c of comp) { sx += grid.points[c * 2]; sy += grid.points[c * 2 + 1]; }
-    land.push({ kind: b, centroid: [sx / comp.length, sy / comp.length], cells: comp.length });
+    const mx = sx / comp.length, my = sy / comp.length;
+    // anchor at the member cell nearest the mean (a medoid), so the label always sits ON the
+    // region — a raw centroid can fall in the sea or a neighbouring biome for a concave region
+    let best = comp[0], bd = Infinity;
+    for (const c of comp) { const dx = grid.points[c * 2] - mx, dy = grid.points[c * 2 + 1] - my; const d = dx * dx + dy * dy; if (d < bd) { bd = d; best = c; } }
+    land.push({ kind: b, centroid: [grid.points[best * 2], grid.points[best * 2 + 1]], cells: comp.length });
   }
 
   land.sort((a, b) => b.cells - a.cells);
