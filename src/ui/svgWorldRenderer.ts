@@ -3,14 +3,20 @@ import { svgEl } from "./renderer";
 import { OCEAN, BIOME_COLORS, BIOME_NAMES } from "../engine/biome";
 import { coastline } from "../engine/borders";
 import { cellPath, segPath } from "./svgPaths";
-import { politicalLayer } from "./politicalLayer";
+import { politicalLayer, type PoliticalOpts } from "./politicalLayer";
 
-export function renderWorld(world: World): SVGSVGElement {
+export type MapView = "terrain" | "political";
+
+export function politicalOpts(view: MapView): PoliticalOpts {
+  return view === "political" ? { fills: true, labels: true, legend: true } : {};
+}
+
+export function renderWorld(world: World, view: MapView = "terrain"): SVGSVGElement {
   const grid = world.grid;
   const root = svgEl("svg", {
     width: "100%",
     viewBox: `0 0 ${grid.width} ${grid.height}`,
-    class: "world",
+    class: `world view-${view}`,
   }) as SVGSVGElement;
 
   root.appendChild(svgEl("rect", { x: 0, y: 0, width: grid.width, height: grid.height, fill: BIOME_COLORS[OCEAN] }));
@@ -33,7 +39,7 @@ export function renderWorld(world: World): SVGSVGElement {
     fill: "none", stroke: "#5f7888", "stroke-width": 0.6,
   }));
   const slot = svgEl("g", { class: "political-slot" });
-  slot.appendChild(politicalLayer(grid, world.polityOf, world.polities));
+  slot.appendChild(politicalLayer(grid, world.polityOf, world.polities, politicalOpts(view)));
   root.appendChild(slot);
 
   const markers = svgEl("g", { class: "markers" });
@@ -51,7 +57,7 @@ export function renderWorld(world: World): SVGSVGElement {
 
   // legend: only biomes present on this map
   const present = [...byBiome.keys()].sort((a, b) => a - b);
-  const legend = svgEl("g", { class: "legend" });
+  const legend = svgEl("g", { class: "legend biome-legend" });
   const x0 = 8, y0 = grid.height - 10 - present.length * 14;
   legend.appendChild(svgEl("rect", {
     x: x0 - 5, y: y0 - 10, width: 104, height: present.length * 14 + 14, rx: 3,

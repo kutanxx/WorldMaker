@@ -12,16 +12,27 @@ describe("renderWorld biomes", () => {
     expect(svg.querySelectorAll(".regions").length).toBe(0);
     expect(svg.querySelectorAll(".mountains").length).toBe(0);
   });
-  it("draws coastline once and a political slot with territories + one border", () => {
+  it("terrain view (default): borders only, no territory fills, biome legend shown", () => {
+    expect(svg.getAttribute("class")).toContain("view-terrain");
     expect(svg.querySelectorAll("path.coastline").length).toBe(1);
     expect(svg.querySelectorAll(".political-slot").length).toBe(1);
-    expect(svg.querySelectorAll(".political-slot .territory").length).toBeGreaterThan(1);
+    expect(svg.querySelectorAll(".political-slot .territory").length).toBe(0);
     expect(svg.querySelectorAll("path.border").length).toBe(1);
+    expect(svg.querySelectorAll(".biome-legend .legend-item").length).toBeGreaterThan(0);
   });
-  it("keeps a marker per city and shows a biome legend", () => {
+  it("keeps a marker per city", () => {
     expect(svg.querySelectorAll(".markers circle").length).toBe(world.cities.length);
-    const first = svg.querySelector(".markers circle");
-    expect(first?.getAttribute("data-city")).not.toBeNull();
-    expect(svg.querySelectorAll(".legend .legend-item").length).toBeGreaterThan(0);
+    expect(svg.querySelector(".markers circle")?.getAttribute("data-city")).not.toBeNull();
+  });
+});
+
+describe("renderWorld political view", () => {
+  const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });
+  const svg = renderWorld(world, "political");
+  it("fills nations, labels them, and shows a nation legend", () => {
+    expect(svg.getAttribute("class")).toContain("view-political");
+    expect(svg.querySelectorAll(".political-slot .territory").length).toBeGreaterThan(1);
+    expect(svg.querySelectorAll(".nation-label").length).toBeGreaterThan(0);
+    expect(svg.querySelectorAll(".nation-legend").length).toBe(1);
   });
 });
