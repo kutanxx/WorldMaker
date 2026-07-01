@@ -143,7 +143,9 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
   const minorRoads = generateStreets(field, { dsep: 15, dtest: 7, step: 3, maxLength: 180, bounds, useMinor: true }, stop, seeds);
   water.bridges = waterBridges([...mainRoads, ...minorRoads], water);
 
-  const wall = wallFromDefenses(boundary, water, mountains, mainRoads); // gates sit where main roads meet the wall
+  // a few well-placed main gates rather than one at every road (medieval towns had 2-4)
+  const maxGates = 2 + Math.floor(ctx.size / 3);
+  const wall = wallFromDefenses(boundary, water, mountains, mainRoads, maxGates);
   // moat follows the wall offset outward; where that offset would fall in the sea, keep the wall point
   const moat = MOAT_ARCHETYPES.has(archetype.id)
     ? wall.segments.map((s) => offsetSegment(s, center, 6).map((o, i) => (inWater(water, o) ? s[i] : o)))

@@ -38,6 +38,9 @@ export function renderCity(layout: CityLayout): SVGSVGElement {
   if (layout.harbor) {
     const hb = layout.harbor;
     const hg = svgEl("g", { class: "harbor" });
+    if (hb.quay.length >= 2) {
+      hg.appendChild(svgEl("polyline", { class: "quay", points: pts(hb.quay), fill: "none", stroke: "#b8a988", "stroke-width": 2.4, "stroke-linecap": "round", "stroke-linejoin": "round" }));
+    }
     hg.appendChild(svgEl("polyline", { class: "breakwater", points: pts(hb.breakwater), fill: "none", stroke: "#9a8f7a", "stroke-width": 3, "stroke-linecap": "round", "stroke-linejoin": "round" }));
     for (const p of hb.piers) {
       hg.appendChild(svgEl("polyline", { class: "pier", points: pts(p), fill: "none", stroke: "#8a6a44", "stroke-width": 1.4, "stroke-linecap": "round" }));

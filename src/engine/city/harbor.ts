@@ -9,6 +9,23 @@ export interface Harbor {
   lighthouse: Point;    // breakwater tip
   piers: Polyline[];    // short jetties from the shore into the sheltered water
   boats: Boat[];        // moored boats
+  quay: Polyline;       // the waterfront line (contiguous seaward boundary run)
+}
+
+// longest cyclic run of `true` (the contiguous shore run), as boundary indices
+function longestRun(flags: boolean[]): number[] {
+  const n = flags.length;
+  if (flags.every((f) => f)) return flags.map((_, i) => i);
+  let start = 0;
+  while (flags[start]) start = (start + 1) % n; // begin just after a gap so a run isn't split at the seam
+  let best: number[] = [], cur: number[] = [];
+  for (let k = 0; k < n; k++) {
+    const i = (start + k) % n;
+    if (flags[i]) cur.push(i);
+    else { if (cur.length > best.length) best = cur; cur = []; }
+  }
+  if (cur.length > best.length) best = cur;
+  return best;
 }
 
 export function makeHarbor(
@@ -16,17 +33,25 @@ export function makeHarbor(
 ): Harbor | null {
   if (water.kind !== "sea") return null;
 
-  // seaward rim = boundary vertices whose just-outside sample is in the sea
-  const shore: Point[] = [];
-  for (const v of boundary) {
-    const out: Point = [v[0] + (v[0] - center[0]) * 0.08, v[1] + (v[1] - center[1]) * 0.08];
-    if (inWater(water, out)) shore.push(v);
+  // seaward EDGES: an edge whose just-outside midpoint is in the sea (same test the wall uses,
+  // so the quay spans exactly the open seaward wall side — much longer than a vertex test)
+  const n = boundary.length;
+  const seawardEdge: boolean[] = [];
+  for (let i = 0; i < n; i++) {
+    const a = boundary[i], b = boundary[(i + 1) % n];
+    const m: Point = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+    const out: Point = [m[0] + (m[0] - center[0]) * 0.06, m[1] + (m[1] - center[1]) * 0.06];
+    seawardEdge.push(inWater(water, out));
   }
-  if (shore.length < 2) return null;
+  const runEdges = longestRun(seawardEdge);
+  if (runEdges.length < 1) return null;
+  // quay vertices = each run edge's start vertex, plus the last edge's end vertex
+  const quay: Polyline = [...runEdges.map((e) => boundary[e]), boundary[(runEdges[runEdges.length - 1] + 1) % n]];
+  if (quay.length < 2) return null;
 
   const anchor: Point = [
-    shore.reduce((s, p) => s + p[0], 0) / shore.length,
-    shore.reduce((s, p) => s + p[1], 0) / shore.length,
+    quay.reduce((s, p) => s + p[0], 0) / quay.length,
+    quay.reduce((s, p) => s + p[1], 0) / quay.length,
   ];
   let dx = anchor[0] - center[0], dy = anchor[1] - center[1];
   const dl = Math.hypot(dx, dy) || 1;
@@ -62,5 +87,5 @@ export function makeHarbor(
     if (inSea(p)) boats.push({ at: p, angle: angle + (rng() - 0.5) * 0.6 });
   }
 
-  return { breakwater, lighthouse: tip, piers, boats };
+  return { breakwater, lighthouse: tip, piers, boats, quay };
 }
