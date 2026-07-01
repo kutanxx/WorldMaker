@@ -30,6 +30,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
   let generated: GeneratedWorld = generateWorld(params);
   let history = simulateHistory(generated.world, params.seed);
   let timeline: Timeline | null = null;
+  let currentYearIndex = 0;
 
   const seedInput = document.createElement("input");
   seedInput.type = "number";
@@ -59,6 +60,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     const slot = svg.querySelector(".political-slot") as SVGGElement;
     const world = generated.world;
     const renderYear = (index: number): void => {
+      currentYearIndex = index;
       const snap = history.snapshots[index];
       slot.replaceChildren(politicalLayer(world.grid, snap.owner, history.polities));
       applyChronicleYear(chronicle, snap.year);
@@ -90,22 +92,29 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     showWorld();
   }
 
+  // Export the world at the year the timeline is currently showing (not always year 0).
+  function exportWorldSvg(): SVGSVGElement {
+    const svg = renderWorld(generated.world);
+    const slot = svg.querySelector(".political-slot") as SVGGElement;
+    const snap = history.snapshots[currentYearIndex];
+    slot.replaceChildren(politicalLayer(generated.world.grid, snap.owner, history.polities));
+    return svg;
+  }
+
   regenBtn.addEventListener("click", () => regenerate({ ...params, seed: Number(seedInput.value) }));
   jsonBtn.addEventListener("click", () =>
     downloadBlob("world.json", new Blob([worldToJSON(generated.world)], { type: "application/json" }))
   );
   pngBtn.addEventListener("click", async () => {
     try {
-      const svg = renderWorld(generated.world);
-      const blob = await svgToPngBlob(svg, params.width, params.height);
+      const blob = await svgToPngBlob(exportWorldSvg(), params.width, params.height);
       downloadBlob("world.png", blob);
     } catch (e) {
       console.error("PNG export failed", e);
     }
   });
   svgBtn.addEventListener("click", () => {
-    const svg = renderWorld(generated.world);
-    downloadBlob("world.svg", new Blob([svgToString(svg)], { type: "image/svg+xml" }));
+    downloadBlob("world.svg", new Blob([svgToString(exportWorldSvg())], { type: "image/svg+xml" }));
   });
 
   showWorld();
