@@ -42,6 +42,7 @@ export function simulateHistory(world: World, _worldSeed: number): History {
     foundedYear: 0, endedYear: null, origin: "initial" as const,
   }));
   const capitals: number[] = polities.map((p) => p.capital);
+  const alive: boolean[] = polities.map(() => true);
 
   const events: HistoryEvent[] = [];
   for (const p of polities) events.push({ year: 0, type: "found", text: `0년, ${p.name} 건국`, polityId: p.id, cell: p.capital });
@@ -86,6 +87,16 @@ export function simulateHistory(world: World, _worldSeed: number): History {
       if (attack > defend * CONTEST_THRESH) nextOwner[c] = best;
     }
     owner.set(nextOwner);
+    // --- conquest: a polity whose capital falls is eliminated and annexed ---
+    for (let o = 0; o < polities.length; o++) {
+      if (!alive[o]) continue;
+      const capOwner = owner[capitals[o]];
+      if (capOwner >= 0 && capOwner !== o) {
+        for (let c = 0; c < n; c++) if (owner[c] === o) owner[c] = capOwner; // annex remainder
+        alive[o] = false; polities[o].endedYear = year;
+        events.push({ year, type: "conquer", text: `${year}년, ${polities[capOwner].name}이(가) ${polities[o].name}을(를) 정복`, polityId: capOwner, otherId: o, cell: capitals[o] });
+      }
+    }
     snapshots.push({ year, owner: owner.slice() });
   }
 
