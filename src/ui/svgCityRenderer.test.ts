@@ -74,6 +74,7 @@ describe("renderCity organic", () => {
     expect(layout.harbor).not.toBeNull();
     const svg = renderCity(layout);
     expect(svg.querySelectorAll(".harbor .breakwater").length).toBe(1);
+    expect(svg.querySelectorAll(".harbor .quay").length).toBe(1);
     expect(svg.querySelectorAll(".harbor .lighthouse").length).toBe(1);
     expect(svg.querySelectorAll(".harbor .pier").length).toBe(layout.harbor!.piers.length);
     expect(svg.querySelectorAll(".harbor .boat").length).toBe(layout.harbor!.boats.length);

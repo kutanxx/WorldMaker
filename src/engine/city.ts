@@ -143,16 +143,25 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
   const minorRoads = generateStreets(field, { dsep: 15, dtest: 7, step: 3, maxLength: 180, bounds, useMinor: true }, stop, seeds);
   water.bridges = waterBridges([...mainRoads, ...minorRoads], water);
 
-  const wall = wallFromDefenses(boundary, water, mountains, mainRoads); // gates sit where main roads meet the wall
-  const moat = MOAT_ARCHETYPES.has(archetype.id) ? wall.segments.map((s) => offsetSegment(s, center, 6)) : null;
+  // a few well-placed main gates rather than one at every road (medieval towns had 2-4)
+  const maxGates = 2 + Math.floor(ctx.size / 3);
+  const wall = wallFromDefenses(boundary, water, mountains, mainRoads, maxGates);
+  // moat follows the wall offset outward; where that offset would fall in the sea, keep the wall point
+  const moat = MOAT_ARCHETYPES.has(archetype.id)
+    ? wall.segments.map((s) => offsetSegment(s, center, 6).map((o, i) => (inWater(water, o) ? s[i] : o)))
+    : null;
   // a causeway crossing the moat in front of each gate, so there is a way in
   const gateBridges: Polyline[] = moat
-    ? wall.gates.map((g) => {
-        const dx = g[0] - center[0], dy = g[1] - center[1];
-        const L = Math.hypot(dx, dy) || 1;
-        const ux = dx / L, uy = dy / L;
-        return [[g[0] - ux * 3, g[1] - uy * 3], [g[0] + ux * 11, g[1] + uy * 11]];
-      })
+    ? wall.gates
+        .map((g): Polyline | null => {
+          const dx = g[0] - center[0], dy = g[1] - center[1];
+          const L = Math.hypot(dx, dy) || 1;
+          const ux = dx / L, uy = dy / L;
+          const outer: Point = [g[0] + ux * 11, g[1] + uy * 11];
+          if (inWater(water, outer)) return null; // waterfront gate: no causeway into the sea
+          return [[g[0] - ux * 3, g[1] - uy * 3], outer];
+        })
+        .filter((b): b is Polyline => b !== null)
     : [];
 
   const allRoads = [...mainRoads, ...minorRoads];
@@ -241,6 +250,7 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
     if (room < 14 || inWater(water, start) || inMountains(mountains, start) || !inCanvas(start)) continue;
     const L = Math.min(38, room - 4);
     const end: Point = [start[0] + ux * L, start[1] + uy * L];
+    if (inWater(water, end)) continue; // don't run a faubourg road into the sea
     suburbRoads.push([[g[0], g[1]], end]);
     gatesUsed++;
     for (let d = 6; d < L; d += 9) {

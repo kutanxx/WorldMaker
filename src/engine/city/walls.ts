@@ -28,9 +28,28 @@ function nearestOnPolyline(p: Point, line: Polyline): { pt: Point; d2: number } 
   return { pt: best, d2: bd2 };
 }
 
+// keep the most spread-out `max` gates (farthest-point sampling) so a city has a few
+// well-placed main gates rather than one at every road — medieval towns had 2-4 gates.
+function reduceGates(gates: Point[], max: number): Point[] {
+  if (gates.length <= max) return gates;
+  const chosen: Point[] = [gates[0]];
+  while (chosen.length < max) {
+    let best: Point | null = null, bd = -1;
+    for (const g of gates) {
+      if (chosen.includes(g)) continue;
+      let md = Infinity;
+      for (const c of chosen) { const d = (g[0] - c[0]) ** 2 + (g[1] - c[1]) ** 2; if (d < md) md = d; }
+      if (md > bd) { bd = md; best = g; }
+    }
+    if (!best) break;
+    chosen.push(best);
+  }
+  return chosen;
+}
+
 // gates sit where a main road reaches the wall: snap each road endpoint onto the
 // nearest wall segment when it is close enough, merging gates that nearly coincide.
-function placeGates(segments: Polyline[], roads: Polyline[]): Point[] {
+function placeGates(segments: Polyline[], roads: Polyline[], maxGates: number): Point[] {
   const NEAR = 15, MERGE2 = 12 * 12;
   const gates: Point[] = [];
   for (const r of roads) {
@@ -46,12 +65,13 @@ function placeGates(segments: Polyline[], roads: Polyline[]): Point[] {
       }
     }
   }
-  return gates;
+  return reduceGates(gates, maxGates);
 }
 
 // barrier per boundary edge: 0 = none (walled), 1 = water, 2 = mountain
 export function wallFromDefenses(
   boundary: Polygon, water: Water, mountains: MountainMass[], mainRoads: Polyline[],
+  maxGates = Infinity,
 ): DefenseWall {
   const n = boundary.length;
   const c = centroid(boundary);
@@ -97,6 +117,6 @@ export function wallFromDefenses(
   }
   const towers: Point[] = [];
   for (const s of segments) for (const p of s) towers.push(p);
-  const gates = placeGates(segments, mainRoads);
+  const gates = placeGates(segments, mainRoads, maxGates);
   return { segments, towers, gates, seaGates };
 }

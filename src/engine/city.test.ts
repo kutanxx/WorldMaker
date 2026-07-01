@@ -166,14 +166,33 @@ describe("city mountain (Phase 2)", () => {
 });
 
 describe("city harbor (Phase 3)", () => {
-  it("gives a coastal city a harbor (breakwater + boats)", () => {
+  it("gives a coastal city a harbor (breakwater + boats + quay)", () => {
     const l = generateCityLayout(cityContext({ ...base, coastal: true }), 5);
     expect(l.harbor).not.toBeNull();
     expect(l.harbor!.breakwater.length).toBeGreaterThanOrEqual(2);
     expect(l.harbor!.boats.length).toBeGreaterThanOrEqual(1);
+    expect(l.harbor!.quay.length).toBeGreaterThanOrEqual(2);
+  });
+  it("keeps a city to a few main gates (not one at every road)", () => {
+    const l = generateCityLayout(cityContext({ ...base, coastal: false, size: 6, biome: 4 }), 5);
+    expect(l.wall!.gates.length).toBeLessThanOrEqual(2 + Math.floor(6 / 3)); // maxGates = 4
   });
   it("has no harbor for an inland city", () => {
     const l = generateCityLayout(cityContext({ ...base, coastal: false, elevation: 0.4, biome: 4 }), 5);
     expect(l.harbor).toBeNull();
+  });
+  it("never runs gate bridges, suburb roads, or the moat into the sea", () => {
+    for (const s of [3, 5, 7, 8, 11, 14]) {
+      const l = generateCityLayout(cityContext({ ...base, coastal: true }), s);
+      for (const br of l.gateBridges) for (const p of br) {
+        expect(inWater(l.water, p)).toBe(false);
+      }
+      for (const r of l.suburbRoads) for (const p of r) {
+        expect(inWater(l.water, p)).toBe(false);
+      }
+      for (const seg of l.moat ?? []) for (const p of seg) {
+        expect(inWater(l.water, p)).toBe(false);
+      }
+    }
   });
 });

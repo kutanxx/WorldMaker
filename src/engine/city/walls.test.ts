@@ -41,4 +41,12 @@ describe("wallFromDefenses", () => {
     expect(wall.gates.length).toBe(1);
     expect(wall.gates[0][1]).toBeLessThan(100); // gate sits on the top of the wall, not at centre (y=150)
   });
+  it("caps the gate count to a few well-spread main gates", () => {
+    const roads: Polyline[] = [];
+    for (let i = 0; i < 12; i++) { const a = (i / 12) * Math.PI * 2; roads.push([[150, 150], [150 + Math.cos(a) * 61, 150 + Math.sin(a) * 61]]); }
+    const uncapped = wallFromDefenses(ring, noWater, noMountains, roads);
+    const capped = wallFromDefenses(ring, noWater, noMountains, roads, 3);
+    expect(uncapped.gates.length).toBeGreaterThan(3);
+    expect(capped.gates.length).toBeLessThanOrEqual(3);
+  });
 });
