@@ -69,4 +69,16 @@ describe("renderCity organic", () => {
     const plains = renderCity(generateCityLayout(cityContext({ ...marker, coastal: false, elevation: 0.4, biome: 4 }), 9));
     expect(plains.querySelectorAll(".mountains").length).toBe(0);
   });
+  it("renders a harbor (breakwater, lighthouse, piers, boats) for a coastal city; none inland", () => {
+    const layout = generateCityLayout(cityContext({ ...marker, coastal: true }), 5);
+    expect(layout.harbor).not.toBeNull();
+    const svg = renderCity(layout);
+    expect(svg.querySelectorAll(".harbor .breakwater").length).toBe(1);
+    expect(svg.querySelectorAll(".harbor .lighthouse").length).toBe(1);
+    expect(svg.querySelectorAll(".harbor .pier").length).toBe(layout.harbor!.piers.length);
+    expect(svg.querySelectorAll(".harbor .boat").length).toBe(layout.harbor!.boats.length);
+
+    const inland = renderCity(generateCityLayout(cityContext({ ...marker, coastal: false, elevation: 0.4, biome: 4 }), 9));
+    expect(inland.querySelectorAll(".harbor").length).toBe(0);
+  });
 });

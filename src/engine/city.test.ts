@@ -164,3 +164,16 @@ describe("city mountain (Phase 2)", () => {
     expect(l.mountains).toEqual([]);
   });
 });
+
+describe("city harbor (Phase 3)", () => {
+  it("gives a coastal city a harbor (breakwater + boats)", () => {
+    const l = generateCityLayout(cityContext({ ...base, coastal: true }), 5);
+    expect(l.harbor).not.toBeNull();
+    expect(l.harbor!.breakwater.length).toBeGreaterThanOrEqual(2);
+    expect(l.harbor!.boats.length).toBeGreaterThanOrEqual(1);
+  });
+  it("has no harbor for an inland city", () => {
+    const l = generateCityLayout(cityContext({ ...base, coastal: false, elevation: 0.4, biome: 4 }), 5);
+    expect(l.harbor).toBeNull();
+  });
+});

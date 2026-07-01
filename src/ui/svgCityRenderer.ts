@@ -34,6 +34,27 @@ export function renderCity(layout: CityLayout): SVGSVGElement {
     root.appendChild(svgEl("polygon", { class: "water", points: pts(body), fill: "#9fc1d6", transform: "scale(0.985)", "transform-origin": "150 150" }));
   }
 
+  // harbor: breakwater/mole + lighthouse + piers + moored boats (on the sea)
+  if (layout.harbor) {
+    const hb = layout.harbor;
+    const hg = svgEl("g", { class: "harbor" });
+    hg.appendChild(svgEl("polyline", { class: "breakwater", points: pts(hb.breakwater), fill: "none", stroke: "#9a8f7a", "stroke-width": 3, "stroke-linecap": "round", "stroke-linejoin": "round" }));
+    for (const p of hb.piers) {
+      hg.appendChild(svgEl("polyline", { class: "pier", points: pts(p), fill: "none", stroke: "#8a6a44", "stroke-width": 1.4, "stroke-linecap": "round" }));
+    }
+    for (const b of hb.boats) {
+      const c = Math.cos(b.angle), s = Math.sin(b.angle);
+      const bow: [number, number] = [b.at[0] + c * 2.5, b.at[1] + s * 2.5];
+      const sl: [number, number] = [b.at[0] - c * 1.5 - s * 1.2, b.at[1] - s * 1.5 + c * 1.2];
+      const sr: [number, number] = [b.at[0] - c * 1.5 + s * 1.2, b.at[1] - s * 1.5 - c * 1.2];
+      hg.appendChild(svgEl("polygon", { class: "boat", points: pts([bow, sl, sr]), fill: "#7a5a3a", stroke: "#3c2f1c", "stroke-width": 0.3 }));
+    }
+    const [lx, ly] = hb.lighthouse;
+    hg.appendChild(svgEl("circle", { class: "lighthouse", cx: lx, cy: ly, r: 1.8, fill: "#efe7d2", stroke: "#7a2f2f", "stroke-width": 0.8 }));
+    hg.appendChild(svgEl("circle", { class: "beacon", cx: lx, cy: ly, r: 0.7, fill: "#e0a83a" }));
+    root.appendChild(hg);
+  }
+
   // mountain barriers: rock fill + cliff crest + downhill hachures (unclipped, behind the city)
   if (layout.mountains.length) {
     const mg = svgEl("g", { class: "mountains" });

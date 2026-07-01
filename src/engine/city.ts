@@ -14,6 +14,8 @@ import { wallFromDefenses } from "./city/walls";
 import type { DefenseWall } from "./city/walls";
 import { makeMountains, inMountains } from "./city/mountain";
 import type { MountainMass } from "./city/mountain";
+import { makeHarbor } from "./city/harbor";
+import type { Harbor } from "./city/harbor";
 import { generateWards } from "./city/wards";
 import { assignZones } from "./city/zoning";
 import type { WardType } from "./city/zoning";
@@ -59,6 +61,7 @@ export interface CityLayout {
   suburbRoads: Polyline[];
   suburbs: Polygon[];
   outworks: Outwork[];
+  harbor: Harbor | null;
 }
 
 export interface CityContext {
@@ -275,8 +278,11 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
     outworks.push({ type: "windmill", at: p, angle: rng() * Math.PI * 2 });
   }
 
+  // harbor: generated LAST (its rng draws don't perturb the layout above); sea cities only
+  const harbor = makeHarbor(rng, water, boundary, [center[0], center[1]]);
+
   return {
     name: ctx.name, size: ctx.size, coastal: ctx.coastal, isCapital: ctx.isCapital,
-    archetype, bounds, boundary, water, mountains, wall, moat, gateBridges, mainRoads, minorRoads, wards, parks, labels, features, suburbRoads, suburbs, outworks,
+    archetype, bounds, boundary, water, mountains, wall, moat, gateBridges, mainRoads, minorRoads, wards, parks, labels, features, suburbRoads, suburbs, outworks, harbor,
   };
 }
