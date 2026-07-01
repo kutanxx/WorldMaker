@@ -1,7 +1,7 @@
 import { mulberry32, deriveSeed } from "./rng";
 import type { Rng } from "./rng";
 import type { Point, Polygon, Polyline } from "./geometry";
-import { centroid, pointInPolygon } from "./geometry";
+import { centroid, pointInPolygon, bbox } from "./geometry";
 import { selectArchetype } from "./city/archetypes";
 import type { Archetype } from "./city/archetypes";
 import { makeTensorField } from "./city/tensorField";
@@ -25,6 +25,14 @@ export interface Ward {
   inner: boolean;
 }
 
+export interface CityFeatures {
+  wallMaterial: "stone" | "timber";
+  trees: Point[];
+  onStilts: boolean;
+  oasis: { center: Point; radius: number } | null;
+  groundColor: string;
+}
+
 export interface CityLayout {
   name: string;
   size: number;
@@ -42,6 +50,7 @@ export interface CityLayout {
   wards: Ward[];
   parks: Polygon[];
   labels: { x: number; y: number; text: string }[];
+  features: CityFeatures;
 }
 
 export interface CityContext {
@@ -51,10 +60,11 @@ export interface CityContext {
   coastal: boolean;
   isCapital: boolean;
   elevation: number;
+  biome: number;
 }
 
 export function cityContext(c: CityMarker): CityContext {
-  return { id: c.id, name: c.name, size: c.size, coastal: c.coastal, isCapital: c.isCapital, elevation: c.elevation };
+  return { id: c.id, name: c.name, size: c.size, coastal: c.coastal, isCapital: c.isCapital, elevation: c.elevation, biome: c.biome };
 }
 
 function fieldsFor(arch: Archetype, center: Vec, radius: number, rng: Rng): BasisField[] {
@@ -89,9 +99,15 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
   const bounds = { w: 300, h: 300 };
   const center: Vec = [150, 150];
   const radius = 60 + ctx.size * 12;
-  const archetype = selectArchetype({ coastal: ctx.coastal, elevation: ctx.elevation, size: ctx.size }, rng);
+  const archetype = selectArchetype({ coastal: ctx.coastal, elevation: ctx.elevation, size: ctx.size, biome: ctx.biome });
 
   const water = buildWater(rng, archetype.water, bounds);
+  if (archetype.oasis) {
+    const or = radius * 0.12;
+    const oasisPoly: Polygon = [];
+    for (let k = 0; k < 16; k++) { const a = (k / 16) * Math.PI * 2; oasisPoly.push([center[0] + Math.cos(a) * or, center[1] + Math.sin(a) * or]); }
+    water.bodies.push(oasisPoly);
+  }
   const boundary = makeBoundary(rng, archetype, ctx.size, center, water);
 
   const noiseAmp = archetype.streetField === "grid" || archetype.streetField === "linear" ? 0.2 : 0.26;
@@ -136,13 +152,17 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
 
   const parks: Polygon[] = [];
   const wards: Ward[] = zoned.map((z) => {
-    if (z.type === "park") { parks.push(z.polygon); return { polygon: z.polygon, type: z.type, buildings: [], inner: z.inner }; }
+    if (z.type === "park") {
+      if (!archetype.oasis) parks.push(z.polygon); // desert: no green parks
+      return { polygon: z.polygon, type: z.type, buildings: [], inner: z.inner };
+    }
     let buildings: Polygon[] = [];
     if (!NO_BUILDINGS.includes(z.type)) {
       buildings = subdivide(rng, z.polygon, { minArea: DENSITY[z.type] ?? 130, margin: 1.5 });
       buildings = buildings.filter((b) => {
         const c = centroid(b);
-        return pointInPolygon(c, boundary) && !inWater(water, c) && !nearRoad(c);
+        const dryOk = archetype.onStilts || !inWater(water, c);
+        return pointInPolygon(c, boundary) && dryOk && !nearRoad(c);
       });
     }
     return { polygon: z.polygon, type: z.type, buildings, inner: z.inner };
@@ -155,8 +175,32 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
     if (t) { const c = centroid(z.polygon); labels.push({ x: c[0], y: c[1], text: t }); }
   }
 
+  const allBuildings = wards.flatMap((w) => w.buildings);
+  const scatterTrees = (n: number): Point[] => {
+    const out: Point[] = [];
+    const bb = bbox(boundary);
+    let tries = 0;
+    while (out.length < n && tries < n * 10) {
+      tries++;
+      const p: Point = [bb.minX + rng() * (bb.maxX - bb.minX), bb.minY + rng() * (bb.maxY - bb.minY)];
+      if (!pointInPolygon(p, boundary) || inWater(water, p) || nearRoad(p)) continue;
+      if (allBuildings.some((b) => pointInPolygon(p, b))) continue;
+      if (out.some((t) => Math.hypot(t[0] - p[0], t[1] - p[1]) < 6)) continue;
+      out.push(p);
+    }
+    return out;
+  };
+
+  const features: CityFeatures = {
+    wallMaterial: archetype.wallMaterial,
+    trees: archetype.vegetation === "trees" ? scatterTrees(18 + ctx.size * 4) : [],
+    onStilts: archetype.onStilts,
+    oasis: archetype.oasis ? { center: [center[0], center[1]], radius: radius * 0.12 } : null,
+    groundColor: archetype.groundColor,
+  };
+
   return {
     name: ctx.name, size: ctx.size, coastal: ctx.coastal, isCapital: ctx.isCapital,
-    archetype, bounds, boundary, water, wall, moat, gateBridges, mainRoads, minorRoads, wards, parks, labels,
+    archetype, bounds, boundary, water, wall, moat, gateBridges, mainRoads, minorRoads, wards, parks, labels, features,
   };
 }

@@ -72,4 +72,45 @@ describe("city organic", () => {
       expect(pointInPolygon(centroid(b), l.boundary)).toBe(true);
     }
   });
+  it("always exposes features with archetype-derived defaults", () => {
+    const plains = generateCityLayout(cityContext({ ...base, coastal: false, elevation: 0.5, biome: 4 }), 5);
+    expect(plains.features.wallMaterial).toBe("stone");
+    expect(plains.features.groundColor).toBe("#efe7d2");
+    expect(plains.features.trees).toEqual([]);
+    const forest = generateCityLayout(cityContext({ ...base, coastal: false, elevation: 0.5, biome: 3 }), 5);
+    expect(forest.features.wallMaterial).toBe("timber");
+    expect(forest.features.groundColor).toBe("#e3e7d0");
+  });
+  it("scatters trees on open ground for a forest city (none for plains)", () => {
+    const forest = generateCityLayout(cityContext({ ...base, coastal: false, elevation: 0.5, biome: 3 }), 7);
+    expect(forest.features.trees.length).toBeGreaterThan(0);
+    for (const t of forest.features.trees) {
+      expect(pointInPolygon(t, forest.boundary)).toBe(true);
+      expect(inWater(forest.water, t)).toBe(false);
+    }
+    const plains = generateCityLayout(cityContext({ ...base, coastal: false, elevation: 0.5, biome: 4 }), 7);
+    expect(plains.features.trees).toEqual([]);
+  });
+  it("gives a desert city a central oasis (water body) and no green parks", () => {
+    const desert = generateCityLayout(cityContext({ ...base, coastal: false, elevation: 0.5, biome: 5 }), 7);
+    expect(desert.features.oasis).not.toBeNull();
+    expect(desert.parks.length).toBe(0);
+    // the oasis was added to the water bodies (so buildings/roads avoid it via the water filter)
+    const o = desert.features.oasis!;
+    const hasOasisBody = desert.water.bodies.some((body) => {
+      const c = centroid(body);
+      return Math.hypot(c[0] - o.center[0], c[1] - o.center[1]) < 3;
+    });
+    expect(hasOasisBody).toBe(true);
+    // buildings never sit in water (oasis included)
+    for (const w of desert.wards) for (const b of w.buildings) {
+      expect(inWater(desert.water, centroid(b))).toBe(false);
+    }
+  });
+  it("lets a marsh city keep buildings over water (stilts)", () => {
+    const marsh = generateCityLayout(cityContext({ ...base, coastal: false, elevation: 0.5, biome: 7 }), 7);
+    expect(marsh.features.onStilts).toBe(true);
+    const overWater = marsh.wards.flatMap((w) => w.buildings).filter((b) => inWater(marsh.water, centroid(b)));
+    expect(overWater.length).toBeGreaterThan(0);
+  });
 });

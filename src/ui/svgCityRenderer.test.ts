@@ -20,4 +20,28 @@ describe("renderCity organic", () => {
     expect(svg.querySelectorAll(".road-minor").length).toBe(layout.minorRoads.length);
     expect(svg.querySelectorAll(".building").length).toBeGreaterThan(0);
   });
+  it("tints the ground and uses timber walls for a forest city", () => {
+    const layout = generateCityLayout(cityContext({ ...marker, coastal: false, elevation: 0.5, biome: 3 }), 7);
+    const svg = renderCity(layout);
+    expect(svg.querySelector(".boundary")?.getAttribute("fill")).toBe("#e3e7d0");
+    expect(svg.querySelector(".wall-seg")?.getAttribute("stroke")).toBe("#6b4f34");
+  });
+  it("draws a tree glyph per forest tree", () => {
+    const layout = generateCityLayout(cityContext({ ...marker, coastal: false, elevation: 0.5, biome: 3 }), 7);
+    const svg = renderCity(layout);
+    expect(svg.querySelectorAll(".tree").length).toBe(layout.features.trees.length);
+    expect(svg.querySelectorAll(".tree").length).toBeGreaterThan(0);
+  });
+  it("draws palms around a desert oasis", () => {
+    const layout = generateCityLayout(cityContext({ ...marker, coastal: false, elevation: 0.5, biome: 5 }), 7);
+    const svg = renderCity(layout);
+    expect(layout.features.oasis).not.toBeNull();
+    expect(svg.querySelectorAll(".palm").length).toBeGreaterThan(0);
+  });
+  it("draws stilts under marsh buildings", () => {
+    const layout = generateCityLayout(cityContext({ ...marker, coastal: false, elevation: 0.5, biome: 7 }), 7);
+    const svg = renderCity(layout);
+    expect(layout.features.onStilts).toBe(true);
+    expect(svg.querySelectorAll(".stilt").length).toBeGreaterThan(0);
+  });
 });
