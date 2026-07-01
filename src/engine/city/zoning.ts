@@ -25,7 +25,7 @@ export function assignZones(
   wards: WardCell[],
   center: Point,
   radius: number,
-  opts: { hasCastle: boolean; coastal: boolean }
+  opts: { hasCastle: boolean; coastal: boolean; castleAnchor?: Point }
 ): ZonedWard[] {
   if (wards.length === 0) return [];
   const ranked = wards
@@ -48,7 +48,19 @@ export function assignZones(
   setType("plaza");
   setType("cathedral");
   setType("guildhall");
-  if (opts.hasCastle) setType("castle");
+  if (opts.hasCastle) {
+    const anchor = opts.castleAnchor;
+    if (anchor) {
+      // keep sits on the high ground: swap the ward nearest the anchor into the castle slot
+      let bi = idx, bd = Infinity;
+      for (let j = idx; j < out.length; j++) {
+        const d = Math.hypot(out[j].site[0] - anchor[0], out[j].site[1] - anchor[1]);
+        if (d < bd) { bd = d; bi = j; }
+      }
+      if (bi !== idx) { const t = out[idx]; out[idx] = out[bi]; out[bi] = t; }
+    }
+    setType("castle");
+  }
 
   const farthest = out[out.length - 1];
   if (opts.coastal) farthest.type = "harbor";

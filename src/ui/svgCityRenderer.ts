@@ -34,6 +34,24 @@ export function renderCity(layout: CityLayout): SVGSVGElement {
     root.appendChild(svgEl("polygon", { class: "water", points: pts(body), fill: "#9fc1d6", transform: "scale(0.985)", "transform-origin": "150 150" }));
   }
 
+  // mountain barriers: rock fill + cliff crest + downhill hachures (unclipped, behind the city)
+  if (layout.mountains.length) {
+    const mg = svgEl("g", { class: "mountains" });
+    for (const m of layout.mountains) {
+      const crest = m.steep ? "#5f5648" : "#7a715f";
+      mg.appendChild(svgEl("polygon", { class: "mountain", points: pts(m.polygon), fill: m.steep ? "#a99e8c" : "#bcb2a0", stroke: "none" }));
+      mg.appendChild(svgEl("polyline", { class: "cliff", points: pts(m.innerEdge), fill: "none", stroke: crest, "stroke-width": m.steep ? 1.4 : 0.9, "stroke-linejoin": "round" }));
+      const step = m.steep ? 1 : 2, len = m.steep ? 5 : 3.5;
+      for (let i = 0; i < m.innerEdge.length; i += step) {
+        const p = m.innerEdge[i];
+        const dx = p[0] - 150, dy = p[1] - 150, L = Math.hypot(dx, dy) || 1;
+        const sx = p[0] + (dx / L) * len, sy = p[1] + (dy / L) * len; // start out in the mass, point downhill to the crest
+        mg.appendChild(svgEl("line", { class: "hachure", x1: sx.toFixed(1), y1: sy.toFixed(1), x2: p[0].toFixed(1), y2: p[1].toFixed(1), stroke: crest, "stroke-width": 0.5 }));
+      }
+    }
+    root.appendChild(mg);
+  }
+
   const env = svgEl("g", { class: "environs" });
   for (const r of layout.suburbRoads) {
     env.appendChild(svgEl("polyline", { class: "suburb-road", points: pts(r), fill: "none", stroke: "#c9bb96", "stroke-width": 1.6, "stroke-linecap": "round" }));

@@ -3,7 +3,8 @@ import { TAIGA, TEMPERATE_FOREST, TROPICAL, DESERT, WETLAND } from "../biome";
 export type ArchetypeId =
   | "coastalPort" | "bridgeTown" | "hilltopFortress"
   | "meanderDefense" | "plainsMarket" | "ridgeLinear"
-  | "forestGrove" | "marshStilt" | "desertOasis";
+  | "forestGrove" | "marshStilt" | "desertOasis"
+  | "hillside" | "spur" | "valleyPass";
 export type StreetField = "radial" | "grid" | "linear" | "organic";
 export type WaterKind = "sea" | "river" | "lake" | "meander" | "none";
 export type WallShape = "hull" | "rect" | "contour" | "riverbank";
@@ -33,13 +34,21 @@ const TABLE: Record<ArchetypeId, Archetype> = {
   forestGrove: { id: "forestGrove", streetField: "organic", wallShape: "hull", water: "none", ...BASE, wallMaterial: "timber", vegetation: "trees", groundColor: "#e3e7d0" },
   marshStilt: { id: "marshStilt", streetField: "organic", wallShape: "riverbank", water: "meander", ...BASE, wallMaterial: "timber", onStilts: true, groundColor: "#dfe4dc" },
   desertOasis: { id: "desertOasis", streetField: "organic", wallShape: "hull", water: "none", ...BASE, oasis: true, groundColor: "#ece0c2" },
+  hillside: { id: "hillside", streetField: "organic", wallShape: "hull", water: "none", ...BASE, groundColor: "#e8e2d6" },
+  spur: { id: "spur", streetField: "radial", wallShape: "hull", water: "none", ...BASE, groundColor: "#e8e2d6" },
+  valleyPass: { id: "valleyPass", streetField: "linear", wallShape: "rect", water: "none", ...BASE, groundColor: "#e8e2d6" },
 };
 
+const MOUNTAIN_VARIANTS: ArchetypeId[] = ["hilltopFortress", "hillside", "spur", "valleyPass"];
+
 export function selectArchetype(
-  opts: { coastal: boolean; elevation: number; size: number; biome: number }
+  opts: { coastal: boolean; elevation: number; size: number; biome: number; pick?: number }
 ): Archetype {
   if (opts.coastal) return TABLE.coastalPort;
-  if (opts.elevation >= 0.7) return TABLE.hilltopFortress;
+  if (opts.elevation >= 0.7) {
+    const i = Math.min(MOUNTAIN_VARIANTS.length - 1, Math.floor((opts.pick ?? 0) * MOUNTAIN_VARIANTS.length));
+    return TABLE[MOUNTAIN_VARIANTS[i]];
+  }
   switch (opts.biome) {
     case WETLAND: return TABLE.marshStilt;
     case DESERT: return TABLE.desertOasis;
