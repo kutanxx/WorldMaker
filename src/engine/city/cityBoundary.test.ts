@@ -9,7 +9,9 @@ import type { Archetype } from "./archetypes";
 
 const C: Point = [150, 150];
 const arch = (over: Partial<Archetype>): Archetype => ({
-  id: "plainsMarket", streetField: "grid", wallShape: "rect", water: "none", ...over,
+  id: "plainsMarket", streetField: "grid", wallShape: "rect", water: "none",
+  wallMaterial: "stone", vegetation: "none", onStilts: false, oasis: false, groundColor: "#efe7d2",
+  ...over,
 });
 
 describe("cityBoundary", () => {

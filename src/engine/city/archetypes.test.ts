@@ -1,27 +1,40 @@
 import { describe, it, expect } from "vitest";
-import { mulberry32 } from "../rng";
 import { selectArchetype } from "./archetypes";
+import { TAIGA, TEMPERATE_FOREST, TROPICAL, DESERT, WETLAND, GRASSLAND, TUNDRA } from "../biome";
 
-describe("archetypes", () => {
-  it("picks coastalPort for a coastal low city", () => {
-    const a = selectArchetype({ coastal: true, elevation: 0.35, size: 4 }, mulberry32(1));
-    expect(a.id).toBe("coastalPort");
-    expect(a.water).toBe("sea");
+const inland = { coastal: false, elevation: 0.5, size: 4 };
+
+describe("selectArchetype", () => {
+  it("coastal wins over biome", () => {
+    expect(selectArchetype({ ...inland, coastal: true, biome: DESERT }).id).toBe("coastalPort");
   });
-  it("picks hilltopFortress for a high inland city", () => {
-    const a = selectArchetype({ coastal: false, elevation: 0.78, size: 4 }, mulberry32(1));
-    expect(a.id).toBe("hilltopFortress");
-    expect(a.wallShape).toBe("contour");
+  it("high elevation wins over biome", () => {
+    expect(selectArchetype({ ...inland, elevation: 0.8, biome: WETLAND }).id).toBe("hilltopFortress");
   });
-  it("is deterministic", () => {
-    const o = { coastal: false, elevation: 0.5, size: 3 };
-    expect(selectArchetype(o, mulberry32(9))).toEqual(selectArchetype(o, mulberry32(9)));
-  });
-  it("inland mid cities vary by seed across river/plains/ridge types", () => {
-    const ids = new Set<string>();
-    for (let s = 0; s < 30; s++) {
-      ids.add(selectArchetype({ coastal: false, elevation: 0.5, size: 3 }, mulberry32(s)).id);
+  it("maps inland biomes to biome archetypes", () => {
+    expect(selectArchetype({ ...inland, biome: WETLAND }).id).toBe("marshStilt");
+    expect(selectArchetype({ ...inland, biome: DESERT }).id).toBe("desertOasis");
+    for (const b of [TEMPERATE_FOREST, TAIGA, TROPICAL]) {
+      expect(selectArchetype({ ...inland, biome: b }).id).toBe("forestGrove");
     }
-    expect(ids.size).toBeGreaterThan(1);
+    expect(selectArchetype({ ...inland, biome: GRASSLAND }).id).toBe("plainsMarket");
+    expect(selectArchetype({ ...inland, biome: TUNDRA }).id).toBe("plainsMarket");
+  });
+  it("gives the new archetypes their signature traits", () => {
+    const forest = selectArchetype({ ...inland, biome: TEMPERATE_FOREST });
+    expect(forest.wallMaterial).toBe("timber");
+    expect(forest.vegetation).toBe("trees");
+    const marsh = selectArchetype({ ...inland, biome: WETLAND });
+    expect(marsh.onStilts).toBe(true);
+    const desert = selectArchetype({ ...inland, biome: DESERT });
+    expect(desert.oasis).toBe(true);
+    expect(desert.groundColor).toBe("#ece0c2");
+  });
+  it("existing archetypes keep stone defaults", () => {
+    const plains = selectArchetype({ ...inland, biome: GRASSLAND });
+    expect(plains.wallMaterial).toBe("stone");
+    expect(plains.vegetation).toBe("none");
+    expect(plains.onStilts).toBe(false);
+    expect(plains.oasis).toBe(false);
   });
 });

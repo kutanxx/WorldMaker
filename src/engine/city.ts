@@ -51,10 +51,11 @@ export interface CityContext {
   coastal: boolean;
   isCapital: boolean;
   elevation: number;
+  biome: number;
 }
 
 export function cityContext(c: CityMarker): CityContext {
-  return { id: c.id, name: c.name, size: c.size, coastal: c.coastal, isCapital: c.isCapital, elevation: c.elevation };
+  return { id: c.id, name: c.name, size: c.size, coastal: c.coastal, isCapital: c.isCapital, elevation: c.elevation, biome: c.biome };
 }
 
 function fieldsFor(arch: Archetype, center: Vec, radius: number, rng: Rng): BasisField[] {
@@ -89,7 +90,7 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
   const bounds = { w: 300, h: 300 };
   const center: Vec = [150, 150];
   const radius = 60 + ctx.size * 12;
-  const archetype = selectArchetype({ coastal: ctx.coastal, elevation: ctx.elevation, size: ctx.size }, rng);
+  const archetype = selectArchetype({ coastal: ctx.coastal, elevation: ctx.elevation, size: ctx.size, biome: ctx.biome });
 
   const water = buildWater(rng, archetype.water, bounds);
   const boundary = makeBoundary(rng, archetype, ctx.size, center, water);
