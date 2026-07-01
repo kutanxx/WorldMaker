@@ -78,6 +78,20 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
   slot.appendChild(politicalLayer(grid, world.polityOf, world.polities, politicalOpts(view)));
   root.appendChild(slot);
 
+  // geographic feature names (above the political fills, below the settlements)
+  const regionLabels = svgEl("g", { class: "region-labels" });
+  for (const r of world.regions) {
+    const fs = 9 + Math.min(7, r.cells / 90);
+    const t = svgEl("text", {
+      class: "region-label", x: r.centroid[0].toFixed(1), y: r.centroid[1].toFixed(1),
+      "text-anchor": "middle", "font-size": fs.toFixed(1), fill: "#5a4a34",
+      stroke: PARCHMENT, "stroke-width": 2, "paint-order": "stroke",
+    });
+    t.textContent = r.name;
+    regionLabels.appendChild(t);
+  }
+  root.appendChild(regionLabels);
+
   const markers = svgEl("g", { class: "markers" });
   for (const c of world.cities) {
     if (c.isCapital) {
@@ -138,6 +152,18 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
   }
 
   root.appendChild(compassRose(grid.width - 26, 28, 14));
+
+  // the world's name, an atlas title cartouche at the top-centre
+  const title = svgEl("g", { class: "world-name" });
+  const wt = svgEl("text", {
+    class: "world-name-text", x: grid.width / 2, y: 30, "text-anchor": "middle",
+    "font-size": 22, fill: INK, stroke: PARCHMENT, "stroke-width": 3, "paint-order": "stroke",
+  });
+  wt.textContent = world.name;
+  title.appendChild(wt);
+  title.appendChild(svgEl("line", { x1: grid.width / 2 - 70, y1: 38, x2: grid.width / 2 + 70, y2: 38, stroke: INK, "stroke-width": 0.6 }));
+  root.appendChild(title);
+
   root.appendChild(mapFrame(grid.width, grid.height));
 
   return root;

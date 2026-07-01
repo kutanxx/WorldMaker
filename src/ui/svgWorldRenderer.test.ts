@@ -31,6 +31,14 @@ describe("renderWorld biomes", () => {
     expect(svg.querySelectorAll(".compass").length).toBe(1);
     expect(svg.querySelector(".compass-n")?.textContent).toBe("N");
   });
+  it("renders the world name as a title and geographic region labels (atlas depth)", () => {
+    expect(svg.querySelector(".world-name-text")?.textContent).toBe(world.name);
+    expect(svg.querySelectorAll(".region-labels .region-label").length).toBeGreaterThan(0);
+    // geography names show in the political view too
+    const pol = renderWorld(world, "political");
+    expect(pol.querySelectorAll(".region-label").length).toBeGreaterThan(0);
+    expect(pol.querySelector(".world-name-text")?.textContent).toBe(world.name);
+  });
   it("draws an economic-zone marker per zone cell when given some", () => {
     const zones = [world.cities[0].cell, world.cities[1].cell];
     const withZones = renderWorld(world, "terrain", zones);

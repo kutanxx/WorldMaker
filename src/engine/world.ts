@@ -1,11 +1,12 @@
 import type { WorldParams, World, GeneratedWorld, CityMarker, Polity } from "../types/world";
-import { mulberry32, randInt } from "./rng";
+import { mulberry32, deriveSeed, randInt } from "./rng";
 import { generateGrid } from "./grid";
 import { assignHeights } from "./heightmap";
 import { classifyTerrain, OCEAN } from "./terrain";
 import { classifyBiomes } from "./biome";
 import { makeNameGen } from "./names";
 import { assignPolities } from "./polities";
+import { detectRegions, nameGeography, worldName } from "./geography";
 
 export function generateWorld(params: WorldParams): GeneratedWorld {
   const rng = mulberry32(params.seed);
@@ -69,8 +70,16 @@ export function generateWorld(params: WorldParams): GeneratedWorld {
     });
   }
 
+  // geography names use a SEPARATE rng stream so the main stream (heights/terrain/biome/
+  // polity/cities and the golden regression) is byte-unchanged; reads the built biome array
+  const geoRng = mulberry32(deriveSeed(params.seed, 8001));
+  const regions = nameGeography(geoRng, detectRegions(grid, Array.from(biome), Array.from(terrain)));
+  const name = worldName(geoRng);
+
   const world: World = {
     params,
+    name,
+    regions,
     grid: {
       width: grid.width,
       height: grid.height,
