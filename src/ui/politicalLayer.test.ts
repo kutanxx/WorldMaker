@@ -41,6 +41,18 @@ describe("politicalLayer", () => {
     expect((labels[0] as SVGElement).textContent).toBeTruthy();
   });
 
+  it("renders free (independent) polities in neutral grey, not a nation colour", () => {
+    const owner = new Int32Array(world.grid.count).fill(-1);
+    // claim two cells: one normal polity (id 0), one free polity (id 1)
+    owner[0] = 0; owner[1] = 1;
+    const polities = [{ id: 0, name: "Realm", free: false }, { id: 1, name: "Freeport", free: true }];
+    const g = politicalLayer(world.grid, owner, polities, { fills: true });
+    const free = g.querySelector('path.territory[data-polity="1"]') as SVGElement;
+    const normal = g.querySelector('path.territory[data-polity="0"]') as SVGElement;
+    expect(free.getAttribute("fill")).toBe("#b7b1a4");
+    expect(free.classList.contains("free-city")).toBe(true);
+    expect(normal.getAttribute("fill")).not.toBe("#b7b1a4");
+  });
   it("with legend adds a nation legend", () => {
     const g = politicalLayer(world.grid, owner0, h.polities, { legend: true });
     expect(g.querySelectorAll(".nation-legend").length).toBe(1);

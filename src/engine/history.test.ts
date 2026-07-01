@@ -77,32 +77,63 @@ describe("simulateHistory skeleton", () => {
     // if no seed produced a conquest, the tuning task (Task 6) addresses it; don't fail here
     expect(true).toBe(true);
   });
-  it("can spawn a fragment polity across seeds (new polity with origin 'fragment')", () => {
-    let found = false;
+  it("designates economic zones with a staple event for each", () => {
+    const h = simulateHistory(build(1), 1);
+    expect(h.economicZones.length).toBeGreaterThan(0);
+    expect(h.economicZones.length).toBeLessThanOrEqual(3);
+    for (const z of h.economicZones) {
+      expect(h.events.some((e) => e.type === "staple" && e.cell === z.cell)).toBe(true);
+    }
+  });
+  it("spawns civil-war successors and free cities across seeds", () => {
+    let civilwar = false, freeCity = false;
     for (const s of [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]) {
       const h = simulateHistory(build(s), s);
-      if (h.polities.some((p) => p.origin === "fragment")) { found = true; break; }
+      if (h.events.some((e) => e.type === "civilwar")) civilwar = true;
+      if (h.polities.some((p) => p.free)) freeCity = true;
     }
-    expect(found).toBe(true);
+    expect(civilwar).toBe(true);
+    expect(freeCity).toBe(true);
   });
-  it("produces interesting dynamics across seeds (conquest, fragmentation, cities, no instant collapse)", () => {
+  it("free polities are neutral-coloured and never expand", () => {
+    for (const s of [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]) {
+      const h = simulateHistory(build(s), s);
+      const free = h.polities.filter((p) => p.free);
+      if (free.length === 0) continue;
+      for (const fp of free) {
+        expect(fp.color).toBe("#b7b1a4");
+        // a free city never grows: its cell count in the last snapshot ≤ its founding cluster (≤5)
+        const last = h.snapshots[h.snapshots.length - 1].owner;
+        let cells = 0; for (let c = 0; c < last.length; c++) if (last[c] === fp.id) cells++;
+        expect(cells).toBeLessThanOrEqual(5);
+      }
+      return;
+    }
+  });
+  it("no single power inevitably conquers everything (varied fates, not one-nation-dominates)", () => {
     const seeds = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
-    let conquestSeeds = 0, fragmentSeeds = 0, citySeeds = 0, aliveVaries = 0;
+    let totalConquest = 0, hegemony = 0, multiPower = 0, conquestSeeds = 0, citySeeds = 0;
     for (const s of seeds) {
       const w = build(s);
       if (w.polities.length < 2) continue;
       const h = simulateHistory(w, s);
       if (h.events.some((e) => e.type === "conquer")) conquestSeeds++;
-      if (h.events.some((e) => e.type === "fragment")) fragmentSeeds++;
       if (h.events.some((e) => e.type === "newCity")) citySeeds++;
-      const mid = h.snapshots[Math.floor(h.snapshots.length / 2)];
-      const ids = new Set<number>();
-      for (let c = 0; c < mid.owner.length; c++) if (mid.owner[c] >= 0) ids.add(mid.owner[c]);
-      if (ids.size >= 2) aliveVaries++;
+      const last = h.snapshots[h.snapshots.length - 1].owner;
+      const count = new Map<number, number>();
+      let land = 0;
+      for (let c = 0; c < last.length; c++) { const o = last[c]; if (o >= 0) { land++; count.set(o, (count.get(o) ?? 0) + 1); } }
+      const top = Math.max(...count.values());
+      if (top / land > 0.8) totalConquest++;      // one polity holds >80% of land
+      if (top / land > 0.7) hegemony++;            // one polity dominates the map
+      if (count.size >= 3) multiPower++;           // ≥3 powers survive
     }
-    expect(conquestSeeds).toBeGreaterThan(0);      // some worlds see empires conquered
-    expect(fragmentSeeds).toBeGreaterThan(0);      // some worlds see realms splinter
-    expect(citySeeds).toBeGreaterThan(0);          // lore cities are founded
-    expect(aliveVaries).toBeGreaterThanOrEqual(7); // most worlds keep >=2 powers mid-run (no instant collapse)
+    expect(conquestSeeds).toBeGreaterThan(0);      // conquest still happens
+    expect(citySeeds).toBeGreaterThan(0);          // lore cities founded
+    expect(totalConquest).toBeLessThanOrEqual(4);  // NOT every world unifies (the whole point)
+    // the user's complaint: the flow always resolved to one dominant nation. Most worlds must NOT
+    // end dominated by a single power (this fails on the pre-fix ~83% snowball plateau: 6/10).
+    expect(hegemony).toBeLessThanOrEqual(4);
+    expect(multiPower).toBeGreaterThanOrEqual(6);  // most worlds stay genuinely multipolar
   });
 });

@@ -15,14 +15,17 @@ export interface PoliticalOpts {
 const MIN_LABEL_CELLS = 25;
 const LEGEND_W = 112;
 
+const FREE_COLOR = "#b7b1a4"; // neutral grey for independent free cities
+
 export function politicalLayer(
   grid: GridLike,
   owner: ArrayLike<number>,
-  polities: { id: number; name?: string }[],
+  polities: { id: number; name?: string; free?: boolean }[],
   opts: PoliticalOpts = {},
 ): SVGGElement {
   const g = svgEl("g", { class: "political" }) as SVGGElement;
   const nameOf = new Map(polities.map((p) => [p.id, p.name]));
+  const freeSet = new Set(polities.filter((p) => p.free).map((p) => p.id));
 
   if (opts.fills) {
     const byPolity = new Map<number, string>();
@@ -32,9 +35,10 @@ export function politicalLayer(
       byPolity.set(o, (byPolity.get(o) ?? "") + cellPath(grid.polygons[i]));
     }
     for (const [id, d] of byPolity) {
+      const free = freeSet.has(id);
       g.appendChild(svgEl("path", {
-        class: "territory", "data-polity": id, d,
-        fill: nationColor(id), "fill-opacity": 0.8,
+        class: free ? "territory free-city" : "territory", "data-polity": id, d,
+        fill: free ? FREE_COLOR : nationColor(id), "fill-opacity": free ? 0.9 : 0.8,
       }));
     }
   }

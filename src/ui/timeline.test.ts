@@ -9,6 +9,7 @@ function fakeHistory(frames: number): History {
     polities: [],
     events: [],
     snapshots: Array.from({ length: frames }, (_, i) => ({ year: i * 10, owner: new Int32Array(0) })),
+    economicZones: [],
   };
 }
 
