@@ -66,7 +66,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     stage.innerHTML = "";
     terrainBtn.classList.toggle("active", currentView === "terrain");
     politicalBtn.classList.toggle("active", currentView === "political");
-    const svg = renderWorld(generated.world, currentView);
+    const svg = renderWorld(generated.world, currentView, history.economicZones.map((z) => z.cell));
     svg.addEventListener("click", (e) => {
       const target = e.target as Element;
       const id = target.getAttribute("data-city");
@@ -113,7 +113,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
 
   // Export the world at the year + view the timeline is currently showing.
   function exportWorldSvg(): SVGSVGElement {
-    const svg = renderWorld(generated.world, currentView);
+    const svg = renderWorld(generated.world, currentView, history.economicZones.map((z) => z.cell));
     const slot = svg.querySelector(".political-slot") as SVGGElement;
     const snap = history.snapshots[currentYearIndex];
     slot.replaceChildren(politicalLayer(generated.world.grid, snap.owner, history.polities, politicalOpts(currentView)));

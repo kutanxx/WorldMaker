@@ -45,7 +45,7 @@ function mapFrame(w: number, h: number): SVGElement {
   return g;
 }
 
-export function renderWorld(world: World, view: MapView = "terrain"): SVGSVGElement {
+export function renderWorld(world: World, view: MapView = "terrain", econZones: number[] = []): SVGSVGElement {
   const grid = world.grid;
   const root = svgEl("svg", {
     width: "100%",
@@ -120,6 +120,20 @@ export function renderWorld(world: World, view: MapView = "terrain"): SVGSVGElem
       legend.appendChild(t);
     });
     root.appendChild(legend);
+  }
+
+  // economic special zones (free ports / staple towns): a gold diamond on the city
+  if (econZones.length) {
+    const eg = svgEl("g", { class: "econ-zones" });
+    for (const cell of econZones) {
+      const x = grid.points[cell * 2], y = grid.points[cell * 2 + 1];
+      eg.appendChild(svgEl("path", {
+        class: "econ-zone", "data-zone": cell,
+        d: `M${x.toFixed(1)},${(y - 4).toFixed(1)}L${(x + 4).toFixed(1)},${y.toFixed(1)}L${x.toFixed(1)},${(y + 4).toFixed(1)}L${(x - 4).toFixed(1)},${y.toFixed(1)}Z`,
+        fill: "#e0a83a", stroke: "#7a5a1a", "stroke-width": 0.8,
+      }));
+    }
+    root.appendChild(eg);
   }
 
   root.appendChild(compassRose(grid.width - 26, 28, 14));

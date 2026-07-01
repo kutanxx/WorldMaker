@@ -31,6 +31,12 @@ describe("renderWorld biomes", () => {
     expect(svg.querySelectorAll(".compass").length).toBe(1);
     expect(svg.querySelector(".compass-n")?.textContent).toBe("N");
   });
+  it("draws an economic-zone marker per zone cell when given some", () => {
+    const zones = [world.cities[0].cell, world.cities[1].cell];
+    const withZones = renderWorld(world, "terrain", zones);
+    expect(withZones.querySelectorAll(".econ-zones .econ-zone").length).toBe(2);
+    expect(svg.querySelectorAll(".econ-zone").length).toBe(0); // none without zones
+  });
 });
 
 describe("renderWorld political view", () => {
