@@ -12,6 +12,10 @@ import type { Water } from "./city/water";
 import { makeBoundary } from "./city/cityBoundary";
 import { wallFromDefenses } from "./city/walls";
 import type { DefenseWall } from "./city/walls";
+import { makeMountains, inMountains } from "./city/mountain";
+import type { MountainMass } from "./city/mountain";
+import { makeHarbor } from "./city/harbor";
+import type { Harbor } from "./city/harbor";
 import { generateWards } from "./city/wards";
 import { assignZones } from "./city/zoning";
 import type { WardType } from "./city/zoning";
@@ -44,6 +48,7 @@ export interface CityLayout {
   bounds: { w: number; h: number };
   boundary: Polygon;
   water: Water;
+  mountains: MountainMass[];
   wall: DefenseWall | null;
   moat: Polyline[] | null;
   gateBridges: Polyline[];
@@ -56,6 +61,7 @@ export interface CityLayout {
   suburbRoads: Polyline[];
   suburbs: Polygon[];
   outworks: Outwork[];
+  harbor: Harbor | null;
 }
 
 export interface CityContext {
@@ -104,7 +110,10 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
   const bounds = { w: 300, h: 300 };
   const center: Vec = [150, 150];
   const radius = 60 + ctx.size * 12;
-  const archetype = selectArchetype({ coastal: ctx.coastal, elevation: ctx.elevation, size: ctx.size, biome: ctx.biome });
+  // mountain-variant pick uses a SEPARATE rng stream so the main stream (and thus every
+  // existing non-mountain city) is byte-identical; only high-elevation form choice changes.
+  const pick = mulberry32(deriveSeed(worldSeed, ctx.id + 4200))();
+  const archetype = selectArchetype({ coastal: ctx.coastal, elevation: ctx.elevation, size: ctx.size, biome: ctx.biome, pick });
 
   const water = buildWater(rng, archetype.water, bounds);
   if (archetype.oasis) {
@@ -114,6 +123,7 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
     water.bodies.push(oasisPoly);
   }
   const boundary = makeBoundary(rng, archetype, ctx.size, center, water);
+  const mountains = makeMountains(rng, archetype, boundary, [center[0], center[1]], bounds);
 
   const noiseAmp = archetype.streetField === "grid" || archetype.streetField === "linear" ? 0.2 : 0.26;
   // determinism: fieldsFor() consumes rng (3 draws) BEFORE makeTensorField()'s noise draw — keep this call order.
@@ -133,7 +143,7 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
   const minorRoads = generateStreets(field, { dsep: 15, dtest: 7, step: 3, maxLength: 180, bounds, useMinor: true }, stop, seeds);
   water.bridges = waterBridges([...mainRoads, ...minorRoads], water);
 
-  const wall = wallFromDefenses(boundary, water, mainRoads); // gates sit where main roads meet the wall
+  const wall = wallFromDefenses(boundary, water, mountains, mainRoads); // gates sit where main roads meet the wall
   const moat = MOAT_ARCHETYPES.has(archetype.id) ? wall.segments.map((s) => offsetSegment(s, center, 6)) : null;
   // a causeway crossing the moat in front of each gate, so there is a way in
   const gateBridges: Polyline[] = moat
@@ -153,7 +163,15 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
 
   let cells = generateWards(rng, center[0], center[1], radius * 1.15, 8 + ctx.size * 3);
   cells = cells.filter((c) => pointInPolygon(c.site, boundary) && !inWater(water, c.site));
-  const zoned = assignZones(rng, cells, [center[0], center[1]], radius, { hasCastle: ctx.isCapital || ctx.size >= 4, coastal: ctx.coastal });
+  // the keep sits on the high ground: anchor it toward the mountain mass, if any
+  let castleAnchor: Point | undefined;
+  if (mountains.length) {
+    let sx = 0, sy = 0, cnt = 0;
+    for (const m of mountains) for (const p of m.innerEdge) { sx += p[0]; sy += p[1]; cnt++; }
+    const mx = sx / cnt, my = sy / cnt;
+    castleAnchor = [center[0] + (mx - center[0]) * 0.7, center[1] + (my - center[1]) * 0.7];
+  }
+  const zoned = assignZones(rng, cells, [center[0], center[1]], radius, { hasCastle: ctx.isCapital || ctx.size >= 4, coastal: ctx.coastal, castleAnchor });
 
   const parks: Polygon[] = [];
   const wards: Ward[] = zoned.map((z) => {
@@ -220,7 +238,7 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
     const distX = ux > 0.001 ? (bounds.w - 3 - start[0]) / ux : ux < -0.001 ? (3 - start[0]) / ux : Infinity;
     const distY = uy > 0.001 ? (bounds.h - 3 - start[1]) / uy : uy < -0.001 ? (3 - start[1]) / uy : Infinity;
     const room = Math.min(distX, distY);
-    if (room < 14 || inWater(water, start) || !inCanvas(start)) continue;
+    if (room < 14 || inWater(water, start) || inMountains(mountains, start) || !inCanvas(start)) continue;
     const L = Math.min(38, room - 4);
     const end: Point = [start[0] + ux * L, start[1] + uy * L];
     suburbRoads.push([[g[0], g[1]], end]);
@@ -232,7 +250,7 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
         const off = 4 + rng() * 4;
         const cx = start[0] + ux * d + nx * side * off;
         const cy = start[1] + uy * d + ny * side * off;
-        if (pointInPolygon([cx, cy], boundary) || inWater(water, [cx, cy]) || !inCanvas([cx, cy])) continue;
+        if (pointInPolygon([cx, cy], boundary) || inWater(water, [cx, cy]) || inMountains(mountains, [cx, cy]) || !inCanvas([cx, cy])) continue;
         if (suburbs.some((b) => { const c = centroid(b); return Math.hypot(c[0] - cx, c[1] - cy) < 6; })) continue;
         const hw = 2.5, hh = 2;
         suburbs.push([
@@ -250,18 +268,21 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
     inWater(water, [p[0], p[1] + 4]) || inWater(water, [p[0], p[1] - 4]);
   for (let tries = 0; tries < 80 && outworks.length === 0; tries++) {
     const p: Point = [3 + rng() * (bounds.w - 6), 3 + rng() * (bounds.h - 6)];
-    if (pointInPolygon(p, boundary) || inWater(water, p) || !inCanvas(p)) continue;
+    if (pointInPolygon(p, boundary) || inWater(water, p) || inMountains(mountains, p) || !inCanvas(p)) continue;
     if (nearWater(p)) outworks.push({ type: "watermill", at: p, angle: rng() * Math.PI * 2 });
   }
   for (let tries = 0; tries < 80 && outworks.length === 0; tries++) {
     const p: Point = [3 + rng() * (bounds.w - 6), 3 + rng() * (bounds.h - 6)];
-    if (pointInPolygon(p, boundary) || inWater(water, p) || !inCanvas(p)) continue;
+    if (pointInPolygon(p, boundary) || inWater(water, p) || inMountains(mountains, p) || !inCanvas(p)) continue;
     if (suburbs.some((b) => { const c = centroid(b); return Math.hypot(c[0] - p[0], c[1] - p[1]) < 10; })) continue;
     outworks.push({ type: "windmill", at: p, angle: rng() * Math.PI * 2 });
   }
 
+  // harbor: generated LAST (its rng draws don't perturb the layout above); sea cities only
+  const harbor = makeHarbor(rng, water, boundary, [center[0], center[1]]);
+
   return {
     name: ctx.name, size: ctx.size, coastal: ctx.coastal, isCapital: ctx.isCapital,
-    archetype, bounds, boundary, water, wall, moat, gateBridges, mainRoads, minorRoads, wards, parks, labels, features, suburbRoads, suburbs, outworks,
+    archetype, bounds, boundary, water, mountains, wall, moat, gateBridges, mainRoads, minorRoads, wards, parks, labels, features, suburbRoads, suburbs, outworks, harbor,
   };
 }

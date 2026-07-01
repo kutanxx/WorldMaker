@@ -54,4 +54,31 @@ describe("renderCity organic", () => {
     expect(svg.querySelectorAll(".environs .suburb-road").length).toBe(layout.suburbRoads.length);
     expect(svg.querySelectorAll(".environs .outwork").length).toBe(layout.outworks.length);
   });
+  it("renders mountain masses with cliffs + hachures for a mountain city (none for plains)", () => {
+    let mtn = null;
+    for (let s = 1; s <= 40 && !mtn; s++) {
+      const l = generateCityLayout(cityContext({ ...marker, coastal: false, elevation: 0.9, biome: 4 }), s);
+      if (l.mountains.length > 0) mtn = l;
+    }
+    expect(mtn).not.toBeNull();
+    const svg = renderCity(mtn!);
+    expect(svg.querySelectorAll(".mountains .mountain").length).toBe(mtn!.mountains.length);
+    expect(svg.querySelectorAll(".mountains .cliff").length).toBe(mtn!.mountains.length);
+    expect(svg.querySelectorAll(".mountains .hachure").length).toBeGreaterThan(0);
+
+    const plains = renderCity(generateCityLayout(cityContext({ ...marker, coastal: false, elevation: 0.4, biome: 4 }), 9));
+    expect(plains.querySelectorAll(".mountains").length).toBe(0);
+  });
+  it("renders a harbor (breakwater, lighthouse, piers, boats) for a coastal city; none inland", () => {
+    const layout = generateCityLayout(cityContext({ ...marker, coastal: true }), 5);
+    expect(layout.harbor).not.toBeNull();
+    const svg = renderCity(layout);
+    expect(svg.querySelectorAll(".harbor .breakwater").length).toBe(1);
+    expect(svg.querySelectorAll(".harbor .lighthouse").length).toBe(1);
+    expect(svg.querySelectorAll(".harbor .pier").length).toBe(layout.harbor!.piers.length);
+    expect(svg.querySelectorAll(".harbor .boat").length).toBe(layout.harbor!.boats.length);
+
+    const inland = renderCity(generateCityLayout(cityContext({ ...marker, coastal: false, elevation: 0.4, biome: 4 }), 9));
+    expect(inland.querySelectorAll(".harbor").length).toBe(0);
+  });
 });

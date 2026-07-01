@@ -37,4 +37,13 @@ describe("selectArchetype", () => {
     expect(plains.onStilts).toBe(false);
     expect(plains.oasis).toBe(false);
   });
+  it("high elevation picks among the four mountain variants by `pick`", () => {
+    const mtn = { ...inland, elevation: 0.9, biome: GRASSLAND };
+    expect(selectArchetype({ ...mtn, pick: 0.0 }).id).toBe("hilltopFortress");
+    expect(selectArchetype({ ...mtn, pick: 0.3 }).id).toBe("hillside");
+    expect(selectArchetype({ ...mtn, pick: 0.6 }).id).toBe("spur");
+    expect(selectArchetype({ ...mtn, pick: 0.99 }).id).toBe("valleyPass");
+    // pick omitted -> hilltopFortress (backward compatible)
+    expect(selectArchetype(mtn).id).toBe("hilltopFortress");
+  });
 });

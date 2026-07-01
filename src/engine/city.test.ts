@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { generateCityLayout, cityContext } from "./city";
 import { centroid, pointInPolygon } from "./geometry";
 import { inWater } from "./city/water";
+import { inMountains } from "./city/mountain";
 import type { CityMarker } from "../types/world";
 
 const base: CityMarker = {
@@ -131,5 +132,48 @@ describe("city organic", () => {
     expect(marsh.features.onStilts).toBe(true);
     const overWater = marsh.wards.flatMap((w) => w.buildings).filter((b) => inWater(marsh.water, centroid(b)));
     expect(overWater.length).toBeGreaterThan(0);
+  });
+});
+
+describe("city mountain (Phase 2)", () => {
+  const mtn = { ...base, id: 5, coastal: false, elevation: 0.9, biome: 4 };
+  // some high-elevation cities pick a mountain-mass archetype (hillside/spur/valleyPass); find one
+  function firstMountainLayout() {
+    for (let s = 1; s <= 40; s++) {
+      const l = generateCityLayout(cityContext({ ...mtn }), s);
+      if (l.mountains.length > 0) return l;
+    }
+    return null;
+  }
+  it("produces mountain masses for some high-elevation cities", () => {
+    const l = firstMountainLayout();
+    expect(l).not.toBeNull();
+    expect(l!.mountains.length).toBeGreaterThan(0);
+  });
+  it("opens the wall on the cliff side and keeps buildings/suburbs off the mountain", () => {
+    const l = firstMountainLayout()!;
+    const totalWallVerts = (l.wall?.segments ?? []).reduce((n, s) => n + s.length, 0);
+    expect(totalWallVerts).toBeLessThan(l.boundary.length + 1); // not a full ring — cliff side is open
+    for (const w of l.wards) for (const b of w.buildings) {
+      expect(inMountains(l.mountains, centroid(b))).toBe(false);
+    }
+    for (const b of l.suburbs) expect(inMountains(l.mountains, centroid(b))).toBe(false);
+  });
+  it("plains cities have no mountains", () => {
+    const l = generateCityLayout(cityContext({ ...base, coastal: false, elevation: 0.4, biome: 4 }), 9);
+    expect(l.mountains).toEqual([]);
+  });
+});
+
+describe("city harbor (Phase 3)", () => {
+  it("gives a coastal city a harbor (breakwater + boats)", () => {
+    const l = generateCityLayout(cityContext({ ...base, coastal: true }), 5);
+    expect(l.harbor).not.toBeNull();
+    expect(l.harbor!.breakwater.length).toBeGreaterThanOrEqual(2);
+    expect(l.harbor!.boats.length).toBeGreaterThanOrEqual(1);
+  });
+  it("has no harbor for an inland city", () => {
+    const l = generateCityLayout(cityContext({ ...base, coastal: false, elevation: 0.4, biome: 4 }), 5);
+    expect(l.harbor).toBeNull();
   });
 });

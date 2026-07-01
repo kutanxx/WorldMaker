@@ -41,4 +41,17 @@ describe("zoning.assignZones", () => {
     const far = z.find((w) => w.dist > 60)!;
     expect(far.inner).toBe(false);
   });
+  it("anchors the castle toward the high ground when castleAnchor is given", () => {
+    const wards = ringWards(14);
+    const anchor: Point = [40, 150]; // far left (a mountain side)
+    const z = assignZones(mulberry32(5), wards, [150, 150], 100, { hasCastle: true, coastal: false, castleAnchor: anchor });
+    const castle = z.find((w) => w.type === "castle")!;
+    // the castle ward is the not-plaza/cathedral/guildhall ward nearest the anchor
+    const dCastle = Math.hypot(castle.site[0] - anchor[0], castle.site[1] - anchor[1]);
+    const used = new Set(["plaza", "cathedral", "guildhall"]);
+    for (const w of z) {
+      if (w === castle || used.has(w.type)) continue;
+      expect(dCastle).toBeLessThanOrEqual(Math.hypot(w.site[0] - anchor[0], w.site[1] - anchor[1]) + 1e-6);
+    }
+  });
 });

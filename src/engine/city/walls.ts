@@ -2,6 +2,8 @@ import type { Point, Polygon, Polyline } from "../geometry";
 import { centroid } from "../geometry";
 import type { Water } from "./water";
 import { inWater } from "./water";
+import type { MountainMass } from "./mountain";
+import { inMountains } from "./mountain";
 
 export interface DefenseWall {
   segments: Polyline[];
@@ -47,16 +49,21 @@ function placeGates(segments: Polyline[], roads: Polyline[]): Point[] {
   return gates;
 }
 
-export function wallFromDefenses(boundary: Polygon, water: Water, mainRoads: Polyline[]): DefenseWall {
+// barrier per boundary edge: 0 = none (walled), 1 = water, 2 = mountain
+export function wallFromDefenses(
+  boundary: Polygon, water: Water, mountains: MountainMass[], mainRoads: Polyline[],
+): DefenseWall {
   const n = boundary.length;
   const c = centroid(boundary);
-  const isWall: boolean[] = [];
+  const barrier: number[] = [];
   for (let i = 0; i < n; i++) {
     const a = boundary[i], b = boundary[(i + 1) % n];
     const m: Point = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
     const out: Point = [m[0] + (m[0] - c[0]) * 0.06, m[1] + (m[1] - c[1]) * 0.06];
-    isWall.push(!inWater(water, out));
+    barrier.push(inWater(water, out) ? 1 : inMountains(mountains, out) ? 2 : 0);
   }
+  const isWall = barrier.map((b) => b === 0);
+  const isWaterGate = (edge: number) => barrier[((edge % n) + n) % n] === 1; // gate only at water, not cliff
   const segments: Polyline[] = [];
   const seaGates: Point[] = [];
   const allWall = isWall.every((w) => w);
@@ -68,18 +75,25 @@ export function wallFromDefenses(boundary: Polygon, water: Water, mainRoads: Pol
     let start = 0;
     while (isWall[start]) start = (start + 1) % n;        // a non-wall edge
     let cur: Polyline | null = null;
+    let runFirstEdge = -1, runLastEdge = -1;
+    const closeRun = (followingEdge: number) => {
+      if (!cur) return;
+      if (isWaterGate(runFirstEdge - 1)) seaGates.push(cur[0]);
+      if (isWaterGate(followingEdge)) seaGates.push(cur[cur.length - 1]);
+      segments.push(cur);
+      cur = null;
+    };
     for (let k = 0; k < n; k++) {
       const e = (start + k) % n;
       if (isWall[e]) {
-        if (!cur) cur = [boundary[e]];
+        if (!cur) { cur = [boundary[e]]; runFirstEdge = e; }
         cur.push(boundary[(e + 1) % n]);
-      } else if (cur) {
-        seaGates.push(cur[0], cur[cur.length - 1]);
-        segments.push(cur);
-        cur = null;
+        runLastEdge = e;
+      } else {
+        closeRun(e);
       }
     }
-    if (cur) { seaGates.push(cur[0], cur[cur.length - 1]); segments.push(cur); }
+    closeRun(runLastEdge + 1);
   }
   const towers: Point[] = [];
   for (const s of segments) for (const p of s) towers.push(p);

@@ -34,6 +34,45 @@ export function renderCity(layout: CityLayout): SVGSVGElement {
     root.appendChild(svgEl("polygon", { class: "water", points: pts(body), fill: "#9fc1d6", transform: "scale(0.985)", "transform-origin": "150 150" }));
   }
 
+  // harbor: breakwater/mole + lighthouse + piers + moored boats (on the sea)
+  if (layout.harbor) {
+    const hb = layout.harbor;
+    const hg = svgEl("g", { class: "harbor" });
+    hg.appendChild(svgEl("polyline", { class: "breakwater", points: pts(hb.breakwater), fill: "none", stroke: "#9a8f7a", "stroke-width": 3, "stroke-linecap": "round", "stroke-linejoin": "round" }));
+    for (const p of hb.piers) {
+      hg.appendChild(svgEl("polyline", { class: "pier", points: pts(p), fill: "none", stroke: "#8a6a44", "stroke-width": 1.4, "stroke-linecap": "round" }));
+    }
+    for (const b of hb.boats) {
+      const c = Math.cos(b.angle), s = Math.sin(b.angle);
+      const bow: [number, number] = [b.at[0] + c * 2.5, b.at[1] + s * 2.5];
+      const sl: [number, number] = [b.at[0] - c * 1.5 - s * 1.2, b.at[1] - s * 1.5 + c * 1.2];
+      const sr: [number, number] = [b.at[0] - c * 1.5 + s * 1.2, b.at[1] - s * 1.5 - c * 1.2];
+      hg.appendChild(svgEl("polygon", { class: "boat", points: pts([bow, sl, sr]), fill: "#7a5a3a", stroke: "#3c2f1c", "stroke-width": 0.3 }));
+    }
+    const [lx, ly] = hb.lighthouse;
+    hg.appendChild(svgEl("circle", { class: "lighthouse", cx: lx, cy: ly, r: 1.8, fill: "#efe7d2", stroke: "#7a2f2f", "stroke-width": 0.8 }));
+    hg.appendChild(svgEl("circle", { class: "beacon", cx: lx, cy: ly, r: 0.7, fill: "#e0a83a" }));
+    root.appendChild(hg);
+  }
+
+  // mountain barriers: rock fill + cliff crest + downhill hachures (unclipped, behind the city)
+  if (layout.mountains.length) {
+    const mg = svgEl("g", { class: "mountains" });
+    for (const m of layout.mountains) {
+      const crest = m.steep ? "#5f5648" : "#7a715f";
+      mg.appendChild(svgEl("polygon", { class: "mountain", points: pts(m.polygon), fill: m.steep ? "#a99e8c" : "#bcb2a0", stroke: "none" }));
+      mg.appendChild(svgEl("polyline", { class: "cliff", points: pts(m.innerEdge), fill: "none", stroke: crest, "stroke-width": m.steep ? 1.4 : 0.9, "stroke-linejoin": "round" }));
+      const step = m.steep ? 1 : 2, len = m.steep ? 5 : 3.5;
+      for (let i = 0; i < m.innerEdge.length; i += step) {
+        const p = m.innerEdge[i];
+        const dx = p[0] - 150, dy = p[1] - 150, L = Math.hypot(dx, dy) || 1;
+        const sx = p[0] + (dx / L) * len, sy = p[1] + (dy / L) * len; // start out in the mass, point downhill to the crest
+        mg.appendChild(svgEl("line", { class: "hachure", x1: sx.toFixed(1), y1: sy.toFixed(1), x2: p[0].toFixed(1), y2: p[1].toFixed(1), stroke: crest, "stroke-width": 0.5 }));
+      }
+    }
+    root.appendChild(mg);
+  }
+
   const env = svgEl("g", { class: "environs" });
   for (const r of layout.suburbRoads) {
     env.appendChild(svgEl("polyline", { class: "suburb-road", points: pts(r), fill: "none", stroke: "#c9bb96", "stroke-width": 1.6, "stroke-linecap": "round" }));
