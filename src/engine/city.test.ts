@@ -107,6 +107,25 @@ describe("city organic", () => {
       expect(inWater(desert.water, centroid(b))).toBe(false);
     }
   });
+  it("builds extramural suburbs (houses + road) outside the wall for a roomy city", () => {
+    const l = generateCityLayout(cityContext({ ...base, coastal: false, elevation: 0.5, biome: 4, size: 4 }), 7);
+    expect(l.suburbs.length).toBeGreaterThan(0);
+    expect(l.suburbRoads.length).toBeGreaterThan(0);
+    for (const b of l.suburbs) {
+      const c = centroid(b);
+      expect(pointInPolygon(c, l.boundary)).toBe(false); // extramural
+      expect(inWater(l.water, c)).toBe(false);
+      expect(c[0]).toBeGreaterThan(0); expect(c[0]).toBeLessThan(300);
+      expect(c[1]).toBeGreaterThan(0); expect(c[1]).toBeLessThan(300);
+    }
+  });
+  it("places an outwork (mill) outside the boundary", () => {
+    const l = generateCityLayout(cityContext({ ...base, coastal: false, elevation: 0.5, biome: 4, size: 4 }), 7);
+    for (const o of l.outworks) {
+      expect(["watermill", "windmill"]).toContain(o.type);
+      expect(pointInPolygon(o.at, l.boundary)).toBe(false);
+    }
+  });
   it("lets a marsh city keep buildings over water (stilts)", () => {
     const marsh = generateCityLayout(cityContext({ ...base, coastal: false, elevation: 0.5, biome: 7 }), 7);
     expect(marsh.features.onStilts).toBe(true);

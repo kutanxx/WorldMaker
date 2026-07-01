@@ -34,6 +34,26 @@ export function renderCity(layout: CityLayout): SVGSVGElement {
     root.appendChild(svgEl("polygon", { class: "water", points: pts(body), fill: "#9fc1d6", transform: "scale(0.985)", "transform-origin": "150 150" }));
   }
 
+  const env = svgEl("g", { class: "environs" });
+  for (const r of layout.suburbRoads) {
+    env.appendChild(svgEl("polyline", { class: "suburb-road", points: pts(r), fill: "none", stroke: "#c9bb96", "stroke-width": 1.6, "stroke-linecap": "round" }));
+  }
+  for (const b of layout.suburbs) {
+    env.appendChild(svgEl("polygon", { class: "suburb", points: pts(b), fill: "#e0d6c0", stroke: "#9a8a70", "stroke-width": 0.4 }));
+  }
+  for (const o of layout.outworks) {
+    const [x, y] = o.at;
+    if (o.type === "windmill") {
+      env.appendChild(svgEl("circle", { class: "outwork", cx: x, cy: y, r: 1.6, fill: "#8a7858" }));
+      const c = Math.cos(o.angle), s = Math.sin(o.angle), r = 4;
+      env.appendChild(svgEl("path", { class: "outwork-sails", d: `M${(x - c * r).toFixed(1)} ${(y - s * r).toFixed(1)} L${(x + c * r).toFixed(1)} ${(y + s * r).toFixed(1)} M${(x + s * r).toFixed(1)} ${(y - c * r).toFixed(1)} L${(x - s * r).toFixed(1)} ${(y + c * r).toFixed(1)}`, stroke: "#6b5a44", "stroke-width": 0.8, fill: "none" }));
+    } else {
+      env.appendChild(svgEl("rect", { class: "outwork", x: x - 2.5, y: y - 2, width: 5, height: 4, fill: "#c9a86a", stroke: "#8a6a44", "stroke-width": 0.5 }));
+      env.appendChild(svgEl("circle", { class: "outwork-wheel", cx: x + 3, cy: y + 1, r: 2, fill: "none", stroke: "#6b5a44", "stroke-width": 0.7 }));
+    }
+  }
+  root.appendChild(env);
+
   const clipped = svgEl("g", { "clip-path": `url(#${clipId})` });
   clipped.appendChild(svgEl("polygon", { class: "boundary", points: pts(layout.boundary), fill: layout.features.groundColor }));
   for (const park of layout.parks) clipped.appendChild(svgEl("polygon", { class: "park", points: pts(park), fill: "#cfe0b8" }));

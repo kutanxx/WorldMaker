@@ -44,4 +44,14 @@ describe("renderCity organic", () => {
     expect(layout.features.onStilts).toBe(true);
     expect(svg.querySelectorAll(".stilt").length).toBeGreaterThan(0);
   });
+  it("draws extramural suburbs outside the boundary clip", () => {
+    const layout = generateCityLayout(cityContext({ ...marker, coastal: false, elevation: 0.5, biome: 4, size: 4 }), 7);
+    const svg = renderCity(layout);
+    const env = svg.querySelector(".environs");
+    expect(env).not.toBeNull();
+    expect(env!.closest("[clip-path]")).toBeNull(); // NOT inside the boundary clip
+    expect(svg.querySelectorAll(".environs .suburb").length).toBe(layout.suburbs.length);
+    expect(svg.querySelectorAll(".environs .suburb-road").length).toBe(layout.suburbRoads.length);
+    expect(svg.querySelectorAll(".environs .outwork").length).toBe(layout.outworks.length);
+  });
 });
