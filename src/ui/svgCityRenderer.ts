@@ -74,6 +74,15 @@ export function renderCity(layout: CityLayout): SVGSVGElement {
     root.appendChild(og);
   }
 
+  if (layout.features.onStilts) {
+    const sg = svgEl("g", { class: "stilts", "clip-path": `url(#${clipId})` });
+    for (const ward of layout.wards) for (const b of ward.buildings) {
+      const c = avg(b);
+      sg.appendChild(svgEl("line", { class: "stilt", x1: c[0], y1: c[1] + 1, x2: c[0], y2: c[1] + 4.5, stroke: "#6b5a44", "stroke-width": 0.8, "stroke-linecap": "round" }));
+    }
+    root.appendChild(sg);
+  }
+
   for (const [a, b] of layout.water.bridges) {
     root.appendChild(svgEl("line", { class: "bridge", x1: a[0], y1: a[1], x2: b[0], y2: b[1], stroke: "#7a6a52", "stroke-width": 4, "stroke-linecap": "round" }));
   }

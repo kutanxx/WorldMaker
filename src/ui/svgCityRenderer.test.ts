@@ -38,4 +38,10 @@ describe("renderCity organic", () => {
     expect(layout.features.oasis).not.toBeNull();
     expect(svg.querySelectorAll(".palm").length).toBeGreaterThan(0);
   });
+  it("draws stilts under marsh buildings", () => {
+    const layout = generateCityLayout(cityContext({ ...marker, coastal: false, elevation: 0.5, biome: 7 }), 7);
+    const svg = renderCity(layout);
+    expect(layout.features.onStilts).toBe(true);
+    expect(svg.querySelectorAll(".stilt").length).toBeGreaterThan(0);
+  });
 });

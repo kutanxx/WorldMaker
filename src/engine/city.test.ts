@@ -107,4 +107,10 @@ describe("city organic", () => {
       expect(inWater(desert.water, centroid(b))).toBe(false);
     }
   });
+  it("lets a marsh city keep buildings over water (stilts)", () => {
+    const marsh = generateCityLayout(cityContext({ ...base, coastal: false, elevation: 0.5, biome: 7 }), 7);
+    expect(marsh.features.onStilts).toBe(true);
+    const overWater = marsh.wards.flatMap((w) => w.buildings).filter((b) => inWater(marsh.water, centroid(b)));
+    expect(overWater.length).toBeGreaterThan(0);
+  });
 });

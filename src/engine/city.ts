@@ -161,7 +161,8 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
       buildings = subdivide(rng, z.polygon, { minArea: DENSITY[z.type] ?? 130, margin: 1.5 });
       buildings = buildings.filter((b) => {
         const c = centroid(b);
-        return pointInPolygon(c, boundary) && !inWater(water, c) && !nearRoad(c);
+        const dryOk = archetype.onStilts || !inWater(water, c);
+        return pointInPolygon(c, boundary) && dryOk && !nearRoad(c);
       });
     }
     return { polygon: z.polygon, type: z.type, buildings, inner: z.inner };
