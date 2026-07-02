@@ -37,6 +37,10 @@ export interface Region {
   cells: number;
 }
 
+export interface RiverSegment {
+  x1: number; y1: number; x2: number; y2: number; f: number;
+}
+
 export interface CultureInfo { name: string; color: string }
 
 export interface World {
