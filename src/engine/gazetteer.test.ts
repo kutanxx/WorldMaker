@@ -30,4 +30,13 @@ describe("worldToGazetteer", () => {
     expect(out.startsWith("# ")).toBe(true);
     expect(out).not.toContain("## Free Ports");
   });
+  it("lists named rivers under The Land", () => {
+    expect(world.rivers.length).toBeGreaterThan(0); // sanity for seed 1
+    expect(md).toContain("### Rivers");
+    expect(md).toContain(world.rivers[0].name);
+  });
+  it("omits the Rivers block when there are none", () => {
+    const dry = { ...world, rivers: [] };
+    expect(worldToGazetteer(dry, history)).not.toContain("### Rivers");
+  });
 });

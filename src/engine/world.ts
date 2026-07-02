@@ -8,6 +8,7 @@ import { makeNameGen, DEFAULT_PHON } from "./names";
 import { assignPolities } from "./polities";
 import { detectRegions, nameGeography, worldName } from "./geography";
 import { assignCultures } from "./culture";
+import { traceRivers, nameRivers } from "./rivers";
 
 export function generateWorld(params: WorldParams): GeneratedWorld {
   const rng = mulberry32(params.seed);
@@ -84,6 +85,12 @@ export function generateWorld(params: WorldParams): GeneratedWorld {
   const regions = nameGeography(geoRng, detectRegions(grid, Array.from(biome), Array.from(terrain)));
   const name = worldName(geoRng);
 
+  // rivers on a SEPARATE stream (8002) — geometry is rng-free (reads heights/terrain/biome),
+  // only naming draws, so the golden regression is byte-unchanged
+  const rivRng = mulberry32(deriveSeed(params.seed, 8002));
+  const { segments, trunks } = traceRivers(grid, heights, terrain, biome);
+  const rivers = nameRivers(rivRng, trunks, phonAt);
+
   const world: World = {
     params,
     name,
@@ -104,6 +111,8 @@ export function generateWorld(params: WorldParams): GeneratedWorld {
     polityOf: Array.from(polityOf),
     polities,
     cities,
+    rivers,
+    riverNet: segments,
   };
   return { world, find: grid.find };
 }

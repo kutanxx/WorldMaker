@@ -77,3 +77,29 @@ describe("world", () => {
     }
   });
 });
+
+describe("world rivers", () => {
+  it("keeps the golden regression byte-identical (rivers add no main-stream draws)", () => {
+    const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });
+    let h = 2166136261 >>> 0;
+    for (const p of world.polityOf) { h ^= (p + 1); h = Math.imul(h, 16777619) >>> 0; }
+    expect(h >>> 0).toBe(1350115163);
+    expect(world.cities.length).toBe(28);
+  });
+  it("exposes a named river network for a normal seed", () => {
+    const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });
+    expect(world.riverNet.length).toBeGreaterThan(0);
+    expect(world.rivers.length).toBeGreaterThan(0);
+    for (const r of world.rivers) {
+      expect(r.name.length).toBeGreaterThan(0);
+      expect(r.path.length).toBeGreaterThan(0);
+      expect(r.mouth).toEqual(r.path[0]);
+    }
+  });
+  it("is deterministic (two builds → identical rivers)", () => {
+    const a = generateWorld({ ...DEFAULT_PARAMS, seed: 7 }).world;
+    const b = generateWorld({ ...DEFAULT_PARAMS, seed: 7 }).world;
+    expect(JSON.stringify(a.rivers)).toBe(JSON.stringify(b.rivers));
+    expect(JSON.stringify(a.riverNet)).toBe(JSON.stringify(b.riverNet));
+  });
+});

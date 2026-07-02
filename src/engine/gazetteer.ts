@@ -38,6 +38,14 @@ export function worldToGazetteer(world: World, history: History): string {
   }
   L.push("");
 
+  if (world.rivers.length) {
+    L.push("### Rivers", "");
+    for (const r of world.rivers) {
+      L.push(`- **${r.name}** — flows to the sea in the ${compass(r.mouth[0], r.mouth[1], grid.width, grid.height)}.`);
+    }
+    L.push("");
+  }
+
   // Peoples — cultures, described by where they dwell
   L.push("## Peoples", "");
   const agg = world.cultures.map(() => ({ sx: 0, sy: 0, n: 0, biome: new Map<number, number>() }));
