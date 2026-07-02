@@ -6,6 +6,7 @@ import { renderCity } from "./svgCityRenderer";
 import { generateCityLayout, cityContext } from "../engine/city";
 import { encodeParams, randomSeed } from "./urlState";
 import { worldToJSON, svgToString, svgToPngBlob, downloadBlob } from "./export";
+import { worldToGazetteer } from "../engine/gazetteer";
 import { simulateHistory } from "../engine/history";
 import { renderChronicle, applyChronicleYear } from "./chronicle";
 import { createTimeline, type Timeline } from "./timeline";
@@ -48,6 +49,9 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
   pngBtn.textContent = "Export PNG";
   const svgBtn = document.createElement("button");
   svgBtn.textContent = "Export SVG";
+  const gazBtn = document.createElement("button");
+  gazBtn.className = "gazetteer";
+  gazBtn.textContent = "📜 가제티어";
   const viewToggle = document.createElement("div");
   viewToggle.className = "view-toggle";
   const terrainBtn = document.createElement("button");
@@ -57,7 +61,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
   const cultureBtn = document.createElement("button");
   cultureBtn.textContent = "문화";
   viewToggle.append(terrainBtn, politicalBtn, cultureBtn);
-  controls.append(seedInput, regenBtn, randomBtn, jsonBtn, pngBtn, svgBtn, viewToggle);
+  controls.append(seedInput, regenBtn, randomBtn, jsonBtn, pngBtn, svgBtn, gazBtn, viewToggle);
 
   function setView(v: MapView): void {
     if (v === currentView) return;
@@ -149,6 +153,11 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
   });
   svgBtn.addEventListener("click", () => {
     downloadBlob("world.svg", new Blob([svgToString(exportWorldSvg())], { type: "image/svg+xml" }));
+  });
+  gazBtn.addEventListener("click", () => {
+    const md = worldToGazetteer(generated.world, history);
+    const fname = (generated.world.name.replace(/[^A-Za-z0-9]+/g, "_").replace(/^_+|_+$/g, "") || "gazetteer") + ".md";
+    downloadBlob(fname, new Blob([md], { type: "text/markdown" }));
   });
 
   showWorld();
