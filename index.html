@@ -68,7 +68,9 @@
   .view-toggle { display: inline-flex; gap: 0; }
   .view-toggle button { border-radius: 0; }
   .view-toggle button:first-child { border-radius: 4px 0 0 4px; }
-  .view-toggle button:last-child { border-radius: 0 4px 4px 0; border-left: none; }
+  .view-toggle button:last-child { border-radius: 0 4px 4px 0; }
+  .view-toggle button:not(:first-child) { border-left: none; }
+  .culture-label { font-family: 'Cinzel', serif; font-weight: 600; }
   .view-toggle button.active { background: #d8b25a; font-weight: 600; }
     </style>
   </head>

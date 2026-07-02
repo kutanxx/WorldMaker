@@ -63,3 +63,15 @@ describe("renderWorld political view", () => {
     expect(svg.querySelectorAll(".biome-legend").length).toBe(0);
   });
 });
+
+describe("renderWorld culture view", () => {
+  const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });
+  it("mounts a culture layer with fills + a culture legend (not the political layer)", () => {
+    const svg = renderWorld(world, "culture");
+    expect(svg.getAttribute("class")).toContain("view-culture");
+    expect(svg.querySelectorAll(".culture .culture-area").length).toBeGreaterThan(1);
+    expect(svg.querySelectorAll(".culture-legend .legend-item").length).toBeGreaterThan(0);
+    expect(svg.querySelectorAll(".political-slot .territory").length).toBe(0);
+    expect(svg.querySelector(".biomes")?.getAttribute("opacity")).toBe("0.45");
+  });
+});

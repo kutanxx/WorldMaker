@@ -37,10 +37,14 @@ export interface Region {
   cells: number;
 }
 
+export interface CultureInfo { name: string; color: string }
+
 export interface World {
   params: WorldParams;
   name: string;
   regions: Region[];
+  cultureOf: number[];
+  cultures: CultureInfo[];
   grid: {
     width: number;
     height: number;

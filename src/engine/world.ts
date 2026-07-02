@@ -4,9 +4,10 @@ import { generateGrid } from "./grid";
 import { assignHeights } from "./heightmap";
 import { classifyTerrain, OCEAN } from "./terrain";
 import { classifyBiomes } from "./biome";
-import { makeNameGen } from "./names";
+import { makeNameGen, DEFAULT_PHON } from "./names";
 import { assignPolities } from "./polities";
 import { detectRegions, nameGeography, worldName } from "./geography";
+import { assignCultures } from "./culture";
 
 export function generateWorld(params: WorldParams): GeneratedWorld {
   const rng = mulberry32(params.seed);
@@ -15,7 +16,14 @@ export function generateWorld(params: WorldParams): GeneratedWorld {
   const terrain = classifyTerrain(heights, params.seaLevel, params.mountainLevel);
   const biome = classifyBiomes(grid, heights, terrain, params);
   const { polityOf, seeds } = assignPolities(rng, grid, terrain, params.polityCount);
-  const names = makeNameGen(rng);
+
+  // cultures assigned on a SEPARATE stream (no main-stream draw); naming keeps the exact
+  // main-stream draw structure (makeNameGen with a profile draws identically), so geometry
+  // (polityOf/city cells/sizes) is byte-unchanged — only the name STRINGS become culture-flavoured.
+  const cultRng = mulberry32(deriveSeed(params.seed, 6001));
+  const cultCount = Math.min(5, 3 + Math.floor(params.polityCount / 4));
+  const { cultureOf, cultures } = assignCultures(cultRng, grid, Array.from(terrain), cultCount);
+  const phonAt = (cell: number) => cultures[cultureOf[cell]]?.phon ?? DEFAULT_PHON;
 
   const isCoastal = (cell: number) =>
     grid.neighbors[cell].some((n) => terrain[n] === OCEAN);
@@ -24,7 +32,7 @@ export function generateWorld(params: WorldParams): GeneratedWorld {
     id: s.id,
     capital: s.capital,
     color: s.color,
-    name: names.nation(),
+    name: makeNameGen(rng, phonAt(s.capital)).nation(),
   }));
 
   const cities: CityMarker[] = [];
@@ -35,7 +43,7 @@ export function generateWorld(params: WorldParams): GeneratedWorld {
       cell: p.capital,
       x: grid.points[p.capital * 2],
       y: grid.points[p.capital * 2 + 1],
-      name: names.place(),
+      name: makeNameGen(rng, phonAt(p.capital)).place(),
       polityId: p.id,
       isCapital: true,
       size: randInt(rng, 3, 6),
@@ -60,7 +68,7 @@ export function generateWorld(params: WorldParams): GeneratedWorld {
       cell,
       x: grid.points[cell * 2],
       y: grid.points[cell * 2 + 1],
-      name: names.place(),
+      name: makeNameGen(rng, phonAt(cell)).place(),
       polityId: polityOf[cell],
       isCapital: false,
       size: randInt(rng, 1, 3),
@@ -80,6 +88,8 @@ export function generateWorld(params: WorldParams): GeneratedWorld {
     params,
     name,
     regions,
+    cultureOf: Array.from(cultureOf),
+    cultures: cultures.map((c) => ({ name: c.name, color: c.color })),
     grid: {
       width: grid.width,
       height: grid.height,

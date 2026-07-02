@@ -84,6 +84,16 @@ describe("createApp", () => {
     terrain.click();
     expect(root.querySelector(".political-slot .territory")).toBeNull();
   });
+  it("has a 문화 view toggle that shows culture areas", () => {
+    const root = document.createElement("div");
+    createApp(root, small);
+    const btn = Array.from(root.querySelectorAll(".view-toggle button")).find((b) => b.textContent === "문화") as HTMLButtonElement;
+    expect(btn).toBeTruthy();
+    btn.click();
+    expect(root.querySelector("svg.world.view-culture")).not.toBeNull();
+    expect(root.querySelector(".culture .culture-area")).not.toBeNull();
+    expect(root.querySelector(".political-slot .territory")).toBeNull();
+  });
   it("keeps the scrubbed year when switching views", () => {
     const root = document.createElement("div");
     createApp(root, small);

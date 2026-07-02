@@ -4,8 +4,9 @@ import { OCEAN, BIOME_COLORS, BIOME_NAMES } from "../engine/biome";
 import { coastline } from "../engine/borders";
 import { cellPath, segPath } from "./svgPaths";
 import { politicalLayer, type PoliticalOpts } from "./politicalLayer";
+import { cultureLayer } from "./cultureLayer";
 
-export type MapView = "terrain" | "political";
+export type MapView = "terrain" | "political" | "culture";
 
 export function politicalOpts(view: MapView): PoliticalOpts {
   return view === "political" ? { fills: true, labels: true, legend: true } : {};
@@ -62,9 +63,9 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
     if (bm === OCEAN) continue;
     byBiome.set(bm, (byBiome.get(bm) ?? "") + cellPath(grid.polygons[i]));
   }
-  // Mute biomes under the political view so nation fills dominate. Inline (not CSS)
-  // so an exported standalone SVG/PNG matches the on-screen map.
-  const biomes = svgEl("g", view === "political" ? { class: "biomes", opacity: 0.45 } : { class: "biomes" });
+  // Mute biomes under the political/culture views so the overlay fills dominate. Inline (not
+  // CSS) so an exported standalone SVG/PNG matches the on-screen map.
+  const biomes = svgEl("g", view !== "terrain" ? { class: "biomes", opacity: 0.45 } : { class: "biomes" });
   for (const [bm, d] of byBiome) {
     biomes.appendChild(svgEl("path", { class: "biome", "data-biome": bm, d, fill: BIOME_COLORS[bm] }));
   }
@@ -75,7 +76,9 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
     fill: "none", stroke: "#5f7888", "stroke-width": 0.6,
   }));
   const slot = svgEl("g", { class: "political-slot" });
-  slot.appendChild(politicalLayer(grid, world.polityOf, world.polities, politicalOpts(view)));
+  slot.appendChild(view === "culture"
+    ? cultureLayer(grid, world.cultureOf, world.cultures)
+    : politicalLayer(grid, world.polityOf, world.polities, politicalOpts(view)));
   root.appendChild(slot);
 
   // geographic feature names (above the political fills, below the settlements)

@@ -10,6 +10,7 @@ import { simulateHistory } from "../engine/history";
 import { renderChronicle, applyChronicleYear } from "./chronicle";
 import { createTimeline, type Timeline } from "./timeline";
 import { politicalLayer } from "./politicalLayer";
+import { cultureLayer } from "./cultureLayer";
 
 export interface App {
   regenerate(p: WorldParams): void;
@@ -53,7 +54,9 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
   terrainBtn.textContent = "지형";
   const politicalBtn = document.createElement("button");
   politicalBtn.textContent = "정치";
-  viewToggle.append(terrainBtn, politicalBtn);
+  const cultureBtn = document.createElement("button");
+  cultureBtn.textContent = "문화";
+  viewToggle.append(terrainBtn, politicalBtn, cultureBtn);
   controls.append(seedInput, regenBtn, randomBtn, jsonBtn, pngBtn, svgBtn, viewToggle);
 
   function setView(v: MapView): void {
@@ -63,12 +66,14 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
   }
   terrainBtn.addEventListener("click", () => setView("terrain"));
   politicalBtn.addEventListener("click", () => setView("political"));
+  cultureBtn.addEventListener("click", () => setView("culture"));
 
   function showWorld(): void {
     timeline?.destroy();
     stage.innerHTML = "";
     terrainBtn.classList.toggle("active", currentView === "terrain");
     politicalBtn.classList.toggle("active", currentView === "political");
+    cultureBtn.classList.toggle("active", currentView === "culture");
     const svg = renderWorld(generated.world, currentView, history.economicZones.map((z) => z.cell));
     svg.addEventListener("click", (e) => {
       const target = e.target as Element;
@@ -83,7 +88,11 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     const renderYear = (index: number): void => {
       currentYearIndex = index;
       const snap = history.snapshots[index];
-      slot.replaceChildren(politicalLayer(world.grid, snap.owner, history.polities, politicalOpts(currentView)));
+      if (currentView === "culture") {
+        slot.replaceChildren(cultureLayer(world.grid, world.cultureOf, world.cultures)); // time-independent
+      } else {
+        slot.replaceChildren(politicalLayer(world.grid, snap.owner, history.polities, politicalOpts(currentView)));
+      }
       applyChronicleYear(chronicle, snap.year);
     };
 
@@ -117,9 +126,11 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
   // Export the world at the year + view the timeline is currently showing.
   function exportWorldSvg(): SVGSVGElement {
     const svg = renderWorld(generated.world, currentView, history.economicZones.map((z) => z.cell));
-    const slot = svg.querySelector(".political-slot") as SVGGElement;
-    const snap = history.snapshots[currentYearIndex];
-    slot.replaceChildren(politicalLayer(generated.world.grid, snap.owner, history.polities, politicalOpts(currentView)));
+    if (currentView !== "culture") { // culture layer is static; renderWorld already mounted it
+      const slot = svg.querySelector(".political-slot") as SVGGElement;
+      const snap = history.snapshots[currentYearIndex];
+      slot.replaceChildren(politicalLayer(generated.world.grid, snap.owner, history.polities, politicalOpts(currentView)));
+    }
     return svg;
   }
 
