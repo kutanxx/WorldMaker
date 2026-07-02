@@ -39,6 +39,13 @@ describe("createApp", () => {
     const labels = Array.from(root.querySelectorAll(".controls button")).map((b) => b.textContent);
     expect(labels).toContain("Export SVG");
   });
+  it("exposes a gazetteer (markdown) export button", () => {
+    const root = document.createElement("div");
+    createApp(root, small);
+    expect(root.querySelector(".controls button.gazetteer")).not.toBeNull();
+    const labels = Array.from(root.querySelectorAll(".controls button")).map((b) => b.textContent);
+    expect(labels.some((l) => l?.includes("가제티어"))).toBe(true);
+  });
   it("has a random-seed button that rerolls to a new seed", () => {
     const root = document.createElement("div");
     createApp(root, { ...small, seed: 7 });
