@@ -1,7 +1,7 @@
 import type { World } from "../types/world";
 import { svgEl } from "./renderer";
 import { OCEAN, BIOME_COLORS, BIOME_NAMES } from "../engine/biome";
-import { coastline } from "../engine/borders";
+import { coastline, type Segment } from "../engine/borders";
 import { cellPath, segPath } from "./svgPaths";
 import { politicalLayer, type PoliticalOpts } from "./politicalLayer";
 import { cultureLayer } from "./cultureLayer";
@@ -81,6 +81,26 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
     : politicalLayer(grid, world.polityOf, world.polities, politicalOpts(view)));
   root.appendChild(slot);
 
+  // rivers — above the political/culture fills, below labels & markers; shown in all views
+  if (world.riverNet.length) {
+    const maxF = world.riverNet.reduce((m, s) => Math.max(m, s.f), 0);
+    const tierSegs: Segment[][] = [[], [], []];
+    const tierW = [0.5, 1.0, 1.8];
+    for (const s of world.riverNet) {
+      const t = s.f < 0.15 * maxF ? 0 : s.f < 0.5 * maxF ? 1 : 2;
+      tierSegs[t].push([[s.x1, s.y1], [s.x2, s.y2]]);
+    }
+    const rivers = svgEl("g", { class: "rivers" });
+    tierSegs.forEach((segs, t) => {
+      if (!segs.length) return;
+      rivers.appendChild(svgEl("path", {
+        class: "river", d: segPath(segs), fill: "none", stroke: "#5b83a6",
+        "stroke-width": tierW[t], "stroke-linecap": "round", "stroke-linejoin": "round",
+      }));
+    });
+    root.appendChild(rivers);
+  }
+
   // geographic feature names (above the political fills, below the settlements)
   const regionLabels = svgEl("g", { class: "region-labels" });
   for (const r of world.regions) {
@@ -94,6 +114,20 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
     regionLabels.appendChild(t);
   }
   root.appendChild(regionLabels);
+
+  const riverLabels = svgEl("g", { class: "river-labels" });
+  for (const r of world.rivers) {
+    const mid = r.path[Math.floor(r.path.length / 2)];
+    const fs = 8 + Math.min(5, r.flux / 40);
+    const t = svgEl("text", {
+      class: "river-label", x: mid[0].toFixed(1), y: mid[1].toFixed(1),
+      "text-anchor": "middle", "font-size": fs.toFixed(1), fill: "#3f5d78",
+      stroke: PARCHMENT, "stroke-width": 1.8, "paint-order": "stroke", "font-style": "italic",
+    });
+    t.textContent = r.name;
+    riverLabels.appendChild(t);
+  }
+  root.appendChild(riverLabels);
 
   const markers = svgEl("g", { class: "markers" });
   for (const c of world.cities) {

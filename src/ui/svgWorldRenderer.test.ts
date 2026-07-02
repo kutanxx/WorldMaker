@@ -75,3 +75,18 @@ describe("renderWorld culture view", () => {
     expect(svg.querySelector(".biomes")?.getAttribute("opacity")).toBe("0.45");
   });
 });
+
+describe("renderWorld rivers", () => {
+  const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });
+  it("draws the river network and named river labels", () => {
+    const svg = renderWorld(world);
+    expect(svg.querySelectorAll(".rivers .river").length).toBeGreaterThan(0);
+    expect(svg.querySelectorAll(".river-labels .river-label").length).toBeGreaterThan(0);
+  });
+  it("shows rivers in political and culture views too (geography is view-independent)", () => {
+    for (const view of ["political", "culture"] as const) {
+      const svg = renderWorld(world, view);
+      expect(svg.querySelectorAll(".rivers .river").length).toBeGreaterThan(0);
+    }
+  });
+});
