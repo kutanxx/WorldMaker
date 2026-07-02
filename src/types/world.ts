@@ -70,6 +70,8 @@ export interface World {
   polityOf: number[];
   polities: Polity[];
   cities: CityMarker[];
+  rivers: River[];
+  riverNet: RiverSegment[];
 }
 
 export interface GeneratedWorld {
