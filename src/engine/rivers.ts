@@ -1,4 +1,8 @@
-import type { RiverSegment } from "../types/world";
+import type { River, RiverSegment } from "../types/world";
+import type { Rng } from "./rng";
+import { pick } from "./rng";
+import { makeNameGen, type Phonetics } from "./names";
+import { ADJ } from "./geography";
 import { OCEAN } from "./terrain";
 import {
   TUNDRA, TAIGA, TEMPERATE_FOREST, GRASSLAND, DESERT, TROPICAL, WETLAND, ALPINE,
@@ -130,4 +134,26 @@ export function traceRivers(
   });
 
   return { segments, trunks };
+}
+
+const RIVER_NOUNS = ["River", "Water", "Run", "Fork", "Flow", "Race", "Rill"];
+
+function riverName(rng: Rng, phon: Phonetics): string {
+  const noun = pick(rng, RIVER_NOUNS);
+  const ng = makeNameGen(rng, phon);
+  const r = rng();
+  if (r < 0.45) return `the ${pick(rng, ADJ)} ${noun}`;
+  if (r < 0.75) return `${ng.place()} ${noun}`;
+  return `${noun} ${ng.place()}`;
+}
+
+export function nameRivers(
+  rng: Rng, trunks: RawRiver[], phonAt: (cell: number) => Phonetics,
+): River[] {
+  return trunks.map((t) => ({
+    name: riverName(rng, phonAt(t.mouthCell)),
+    path: t.path,
+    flux: t.flux,
+    mouth: t.path[0],
+  }));
 }

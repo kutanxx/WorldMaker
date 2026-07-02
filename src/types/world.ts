@@ -41,6 +41,13 @@ export interface RiverSegment {
   x1: number; y1: number; x2: number; y2: number; f: number;
 }
 
+export interface River {
+  name: string;
+  path: [number, number][];
+  flux: number;
+  mouth: [number, number];
+}
+
 export interface CultureInfo { name: string; color: string }
 
 export interface World {

@@ -27,7 +27,7 @@ const NOUNS: Record<number, string[]> = {
   [WETLAND]: ["Marsh", "Fens", "Mire", "Moor"],
   [ALPINE]: ["Peaks", "Mountains", "Range", "Spires", "Heights"],
 };
-const ADJ = ["Ashen", "Grey", "Green", "Golden", "White", "Black", "Bitter", "Broken",
+export const ADJ = ["Ashen", "Grey", "Green", "Golden", "White", "Black", "Bitter", "Broken",
   "Endless", "Silent", "Frozen", "Shrouded", "Sunken", "Hollow", "Iron", "Amber",
   "Pale", "Riven", "Cold", "Old"];
 const WORLD_NOUN = ["Realm", "Lands", "Reaches", "Dominion", "Expanse"];

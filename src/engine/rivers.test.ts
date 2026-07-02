@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { traceRivers } from "./rivers";
+import { traceRivers, nameRivers } from "./rivers";
+import { mulberry32 } from "./rng";
+import { DEFAULT_PHON } from "./names";
 
 // A straight chain of cells 0..N-1; cell 0 is ocean, rest land sloping uphill.
 // neighbors: each cell links to i-1 and i+1. points on a line. biome 3 (rain 1.0).
@@ -52,5 +54,36 @@ describe("traceRivers", () => {
     expect(trunks[0].path[0]).toEqual([10, 0]);   // path starts at the mouth
     expect(trunks[0].path[trunks[0].path.length - 1]).toEqual([40, 0]); // ends at the source
     expect(trunks[0].flux).toBeCloseTo(4, 5);
+  });
+});
+
+describe("nameRivers", () => {
+  const trunks = [
+    { mouthCell: 4, path: [[10, 0], [40, 0]] as [number, number][], flux: 9 },
+    { mouthCell: 7, path: [[20, 5], [50, 5]] as [number, number][], flux: 5 },
+  ];
+  const phonAt = () => DEFAULT_PHON;
+
+  it("names every trunk with a river noun, deterministically", () => {
+    const a = nameRivers(mulberry32(1), trunks, phonAt);
+    const b = nameRivers(mulberry32(1), trunks, phonAt);
+    expect(a.map((r) => r.name)).toEqual(b.map((r) => r.name)); // deterministic
+    for (const r of a) expect(/River|Water|Run|Fork|Flow|Race|Rill/.test(r.name)).toBe(true);
+  });
+
+  it("carries the mouth point and flux through", () => {
+    const [r] = nameRivers(mulberry32(1), trunks, phonAt);
+    expect(r.mouth).toEqual([10, 0]);
+    expect(r.flux).toBe(9);
+    expect(r.path).toEqual(trunks[0].path);
+  });
+
+  it("uses the mouth cell's phonetic profile (culture flavour)", () => {
+    const guttural = { onset: ["kh", "gr"], vowel: ["a", "u"], coda: ["k", "gg"] };
+    const liquid = { onset: ["l", "m"], vowel: ["ia", "ei"], coda: ["l", "n"] };
+    const g = nameRivers(mulberry32(3), trunks, () => guttural);
+    const l = nameRivers(mulberry32(3), trunks, () => liquid);
+    // both valid & deterministic; the profiles produce different strings
+    expect(g.map((r) => r.name)).not.toEqual(l.map((r) => r.name));
   });
 });
