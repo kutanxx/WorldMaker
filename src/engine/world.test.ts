@@ -19,6 +19,21 @@ describe("biome integration", () => {
     expect(world.biome.length).toBe(world.grid.count);
     for (const c of world.cities) expect(world.biome[c.cell]).toBe(c.biome);
   });
+  it("assigns cultures to the land (separate stream — geometry above is unchanged)", () => {
+    const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });
+    expect(world.cultures.length).toBeGreaterThan(0);
+    let landWithCulture = 0;
+    for (let i = 0; i < world.grid.count; i++) {
+      if (world.terrain[i] !== OCEAN) {
+        expect(world.cultureOf[i]).toBeGreaterThanOrEqual(0);
+        expect(world.cultureOf[i]).toBeLessThan(world.cultures.length);
+        landWithCulture++;
+      } else {
+        expect(world.cultureOf[i]).toBe(-1);
+      }
+    }
+    expect(landWithCulture).toBeGreaterThan(0);
+  });
 });
 
 const small = { ...DEFAULT_PARAMS, width: 300, height: 300, cellCount: 600, townCount: 8 };

@@ -14,4 +14,13 @@ describe("names", () => {
     const b = makeNameGen(mulberry32(2));
     expect([a.place(), a.nation()]).toEqual([b.place(), b.nation()]);
   });
+  it("a phonetic profile changes the name but NOT the rng draw count (geometry-safe)", () => {
+    const a = mulberry32(5), b = mulberry32(5);
+    const profA = { onset: ["k"], vowel: ["a"], coda: ["r"] };
+    const profB = { onset: ["zx"], vowel: ["oo"], coda: ["nn"] };
+    const na = makeNameGen(a, profA).place();
+    const nb = makeNameGen(b, profB).place();
+    expect(na).not.toBe(nb);   // different syllable sets -> different string
+    expect(a()).toBe(b());     // rng left at the SAME position -> identical number of draws
+  });
 });
