@@ -3,11 +3,26 @@ import type { CityLayout } from "../engine/city";
 import type { WardType } from "../engine/city/zoning";
 import type { Polygon, Polyline } from "../engine/geometry";
 
-// harbor is intentionally NOT tinted as an interior district — the docks are rendered as
-// waterfront wharves/piers at the shore, not a coloured block inside the town.
+// A distinct (but parchment-muted) colour per district so the wards read apart — each
+// functional zone gets its own hue. harbor stays untinted (its docks are the waterfront
+// wharves/piers). Buildings are filled with the same hue so a whole district reads as its colour.
 const TINT: Partial<Record<WardType, string>> = {
-  plaza: "#ece2c6", castle: "#ddd8cb", cathedral: "#e3dbe6", guildhall: "#dfe2d2",
-  slum: "#e6dcc6", market: "#ece1c4",
+  plaza: "#e6ddc6",      // civic square — light stone
+  market: "#e9cd8a",     // commerce — warm gold
+  guildhall: "#bfcfa2",  // guilds — sage green
+  cathedral: "#d7c4e2",  // religious — lilac
+  castle: "#bcc4d2",     // power — cool blue-grey stone
+  merchant: "#e6bd97",   // wealthy trade — peach
+  patriciate: "#dfb1b1", // elite — dusty rose
+  craftsmen: "#d9c191",  // artisans — tan
+  slum: "#c6bbaa",       // poor — drab grey-brown
+  military: "#cfa898",   // garrison — muted red-brown
+  park: "#b8d29a",       // green space
+};
+const WARD_LABEL: Partial<Record<WardType, string>> = {
+  plaza: "Plaza", market: "Market", guildhall: "Guildhall", cathedral: "Cathedral",
+  castle: "Castle", merchant: "Merchants", patriciate: "Patricians", craftsmen: "Craftsmen",
+  slum: "Slums", military: "Barracks", park: "Park",
 };
 
 function pts(poly: Polygon | Polyline): string {
@@ -107,7 +122,7 @@ export function renderCity(layout: CityLayout): SVGSVGElement {
   for (const park of layout.parks) clipped.appendChild(svgEl("polygon", { class: "park", points: pts(park), fill: "#cfe0b8" }));
   for (const ward of layout.wards) {
     const tint = TINT[ward.type];
-    if (tint) clipped.appendChild(svgEl("polygon", { class: "ward", points: pts(ward.polygon), fill: tint, "fill-opacity": 0.6 }));
+    if (tint) clipped.appendChild(svgEl("polygon", { class: "ward", points: pts(ward.polygon), fill: tint, "fill-opacity": 0.7 }));
   }
 
   const road = (cls: string, r: Polyline, stroke: string, wd: number) =>
@@ -118,8 +133,10 @@ export function renderCity(layout: CityLayout): SVGSVGElement {
   for (const r of layout.mainRoads) clipped.appendChild(road("road-main", r, "#d8b65e", 3));
 
   for (const ward of layout.wards) {
-    const fill = ward.type === "castle" ? "#cfcabe" : ward.type === "cathedral" ? "#ddd2e0" : "#e6dcc8";
-    for (const b of ward.buildings) clipped.appendChild(svgEl("polygon", { class: "building", points: pts(b), fill, stroke: "#9a8a70", "stroke-width": 0.4 }));
+    // colour the buildings by their district so the whole zone reads as its hue (otherwise
+    // cream buildings cover the ground tint and the districts blur together)
+    const fill = TINT[ward.type] ?? "#e6dcc8";
+    for (const b of ward.buildings) clipped.appendChild(svgEl("polygon", { class: "building", points: pts(b), fill, stroke: "#8a7a60", "stroke-width": 0.4 }));
   }
   root.appendChild(clipped);
 
@@ -202,9 +219,16 @@ export function renderCity(layout: CityLayout): SVGSVGElement {
   root.appendChild(title);
 
   const legend = svgEl("g", { class: "legend" });
-  const items: [string, string][] = [["#9fc1d6", "Water"], ["#cfe0b8", "Park"], ["#d8b65e", "Main road"], ["#e6dcc8", "Buildings"]];
+  // a district key: the present ward types (in functional order) + a couple of base features,
+  // so the reader can tell the colour-coded quarters apart
+  const order: WardType[] = ["plaza", "market", "guildhall", "cathedral", "castle", "merchant", "patriciate", "craftsmen", "slum", "military", "park"];
+  const present = order.filter((t) => TINT[t] && layout.wards.some((wd) => wd.type === t));
+  const items: [string, string][] = [
+    ...present.map((t) => [TINT[t]!, WARD_LABEL[t]!] as [string, string]),
+    ["#9fc1d6", "Water"], ["#d8b65e", "Main road"],
+  ];
   const x0 = 6, y0 = h - 8 - items.length * 11;
-  legend.appendChild(svgEl("rect", { x: x0 - 4, y: y0 - 8, width: 86, height: items.length * 11 + 12, rx: 3, fill: "#f7f2e6", stroke: "#cbb784", "stroke-width": 0.5 }));
+  legend.appendChild(svgEl("rect", { x: x0 - 4, y: y0 - 8, width: 92, height: items.length * 11 + 12, rx: 3, fill: "#f7f2e6", "fill-opacity": 0.92, stroke: "#cbb784", "stroke-width": 0.5 }));
   items.forEach(([color, label], i) => {
     const y = y0 + i * 11;
     legend.appendChild(svgEl("rect", { class: "legend-item", x: x0, y: y - 6, width: 8, height: 8, fill: color, stroke: "#9a8a70", "stroke-width": 0.4 }));

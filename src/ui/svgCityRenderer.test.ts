@@ -20,6 +20,14 @@ describe("renderCity organic", () => {
     expect(svg.querySelectorAll(".road-minor").length).toBe(layout.minorRoads.length);
     expect(svg.querySelectorAll(".building").length).toBeGreaterThan(0);
   });
+  it("colour-codes districts: buildings take several distinct hues + a district legend", () => {
+    const layout = generateCityLayout(cityContext(marker), 7);
+    const svg = renderCity(layout);
+    const fills = new Set([...svg.querySelectorAll(".building")].map((b) => (b.getAttribute("fill") || "").toLowerCase()));
+    expect(fills.size).toBeGreaterThan(2); // districts read apart, not one cream mass
+    const legend = [...svg.querySelectorAll(".legend text")].map((t) => t.textContent);
+    expect(legend).toContain("Slums"); // the legend names the districts, not just "Buildings"
+  });
   it("tints the ground and uses timber walls for a forest city", () => {
     const layout = generateCityLayout(cityContext({ ...marker, coastal: false, elevation: 0.5, biome: 3 }), 7);
     const svg = renderCity(layout);
