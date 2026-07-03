@@ -14,9 +14,13 @@ export interface RiverNetwork { segments: RiverSegment[]; trunks: RawRiver[] }
 type GridLike = { count: number; neighbors: number[][]; points: number[] };
 
 const EPS = 1e-5;
-const DRAW_FRAC = 0.04;
+// Tuned across seeds 1–20: DRAW_FRAC 0.04 flooded the map (river cells ~21% of land, up to
+// 39%); 0.10 gives a legible dendritic net (~7% median, ≤14% on the wettest seed, still ≥4%
+// on the driest). MAX_NAMED 5 (was 7) trims label clutter — NAME_FRAC keeps it adaptive so
+// river-poor worlds still name fewer.
+const DRAW_FRAC = 0.1;
 const NAME_FRAC = 0.25;
-const MAX_NAMED = 7;
+const MAX_NAMED = 5;
 
 // rainfall by biome — wetter biomes and snowmelt uplands feed bigger rivers
 const RAIN: Record<number, number> = {
