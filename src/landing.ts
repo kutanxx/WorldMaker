@@ -19,15 +19,22 @@ export function redirectTarget(hash: string): string | null {
 
 export function renderChooser(root: HTMLElement): void {
   root.innerHTML = `
-    <h1 class="app-title">WorldMaker</h1>
+    <div class="landing-hero">
+      <h1 class="app-title">WorldMaker</h1>
+      <p class="landing-tagline">A procedural fantasy atlas &amp; chronicle</p>
+    </div>
     <div class="landing">
       <a class="choice-card" href="map.html">
-        <div class="choice-title">🗺 세계 지도 만들기</div>
-        <p class="choice-desc">랜덤 판타지 세계를 생성하고 지도·도시·역사·가제티어를 탐험합니다.</p>
+        <div class="choice-icon">🗺</div>
+        <div class="choice-title">Create a World</div>
+        <p class="choice-desc">Generate a random fantasy world — explore its map, cities, rivers, history, and gazetteer.</p>
+        <div class="choice-sub">세계 지도 만들기</div>
       </a>
       <a class="choice-card" href="play.html">
-        <div class="choice-title">🏛 제국 플레이</div>
-        <p class="choice-desc">한 나라의 군주가 되어 연도를 진행하며 제국의 운명을 이끕니다.</p>
+        <div class="choice-icon">🏛</div>
+        <div class="choice-title">Play an Empire</div>
+        <p class="choice-desc">Rule a nation, advance the years, and shape the fate of your realm.</p>
+        <div class="choice-sub">제국 플레이</div>
       </a>
     </div>`;
 }
