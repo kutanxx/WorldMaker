@@ -2,6 +2,7 @@ import { svgEl } from "./renderer";
 import type { CityLayout } from "../engine/city";
 import type { WardType } from "../engine/city/zoning";
 import type { Polygon, Polyline } from "../engine/geometry";
+import { type Lang, WARD_NAME, t } from "./i18n";
 
 // A distinct (but parchment-muted) colour per district so the wards read apart — each
 // functional zone gets its own hue. harbor stays untinted (its docks are the waterfront
@@ -19,11 +20,6 @@ const TINT: Partial<Record<WardType, string>> = {
   military: "#cfa898",   // garrison — muted red-brown
   park: "#b8d29a",       // green space
 };
-const WARD_LABEL: Partial<Record<WardType, string>> = {
-  plaza: "Plaza", market: "Market", guildhall: "Guildhall", cathedral: "Cathedral",
-  castle: "Castle", merchant: "Merchants", patriciate: "Patricians", craftsmen: "Craftsmen",
-  slum: "Slums", military: "Barracks", park: "Park",
-};
 
 function pts(poly: Polygon | Polyline): string {
   return poly.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(" ");
@@ -34,7 +30,7 @@ function avg(poly: Polygon): [number, number] {
   return [x / poly.length, y / poly.length];
 }
 
-export function renderCity(layout: CityLayout): SVGSVGElement {
+export function renderCity(layout: CityLayout, lang: Lang = "en"): SVGSVGElement {
   const { w, h } = layout.bounds;
   const root = svgEl("svg", { width: "100%", viewBox: `0 0 ${w} ${h}`, class: "city" }) as SVGSVGElement;
   root.appendChild(svgEl("rect", { x: 0, y: 0, width: w, height: h, fill: "#f3efe4" }));
@@ -205,12 +201,13 @@ export function renderCity(layout: CityLayout): SVGSVGElement {
 
   const labelsG = svgEl("g", { class: "labels" });
   for (const l of layout.labels) {
+    const text = WARD_NAME[lang][l.type] ?? "";
     const halo = svgEl("text", { x: l.x, y: l.y, "font-size": 7, fill: "#f3efe4", stroke: "#f3efe4", "stroke-width": 2.5, "text-anchor": "middle" });
-    halo.textContent = l.text;
+    halo.textContent = text;
     labelsG.appendChild(halo);
-    const t = svgEl("text", { x: l.x, y: l.y, "font-size": 7, fill: "#4a3f2c", "text-anchor": "middle" });
-    t.textContent = l.text;
-    labelsG.appendChild(t);
+    const tx = svgEl("text", { x: l.x, y: l.y, "font-size": 7, fill: "#4a3f2c", "text-anchor": "middle" });
+    tx.textContent = text;
+    labelsG.appendChild(tx);
   }
   root.appendChild(labelsG);
 
@@ -222,10 +219,10 @@ export function renderCity(layout: CityLayout): SVGSVGElement {
   // a district key: the present ward types (in functional order) + a couple of base features,
   // so the reader can tell the colour-coded quarters apart
   const order: WardType[] = ["plaza", "market", "guildhall", "cathedral", "castle", "merchant", "patriciate", "craftsmen", "slum", "military", "park"];
-  const present = order.filter((t) => TINT[t] && layout.wards.some((wd) => wd.type === t));
+  const present = order.filter((wt) => TINT[wt] && layout.wards.some((wd) => wd.type === wt));
   const items: [string, string][] = [
-    ...present.map((t) => [TINT[t]!, WARD_LABEL[t]!] as [string, string]),
-    ["#9fc1d6", "Water"], ["#d8b65e", "Main road"],
+    ...present.map((wt) => [TINT[wt]!, WARD_NAME[lang][wt] ?? ""] as [string, string]),
+    ["#9fc1d6", t(lang, "water")], ["#d8b65e", t(lang, "mainRoad")],
   ];
   const x0 = 6, y0 = h - 8 - items.length * 11;
   legend.appendChild(svgEl("rect", { x: x0 - 4, y: y0 - 8, width: 92, height: items.length * 11 + 12, rx: 3, fill: "#f7f2e6", "fill-opacity": 0.92, stroke: "#cbb784", "stroke-width": 0.5 }));

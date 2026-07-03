@@ -1,6 +1,7 @@
 import type { World } from "../types/world";
 import { svgEl } from "./renderer";
-import { OCEAN, ALPINE, BIOME_COLORS, BIOME_NAMES } from "../engine/biome";
+import { OCEAN, ALPINE, BIOME_COLORS } from "../engine/biome";
+import { type Lang, biomeName, t } from "./i18n";
 import { coastline, type Segment } from "../engine/borders";
 import { cellPath, segPath } from "./svgPaths";
 import { politicalLayer, type PoliticalOpts } from "./politicalLayer";
@@ -26,12 +27,12 @@ function starPath(cx: number, cy: number, points: number, outer: number, inner: 
   return d + "Z";
 }
 
-function compassRose(cx: number, cy: number, r: number): SVGElement {
+function compassRose(cx: number, cy: number, r: number, north: string): SVGElement {
   const g = svgEl("g", { class: "compass" });
   g.appendChild(svgEl("circle", { cx, cy, r, fill: PARCHMENT, "fill-opacity": 0.55, stroke: INK, "stroke-width": 0.8 }));
   g.appendChild(svgEl("path", { d: starPath(cx, cy, 4, r * 0.92, r * 0.3), fill: INK }));
   const n = svgEl("text", { class: "compass-n", x: cx, y: cy - r - 2, "text-anchor": "middle", "font-size": 7, fill: INK });
-  n.textContent = "N";
+  n.textContent = north;
   g.appendChild(n);
   return g;
 }
@@ -46,7 +47,7 @@ function mapFrame(w: number, h: number): SVGElement {
   return g;
 }
 
-export function renderWorld(world: World, view: MapView = "terrain", econZones: number[] = []): SVGSVGElement {
+export function renderWorld(world: World, view: MapView = "terrain", econZones: number[] = [], lang: Lang = "en"): SVGSVGElement {
   const grid = world.grid;
   const root = svgEl("svg", {
     width: "100%",
@@ -218,7 +219,7 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
       const y = y0 + i * 14;
       legend.appendChild(svgEl("rect", { class: "legend-item", x: x0, y: y - 8, width: 10, height: 10, fill: BIOME_COLORS[bm], stroke: "#9a8a70", "stroke-width": 0.4 }));
       const t = svgEl("text", { x: x0 + 16, y: y, "font-size": 9, fill: "#4a3f2c" });
-      t.textContent = BIOME_NAMES[bm] ?? "";
+      t.textContent = biomeName(lang, bm);
       legend.appendChild(t);
     });
     root.appendChild(legend);
@@ -239,7 +240,7 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
     root.appendChild(eg);
   }
 
-  root.appendChild(compassRose(grid.width - 26, 28, 14));
+  root.appendChild(compassRose(grid.width - 26, 28, 14, t(lang, "compassN")));
 
   // the world's name, an atlas title cartouche at the top-centre
   const title = svgEl("g", { class: "world-name" });

@@ -44,7 +44,7 @@ describe("createApp", () => {
     createApp(root, small);
     expect(root.querySelector(".controls button.gazetteer")).not.toBeNull();
     const labels = Array.from(root.querySelectorAll(".controls button")).map((b) => b.textContent);
-    expect(labels.some((l) => l?.includes("가제티어"))).toBe(true);
+    expect(labels.some((l) => l?.includes("Gazetteer"))).toBe(true);
   });
   it("has a random-seed button that rerolls to a new seed", () => {
     const root = document.createElement("div");
@@ -82,8 +82,8 @@ describe("createApp", () => {
     const root = document.createElement("div");
     createApp(root, small);
     const btns = Array.from(root.querySelectorAll(".view-toggle button")) as HTMLButtonElement[];
-    const political = btns.find((b) => b.textContent === "정치")!;
-    const terrain = btns.find((b) => b.textContent === "지형")!;
+    const political = btns.find((b) => b.textContent === "Political")!;
+    const terrain = btns.find((b) => b.textContent === "Terrain")!;
     political.click();
     expect(root.querySelector("svg.world.view-political")).not.toBeNull();
     expect(root.querySelector(".political-slot .territory")).not.toBeNull();
@@ -94,7 +94,7 @@ describe("createApp", () => {
   it("has a 문화 view toggle that shows culture areas", () => {
     const root = document.createElement("div");
     createApp(root, small);
-    const btn = Array.from(root.querySelectorAll(".view-toggle button")).find((b) => b.textContent === "문화") as HTMLButtonElement;
+    const btn = Array.from(root.querySelectorAll(".view-toggle button")).find((b) => b.textContent === "Culture") as HTMLButtonElement;
     expect(btn).toBeTruthy();
     btn.click();
     expect(root.querySelector("svg.world.view-culture")).not.toBeNull();
@@ -107,7 +107,7 @@ describe("createApp", () => {
     const slider = root.querySelector(".timeline input[type=range]") as HTMLInputElement;
     slider.value = slider.max;
     slider.dispatchEvent(new Event("input"));
-    (Array.from(root.querySelectorAll(".view-toggle button")).find((b) => b.textContent === "정치") as HTMLButtonElement).click();
+    (Array.from(root.querySelectorAll(".view-toggle button")).find((b) => b.textContent === "Political") as HTMLButtonElement).click();
     expect((root.querySelector(".timeline-year") as HTMLElement).textContent).toBe("500년");
   });
 });

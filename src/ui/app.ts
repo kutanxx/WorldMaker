@@ -12,6 +12,7 @@ import { renderChronicle, applyChronicleYear } from "./chronicle";
 import { createTimeline, type Timeline } from "./timeline";
 import { politicalLayer } from "./politicalLayer";
 import { cultureLayer } from "./cultureLayer";
+import { type Lang, t } from "./i18n";
 
 export interface App {
   regenerate(p: WorldParams): void;
@@ -34,34 +35,49 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
   let timeline: Timeline | null = null;
   let currentYearIndex = 0;
   let currentView: MapView = "terrain";
+  let lang: Lang = "en";
+  let openCityId: number | null = null; // which screen is showing (null = world)
 
   const seedInput = document.createElement("input");
   seedInput.type = "number";
   seedInput.value = String(params.seed);
   const regenBtn = document.createElement("button");
-  regenBtn.textContent = "Generate";
   const randomBtn = document.createElement("button");
   randomBtn.className = "random-seed";
-  randomBtn.textContent = "🎲 랜덤 시드";
   const jsonBtn = document.createElement("button");
-  jsonBtn.textContent = "Export JSON";
   const pngBtn = document.createElement("button");
-  pngBtn.textContent = "Export PNG";
   const svgBtn = document.createElement("button");
-  svgBtn.textContent = "Export SVG";
   const gazBtn = document.createElement("button");
   gazBtn.className = "gazetteer";
-  gazBtn.textContent = "📜 가제티어";
+  const langBtn = document.createElement("button");
+  langBtn.className = "lang-toggle";
   const viewToggle = document.createElement("div");
   viewToggle.className = "view-toggle";
   const terrainBtn = document.createElement("button");
-  terrainBtn.textContent = "지형";
   const politicalBtn = document.createElement("button");
-  politicalBtn.textContent = "정치";
   const cultureBtn = document.createElement("button");
-  cultureBtn.textContent = "문화";
   viewToggle.append(terrainBtn, politicalBtn, cultureBtn);
-  controls.append(seedInput, regenBtn, randomBtn, jsonBtn, pngBtn, svgBtn, gazBtn, viewToggle);
+  controls.append(seedInput, regenBtn, randomBtn, jsonBtn, pngBtn, svgBtn, gazBtn, viewToggle, langBtn);
+
+  // set every UI string from the current language (called on init and on language toggle)
+  function applyLang(): void {
+    regenBtn.textContent = t(lang, "generate");
+    randomBtn.textContent = "🎲 " + t(lang, "randomSeed");
+    jsonBtn.textContent = t(lang, "exportJson");
+    pngBtn.textContent = t(lang, "exportPng");
+    svgBtn.textContent = t(lang, "exportSvg");
+    gazBtn.textContent = "📜 " + t(lang, "gazetteer");
+    terrainBtn.textContent = t(lang, "terrain");
+    politicalBtn.textContent = t(lang, "political");
+    cultureBtn.textContent = t(lang, "culture");
+    langBtn.textContent = t(lang, "langToggle");
+  }
+  applyLang();
+  langBtn.addEventListener("click", () => {
+    lang = lang === "en" ? "ko" : "en";
+    applyLang();
+    if (openCityId !== null) openCity(openCityId); else showWorld(); // re-render the live screen
+  });
 
   function setView(v: MapView): void {
     if (v === currentView) return;
@@ -73,12 +89,13 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
   cultureBtn.addEventListener("click", () => setView("culture"));
 
   function showWorld(): void {
+    openCityId = null;
     timeline?.destroy();
     stage.innerHTML = "";
     terrainBtn.classList.toggle("active", currentView === "terrain");
     politicalBtn.classList.toggle("active", currentView === "political");
     cultureBtn.classList.toggle("active", currentView === "culture");
-    const svg = renderWorld(generated.world, currentView, history.economicZones.map((z) => z.cell));
+    const svg = renderWorld(generated.world, currentView, history.economicZones.map((z) => z.cell), lang);
     svg.addEventListener("click", (e) => {
       const target = e.target as Element;
       const id = target.getAttribute("data-city");
@@ -109,13 +126,14 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
   function openCity(cityId: number): void {
     const marker = generated.world.cities.find((c) => c.id === cityId);
     if (!marker) return;
+    openCityId = cityId;
     timeline?.destroy();
     stage.innerHTML = "";
     const back = document.createElement("button");
-    back.textContent = "Back to world";
+    back.textContent = "← " + t(lang, "backToWorld");
     back.addEventListener("click", showWorld);
     const layout = generateCityLayout(cityContext(marker), params.seed);
-    stage.append(back, renderCity(layout));
+    stage.append(back, renderCity(layout, lang));
   }
 
   function regenerate(p: WorldParams): void {
@@ -129,7 +147,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
 
   // Export the world at the year + view the timeline is currently showing.
   function exportWorldSvg(): SVGSVGElement {
-    const svg = renderWorld(generated.world, currentView, history.economicZones.map((z) => z.cell));
+    const svg = renderWorld(generated.world, currentView, history.economicZones.map((z) => z.cell), lang);
     if (currentView !== "culture") { // culture layer is static; renderWorld already mounted it
       const slot = svg.querySelector(".political-slot") as SVGGElement;
       const snap = history.snapshots[currentYearIndex];

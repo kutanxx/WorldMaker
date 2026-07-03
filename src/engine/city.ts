@@ -56,7 +56,7 @@ export interface CityLayout {
   minorRoads: Polyline[];
   wards: Ward[];
   parks: Polygon[];
-  labels: { x: number; y: number; text: string }[];
+  labels: { x: number; y: number; type: WardType }[];
   features: CityFeatures;
   suburbRoads: Polyline[];
   suburbs: Polygon[];
@@ -209,11 +209,12 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
     return { polygon: z.polygon, type: z.type, buildings, inner: z.inner };
   });
 
-  const labels: { x: number; y: number; text: string }[] = [];
-  const LABEL: Partial<Record<WardType, string>> = { plaza: "Market", castle: "Keep", cathedral: "Cathedral", guildhall: "Guildhall", harbor: "Harbor" };
+  // landmark districts get an on-map label; the display TEXT is localised at render time from
+  // the ward type (so KO/EN can switch without regenerating the city).
+  const LABELLED: WardType[] = ["plaza", "castle", "cathedral", "guildhall", "harbor"];
+  const labels: { x: number; y: number; type: WardType }[] = [];
   for (const z of zoned) {
-    const t = LABEL[z.type];
-    if (t) { const c = centroid(z.polygon); labels.push({ x: c[0], y: c[1], text: t }); }
+    if (LABELLED.includes(z.type)) { const c = centroid(z.polygon); labels.push({ x: c[0], y: c[1], type: z.type }); }
   }
 
   const allBuildings = wards.flatMap((w) => w.buildings);
