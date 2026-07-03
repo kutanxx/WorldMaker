@@ -3,9 +3,11 @@ import type { CityLayout } from "../engine/city";
 import type { WardType } from "../engine/city/zoning";
 import type { Polygon, Polyline } from "../engine/geometry";
 
+// harbor is intentionally NOT tinted as an interior district — the docks are rendered as
+// waterfront wharves/piers at the shore, not a coloured block inside the town.
 const TINT: Partial<Record<WardType, string>> = {
   plaza: "#ece2c6", castle: "#ddd8cb", cathedral: "#e3dbe6", guildhall: "#dfe2d2",
-  harbor: "#cfdde2", slum: "#e6dcc6", market: "#ece1c4",
+  slum: "#e6dcc6", market: "#ece1c4",
 };
 
 function pts(poly: Polygon | Polyline): string {
@@ -40,6 +42,10 @@ export function renderCity(layout: CityLayout): SVGSVGElement {
     const hg = svgEl("g", { class: "harbor" });
     if (hb.quay.length >= 2) {
       hg.appendChild(svgEl("polyline", { class: "quay", points: pts(hb.quay), fill: "none", stroke: "#b8a988", "stroke-width": 2.4, "stroke-linecap": "round", "stroke-linejoin": "round" }));
+    }
+    // warehouse blocks lining the quay — the visible docks, protruding at the waterfront
+    for (const wf of hb.wharves) {
+      hg.appendChild(svgEl("polygon", { class: "wharf", points: pts(wf), fill: "#a9895f", stroke: "#5c4326", "stroke-width": 0.5 }));
     }
     hg.appendChild(svgEl("polyline", { class: "breakwater", points: pts(hb.breakwater), fill: "none", stroke: "#9a8f7a", "stroke-width": 3, "stroke-linecap": "round", "stroke-linejoin": "round" }));
     for (const p of hb.piers) {

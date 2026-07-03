@@ -35,6 +35,21 @@ describe("makeHarbor", () => {
     // the seaward run is the right side, so every quay vertex sits on the sea half
     for (const p of h!.quay) expect(p[0]).toBeGreaterThanOrEqual(150);
   });
+  it("lines the quay with warehouse wharves (the visible docks)", () => {
+    const h = makeHarbor(mulberry32(3), rightSea, ring, center);
+    expect(h!.wharves.length).toBeGreaterThanOrEqual(1);
+    for (const wf of h!.wharves) expect(wf.length).toBe(4); // each warehouse is a quad
+  });
+  it("still builds a harbor whose piers reach the water when the boundary stops short of the sea", () => {
+    // a small ring (right edge ~x=190) with the sea at x>=210 — a ~20px land gap
+    const gapRing: Polygon = [];
+    for (let i = 0; i < 16; i++) { const a = (i / 16) * Math.PI * 2; gapRing.push([150 + Math.cos(a) * 40, 150 + Math.sin(a) * 40]); }
+    const farSea: Water = { kind: "sea", bodies: [[[210, 0], [300, 0], [300, 300], [210, 300]]], bridges: [] };
+    const h = makeHarbor(mulberry32(3), farSea, gapRing, center);
+    expect(h).not.toBeNull();                       // harbor still generates across the gap
+    expect(h!.piers.length).toBeGreaterThanOrEqual(1);
+    for (const p of h!.piers) expect(p[p.length - 1][0]).toBeGreaterThanOrEqual(210); // pier end in the sea
+  });
   it("is deterministic for a given seed", () => {
     const a = JSON.stringify(makeHarbor(mulberry32(5), rightSea, ring, center));
     const b = JSON.stringify(makeHarbor(mulberry32(5), rightSea, ring, center));
