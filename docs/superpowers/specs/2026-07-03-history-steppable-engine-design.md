@@ -126,17 +126,39 @@ The whole refactor is validated by exact reproduction:
 - `stepSim` preserves the per-tick single-event semantics (each of civil war / free city /
   golden age / new city fires at most once per tick, `break`-equivalent) and the exact draw
   order within a tick.
-- **Golden anchor (captured from the current code before refactor):** for each seed the
-  final result must be byte-identical.
 
-| seed | snapshots | polities | events | econ | lastOwnerHash | allSnapHash (all 51 snapshots' owner arrays folded) |
-|------|-----------|----------|--------|------|---------------|------|
-| 1 | 51 | 14 | 31 | 3 | 1425775316 | 2796185232 |
-| 2 | 51 | 15 | 38 | 3 |  480705953 |  999977846 |
-| 3 | 51 | 16 | 44 | 3 | 1788245905 | 4292460260 |
+**Two landmines that would silently break rng reproduction — the plan must call these out:**
 
-`lastOwnerHash` = FNV-1a over the final snapshot's `owner` (hashing `owner[i]+1`).
-`allSnapHash` = fold of every snapshot's `owner` FNV into one hash — a whole-timeline anchor.
+1. **`polities` grows mid-tick.** The civil-war and free-city blocks `push` new polities into
+   `state.polities` during a single `stepSim`. The subsequent blocks (free city, golden age,
+   new city) iterate `0..state.polities.length` and depend on that grown length and on the
+   block order. **Do not reorder the blocks and do not cache `polities.length`** in a local —
+   read it live each block, exactly as the current loop does. Reordering or caching changes
+   the rng draw count and the set of eligible candidates.
+2. **`solidarity` is reassigned each tick.** `stepSim` computes `nextSol` then sets
+   `state.solidarity = nextSol`. The civil-war block later writes `CIVILWAR_BIRTH_SOL` into
+   solidarity — that write must land in the **new** array via `state.solidarity[c] = …`. Do
+   not keep a stale local reference to the pre-reassignment array.
+
+**Golden anchor (captured from the current code before refactor).** The anchor covers three
+independent facets so a bug that keeps ownership identical while drifting event text or polity
+lifecycle is still caught:
+
+| seed | snaps | pols | events | econ | allSnapHash | eventsHash | politiesHash |
+|------|-------|------|--------|------|-------------|------------|--------------|
+| 1 | 51 | 14 | 31 | 3 | 2796185232 | 3677329610 | 4247206507 |
+| 2 | 51 | 15 | 38 | 3 |  999977846 | 1287836464 | 1375770347 |
+| 3 | 51 | 16 | 44 | 3 | 4292460260 | 4115537623 | 2430550014 |
+
+The hashes use FNV-1a folding `fold(h,x) = imul(h ^ (x>>>0), 16777619) >>> 0` from seed
+`2166136261`:
+- `allSnapHash` = fold every snapshot's owner (`fold` of each `owner[i]+1`) into one hash — a
+  whole-timeline ownership anchor.
+- `eventsHash` = fold, per event in order: `year`, `fnvStr(type)`, `polityId+1`,
+  `(otherId ?? -1)+1`, `(cell ?? -1)+1`, `fnvStr(text)`.
+- `politiesHash` = fold, per polity in order: `id+1`, `capital+1`, `foundedYear`,
+  `(endedYear ?? -1)+1`, `fnvStr(origin)`, `fnvStr(name)`, `free?1:0`.
+- `fnvStr(s)` = fold each `s.charCodeAt(i)`.
 
 Note: `SimState.rng` as a closure is **not serializable**, which is fine for in-memory
 stepping (sub-projects 2–3 run in one session). A future save/load/undo feature would need
@@ -155,15 +177,20 @@ stepping (sub-projects 2–3 run in one session). A future save/load/undo featur
 
 `src/engine/history.test.ts` (existing 12 tests — must stay green, proving behavior
 preserved) **plus** a new golden-anchor test: for seeds 1–3, assert `simulateHistory`'s
-`snapshots.length`, `polities.length`, `events.length`, `economicZones.length`,
-`lastOwnerHash`, and `allSnapHash` equal the pinned values above. (Add the `fnv`/`allSnapHash`
-helpers to the test.)
+`snapshots.length`, `polities.length`, `events.length`, `economicZones.length`, `allSnapHash`,
+`eventsHash`, and `politiesHash` equal the pinned values above. (Add the `fold`/`fnvStr`/facet
+helpers to the test, exactly as specified in the Determinism section.)
 
 ## File structure
 
 - `src/engine/historySim.ts` — new: `SimState`, `initSim`, `stepSim`, constants, helpers,
-  and (decision) the `History*` interfaces, re-exported by `history.ts`.
-- `src/engine/history.ts` — shrinks to the batch wrapper + type re-exports.
+  and (decision) the `History*` interfaces. `history.ts` re-exports the types with
+  `export type { History, HistoryPolity, HistoryEvent, HistoryEventType, HistorySnapshot,
+  EconomicZone } from "./historySim";` so every existing `from "./history"` import is
+  unaffected. Runtime deps flow one way only (history.ts → historySim.ts); historySim.ts
+  imports no runtime value from history.ts, so there is no cycle.
+- `src/engine/history.ts` — shrinks to the batch wrapper + type re-exports (imports
+  `initSim`, `stepSim`, `TICKS`, `YEARS_PER_TICK` from `historySim.ts`).
 - `src/engine/historySim.test.ts` — new unit tests.
 - `src/engine/history.test.ts` — unchanged tests + golden-anchor test.
 
