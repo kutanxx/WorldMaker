@@ -39,7 +39,13 @@ export function applyChronicleYear(root: HTMLElement, year: number): void {
       lastCurrent = row;
     }
   }
-  if (lastCurrent && typeof lastCurrent.scrollIntoView === "function") {
-    lastCurrent.scrollIntoView({ block: "nearest" });
+  // keep the current row visible WITHIN the chronicle panel only — never scroll the window
+  // (scrollIntoView would pull the whole page down to the panel on load / year change).
+  if (lastCurrent && typeof root.getBoundingClientRect === "function") {
+    const rowRect = lastCurrent.getBoundingClientRect();
+    const boxRect = root.getBoundingClientRect();
+    if (rowRect.top < boxRect.top || rowRect.bottom > boxRect.bottom) {
+      root.scrollTop += rowRect.top - boxRect.top - (boxRect.height - rowRect.height) / 2;
+    }
   }
 }

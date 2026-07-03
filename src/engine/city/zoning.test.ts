@@ -55,6 +55,17 @@ describe("zoning.assignZones", () => {
     const far = z.find((w) => w.dist > 60)!;
     expect(far.inner).toBe(false);
   });
+  it("zones by social gradient: a central market, the poor pushed to the rim", () => {
+    const z = assignZones(mulberry32(8), ringWards(24), [150, 150], 100, { hasCastle: false, coastal: false });
+    const market = z.find((w) => w.type === "market");
+    expect(market).toBeTruthy();
+    // the market sits near the core, well inside the town
+    expect(market!.dist).toBeLessThan(100 * 0.55);
+    // slums, when present, are peripheral — none sits in the inner half
+    for (const s of z.filter((w) => w.type === "slum")) expect(s.dist).toBeGreaterThan(100 * 0.6);
+    // the wealthy (merchant/patriciate) are not out at the rim
+    for (const m of z.filter((w) => w.type === "merchant" || w.type === "patriciate")) expect(m.dist).toBeLessThan(100 * 0.72);
+  });
   it("anchors the castle toward the high ground when castleAnchor is given", () => {
     const wards = ringWards(14);
     const anchor: Point = [40, 150]; // far left (a mountain side)

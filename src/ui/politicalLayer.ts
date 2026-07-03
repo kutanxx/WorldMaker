@@ -38,7 +38,7 @@ export function politicalLayer(
       const free = freeSet.has(id);
       g.appendChild(svgEl("path", {
         class: free ? "territory free-city" : "territory", "data-polity": id, d,
-        fill: free ? FREE_COLOR : nationColor(id), "fill-opacity": free ? 0.9 : 0.8,
+        fill: free ? FREE_COLOR : nationColor(id), "fill-opacity": free ? 0.72 : 0.58,
       }));
     }
   }

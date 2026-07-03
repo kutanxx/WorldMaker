@@ -1,6 +1,7 @@
 import type { World } from "../types/world";
 import { svgEl } from "./renderer";
-import { OCEAN, BIOME_COLORS, BIOME_NAMES } from "../engine/biome";
+import { OCEAN, ALPINE, BIOME_COLORS } from "../engine/biome";
+import { type Lang, biomeName, t } from "./i18n";
 import { coastline, type Segment } from "../engine/borders";
 import { cellPath, segPath } from "./svgPaths";
 import { politicalLayer, type PoliticalOpts } from "./politicalLayer";
@@ -26,12 +27,12 @@ function starPath(cx: number, cy: number, points: number, outer: number, inner: 
   return d + "Z";
 }
 
-function compassRose(cx: number, cy: number, r: number): SVGElement {
+function compassRose(cx: number, cy: number, r: number, north: string): SVGElement {
   const g = svgEl("g", { class: "compass" });
   g.appendChild(svgEl("circle", { cx, cy, r, fill: PARCHMENT, "fill-opacity": 0.55, stroke: INK, "stroke-width": 0.8 }));
   g.appendChild(svgEl("path", { d: starPath(cx, cy, 4, r * 0.92, r * 0.3), fill: INK }));
   const n = svgEl("text", { class: "compass-n", x: cx, y: cy - r - 2, "text-anchor": "middle", "font-size": 7, fill: INK });
-  n.textContent = "N";
+  n.textContent = north;
   g.appendChild(n);
   return g;
 }
@@ -46,7 +47,7 @@ function mapFrame(w: number, h: number): SVGElement {
   return g;
 }
 
-export function renderWorld(world: World, view: MapView = "terrain", econZones: number[] = []): SVGSVGElement {
+export function renderWorld(world: World, view: MapView = "terrain", econZones: number[] = [], lang: Lang = "en"): SVGSVGElement {
   const grid = world.grid;
   const root = svgEl("svg", {
     width: "100%",
@@ -55,6 +56,19 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
   }) as SVGSVGElement;
 
   root.appendChild(svgEl("rect", { x: 0, y: 0, width: grid.width, height: grid.height, fill: BIOME_COLORS[OCEAN] }));
+
+  // coastal waterlines: soft blue bands echoing the shore, drawn UNDER the biome fills so only
+  // the seaward half shows — the classic antique-atlas figure-ground cue that lifts the coast
+  // off a flat ocean. Coastline segments computed once and reused for the crisp line below.
+  const coastD = segPath(coastline(grid, world.terrain));
+  const waterlines = svgEl("g", { class: "waterlines" });
+  for (const [w, op] of [[9, 0.1], [6, 0.16], [3, 0.26]] as const) {
+    waterlines.appendChild(svgEl("path", {
+      d: coastD, fill: "none", stroke: "#7ba2c0", "stroke-width": w, "stroke-opacity": op,
+      "stroke-linecap": "round", "stroke-linejoin": "round",
+    }));
+  }
+  root.appendChild(waterlines);
 
   // biome fills (ocean is the background rect, so skip OCEAN cells)
   const byBiome = new Map<number, string>();
@@ -65,14 +79,14 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
   }
   // Mute biomes under the political/culture views so the overlay fills dominate. Inline (not
   // CSS) so an exported standalone SVG/PNG matches the on-screen map.
-  const biomes = svgEl("g", view !== "terrain" ? { class: "biomes", opacity: 0.45 } : { class: "biomes" });
+  const biomes = svgEl("g", view !== "terrain" ? { class: "biomes", opacity: 0.6 } : { class: "biomes" });
   for (const [bm, d] of byBiome) {
     biomes.appendChild(svgEl("path", { class: "biome", "data-biome": bm, d, fill: BIOME_COLORS[bm] }));
   }
   root.appendChild(biomes);
 
   root.appendChild(svgEl("path", {
-    class: "coastline", d: segPath(coastline(grid, world.terrain)),
+    class: "coastline", d: coastD,
     fill: "none", stroke: "#5f7888", "stroke-width": 0.6,
   }));
   const slot = svgEl("g", { class: "political-slot" });
@@ -80,6 +94,21 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
     ? cultureLayer(grid, world.cultureOf, world.cultures)
     : politicalLayer(grid, world.polityOf, world.polities, politicalOpts(view)));
   root.appendChild(slot);
+
+  // mountain relief: a small peak glyph on each alpine cell so ranges read as mountains rather
+  // than a flat grey fill (antique/fantasy convention). Above the overlay fills, below rivers/labels.
+  let reliefD = "";
+  for (let i = 0; i < grid.count; i++) {
+    if (world.biome[i] !== ALPINE) continue;
+    const x = grid.points[i * 2], y = grid.points[i * 2 + 1];
+    reliefD += `M${(x - 3).toFixed(1)},${(y + 2).toFixed(1)}L${x.toFixed(1)},${(y - 2.6).toFixed(1)}L${(x + 3).toFixed(1)},${(y + 2).toFixed(1)}`;
+  }
+  if (reliefD) {
+    root.appendChild(svgEl("g", { class: "reliefs" })).appendChild(svgEl("path", {
+      class: "relief", d: reliefD, fill: "none", stroke: "#6b5f4c", "stroke-width": 0.6,
+      "stroke-linecap": "round", "stroke-linejoin": "round",
+    }));
+  }
 
   // rivers — above the political/culture fills, below labels & markers; shown in all views
   if (world.riverNet.length) {
@@ -190,7 +219,7 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
       const y = y0 + i * 14;
       legend.appendChild(svgEl("rect", { class: "legend-item", x: x0, y: y - 8, width: 10, height: 10, fill: BIOME_COLORS[bm], stroke: "#9a8a70", "stroke-width": 0.4 }));
       const t = svgEl("text", { x: x0 + 16, y: y, "font-size": 9, fill: "#4a3f2c" });
-      t.textContent = BIOME_NAMES[bm] ?? "";
+      t.textContent = biomeName(lang, bm);
       legend.appendChild(t);
     });
     root.appendChild(legend);
@@ -211,7 +240,7 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
     root.appendChild(eg);
   }
 
-  root.appendChild(compassRose(grid.width - 26, 28, 14));
+  root.appendChild(compassRose(grid.width - 26, 28, 14, t(lang, "compassN")));
 
   // the world's name, an atlas title cartouche at the top-centre
   const title = svgEl("g", { class: "world-name" });
