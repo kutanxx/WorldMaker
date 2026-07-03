@@ -89,4 +89,35 @@ describe("renderWorld rivers", () => {
       expect(svg.querySelectorAll(".rivers .river").length).toBeGreaterThan(0);
     }
   });
+  it("rotates river labels to follow the water's course", () => {
+    const svg = renderWorld(world);
+    const labels = [...svg.querySelectorAll(".river-labels .river-label")];
+    expect(labels.length).toBeGreaterThan(0);
+    for (const l of labels) expect(l.getAttribute("transform")).toMatch(/^rotate\(/);
+  });
+});
+
+describe("renderWorld label hierarchy (cartographic conventions)", () => {
+  const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });
+  const svg = renderWorld(world);
+  it("sets land-area labels upright + UPPERCASE, seas italic + blue", () => {
+    const land = svg.querySelector(".region-land");
+    expect(land).toBeTruthy();
+    expect(land?.getAttribute("font-style")).toBe("normal");
+    expect(land?.textContent).toBe(land?.textContent?.toUpperCase());
+    const sea = svg.querySelector(".region-sea");
+    if (sea) {
+      expect(sea.getAttribute("font-style")).toBe("italic");
+      expect(sea.getAttribute("fill")).toBe("#3f5d78");
+    }
+  });
+  it("promotes capital labels (larger, bold) over towns (smaller, muted)", () => {
+    const cap = svg.querySelector(".city-capital");
+    const town = svg.querySelector(".city-town");
+    expect(cap).toBeTruthy();
+    expect(town).toBeTruthy();
+    expect(Number(cap?.getAttribute("font-size"))).toBeGreaterThan(Number(town?.getAttribute("font-size")));
+    expect(cap?.getAttribute("font-weight")).toBe("600");
+    expect(town?.getAttribute("font-weight")).toBe("400");
+  });
 });

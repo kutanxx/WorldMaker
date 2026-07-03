@@ -180,7 +180,16 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
     const mx = sx / cnt, my = sy / cnt;
     castleAnchor = [center[0] + (mx - center[0]) * 0.7, center[1] + (my - center[1]) * 0.7];
   }
-  const zoned = assignZones(rng, cells, [center[0], center[1]], radius, { hasCastle: ctx.isCapital || ctx.size >= 4, coastal: ctx.coastal, castleAnchor });
+  // sea direction for harbor placement: the mean of the sea body's vertices points toward
+  // the coast, so the ward nearest it is the seaward one (docks belong on the water side).
+  let seaAnchor: Point | undefined;
+  if (ctx.coastal && water.kind === "sea" && water.bodies.length) {
+    const sea = water.bodies[0];
+    let sx = 0, sy = 0;
+    for (const p of sea) { sx += p[0]; sy += p[1]; }
+    seaAnchor = [sx / sea.length, sy / sea.length];
+  }
+  const zoned = assignZones(rng, cells, [center[0], center[1]], radius, { hasCastle: ctx.isCapital || ctx.size >= 4, coastal: ctx.coastal, castleAnchor, seaAnchor });
 
   const parks: Polygon[] = [];
   const wards: Ward[] = zoned.map((z) => {

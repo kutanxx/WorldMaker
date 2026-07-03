@@ -101,28 +101,46 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
     root.appendChild(rivers);
   }
 
-  // geographic feature names (above the political fills, below the settlements)
+  // geographic feature names (above the political fills, below the settlements).
+  // Cartographic convention: AREA (land) features are set upright + UPPERCASE with wide
+  // letter-spacing to reinforce their extent; WATER (seas) are italic + blue like rivers.
   const regionLabels = svgEl("g", { class: "region-labels" });
   for (const r of world.regions) {
     const fs = 9 + Math.min(7, r.cells / 90);
+    const isSea = r.kind === OCEAN;
     const t = svgEl("text", {
-      class: "region-label", x: r.centroid[0].toFixed(1), y: r.centroid[1].toFixed(1),
-      "text-anchor": "middle", "font-size": fs.toFixed(1), fill: "#5a4a34",
+      class: "region-label " + (isSea ? "region-sea" : "region-land"),
+      x: r.centroid[0].toFixed(1), y: r.centroid[1].toFixed(1),
+      "text-anchor": "middle", "font-size": fs.toFixed(1),
+      fill: isSea ? "#3f5d78" : "#5a4a34",
+      "font-style": isSea ? "italic" : "normal",
+      "letter-spacing": isSea ? "0" : (fs * 0.16).toFixed(1),
       stroke: PARCHMENT, "stroke-width": 2, "paint-order": "stroke",
     });
-    t.textContent = r.name;
+    t.textContent = isSea ? r.name : r.name.toUpperCase();
     regionLabels.appendChild(t);
   }
   root.appendChild(regionLabels);
 
+  // river labels follow the water's course (rotated to the local flow direction), lifted
+  // just off the line, never upside-down — the standard hydrographic labelling treatment.
   const riverLabels = svgEl("g", { class: "river-labels" });
   for (const r of world.rivers) {
-    const mid = r.path[Math.floor(r.path.length / 2)];
+    const i = Math.floor(r.path.length / 2);
+    const mid = r.path[i];
+    const a = r.path[Math.max(0, i - 1)], b = r.path[Math.min(r.path.length - 1, i + 1)];
+    const dx = b[0] - a[0], dy = b[1] - a[1], len = Math.hypot(dx, dy) || 1;
+    let deg = (Math.atan2(dy, dx) * 180) / Math.PI;
+    if (deg > 90) deg -= 180; else if (deg < -90) deg += 180; // keep it readable
     const fs = 8 + Math.min(5, r.flux / 40);
+    // offset perpendicular to the flow, toward the upper side
+    let nx = -dy / len, ny = dx / len; if (ny > 0) { nx = -nx; ny = -ny; }
+    const lx = mid[0] + nx * fs * 0.5, ly = mid[1] + ny * fs * 0.5;
     const t = svgEl("text", {
-      class: "river-label", x: mid[0].toFixed(1), y: mid[1].toFixed(1),
+      class: "river-label", x: lx.toFixed(1), y: ly.toFixed(1),
       "text-anchor": "middle", "font-size": fs.toFixed(1), fill: "#3f5d78",
       stroke: PARCHMENT, "stroke-width": 1.8, "paint-order": "stroke", "font-style": "italic",
+      transform: `rotate(${deg.toFixed(1)} ${lx.toFixed(1)} ${ly.toFixed(1)})`,
     });
     t.textContent = r.name;
     riverLabels.appendChild(t);
@@ -144,9 +162,14 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
         "data-city": c.id, style: "cursor:pointer",
       }));
     }
+    // settlement hierarchy: capitals promoted (larger, bold, dark ink); towns demoted
+    // (smaller, muted brown) so the eye reads the capitals first.
     const label = svgEl("text", {
-      class: "city-label", x: c.x + 5, y: c.y + 3, "font-size": 8.5,
-      fill: "#2a2118", stroke: PARCHMENT, "stroke-width": 1.6, "paint-order": "stroke",
+      class: "city-label " + (c.isCapital ? "city-capital" : "city-town"),
+      x: c.x + 5, y: c.y + 3, "font-size": c.isCapital ? 10.5 : 8.5,
+      "font-weight": c.isCapital ? 600 : 400,
+      fill: c.isCapital ? "#2a2118" : "#6b5d42",
+      stroke: PARCHMENT, "stroke-width": 1.6, "paint-order": "stroke",
     });
     label.textContent = c.name;
     markers.appendChild(label);

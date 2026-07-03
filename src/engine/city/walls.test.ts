@@ -29,6 +29,16 @@ describe("wallFromDefenses", () => {
     const totalVerts = wall.segments.reduce((n, s) => n + s.length, 0);
     expect(totalVerts).toBeLessThan(ring.length + 1); // less than the full closed ring
   });
+  it("opens the sea-facing side even when the boundary stops short of the water (no walled-off harbour)", () => {
+    // a small ring (radius 40, right edge ~x=190) with the sea starting at x=210 — a ~20px land gap
+    const gappedRing: Polygon = [];
+    for (let i = 0; i < 16; i++) { const a = (i / 16) * Math.PI * 2; gappedRing.push([150 + Math.cos(a) * 40, 150 + Math.sin(a) * 40]); }
+    const farSea: Water = { kind: "sea", bodies: [[[210, 0], [300, 0], [300, 300], [210, 300]]], bridges: [] };
+    const wall = wallFromDefenses(gappedRing, farSea, noMountains, noRoads);
+    expect(wall.seaGates.length).toBeGreaterThan(0);                       // sea side is open
+    const totalVerts = wall.segments.reduce((n, s) => n + s.length, 0);
+    expect(totalVerts).toBeLessThan(gappedRing.length + 1);                // not a full closed ring
+  });
   it("leaves the mountain-facing side open but with NO gates (cliff is closed)", () => {
     const wall = wallFromDefenses(ring, noWater, leftMountain, noRoads);
     const totalVerts = wall.segments.reduce((n, s) => n + s.length, 0);

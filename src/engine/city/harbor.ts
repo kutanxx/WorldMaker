@@ -10,6 +10,7 @@ export interface Harbor {
   piers: Polyline[];    // short jetties from the shore into the sheltered water
   boats: Boat[];        // moored boats
   quay: Polyline;       // the waterfront line (contiguous seaward boundary run)
+  wharves: Polygon[];   // warehouse blocks lining the quay, protruding to the waterfront
 }
 
 // longest cyclic run of `true` (the contiguous shore run), as boundary indices
@@ -33,15 +34,20 @@ export function makeHarbor(
 ): Harbor | null {
   if (water.kind !== "sea") return null;
 
-  // seaward EDGES: an edge whose just-outside midpoint is in the sea (same test the wall uses,
-  // so the quay spans exactly the open seaward wall side — much longer than a vertex test)
+  // seaward EDGES: an edge that faces the sea — march outward along its normal (same reach the
+  // wall uses to open the sea side) so the quay spans exactly the open seaward run even when the
+  // town edge stops a few px short of the shore.
   const n = boundary.length;
   const seawardEdge: boolean[] = [];
   for (let i = 0; i < n; i++) {
     const a = boundary[i], b = boundary[(i + 1) % n];
     const m: Point = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
-    const out: Point = [m[0] + (m[0] - center[0]) * 0.06, m[1] + (m[1] - center[1]) * 0.06];
-    seawardEdge.push(inWater(water, out));
+    const dx = m[0] - center[0], dy = m[1] - center[1], dl = Math.hypot(dx, dy) || 1;
+    let sea = false;
+    for (let d = 2; d <= 36; d += 4) {
+      if (inWater(water, [m[0] + (dx / dl) * d, m[1] + (dy / dl) * d])) { sea = true; break; }
+    }
+    seawardEdge.push(sea);
   }
   const runEdges = longestRun(seawardEdge);
   if (runEdges.length < 1) return null;
@@ -68,17 +74,27 @@ export function makeHarbor(
   const tip: Point = [mid[0] + tan[0] * side * span, mid[1] + tan[1] * side * span];
   const breakwater: Polyline = [start, mid, tip];
 
-  // piers: short jetties from shore points into the sheltered water
+  // march from a quay point outward until it meets the sea (bridges the small land gap where
+  // the town edge stops short of the shore), returning the first water point.
+  const reachWater = (from: Point): Point | null => {
+    for (let d = 0; d <= 40; d += 3) {
+      const q: Point = [from[0] + dir[0] * d, from[1] + dir[1] * d];
+      if (inSea(q)) return q;
+    }
+    return null;
+  };
+
+  // piers: from quay points, cross the shore gap and jut into the sheltered water
   const piers: Polyline[] = [];
   const boats: Boat[] = [];
   const angle = Math.atan2(dir[1], dir[0]);
   for (let k = -1; k <= 1; k++) {
     const base: Point = [anchor[0] + tan[0] * k * 14, anchor[1] + tan[1] * k * 14];
-    const outp: Point = [base[0] + dir[0] * 3, base[1] + dir[1] * 3];
-    if (!inSea(outp)) continue; // pier must reach water
-    const len = 10 + rng() * 6;
-    const end: Point = [base[0] + dir[0] * len, base[1] + dir[1] * len];
-    piers.push([base, end]);
+    const shore = reachWater(base);
+    if (!shore) continue; // no water reachable from this point
+    const len = 8 + rng() * 6;
+    const end: Point = [shore[0] + dir[0] * len, shore[1] + dir[1] * len];
+    piers.push([base, end]); // quay → across the gap → into the water
     boats.push({ at: [end[0] + tan[0] * 2.5, end[1] + tan[1] * 2.5], angle });
   }
   // a couple of boats riding in the sheltered basin
@@ -87,5 +103,24 @@ export function makeHarbor(
     if (inSea(p)) boats.push({ at: p, angle: angle + (rng() - 0.5) * 0.6 });
   }
 
-  return { breakwater, lighthouse: tip, piers, boats, quay };
+  // wharves: warehouse blocks lining the quay, nudged toward the water so the docks read as
+  // protruding from the town's seaward edge (Watabou: the seafront blocks ARE the docks).
+  const wharves: Polygon[] = [];
+  const step = Math.max(1, Math.floor((quay.length - 1) / 6)); // up to ~6 warehouses
+  for (let t = 0; t + 1 < quay.length; t += step) {
+    const a2 = quay[t], b2 = quay[t + 1];
+    const mx = (a2[0] + b2[0]) / 2, my = (a2[1] + b2[1]) / 2;
+    const alx = b2[0] - a2[0], aly = b2[1] - a2[1], al = Math.hypot(alx, aly) || 1;
+    const ux = alx / al, uy = aly / al;                 // along-shore tangent
+    const cx = mx + dir[0] * 3, cy = my + dir[1] * 3;   // nudge seaward so it protrudes
+    const hwid = 4.5, hdep = 3;
+    wharves.push([
+      [cx - ux * hwid - dir[0] * hdep, cy - uy * hwid - dir[1] * hdep],
+      [cx + ux * hwid - dir[0] * hdep, cy + uy * hwid - dir[1] * hdep],
+      [cx + ux * hwid + dir[0] * hdep, cy + uy * hwid + dir[1] * hdep],
+      [cx - ux * hwid + dir[0] * hdep, cy - uy * hwid + dir[1] * hdep],
+    ]);
+  }
+
+  return { breakwater, lighthouse: tip, piers, boats, quay, wharves };
 }

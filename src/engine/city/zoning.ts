@@ -25,7 +25,7 @@ export function assignZones(
   wards: WardCell[],
   center: Point,
   radius: number,
-  opts: { hasCastle: boolean; coastal: boolean; castleAnchor?: Point }
+  opts: { hasCastle: boolean; coastal: boolean; castleAnchor?: Point; seaAnchor?: Point }
 ): ZonedWard[] {
   if (wards.length === 0) return [];
   const ranked = wards
@@ -48,15 +48,29 @@ export function assignZones(
   setType("plaza");
   setType("cathedral");
   setType("guildhall");
-  // capture the harbor ward BEFORE any castle-anchor swap so the swap can't steal it
-  const farthest = out[out.length - 1];
+  // harbor ward: the district nearest the SEA (a coastal city knows the water side via
+  // seaAnchor). Falls back to the farthest-from-centre ward if no sea anchor is supplied.
+  // Captured BEFORE any castle-anchor swap so the swap can't steal it.
+  let harborWard: ZonedWard | null = null;
+  if (opts.coastal) {
+    if (opts.seaAnchor) {
+      let bi = -1, bd = Infinity;
+      for (let j = idx; j < out.length; j++) {
+        const d = Math.hypot(out[j].site[0] - opts.seaAnchor[0], out[j].site[1] - opts.seaAnchor[1]);
+        if (d < bd) { bd = d; bi = j; }
+      }
+      harborWard = bi >= 0 ? out[bi] : out[out.length - 1];
+    } else {
+      harborWard = out[out.length - 1];
+    }
+  }
   if (opts.hasCastle) {
     const anchor = opts.castleAnchor;
     if (anchor) {
       // keep sits on the high ground: swap the ward nearest the anchor into the castle slot
       let bi = idx, bd = Infinity;
       for (let j = idx; j < out.length; j++) {
-        if (out[j] === farthest && opts.coastal) continue; // don't consume the harbor ward
+        if (out[j] === harborWard) continue; // don't consume the harbor ward
         const d = Math.hypot(out[j].site[0] - anchor[0], out[j].site[1] - anchor[1]);
         if (d < bd) { bd = d; bi = j; }
       }
@@ -65,11 +79,11 @@ export function assignZones(
     setType("castle");
   }
 
-  if (opts.coastal) farthest.type = "harbor";
+  if (harborWard) harborWard.type = "harbor";
 
   for (; idx < out.length; idx++) {
     const w = out[idx];
-    if (w === farthest && opts.coastal) continue;
+    if (w === harborWard) continue;
     if (w.inner) w.type = pick(rng, MID_TYPES);
     else if (w.dist > radius * 0.85) w.type = rng() < 0.5 ? "suburb" : "field";
     else w.type = pick(rng, OUTER_TYPES);

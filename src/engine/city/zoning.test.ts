@@ -34,6 +34,20 @@ describe("zoning.assignZones", () => {
     expect(dry.some((w) => w.type === "harbor")).toBe(false);
     expect(wet.some((w) => w.type === "harbor")).toBe(true);
   });
+  it("places the harbor at the ward nearest the sea, not the farthest from centre", () => {
+    const wards = ringWards(14);
+    const seaAnchor: Point = [320, 150]; // sea off to the right
+    const z = assignZones(mulberry32(6), wards, [150, 150], 100, { hasCastle: true, coastal: true, seaAnchor });
+    const harbor = z.find((w) => w.type === "harbor")!;
+    expect(harbor).toBeTruthy();
+    const used = new Set(["plaza", "cathedral", "guildhall", "castle"]);
+    const dH = Math.hypot(harbor.site[0] - seaAnchor[0], harbor.site[1] - seaAnchor[1]);
+    // no other non-special ward is closer to the sea than the harbor ward
+    for (const w of z) {
+      if (w === harbor || used.has(w.type)) continue;
+      expect(dH).toBeLessThanOrEqual(Math.hypot(w.site[0] - seaAnchor[0], w.site[1] - seaAnchor[1]) + 1e-6);
+    }
+  });
   it("marks central wards inner and far wards outer", () => {
     const z = assignZones(mulberry32(4), ringWards(14), [150, 150], 100, { hasCastle: true, coastal: false });
     const plaza = z.find((w) => w.type === "plaza")!;

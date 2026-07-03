@@ -12,6 +12,11 @@ export interface DefenseWall {
   seaGates: Point[];
 }
 
+// how far outward (px) a boundary edge probes for the sea; large enough to bridge the small
+// land gap where the city boundary stops short of the shoreline, small enough not to catch a
+// sea that is genuinely on the far side of the town.
+const SEA_PROBE = 36;
+
 // nearest point on a polyline to p, with its squared distance
 function nearestOnPolyline(p: Point, line: Polyline): { pt: Point; d2: number } {
   let best: Point = line[0], bd2 = Infinity;
@@ -80,7 +85,20 @@ export function wallFromDefenses(
     const a = boundary[i], b = boundary[(i + 1) % n];
     const m: Point = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
     const out: Point = [m[0] + (m[0] - c[0]) * 0.06, m[1] + (m[1] - c[1]) * 0.06];
-    barrier.push(inWater(water, out) ? 1 : inMountains(mountains, out) ? 2 : 0);
+    let bar = 0;
+    if (water.kind === "sea") {
+      // march outward along the edge normal so the WHOLE sea-facing side opens even when the
+      // boundary stops a few px short of the shoreline — otherwise the wall seals off the
+      // harbour and only a tiny stretch that literally touches the water stays open.
+      const dx = m[0] - c[0], dy = m[1] - c[1], dl = Math.hypot(dx, dy) || 1;
+      for (let d = 2; d <= SEA_PROBE; d += 4) {
+        if (inWater(water, [m[0] + (dx / dl) * d, m[1] + (dy / dl) * d])) { bar = 1; break; }
+      }
+    } else if (inWater(water, out)) {
+      bar = 1; // river/lake: the near outward point is enough (bridges handle crossings)
+    }
+    if (bar === 0 && inMountains(mountains, out)) bar = 2;
+    barrier.push(bar);
   }
   const isWall = barrier.map((b) => b === 0);
   const isWaterGate = (edge: number) => barrier[((edge % n) + n) % n] === 1; // gate only at water, not cliff

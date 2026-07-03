@@ -40,7 +40,7 @@ input[type=number] { width: 88px; cursor: text; }
 .political .territory { pointer-events: none; }
 .nation-label { font-family: 'Cinzel', serif; font-weight: 600; }
 .city-label { font-family: 'EB Garamond', Georgia, serif; }
-.region-label { font-family: 'EB Garamond', Georgia, serif; font-style: italic; letter-spacing: .15em; opacity: .85; }
+.region-label { font-family: 'EB Garamond', Georgia, serif; opacity: .85; }
 .world-name-text { font-family: 'Cinzel', serif; font-weight: 600; letter-spacing: .08em; }
 .chronicle {
   max-height: 240px; overflow: auto; padding: 8px 14px; margin-top: 12px;
