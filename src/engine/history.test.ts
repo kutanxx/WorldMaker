@@ -137,3 +137,39 @@ describe("simulateHistory skeleton", () => {
     expect(multiPower).toBeGreaterThanOrEqual(6);  // most worlds stay genuinely multipolar
   });
 });
+
+describe("simulateHistory golden anchor (behaviour lock)", () => {
+  const fold = (h: number, x: number) => { h ^= x >>> 0; return Math.imul(h, 16777619) >>> 0; };
+  const fnvArr = (arr: ArrayLike<number>) => { let h = 2166136261 >>> 0; for (let i = 0; i < arr.length; i++) h = fold(h, arr[i] + 1); return h >>> 0; };
+  const fnvStr = (str: string) => { let h = 2166136261 >>> 0; for (let i = 0; i < str.length; i++) h = fold(h, str.charCodeAt(i)); return h >>> 0; };
+  const anchors: Record<number, { snaps: number; pols: number; evs: number; econ: number; allSnap: number; events: number; polities: number }> = {
+    1: { snaps: 51, pols: 14, evs: 31, econ: 3, allSnap: 2796185232, events: 3677329610, polities: 4247206507 },
+    2: { snaps: 51, pols: 15, evs: 38, econ: 3, allSnap:  999977846, events: 1287836464, polities: 1375770347 },
+    3: { snaps: 51, pols: 16, evs: 44, econ: 3, allSnap: 4292460260, events: 4115537623, polities: 2430550014 },
+  };
+  for (const seed of [1, 2, 3]) {
+    it(`reproduces the pinned hashes for seed ${seed}`, () => {
+      const h = simulateHistory(build(seed), seed);
+      let allSnap = 2166136261 >>> 0;
+      for (const s of h.snapshots) allSnap = fold(allSnap, fnvArr(s.owner));
+      let ev = 2166136261 >>> 0;
+      for (const e of h.events) {
+        ev = fold(ev, e.year); ev = fold(ev, fnvStr(e.type)); ev = fold(ev, e.polityId + 1);
+        ev = fold(ev, (e.otherId ?? -1) + 1); ev = fold(ev, (e.cell ?? -1) + 1); ev = fold(ev, fnvStr(e.text));
+      }
+      let pol = 2166136261 >>> 0;
+      for (const p of h.polities) {
+        pol = fold(pol, p.id + 1); pol = fold(pol, p.capital + 1); pol = fold(pol, p.foundedYear);
+        pol = fold(pol, (p.endedYear ?? -1) + 1); pol = fold(pol, fnvStr(p.origin)); pol = fold(pol, fnvStr(p.name)); pol = fold(pol, p.free ? 1 : 0);
+      }
+      const a = anchors[seed];
+      expect(h.snapshots.length).toBe(a.snaps);
+      expect(h.polities.length).toBe(a.pols);
+      expect(h.events.length).toBe(a.evs);
+      expect(h.economicZones.length).toBe(a.econ);
+      expect(allSnap >>> 0).toBe(a.allSnap);
+      expect(ev >>> 0).toBe(a.events);
+      expect(pol >>> 0).toBe(a.polities);
+    });
+  }
+});
