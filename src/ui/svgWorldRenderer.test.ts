@@ -26,6 +26,13 @@ describe("renderWorld biomes", () => {
     expect(svg.querySelectorAll(".marker-capital").length).toBe(capitals);
     expect(svg.querySelectorAll(".marker-town").length).toBe(world.cities.length - capitals);
   });
+  it("draws coastal waterlines under the biome fills (antique figure-ground)", () => {
+    // stacked, fading blue bands, and they must render before the biomes so the land half is occluded
+    const paths = svg.querySelectorAll(".waterlines path");
+    expect(paths.length).toBeGreaterThanOrEqual(2);
+    const kids = [...svg.children].map((c) => c.getAttribute("class"));
+    expect(kids.indexOf("waterlines")).toBeLessThan(kids.indexOf("biomes"));
+  });
   it("draws a decorative map frame and a compass rose (parchment theme)", () => {
     expect(svg.querySelectorAll(".map-frame").length).toBe(1);
     expect(svg.querySelectorAll(".compass").length).toBe(1);
@@ -59,7 +66,7 @@ describe("renderWorld political view", () => {
     expect(svg.querySelectorAll(".nation-legend").length).toBe(1);
   });
   it("is self-contained for export: biomes muted inline, no biome legend", () => {
-    expect(svg.querySelector(".biomes")?.getAttribute("opacity")).toBe("0.45");
+    expect(svg.querySelector(".biomes")?.getAttribute("opacity")).toBe("0.6");
     expect(svg.querySelectorAll(".biome-legend").length).toBe(0);
   });
 });
@@ -72,7 +79,7 @@ describe("renderWorld culture view", () => {
     expect(svg.querySelectorAll(".culture .culture-area").length).toBeGreaterThan(1);
     expect(svg.querySelectorAll(".culture-legend .legend-item").length).toBeGreaterThan(0);
     expect(svg.querySelectorAll(".political-slot .territory").length).toBe(0);
-    expect(svg.querySelector(".biomes")?.getAttribute("opacity")).toBe("0.45");
+    expect(svg.querySelector(".biomes")?.getAttribute("opacity")).toBe("0.6");
   });
 });
 

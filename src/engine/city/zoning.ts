@@ -1,5 +1,4 @@
 import type { Rng } from "../rng";
-import { pick } from "../rng";
 import type { Point, Polygon } from "../geometry";
 import type { WardCell } from "./wards";
 
@@ -16,9 +15,6 @@ export interface ZonedWard {
   inner: boolean;
   dist: number;
 }
-
-const MID_TYPES: WardType[] = ["market", "merchant", "patriciate", "craftsmen"];
-const OUTER_TYPES: WardType[] = ["slum", "gate", "military", "park"];
 
 export function assignZones(
   rng: Rng,
@@ -81,12 +77,19 @@ export function assignZones(
 
   if (harborWard) harborWard.type = "harbor";
 
+  // medieval social zonation by distance from the civic core: market at the heart (beside the
+  // plaza), the wealthy (merchant/patriciate) in the inner ring, artisans (craftsmen) in the
+  // middle, the poor + garrison (slum/military/park) at the rim, fields/faubourgs at the edge.
+  let placedMarket = false;
   for (; idx < out.length; idx++) {
     const w = out[idx];
     if (w === harborWard) continue;
-    if (w.inner) w.type = pick(rng, MID_TYPES);
-    else if (w.dist > radius * 0.85) w.type = rng() < 0.5 ? "suburb" : "field";
-    else w.type = pick(rng, OUTER_TYPES);
+    const f = w.dist / radius;
+    if (f > 0.85) { w.type = rng() < 0.5 ? "suburb" : "field"; continue; } // fields/faubourgs
+    if (!placedMarket && f < 0.5) { w.type = "market"; placedMarket = true; continue; } // the market square
+    if (f < 0.45) w.type = rng() < 0.5 ? "merchant" : "patriciate";        // wealthy inner ring
+    else if (f < 0.72) w.type = rng() < 0.08 ? "market" : "craftsmen";      // artisan middle ring (rare 2nd market)
+    else w.type = rng() < 0.55 ? "slum" : rng() < 0.5 ? "military" : "park"; // poor/garrison rim
   }
   return out;
 }

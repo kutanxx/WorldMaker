@@ -28,7 +28,7 @@ describe("politicalLayer", () => {
     const first = g.querySelector("path.territory") as SVGElement;
     const id = Number(first.getAttribute("data-polity"));
     expect(first.getAttribute("fill")).toBe(nationColor(id));
-    expect(first.getAttribute("fill-opacity")).toBe("0.8");
+    expect(first.getAttribute("fill-opacity")).toBe("0.58");
   });
 
   it("with labels adds nation labels, skipping tiny nations and capping at present count", () => {
