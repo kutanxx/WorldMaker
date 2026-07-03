@@ -1,3 +1,4 @@
+import "./theme.css";
 import { createApp } from "./ui/app";
 import { initialParams } from "./ui/urlState";
 

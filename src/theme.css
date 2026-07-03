@@ -1,0 +1,82 @@
+body {
+  margin: 0;
+  font-family: 'EB Garamond', Georgia, serif;
+  color: #2a2118;
+  background-color: #e8dcc0;
+  background-image:
+    radial-gradient(circle at 22% 28%, rgba(255,252,245,.40), transparent 60%),
+    radial-gradient(circle at 82% 72%, rgba(120,90,50,.10), transparent 55%),
+    radial-gradient(circle at 50% 50%, rgba(160,130,80,.06), transparent 72%);
+  min-height: 100vh;
+}
+.app-title {
+  font-family: 'Cinzel', serif; font-weight: 600; font-size: 30px; letter-spacing: .12em;
+  text-align: center; padding: 20px 0 8px; margin: 0; color: #3c2f1c;
+  text-shadow: 0 1px 0 rgba(255,255,255,.45);
+}
+#app { max-width: 1040px; margin: 0 auto; padding: 0 16px 32px; }
+.controls {
+  display: flex; gap: 8px; padding: 10px 12px; align-items: center; flex-wrap: wrap;
+  background: #efe6cf; border: 1px solid #cbb784; border-radius: 6px; margin-bottom: 12px;
+}
+button, input {
+  padding: 5px 10px; font-family: inherit; font-size: 14px; color: #3c2f1c;
+  background: #f3ead2; border: 1px solid #b7a071; border-radius: 4px; cursor: pointer;
+}
+button:hover { background: #e7d9b6; }
+input[type=number] { width: 88px; cursor: text; }
+.stage {
+  background: #f6efdd; border: 1px solid #cbb784; border-radius: 6px; padding: 10px;
+  box-shadow: 0 1px 4px rgba(60,47,28,.15);
+}
+.stage svg { display: block; width: 100%; height: auto; }
+.stage svg.city { max-width: 560px; margin: 0 auto; }
+.timeline {
+  display: flex; gap: 10px; padding: 10px 12px; align-items: center;
+  background: #efe6cf; border: 1px solid #cbb784; border-radius: 6px; margin-top: 12px;
+}
+.timeline-slider { flex: 1; }
+.timeline-year { min-width: 56px; font-variant-numeric: tabular-nums; font-weight: 600; }
+.political .territory { pointer-events: none; }
+.nation-label { font-family: 'Cinzel', serif; font-weight: 600; }
+.city-label { font-family: 'EB Garamond', Georgia, serif; }
+.region-label { font-family: 'EB Garamond', Georgia, serif; font-style: italic; letter-spacing: .15em; opacity: .85; }
+.world-name-text { font-family: 'Cinzel', serif; font-weight: 600; letter-spacing: .08em; }
+.chronicle {
+  max-height: 240px; overflow: auto; padding: 8px 14px; margin-top: 12px;
+  background: #f6efdd; border: 1px solid #cbb784; border-radius: 6px;
+}
+.chronicle h3 { font-family: 'Cinzel', serif; font-size: 16px; margin: 4px 0 8px; color: #3c2f1c; }
+.chronicle-list { list-style: none; padding-left: 0; margin: 0; }
+.chronicle-era { font-family: 'Cinzel', serif; font-weight: 600; margin: 10px 0 4px; color: #7a5a2f; border-bottom: 1px solid #d8c9a3; }
+.chronicle-event { padding: 2px 0; font-size: 14px; }
+.chronicle-event.future { opacity: .4; }
+.chronicle-event.evt-conquer { color: #7a2f2f; }
+.chronicle-event.evt-civilwar { color: #8a3a1a; }
+.chronicle-event.evt-independence { color: #2f6f4a; }
+.chronicle-event.evt-goldenage { color: #9a6a1a; }
+.chronicle-event.evt-staple { color: #2f5a7a; }
+.view-toggle { display: inline-flex; gap: 0; }
+.view-toggle button { border-radius: 0; }
+.view-toggle button:first-child { border-radius: 4px 0 0 4px; }
+.view-toggle button:last-child { border-radius: 0 4px 4px 0; }
+.view-toggle button:not(:first-child) { border-left: none; }
+.culture-label { font-family: 'Cinzel', serif; font-weight: 600; }
+.view-toggle button.active { background: #d8b25a; font-weight: 600; }
+
+.landing {
+  max-width: 720px; margin: 0 auto; padding: 24px 16px 40px;
+  display: flex; gap: 20px; flex-wrap: wrap; justify-content: center;
+}
+.choice-card {
+  display: block; flex: 1 1 260px; max-width: 320px; text-decoration: none;
+  background: #f6efdd; border: 1px solid #cbb784; border-radius: 8px;
+  padding: 22px 20px; color: #2a2118; box-shadow: 0 1px 4px rgba(60,47,28,.15);
+  transition: background .12s, box-shadow .12s;
+}
+.choice-card:hover { background: #efe6cf; box-shadow: 0 2px 8px rgba(60,47,28,.22); }
+.choice-title { font-family: 'Cinzel', serif; font-weight: 600; font-size: 20px; margin: 0 0 8px; color: #3c2f1c; }
+.choice-desc { font-size: 14px; line-height: 1.5; margin: 0; }
+.stub { max-width: 720px; margin: 0 auto; padding: 40px 16px; text-align: center; }
+.stub p { font-size: 15px; }
+.home-link { display: inline-block; margin-top: 16px; color: #7a5a2f; }
