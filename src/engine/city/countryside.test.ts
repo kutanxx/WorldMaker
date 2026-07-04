@@ -2,7 +2,8 @@ import { describe, it, expect } from "vitest";
 import { mulberry32 } from "../rng";
 import { generateCountryside } from "./countryside";
 import { pointInPolygon, centroid } from "../geometry";
-import { GRASSLAND } from "../biome";
+import type { Polygon } from "../geometry";
+import { GRASSLAND, DESERT } from "../biome";
 import { buildWater } from "./water";
 import type { CountrysideOpts } from "./countryside";
 
@@ -50,5 +51,35 @@ describe("generateCountryside — fields/gardens/orchards", () => {
       expect(or.trees.length).toBeGreaterThanOrEqual(4);
       for (const t of or.trees) expect(pointInPolygon(t, or.polygon)).toBe(true);
     }
+  });
+});
+
+describe("generateCountryside — pastures/farmsteads/woods", () => {
+  it("plains city gets fenced pastures with animals inside, farmsteads with barns", () => {
+    const o = plainOpts();
+    const c = generateCountryside(mulberry32(9), o);
+    expect(c.pastures.length).toBeGreaterThanOrEqual(2);
+    for (const p of c.pastures) {
+      expect(p.animals.length).toBeGreaterThanOrEqual(2);
+      for (const a of p.animals) expect(pointInPolygon(a, p.fence)).toBe(true);
+    }
+    expect(c.farmsteads.length).toBeGreaterThanOrEqual(1);
+    for (const f of c.farmsteads) {
+      expect(pointInPolygon(centroid(f.barn), o.boundary)).toBe(false);
+      // barn is the bigger footprint (research: barns dwarf the farmhouse)
+      const area = (poly: Polygon) => Math.abs(poly.reduce((s, [x, y], i, arr) => { const [nx2, ny2] = arr[(i + 1) % arr.length]; return s + x * ny2 - nx2 * y; }, 0) / 2);
+      expect(area(f.barn)).toBeGreaterThan(area(f.house));
+    }
+    expect(c.woods.length).toBeGreaterThanOrEqual(10);
+    for (const t of c.woods) {
+      const nearEdge = t[0] < 40 || t[0] > 420 || t[1] < 40 || t[1] > 420;
+      expect(nearEdge).toBe(true);
+    }
+  });
+  it("desert city has no pastures and no woods", () => {
+    const o = { ...plainOpts(), biome: DESERT };
+    const c = generateCountryside(mulberry32(9), o);
+    expect(c.pastures.length).toBe(0);
+    expect(c.woods.length).toBe(0);
   });
 });

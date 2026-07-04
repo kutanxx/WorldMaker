@@ -136,5 +136,61 @@ export function generateCountryside(rng: Rng, opts: CountrysideOpts): Countrysid
     ? fields.filter((f) => { const c = centroid(f.polygon); return water.bodies.some((b) => { const wc = centroid(b); return Math.hypot(wc[0] - c[0], wc[1] - c[1]) < 90; }); })
     : fields;
 
-  return { gardens, fields: keptFields, pastures: [], farmsteads: [], orchards, woods: [] };
+  // pastures: fenced irregular paddocks in the gaps between field sectors; meadows prefer water
+  const pastures: Pasture[] = [];
+  for (let tries = 0; tries < 140 && pastures.length < prof.pastures; tries++) {
+    const a = rng() * Math.PI * 2;
+    const r = wallR + 24 + rng() * (Math.min(bounds.w, bounds.h) / 2 - wallR - 40);
+    const c: Point = [bc[0] + Math.cos(a) * r, bc[1] + Math.sin(a) * r];
+    const verts = 7 + Math.floor(rng() * 3);
+    const R = 9 + rng() * 6;
+    const fence: Polygon = [];
+    for (let k = 0; k < verts; k++) {
+      const va = (k / verts) * Math.PI * 2;
+      const vr = R * (0.7 + rng() * 0.5);              // noise-deformed blob
+      fence.push([c[0] + Math.cos(va) * vr, c[1] + Math.sin(va) * vr]);
+    }
+    if (!polyOk(fence, 14)) continue;
+    const animals: Point[] = [];
+    const nA = 2 + Math.floor(rng() * 4);
+    for (let k = 0; k < nA * 6 && animals.length < nA; k++) {
+      const p: Point = [c[0] + (rng() - 0.5) * R, c[1] + (rng() - 0.5) * R];
+      if (pointInPolygon(p, fence)) animals.push(p);
+    }
+    pastures.push({ fence, animals, kind: prof.animal }); claim(fence);
+  }
+
+  // farmsteads: at a field-block corner beside a road — never mid-field (Watabou lesson)
+  const farmsteads: Farmstead[] = [];
+  const wantF = 1 + Math.floor(size / 3);
+  for (let tries = 0; tries < 100 && farmsteads.length < wantF && keptFields.length > 0; tries++) {
+    const f = keptFields[Math.floor(rng() * keptFields.length)];
+    const corner = f.polygon[Math.floor(rng() * f.polygon.length)];
+    const away = 4 + rng() * 3;
+    const dxc = corner[0] - centroid(f.polygon)[0], dyc = corner[1] - centroid(f.polygon)[1];
+    const dl = Math.hypot(dxc, dyc) || 1;
+    const hc: Point = [corner[0] + (dxc / dl) * away, corner[1] + (dyc / dl) * away];
+    const theta = rng() * Math.PI;
+    const hux = Math.cos(theta), huy = Math.sin(theta);
+    const house = orientedRect(hc, hux, huy, 2.2, 1.7);
+    const barn = orientedRect([hc[0] + hux * 6, hc[1] + huy * 6], hux, huy, 3.4, 2.4);
+    if (!polyOk(house, 9) || !polyOk(barn, 0)) continue;
+    const yard = rng() < 0.6 ? orientedRect([hc[0] + hux * 3, hc[1] + huy * 3], hux, huy, 7.5, 5) : null;
+    farmsteads.push({ house, barn, yard }); claim(house); claim(barn);
+  }
+
+  // woodland fringe: tree points along the outer margin (the world continues into forest)
+  const woods: Point[] = [];
+  for (let tries = 0; tries < prof.woods * 8 && woods.length < prof.woods; tries++) {
+    const edge = Math.floor(rng() * 4);
+    const t = rng() * bounds.w;
+    const depth = 4 + rng() * 30;
+    const p: Point = edge === 0 ? [t, depth] : edge === 1 ? [t, bounds.h - depth] : edge === 2 ? [depth, t] : [bounds.w - depth, t];
+    if (blocked(p)) continue;
+    if (obstacles.some((o) => Math.hypot(o[0] - p[0], o[1] - p[1]) < 7)) continue;
+    if (woods.some((w2) => Math.hypot(w2[0] - p[0], w2[1] - p[1]) < 5)) continue;
+    woods.push(p);
+  }
+
+  return { gardens, fields: keptFields, pastures, farmsteads, orchards, woods };
 }
