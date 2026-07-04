@@ -127,4 +127,11 @@ describe("renderCity organic", () => {
     const svg = renderCity(layout, "en");
     expect(svg.querySelectorAll(".parish-church").length).toBe(layout.parishChurches.length);
   });
+  it("renders market cross, well and inns", () => {
+    const layout = generateCityLayout({ id: 7, name: "T", size: 4, coastal: false, isCapital: false, elevation: 0.4, biome: GRASSLAND }, 2);
+    const svg = renderCity(layout, "en");
+    expect(svg.querySelectorAll(".market-cross").length).toBe(layout.marketCross ? 1 : 0);
+    expect(svg.querySelectorAll(".well").length).toBe(layout.well ? 1 : 0);
+    expect(svg.querySelectorAll(".inn").length).toBe(layout.inns.length);
+  });
 });

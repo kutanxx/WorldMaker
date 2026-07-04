@@ -73,6 +73,9 @@ export interface CityLayout {
   cemetery: Cemetery | null;
   gallows: Point | null;
   parishChurches: Point[];
+  marketCross: Point | null;
+  well: Point | null;
+  inns: Point[];
   countryside: Countryside;
   castle: Castle | null;
 }
@@ -389,6 +392,26 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
     }
   }
 
+  // market square furniture: a market cross + public well on the open plaza (no rng)
+  const plazaWard = zoned.find((z) => z.type === "plaza") ?? null;
+  const marketCross: Point | null = plazaWard ? centroid(plazaWard.polygon) : null;
+  const well: Point | null = marketCross ? [marketCross[0] + 4, marketCross[1] + 3] : null;
+  // inns cluster just outside the busiest gates (travelers). Into occupied so countryside avoids them.
+  const inns: Point[] = [];
+  {
+    const want = Math.min(1 + Math.floor(ctx.size / 3), suburbRoads.length);
+    for (let k = 0; k < want; k++) {
+      const road = suburbRoads[k];
+      if (road.length < 2) continue;
+      const a = road[0], b = road[1];
+      const dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy) || 1;
+      const ux = dx / L, uy = dy / L, nx = -uy, ny = ux;
+      const p: Point = [a[0] + ux * 12 + nx * 5, a[1] + uy * 12 + ny * 5];
+      if (pointInPolygon(p, boundary) || inWater(water, p) || inMountains(mountains, p)) continue;
+      inns.push(p); occupied.push(p);
+    }
+  }
+
   // countryside: generated LAST (rng-stream tail, per convention) so it avoids every
   // suburb/outwork/landmark already placed above (occupied carries all of their centres).
   const countryside = generateCountryside(rng, {
@@ -402,6 +425,6 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
   return {
     name: ctx.name, size: ctx.size, coastal: ctx.coastal, isCapital: ctx.isCapital,
     archetype, bounds, boundary, water, mountains, wall, moat, gateBridges, mainRoads, minorRoads, wards, parks, labels, features, suburbRoads, suburbs, outworks, harbor,
-    abbey, cemetery, gallows, parishChurches, countryside, castle,
+    abbey, cemetery, gallows, parishChurches, marketCross, well, inns, countryside, castle,
   };
 }

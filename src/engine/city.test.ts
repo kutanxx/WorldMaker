@@ -337,3 +337,15 @@ describe("parish churches", () => {
     for (const p of l.parishChurches) expect(pointInPolygon(p, l.boundary)).toBe(true);
   });
 });
+
+describe("market square + inns", () => {
+  it("puts the market cross on the plaza and inns outside the gate", () => {
+    const l = generateCityLayout({ id: 7, name: "T", size: 4, coastal: false, isCapital: false, elevation: 0.4, biome: GRASSLAND }, 2);
+    const plaza = l.wards.find((w) => w.type === "plaza");
+    expect(l.marketCross).not.toBeNull();
+    if (plaza) { const c = centroid(plaza.polygon); expect(Math.hypot(l.marketCross![0] - c[0], l.marketCross![1] - c[1])).toBeLessThan(0.01); }
+    expect(l.well).not.toBeNull();
+    expect(l.inns.length).toBeGreaterThanOrEqual(1);
+    for (const p of l.inns) expect(pointInPolygon(p, l.boundary)).toBe(false);
+  });
+});

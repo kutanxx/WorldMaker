@@ -180,6 +180,11 @@ export function renderCity(layout: CityLayout, lang: Lang = "en"): SVGSVGElement
     const [gx, gy] = layout.gallows;
     env.appendChild(svgEl("path", { class: "gallows", d: `M${gx},${gy + 4}L${gx},${gy - 6}L${gx + 5},${gy - 6}M${gx + 5},${gy - 6}L${gx + 5},${gy - 3}`, fill: "none", stroke: "#3c2f1c", "stroke-width": 0.9, "stroke-linecap": "round" }));
   }
+  for (const [ix, iy] of layout.inns) {
+    env.appendChild(svgEl("rect", { class: "inn", x: ix - 3, y: iy - 2.4, width: 6, height: 4.8, fill: "#d8c49a", stroke: "#7a5a3a", "stroke-width": 0.5 }));
+    env.appendChild(svgEl("path", { class: "inn-sign", d: `M${(ix + 3).toFixed(1)},${(iy - 2).toFixed(1)}h2 M${(ix + 5).toFixed(1)},${(iy - 2).toFixed(1)}v2`, stroke: "#5a4a34", "stroke-width": 0.5, fill: "none" }));
+    env.appendChild(svgEl("rect", { class: "inn-sign", x: ix + 4.2, y: iy, width: 1.6, height: 1.4, fill: "#b98a4a", stroke: "#5a4a34", "stroke-width": 0.3 }));
+  }
   root.appendChild(env);
 
   const clipped = svgEl("g", { "clip-path": `url(#${clipId})` });
@@ -229,6 +234,16 @@ export function renderCity(layout: CityLayout, lang: Lang = "en"): SVGSVGElement
 
   for (const [cx, cy] of layout.parishChurches) {
     clipped.appendChild(svgEl("path", { class: "parish-church", d: `M${cx.toFixed(1)},${(cy - 3).toFixed(1)}v6 M${(cx - 2).toFixed(1)},${(cy - 1).toFixed(1)}h4`, stroke: "#7a6a86", "stroke-width": 1.2, fill: "none", "stroke-linecap": "round" }));
+  }
+
+  if (layout.marketCross) {
+    const [cx, cy] = layout.marketCross;
+    clipped.appendChild(svgEl("rect", { class: "market-cross-base", x: cx - 1.5, y: cy - 1.5, width: 3, height: 3, fill: "#d8d2c4", stroke: "#7a6f56", "stroke-width": 0.4 }));
+    clipped.appendChild(svgEl("path", { class: "market-cross", d: `M${cx.toFixed(1)},${cy.toFixed(1)}v-4 M${(cx - 1.5).toFixed(1)},${(cy - 2.6).toFixed(1)}h3`, stroke: "#5a4a34", "stroke-width": 0.9, fill: "none", "stroke-linecap": "round" }));
+  }
+  if (layout.well) {
+    const [wx, wy] = layout.well;
+    clipped.appendChild(svgEl("circle", { class: "well", cx: wx, cy: wy, r: 1.3, fill: "#b9c4cc", stroke: "#5a5346", "stroke-width": 0.5 }));
   }
   root.appendChild(clipped);
 
