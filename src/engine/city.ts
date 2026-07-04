@@ -105,9 +105,9 @@ function offsetSegment(seg: Polyline, c: Point, d: number): Polyline {
   });
 }
 
-const NO_BUILDINGS: WardType[] = ["plaza", "park", "field"];
+const NO_BUILDINGS: WardType[] = ["plaza", "park"];
 const DENSITY: Partial<Record<WardType, number>> = {
-  slum: 70, craftsmen: 110, gate: 120, merchant: 150, market: 170, patriciate: 240, suburb: 200, military: 260,
+  slum: 70, craftsmen: 110, gate: 120, merchant: 150, market: 170, patriciate: 240, military: 260,
 };
 const MOAT_ARCHETYPES = new Set(["coastalPort", "bridgeTown", "plainsMarket"]);
 
