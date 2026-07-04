@@ -45,7 +45,7 @@ export function renderCity(layout: CityLayout, lang: Lang = "en"): SVGSVGElement
 
   for (const body of layout.water.bodies) {
     root.appendChild(svgEl("polygon", { class: "water-shallow", points: pts(body), fill: "#bfd8e4" }));
-    root.appendChild(svgEl("polygon", { class: "water", points: pts(body), fill: "#9fc1d6", transform: "scale(0.985)", "transform-origin": "150 150" }));
+    root.appendChild(svgEl("polygon", { class: "water", points: pts(body), fill: "#9fc1d6", transform: "scale(0.985)", "transform-origin": `${w / 2} ${h / 2}` }));
   }
 
   // harbor: breakwater/mole + lighthouse + piers + moored boats (on the sea)
@@ -86,7 +86,7 @@ export function renderCity(layout: CityLayout, lang: Lang = "en"): SVGSVGElement
       const step = m.steep ? 1 : 2, len = m.steep ? 5 : 3.5;
       for (let i = 0; i < m.innerEdge.length; i += step) {
         const p = m.innerEdge[i];
-        const dx = p[0] - 150, dy = p[1] - 150, L = Math.hypot(dx, dy) || 1;
+        const dx = p[0] - w / 2, dy = p[1] - h / 2, L = Math.hypot(dx, dy) || 1;
         const sx = p[0] + (dx / L) * len, sy = p[1] + (dy / L) * len; // start out in the mass, point downhill to the crest
         mg.appendChild(svgEl("line", { class: "hachure", x1: sx.toFixed(1), y1: sy.toFixed(1), x2: p[0].toFixed(1), y2: p[1].toFixed(1), stroke: crest, "stroke-width": 0.5 }));
       }
@@ -95,11 +95,39 @@ export function renderCity(layout: CityLayout, lang: Lang = "en"): SVGSVGElement
   }
 
   const env = svgEl("g", { class: "environs" });
+  // countryside ground patches: gardens/fields/pastures/orchards/woods, drawn under the
+  // suburb roads/houses so buildings and roads read on top of the open-field system.
+  const cs = layout.countryside;
+  for (const g2 of cs.gardens) env.appendChild(svgEl("polygon", { class: "garden", points: pts(g2), fill: "#c9d0a0", stroke: "#8a8a5f", "stroke-width": 0.3 }));
+  const dry = cs.dry; // engine is the single source of truth for the desert palette
+  for (const f of cs.fields) {
+    env.appendChild(svgEl("polygon", { class: "field", points: pts(f.polygon), fill: dry ? "#e0cf9a" : "#d9cc9a", stroke: "#b3a26e", "stroke-width": 0.4 }));
+    for (const s of f.strips) env.appendChild(svgEl("polyline", { class: "furrow", points: pts(s), fill: "none", stroke: dry ? "#c9b47a" : "#c4b581", "stroke-width": 0.35 }));
+  }
+  for (const p of cs.pastures) {
+    env.appendChild(svgEl("polygon", { class: "pasture", points: pts(p.fence), fill: "#ccd6a8", "fill-opacity": 0.7, stroke: "#8a6a44", "stroke-width": 0.5, "stroke-dasharray": "1.6 1.1" }));
+    for (const a of p.animals) env.appendChild(svgEl("circle", { class: "animal", cx: a[0], cy: a[1], r: 0.8, fill: p.kind === "sheep" ? "#f4f1e4" : "#8a6a44", stroke: "#5c4a33", "stroke-width": 0.25 }));
+  }
+  for (const or of cs.orchards) {
+    env.appendChild(svgEl("polygon", { class: "orchard", points: pts(or.polygon), fill: "#cfd8ac", "fill-opacity": 0.5, stroke: "#8a8a5f", "stroke-width": 0.3 }));
+    for (const t2 of or.trees) {
+      env.appendChild(svgEl("circle", { class: "orchard-tree", cx: t2[0], cy: t2[1], r: 1.4, fill: "#8fae6e", stroke: "#5d7a45", "stroke-width": 0.3 }));
+    }
+  }
+  for (const t2 of cs.woods) {
+    env.appendChild(svgEl("circle", { class: "wood-tree", cx: t2[0], cy: t2[1], r: 1.6 + ((t2[0] * 7 + t2[1] * 13) % 10) / 12, fill: "#7d9b62", stroke: "#55703f", "stroke-width": 0.3 }));
+  }
   for (const r of layout.suburbRoads) {
     env.appendChild(svgEl("polyline", { class: "suburb-road", points: pts(r), fill: "none", stroke: "#c9bb96", "stroke-width": 1.6, "stroke-linecap": "round" }));
   }
   for (const b of layout.suburbs) {
     env.appendChild(svgEl("polygon", { class: "suburb", points: pts(b), fill: "#e0d6c0", stroke: "#9a8a70", "stroke-width": 0.4 }));
+  }
+  // farm buildings: drawn above their fields/pastures, alongside the suburb houses
+  for (const fm of cs.farmsteads) {
+    if (fm.yard) env.appendChild(svgEl("polygon", { class: "farm-yard", points: pts(fm.yard), fill: "none", stroke: "#8a6a44", "stroke-width": 0.4, "stroke-dasharray": "1.2 1" }));
+    env.appendChild(svgEl("polygon", { class: "farm-barn", points: pts(fm.barn), fill: "#7a5a3a", stroke: "#4d3620", "stroke-width": 0.4 }));
+    env.appendChild(svgEl("polygon", { class: "farm-house", points: pts(fm.house), fill: "#e0d6c0", stroke: "#9a8a70", "stroke-width": 0.4 }));
   }
   for (const o of layout.outworks) {
     const [x, y] = o.at;
@@ -156,6 +184,20 @@ export function renderCity(layout: CityLayout, lang: Lang = "en"): SVGSVGElement
     // cream buildings cover the ground tint and the districts blur together)
     const fill = TINT[ward.type] ?? "#e6dcc8";
     for (const b of ward.buildings) clipped.appendChild(svgEl("polygon", { class: "building", points: pts(b), fill, stroke: "#8a7a60", "stroke-width": 0.4 }));
+  }
+
+  // the lord's castle: inner enceinte + towers + gate/postern + keep + annexes, drawn over
+  // the castle ward's buildings (there are none — NO_BUILDINGS skips it) so it reads as the citadel.
+  if (layout.castle) {
+    const ca = layout.castle;
+    const cg = svgEl("g", { class: "castle-inner" });
+    for (const an of ca.annexes) cg.appendChild(svgEl("polygon", { class: "castle-annex", points: pts(an), fill: "#cfd4dd", stroke: "#5a6272", "stroke-width": 0.4 }));
+    cg.appendChild(svgEl("polygon", { class: "castle-wall", points: pts(ca.innerWall), fill: "none", stroke: "#5a5346", "stroke-width": 1.3, "stroke-linejoin": "round" }));
+    for (const t2 of ca.towers) cg.appendChild(svgEl("circle", { class: "castle-tower", cx: t2[0], cy: t2[1], r: 1.3, fill: "#8a8272", stroke: "#4c463c", "stroke-width": 0.4 }));
+    cg.appendChild(svgEl("circle", { class: "castle-gate", cx: ca.gate[0], cy: ca.gate[1], r: 1.1, fill: "#e8dfc9", stroke: "#4c463c", "stroke-width": 0.5 }));
+    if (ca.postern) cg.appendChild(svgEl("circle", { class: "castle-postern", cx: ca.postern[0], cy: ca.postern[1], r: 0.9, fill: "#e8dfc9", stroke: "#7a2f2f", "stroke-width": 0.5 }));
+    cg.appendChild(svgEl("polygon", { class: "castle-keep", points: pts(ca.keep), fill: "#6e7686", stroke: "#3a4050", "stroke-width": 0.6 }));
+    clipped.appendChild(cg);
   }
   root.appendChild(clipped);
 

@@ -3,6 +3,7 @@ import { generateCityLayout, cityContext } from "./city";
 import { centroid, pointInPolygon } from "./geometry";
 import { inWater } from "./city/water";
 import { inMountains } from "./city/mountain";
+import { GRASSLAND } from "./biome";
 import type { CityMarker } from "../types/world";
 
 const base: CityMarker = {
@@ -45,7 +46,7 @@ describe("city organic", () => {
   });
   it("exposes an irregular boundary polygon (radius varies)", () => {
     const l = generateCityLayout(cityContext(base), 5);
-    const rs = l.boundary.map((p) => Math.hypot(p[0] - 150, p[1] - 150));
+    const rs = l.boundary.map((p) => Math.hypot(p[0] - 230, p[1] - 230));
     expect(l.boundary.length).toBeGreaterThanOrEqual(16);
     expect(Math.max(...rs) / Math.min(...rs)).toBeGreaterThan(1.2);
   });
@@ -128,8 +129,8 @@ describe("city organic", () => {
       const c = centroid(b);
       expect(pointInPolygon(c, l.boundary)).toBe(false); // extramural
       expect(inWater(l.water, c)).toBe(false);
-      expect(c[0]).toBeGreaterThan(0); expect(c[0]).toBeLessThan(300);
-      expect(c[1]).toBeGreaterThan(0); expect(c[1]).toBeLessThan(300);
+      expect(c[0]).toBeGreaterThan(0); expect(c[0]).toBeLessThan(460);
+      expect(c[1]).toBeGreaterThan(0); expect(c[1]).toBeLessThan(460);
     }
   });
   it("places an outwork (mill) outside the boundary", () => {
@@ -144,6 +145,32 @@ describe("city organic", () => {
     expect(marsh.features.onStilts).toBe(true);
     const overWater = marsh.wards.flatMap((w) => w.buildings).filter((b) => inWater(marsh.water, centroid(b)));
     expect(overWater.length).toBeGreaterThan(0);
+  });
+});
+
+describe("canvas 460", () => {
+  it("uses a 460x460 canvas with the city centred", () => {
+    const layout = generateCityLayout({ id: 7, name: "Test", size: 3, coastal: false, isCapital: false, elevation: 0.4, biome: GRASSLAND }, 1);
+    expect(layout.bounds).toEqual({ w: 460, h: 460 });
+    // boundary stays a centred island: every vertex well inside the canvas
+    for (const [x, y] of layout.boundary) {
+      expect(x).toBeGreaterThan(60); expect(x).toBeLessThan(400);
+      expect(y).toBeGreaterThan(60); expect(y).toBeLessThan(400);
+    }
+  });
+});
+
+describe("gate roads reach the countryside", () => {
+  it("extends every usable gate road to the canvas edge", () => {
+    const layout = generateCityLayout({ id: 7, name: "Test", size: 3, coastal: false, isCapital: false, elevation: 0.4, biome: GRASSLAND }, 1);
+    expect(layout.suburbRoads.length).toBeGreaterThanOrEqual(2);
+    for (const road of layout.suburbRoads) {
+      const [ex, ey] = road[road.length - 1];
+      const nearEdge = ex < 12 || ex > 448 || ey < 12 || ey > 448;
+      expect(nearEdge).toBe(true);
+      expect(road.length).toBeGreaterThanOrEqual(3); // gate, bend, edge
+    }
+    expect(layout.suburbs.length).toBeGreaterThanOrEqual(8); // denser faubourg
   });
 });
 
@@ -205,6 +232,21 @@ describe("city harbor (Phase 3)", () => {
       for (const seg of l.moat ?? []) for (const p of seg) {
         expect(inWater(l.water, p)).toBe(false);
       }
+    }
+  });
+  it("attaches a countryside outside the walls", () => {
+    const layout = generateCityLayout({ id: 7, name: "Test", size: 3, coastal: false, isCapital: false, elevation: 0.4, biome: GRASSLAND }, 1);
+    const cs = layout.countryside;
+    expect(cs.fields.length).toBeGreaterThanOrEqual(2);
+    expect(cs.pastures.length).toBeGreaterThanOrEqual(1);
+    for (const f of cs.fields) expect(pointInPolygon(centroid(f.polygon), layout.boundary)).toBe(false);
+    for (const p of cs.pastures) expect(pointInPolygon(centroid(p.fence), layout.boundary)).toBe(false);
+  });
+  it("every city has a lord's castle with an inner wall and keep", () => {
+    for (const size of [1, 3, 5]) {
+      const layout = generateCityLayout({ id: 7, name: "T", size, coastal: false, isCapital: false, elevation: 0.4, biome: GRASSLAND }, 1);
+      expect(layout.castle).not.toBeNull();
+      expect(layout.wards.some((w2) => w2.type === "castle")).toBe(true);
     }
   });
 });

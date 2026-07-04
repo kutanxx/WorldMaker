@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { mulberry32 } from "../rng";
 import type { WardCell } from "./wards";
+import { generateWards } from "./wards";
 import { assignZones } from "./zoning";
 import type { Point } from "../geometry";
 
@@ -65,6 +66,16 @@ describe("zoning.assignZones", () => {
     for (const s of z.filter((w) => w.type === "slum")) expect(s.dist).toBeGreaterThan(100 * 0.6);
     // the wealthy (merchant/patriciate) are not out at the rim
     for (const m of z.filter((w) => w.type === "merchant" || w.type === "patriciate")) expect(m.dist).toBeLessThan(100 * 0.72);
+  });
+  it("never assigns intramural field or suburb wards (farming lives outside the walls)", () => {
+    const rng = mulberry32(5);
+    const cells = generateWards(rng, 230, 230, 110, 24);
+    const zoned = assignZones(rng, cells, [230, 230], 100, { hasCastle: true, coastal: false });
+    for (const z of zoned) expect(["suburb", "field"]).not.toContain(z.type);
+    // the outermost ring is still urban: slum/craftsmen/park only
+    for (const z of zoned.filter((z) => z.dist / 100 > 0.85)) {
+      expect(["slum", "craftsmen", "park", "castle", "harbor"]).toContain(z.type);
+    }
   });
   it("anchors the castle toward the high ground when castleAnchor is given", () => {
     const wards = ringWards(14);

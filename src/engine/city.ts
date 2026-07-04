@@ -20,6 +20,10 @@ import { generateWards } from "./city/wards";
 import { assignZones } from "./city/zoning";
 import type { WardType } from "./city/zoning";
 import { subdivide } from "./city/buildings";
+import { generateCountryside } from "./city/countryside";
+import type { Countryside } from "./city/countryside";
+import { makeCastle } from "./city/castle";
+import type { Castle } from "./city/castle";
 import type { CityMarker } from "../types/world";
 
 export interface Ward {
@@ -68,6 +72,8 @@ export interface CityLayout {
   abbey: Abbey | null;
   cemetery: Cemetery | null;
   gallows: Point | null;
+  countryside: Countryside;
+  castle: Castle | null;
 }
 
 export interface CityContext {
@@ -105,16 +111,16 @@ function offsetSegment(seg: Polyline, c: Point, d: number): Polyline {
   });
 }
 
-const NO_BUILDINGS: WardType[] = ["plaza", "park", "field"];
+const NO_BUILDINGS: WardType[] = ["plaza", "park", "castle"];
 const DENSITY: Partial<Record<WardType, number>> = {
-  slum: 70, craftsmen: 110, gate: 120, merchant: 150, market: 170, patriciate: 240, suburb: 200, military: 260,
+  slum: 70, craftsmen: 110, gate: 120, merchant: 150, market: 170, patriciate: 240, military: 260,
 };
 const MOAT_ARCHETYPES = new Set(["coastalPort", "bridgeTown", "plainsMarket"]);
 
 export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLayout {
   const rng: Rng = mulberry32(deriveSeed(worldSeed, ctx.id));
-  const bounds = { w: 300, h: 300 };
-  const center: Vec = [150, 150];
+  const bounds = { w: 460, h: 460 };
+  const center: Vec = [230, 230];
   const radius = 60 + ctx.size * 12;
   // mountain-variant pick uses a SEPARATE rng stream so the main stream (and thus every
   // existing non-mountain city) is byte-identical; only high-elevation form choice changes.
@@ -195,7 +201,24 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
     for (const p of sea) { sx += p[0]; sy += p[1]; }
     seaAnchor = [sx / sea.length, sy / sea.length];
   }
-  const zoned = assignZones(rng, cells, [center[0], center[1]], radius, { hasCastle: ctx.isCapital || ctx.size >= 4, coastal: ctx.coastal, castleAnchor, seaAnchor });
+  // the lord's castle sits AT the town wall (research: urban castle) unless a mountain
+  // anchor already claims the high ground. Bias the wall pick away from the sea side.
+  if (!castleAnchor) {
+    let v: Point;
+    if (seaAnchor) {
+      // coastal: put the castle on the wall run farthest from the harbor side
+      let bi = 0, bd = -Infinity;
+      for (let i = 0; i < boundary.length; i++) {
+        const d = Math.hypot(boundary[i][0] - seaAnchor[0], boundary[i][1] - seaAnchor[1]);
+        if (d > bd) { bd = d; bi = i; }
+      }
+      v = boundary[bi];
+    } else {
+      v = boundary[Math.floor(rng() * boundary.length)]; // inland: any stretch of wall
+    }
+    castleAnchor = [center[0] + (v[0] - center[0]) * 0.85, center[1] + (v[1] - center[1]) * 0.85];
+  }
+  const zoned = assignZones(rng, cells, [center[0], center[1]], radius, { hasCastle: true, coastal: ctx.coastal, castleAnchor, seaAnchor });
 
   const parks: Polygon[] = [];
   const wards: Ward[] = zoned.map((z) => {
@@ -222,6 +245,11 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
   for (const z of zoned) {
     if (LABELLED.includes(z.type)) { const c = centroid(z.polygon); labels.push({ x: c[0], y: c[1], type: z.type }); }
   }
+
+  // the lord's castle: built from the zoned castle ward polygon, right after wards/labels
+  // and before features/extramural work (its rng draws are part of the main stream tail here).
+  const castleWard = zoned.find((z) => z.type === "castle") ?? null;
+  const castle = castleWard ? makeCastle(rng, castleWard.polygon, [center[0], center[1]], boundary, ctx.size) : null;
 
   const allBuildings = wards.flatMap((w) => w.buildings);
   const scatterTrees = (n: number): Point[] => {
@@ -251,10 +279,7 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
   const inCanvas = (p: Point) => p[0] > 3 && p[0] < bounds.w - 3 && p[1] > 3 && p[1] < bounds.h - 3;
   const suburbRoads: Polyline[] = [];
   const suburbs: Polygon[] = [];
-  const gateBudget = 1 + Math.floor(ctx.size / 2);
-  let gatesUsed = 0;
   for (const g of wall.gates) {
-    if (gatesUsed >= gateBudget) break;
     const dx = g[0] - center[0], dy = g[1] - center[1];
     const gl = Math.hypot(dx, dy) || 1;
     const ux = dx / gl, uy = dy / gl;        // outward unit
@@ -264,13 +289,17 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
     const distY = uy > 0.001 ? (bounds.h - 3 - start[1]) / uy : uy < -0.001 ? (3 - start[1]) / uy : Infinity;
     const room = Math.min(distX, distY);
     if (room < 14 || inWater(water, start) || inMountains(mountains, start) || !inCanvas(start)) continue;
-    const L = Math.min(38, room - 4);
+    const L = room - 1;                       // run all the way to the canvas edge
     const end: Point = [start[0] + ux * L, start[1] + uy * L];
-    if (inWater(water, end)) continue; // don't run a faubourg road into the sea
-    suburbRoads.push([[g[0], g[1]], end]);
-    gatesUsed++;
-    for (let d = 6; d < L; d += 9) {
-      const prob = 0.9 - (d / L) * 0.5;
+    if (inWater(water, end)) continue; // don't run a highway into the sea
+    // gentle bend at the midpoint so the highway reads hand-drawn, not ruled
+    const bendOff = (rng() - 0.5) * 12;
+    const mid: Point = [start[0] + ux * L * 0.5 + nx * bendOff, start[1] + uy * L * 0.5 + ny * bendOff];
+    suburbRoads.push([[g[0], g[1]], inWater(water, mid) || inMountains(mountains, mid) ? [start[0] + ux * L * 0.5, start[1] + uy * L * 0.5] : mid, end]);
+    // faubourg ribbon: houses flank the first stretch out of the gate, thinning with distance
+    const ribbon = Math.min(55, L);
+    for (let d = 6; d < ribbon; d += 8) {
+      const prob = 0.9 - (d / ribbon) * 0.5;
       for (const side of [-1, 1]) {
         if (rng() > prob) continue;
         const off = 4 + rng() * 4;
@@ -326,9 +355,18 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
   { const s = findSpot(13); if (s) { const graves: Point[] = []; for (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++) graves.push([s[0] + (c - 1) * 3, s[1] + (r - 1) * 3.2]); cemetery = { at: s, graves }; } }
   const gallows: Point | null = ctx.size >= 2 ? findSpot(10) : null;
 
+  // countryside: generated LAST (rng-stream tail, per convention) so it avoids every
+  // suburb/outwork/landmark already placed above (occupied carries all of their centres).
+  const countryside = generateCountryside(rng, {
+    bounds, boundary, water, mountains,
+    roads: suburbRoads,
+    obstacles: [...occupied],
+    size: ctx.size, biome: ctx.biome, oasis: archetype.oasis,
+  });
+
   return {
     name: ctx.name, size: ctx.size, coastal: ctx.coastal, isCapital: ctx.isCapital,
     archetype, bounds, boundary, water, mountains, wall, moat, gateBridges, mainRoads, minorRoads, wards, parks, labels, features, suburbRoads, suburbs, outworks, harbor,
-    abbey, cemetery, gallows,
+    abbey, cemetery, gallows, countryside, castle,
   };
 }

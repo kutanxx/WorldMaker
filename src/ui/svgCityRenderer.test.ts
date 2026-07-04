@@ -2,6 +2,7 @@
 import { describe, it, expect } from "vitest";
 import { generateCityLayout, cityContext } from "../engine/city";
 import { renderCity } from "./svgCityRenderer";
+import { GRASSLAND } from "../engine/biome";
 import type { CityMarker } from "../types/world";
 
 const marker: CityMarker = {
@@ -99,5 +100,22 @@ describe("renderCity organic", () => {
 
     const inland = renderCity(generateCityLayout(cityContext({ ...marker, coastal: false, elevation: 0.4, biome: 4 }), 9));
     expect(inland.querySelectorAll(".harbor").length).toBe(0);
+  });
+  it("renders the countryside in the unclipped environs layer", () => {
+    const layout = generateCityLayout({ id: 7, name: "Test", size: 3, coastal: false, isCapital: false, elevation: 0.4, biome: GRASSLAND }, 1);
+    const svg = renderCity(layout, "en");
+    const env = svg.querySelector(".environs")!;
+    expect(env.getAttribute("clip-path")).toBeNull();
+    expect(env.querySelectorAll(".field").length).toBe(layout.countryside.fields.length);
+    expect(env.querySelectorAll(".pasture").length).toBe(layout.countryside.pastures.length);
+    expect(env.querySelectorAll(".farm-barn").length).toBe(layout.countryside.farmsteads.length);
+    expect(env.querySelectorAll(".wood-tree").length).toBe(layout.countryside.woods.length);
+  });
+  it("draws the castle inner wall, towers and keep", () => {
+    const layout = generateCityLayout({ id: 7, name: "T", size: 4, coastal: false, isCapital: false, elevation: 0.4, biome: GRASSLAND }, 1);
+    const svg = renderCity(layout, "en");
+    expect(svg.querySelector(".castle-wall")).not.toBeNull();
+    expect(svg.querySelector(".castle-keep")).not.toBeNull();
+    expect(svg.querySelectorAll(".castle-tower").length).toBe(layout.castle!.towers.length);
   });
 });
