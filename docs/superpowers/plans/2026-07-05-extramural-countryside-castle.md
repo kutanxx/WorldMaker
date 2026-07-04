@@ -817,13 +817,18 @@ export function makeCastle(rng: Rng, ward: Polygon, townCenter: Point, boundary:
   // the lord's castle sits AT the town wall (research: urban castle) unless a mountain
   // anchor already claims the high ground. Bias the wall pick away from the sea side.
   if (!castleAnchor) {
-    let bi = 0, bd = -Infinity;
-    for (let i = 0; i < boundary.length; i++) {
-      const v = boundary[i];
-      const d = seaAnchor ? Math.hypot(v[0] - seaAnchor[0], v[1] - seaAnchor[1]) : rng() * 0; // no sea: keep 0, pick by rng below
-      if (d > bd) { bd = d; bi = i; }
+    let v: Point;
+    if (seaAnchor) {
+      // coastal: put the castle on the wall run farthest from the harbor side
+      let bi = 0, bd = -Infinity;
+      for (let i = 0; i < boundary.length; i++) {
+        const d = Math.hypot(boundary[i][0] - seaAnchor[0], boundary[i][1] - seaAnchor[1]);
+        if (d > bd) { bd = d; bi = i; }
+      }
+      v = boundary[bi];
+    } else {
+      v = boundary[Math.floor(rng() * boundary.length)]; // inland: any stretch of wall
     }
-    const v = seaAnchor ? boundary[bi] : boundary[Math.floor(rng() * boundary.length)];
     castleAnchor = [center[0] + (v[0] - center[0]) * 0.85, center[1] + (v[1] - center[1]) * 0.85];
   }
   const zoned = assignZones(rng, cells, [center[0], center[1]], radius, { hasCastle: true, coastal: ctx.coastal, castleAnchor, seaAnchor });
@@ -846,9 +851,7 @@ export function makeCastle(rng: Rng, ward: Polygon, townCenter: Point, boundary:
   if (layout.castle) {
     const ca = layout.castle;
     const cg = svgEl("g", { class: "castle-inner" });
-    if (ca.annexes.length || true) {
-      for (const an of ca.annexes) cg.appendChild(svgEl("polygon", { class: "castle-annex", points: pts(an), fill: "#cfd4dd", stroke: "#5a6272", "stroke-width": 0.4 }));
-    }
+    for (const an of ca.annexes) cg.appendChild(svgEl("polygon", { class: "castle-annex", points: pts(an), fill: "#cfd4dd", stroke: "#5a6272", "stroke-width": 0.4 }));
     cg.appendChild(svgEl("polygon", { class: "castle-wall", points: pts(ca.innerWall), fill: "none", stroke: "#5a5346", "stroke-width": 1.3, "stroke-linejoin": "round" }));
     for (const t2 of ca.towers) cg.appendChild(svgEl("circle", { class: "castle-tower", cx: t2[0], cy: t2[1], r: 1.3, fill: "#8a8272", stroke: "#4c463c", "stroke-width": 0.4 }));
     cg.appendChild(svgEl("circle", { class: "castle-gate", cx: ca.gate[0], cy: ca.gate[1], r: 1.1, fill: "#e8dfc9", stroke: "#4c463c", "stroke-width": 0.5 }));
