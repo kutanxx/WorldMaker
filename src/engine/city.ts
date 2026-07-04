@@ -38,6 +38,9 @@ export interface CityFeatures {
 }
 
 export interface Outwork { type: "watermill" | "windmill"; at: Point; angle: number; }
+// extramural landmarks OUTSIDE the walls (research: abbey/cemetery/gallows sat beyond the gates)
+export interface Abbey { at: Point; angle: number; }
+export interface Cemetery { at: Point; graves: Point[]; }
 
 export interface CityLayout {
   name: string;
@@ -62,6 +65,9 @@ export interface CityLayout {
   suburbs: Polygon[];
   outworks: Outwork[];
   harbor: Harbor | null;
+  abbey: Abbey | null;
+  cemetery: Cemetery | null;
+  gallows: Point | null;
 }
 
 export interface CityContext {
@@ -298,11 +304,31 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
     outworks.push({ type: "windmill", at: p, angle: rng() * Math.PI * 2 });
   }
 
-  // harbor: generated LAST (its rng draws don't perturb the layout above); sea cities only
+  // harbor: generated LAST of the intramural/water features (its rng draws don't perturb the layout above); sea cities only
   const harbor = makeHarbor(rng, water, boundary, [center[0], center[1]]);
+
+  // extramural landmarks: an empty spot OUTSIDE the wall (not in the town/water/mountains, in the
+  // canvas margin, clear of suburbs/mills). Generated after the harbor so coastal layouts are unchanged.
+  const occupied: Point[] = [...suburbs.map((b) => centroid(b)), ...outworks.map((o) => o.at)];
+  const findSpot = (minGap: number): Point | null => {
+    for (let tries = 0; tries < 120; tries++) {
+      const p: Point = [3 + rng() * (bounds.w - 6), 3 + rng() * (bounds.h - 6)];
+      if (pointInPolygon(p, boundary) || inWater(water, p) || inMountains(mountains, p) || !inCanvas(p)) continue;
+      if (occupied.some((c) => Math.hypot(c[0] - p[0], c[1] - p[1]) < minGap)) continue;
+      occupied.push(p);
+      return p;
+    }
+    return null;
+  };
+  let abbey: Abbey | null = null;
+  if (ctx.size >= 3) { const s = findSpot(20); if (s) abbey = { at: s, angle: rng() * Math.PI * 2 }; }
+  let cemetery: Cemetery | null = null;
+  { const s = findSpot(13); if (s) { const graves: Point[] = []; for (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++) graves.push([s[0] + (c - 1) * 3, s[1] + (r - 1) * 3.2]); cemetery = { at: s, graves }; } }
+  const gallows: Point | null = ctx.size >= 2 ? findSpot(10) : null;
 
   return {
     name: ctx.name, size: ctx.size, coastal: ctx.coastal, isCapital: ctx.isCapital,
     archetype, bounds, boundary, water, mountains, wall, moat, gateBridges, mainRoads, minorRoads, wards, parks, labels, features, suburbRoads, suburbs, outworks, harbor,
+    abbey, cemetery, gallows,
   };
 }

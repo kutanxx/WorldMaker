@@ -112,6 +112,28 @@ export function renderCity(layout: CityLayout, lang: Lang = "en"): SVGSVGElement
       env.appendChild(svgEl("circle", { class: "outwork-wheel", cx: x + 3, cy: y + 1, r: 2, fill: "none", stroke: "#6b5a44", "stroke-width": 0.7 }));
     }
   }
+  // extramural landmarks (outside the walls)
+  if (layout.abbey) {
+    const [ax, ay] = layout.abbey.at;
+    const ag = svgEl("g", { class: "abbey", transform: `rotate(${((layout.abbey.angle * 180) / Math.PI).toFixed(1)} ${ax} ${ay})` });
+    ag.appendChild(svgEl("rect", { class: "cloister", x: ax - 6, y: ay - 6, width: 12, height: 12, rx: 0.5, fill: "#d8d2c4", stroke: "#8a7f6a", "stroke-width": 0.6 }));
+    ag.appendChild(svgEl("rect", { class: "garth", x: ax - 2.5, y: ay - 2.5, width: 5, height: 5, fill: "#bcd0a0", stroke: "#8a7f6a", "stroke-width": 0.3 }));
+    ag.appendChild(svgEl("path", { class: "church", d: `M${ax},${ay - 6}L${ax},${ay - 11}M${ax - 2},${ay - 9}L${ax + 2},${ay - 9}`, fill: "none", stroke: "#3c2f1c", "stroke-width": 1, "stroke-linecap": "round" }));
+    env.appendChild(ag);
+  }
+  if (layout.cemetery) {
+    const cg = svgEl("g", { class: "cemetery" });
+    const [cx, cy] = layout.cemetery.at;
+    cg.appendChild(svgEl("rect", { class: "churchyard", x: cx - 6, y: cy - 6.5, width: 12, height: 13, rx: 1, fill: "#e4dfcd", stroke: "#9a8a70", "stroke-width": 0.4 }));
+    for (const [gx, gy] of layout.cemetery.graves) {
+      cg.appendChild(svgEl("rect", { class: "grave", x: gx - 0.8, y: gy - 1.3, width: 1.6, height: 2.6, rx: 0.7, fill: "#cfc8b8", stroke: "#7a715f", "stroke-width": 0.3 }));
+    }
+    env.appendChild(cg);
+  }
+  if (layout.gallows) {
+    const [gx, gy] = layout.gallows;
+    env.appendChild(svgEl("path", { class: "gallows", d: `M${gx},${gy + 4}L${gx},${gy - 6}L${gx + 5},${gy - 6}M${gx + 5},${gy - 6}L${gx + 5},${gy - 3}`, fill: "none", stroke: "#3c2f1c", "stroke-width": 0.9, "stroke-linecap": "round" }));
+  }
   root.appendChild(env);
 
   const clipped = svgEl("g", { "clip-path": `url(#${clipId})` });
