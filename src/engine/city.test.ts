@@ -242,4 +242,11 @@ describe("city harbor (Phase 3)", () => {
     for (const f of cs.fields) expect(pointInPolygon(centroid(f.polygon), layout.boundary)).toBe(false);
     for (const p of cs.pastures) expect(pointInPolygon(centroid(p.fence), layout.boundary)).toBe(false);
   });
+  it("every city has a lord's castle with an inner wall and keep", () => {
+    for (const size of [1, 3, 5]) {
+      const layout = generateCityLayout({ id: 7, name: "T", size, coastal: false, isCapital: false, elevation: 0.4, biome: GRASSLAND }, 1);
+      expect(layout.castle).not.toBeNull();
+      expect(layout.wards.some((w2) => w2.type === "castle")).toBe(true);
+    }
+  });
 });

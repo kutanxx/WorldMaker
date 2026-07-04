@@ -185,6 +185,20 @@ export function renderCity(layout: CityLayout, lang: Lang = "en"): SVGSVGElement
     const fill = TINT[ward.type] ?? "#e6dcc8";
     for (const b of ward.buildings) clipped.appendChild(svgEl("polygon", { class: "building", points: pts(b), fill, stroke: "#8a7a60", "stroke-width": 0.4 }));
   }
+
+  // the lord's castle: inner enceinte + towers + gate/postern + keep + annexes, drawn over
+  // the castle ward's buildings (there are none — NO_BUILDINGS skips it) so it reads as the citadel.
+  if (layout.castle) {
+    const ca = layout.castle;
+    const cg = svgEl("g", { class: "castle-inner" });
+    for (const an of ca.annexes) cg.appendChild(svgEl("polygon", { class: "castle-annex", points: pts(an), fill: "#cfd4dd", stroke: "#5a6272", "stroke-width": 0.4 }));
+    cg.appendChild(svgEl("polygon", { class: "castle-wall", points: pts(ca.innerWall), fill: "none", stroke: "#5a5346", "stroke-width": 1.3, "stroke-linejoin": "round" }));
+    for (const t2 of ca.towers) cg.appendChild(svgEl("circle", { class: "castle-tower", cx: t2[0], cy: t2[1], r: 1.3, fill: "#8a8272", stroke: "#4c463c", "stroke-width": 0.4 }));
+    cg.appendChild(svgEl("circle", { class: "castle-gate", cx: ca.gate[0], cy: ca.gate[1], r: 1.1, fill: "#e8dfc9", stroke: "#4c463c", "stroke-width": 0.5 }));
+    if (ca.postern) cg.appendChild(svgEl("circle", { class: "castle-postern", cx: ca.postern[0], cy: ca.postern[1], r: 0.9, fill: "#e8dfc9", stroke: "#7a2f2f", "stroke-width": 0.5 }));
+    cg.appendChild(svgEl("polygon", { class: "castle-keep", points: pts(ca.keep), fill: "#6e7686", stroke: "#3a4050", "stroke-width": 0.6 }));
+    clipped.appendChild(cg);
+  }
   root.appendChild(clipped);
 
   if (layout.features.trees.length) {

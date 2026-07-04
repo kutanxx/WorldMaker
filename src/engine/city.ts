@@ -22,6 +22,8 @@ import type { WardType } from "./city/zoning";
 import { subdivide } from "./city/buildings";
 import { generateCountryside } from "./city/countryside";
 import type { Countryside } from "./city/countryside";
+import { makeCastle } from "./city/castle";
+import type { Castle } from "./city/castle";
 import type { CityMarker } from "../types/world";
 
 export interface Ward {
@@ -71,6 +73,7 @@ export interface CityLayout {
   cemetery: Cemetery | null;
   gallows: Point | null;
   countryside: Countryside;
+  castle: Castle | null;
 }
 
 export interface CityContext {
@@ -108,7 +111,7 @@ function offsetSegment(seg: Polyline, c: Point, d: number): Polyline {
   });
 }
 
-const NO_BUILDINGS: WardType[] = ["plaza", "park"];
+const NO_BUILDINGS: WardType[] = ["plaza", "park", "castle"];
 const DENSITY: Partial<Record<WardType, number>> = {
   slum: 70, craftsmen: 110, gate: 120, merchant: 150, market: 170, patriciate: 240, military: 260,
 };
@@ -198,7 +201,24 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
     for (const p of sea) { sx += p[0]; sy += p[1]; }
     seaAnchor = [sx / sea.length, sy / sea.length];
   }
-  const zoned = assignZones(rng, cells, [center[0], center[1]], radius, { hasCastle: ctx.isCapital || ctx.size >= 4, coastal: ctx.coastal, castleAnchor, seaAnchor });
+  // the lord's castle sits AT the town wall (research: urban castle) unless a mountain
+  // anchor already claims the high ground. Bias the wall pick away from the sea side.
+  if (!castleAnchor) {
+    let v: Point;
+    if (seaAnchor) {
+      // coastal: put the castle on the wall run farthest from the harbor side
+      let bi = 0, bd = -Infinity;
+      for (let i = 0; i < boundary.length; i++) {
+        const d = Math.hypot(boundary[i][0] - seaAnchor[0], boundary[i][1] - seaAnchor[1]);
+        if (d > bd) { bd = d; bi = i; }
+      }
+      v = boundary[bi];
+    } else {
+      v = boundary[Math.floor(rng() * boundary.length)]; // inland: any stretch of wall
+    }
+    castleAnchor = [center[0] + (v[0] - center[0]) * 0.85, center[1] + (v[1] - center[1]) * 0.85];
+  }
+  const zoned = assignZones(rng, cells, [center[0], center[1]], radius, { hasCastle: true, coastal: ctx.coastal, castleAnchor, seaAnchor });
 
   const parks: Polygon[] = [];
   const wards: Ward[] = zoned.map((z) => {
@@ -225,6 +245,11 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
   for (const z of zoned) {
     if (LABELLED.includes(z.type)) { const c = centroid(z.polygon); labels.push({ x: c[0], y: c[1], type: z.type }); }
   }
+
+  // the lord's castle: built from the zoned castle ward polygon, right after wards/labels
+  // and before features/extramural work (its rng draws are part of the main stream tail here).
+  const castleWard = zoned.find((z) => z.type === "castle") ?? null;
+  const castle = castleWard ? makeCastle(rng, castleWard.polygon, [center[0], center[1]], boundary, ctx.size) : null;
 
   const allBuildings = wards.flatMap((w) => w.buildings);
   const scatterTrees = (n: number): Point[] => {
@@ -342,6 +367,6 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
   return {
     name: ctx.name, size: ctx.size, coastal: ctx.coastal, isCapital: ctx.isCapital,
     archetype, bounds, boundary, water, mountains, wall, moat, gateBridges, mainRoads, minorRoads, wards, parks, labels, features, suburbRoads, suburbs, outworks, harbor,
-    abbey, cemetery, gallows, countryside,
+    abbey, cemetery, gallows, countryside, castle,
   };
 }

@@ -111,4 +111,11 @@ describe("renderCity organic", () => {
     expect(env.querySelectorAll(".farm-barn").length).toBe(layout.countryside.farmsteads.length);
     expect(env.querySelectorAll(".wood-tree").length).toBe(layout.countryside.woods.length);
   });
+  it("draws the castle inner wall, towers and keep", () => {
+    const layout = generateCityLayout({ id: 7, name: "T", size: 4, coastal: false, isCapital: false, elevation: 0.4, biome: GRASSLAND }, 1);
+    const svg = renderCity(layout, "en");
+    expect(svg.querySelector(".castle-wall")).not.toBeNull();
+    expect(svg.querySelector(".castle-keep")).not.toBeNull();
+    expect(svg.querySelectorAll(".castle-tower").length).toBe(layout.castle!.towers.length);
+  });
 });
