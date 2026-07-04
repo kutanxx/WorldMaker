@@ -95,11 +95,39 @@ export function renderCity(layout: CityLayout, lang: Lang = "en"): SVGSVGElement
   }
 
   const env = svgEl("g", { class: "environs" });
+  // countryside ground patches: gardens/fields/pastures/orchards/woods, drawn under the
+  // suburb roads/houses so buildings and roads read on top of the open-field system.
+  const cs = layout.countryside;
+  for (const g2 of cs.gardens) env.appendChild(svgEl("polygon", { class: "garden", points: pts(g2), fill: "#c9d0a0", stroke: "#8a8a5f", "stroke-width": 0.3 }));
+  const dry = layout.features.groundColor === "#ece0c2"; // desert palette pair
+  for (const f of cs.fields) {
+    env.appendChild(svgEl("polygon", { class: "field", points: pts(f.polygon), fill: dry ? "#e0cf9a" : "#d9cc9a", stroke: "#b3a26e", "stroke-width": 0.4 }));
+    for (const s of f.strips) env.appendChild(svgEl("polyline", { class: "furrow", points: pts(s), fill: "none", stroke: dry ? "#c9b47a" : "#c4b581", "stroke-width": 0.35 }));
+  }
+  for (const p of cs.pastures) {
+    env.appendChild(svgEl("polygon", { class: "pasture", points: pts(p.fence), fill: "#ccd6a8", "fill-opacity": 0.7, stroke: "#8a6a44", "stroke-width": 0.5, "stroke-dasharray": "1.6 1.1" }));
+    for (const a of p.animals) env.appendChild(svgEl("circle", { class: "animal", cx: a[0], cy: a[1], r: 0.8, fill: p.kind === "sheep" ? "#f4f1e4" : "#8a6a44", stroke: "#5c4a33", "stroke-width": 0.25 }));
+  }
+  for (const or of cs.orchards) {
+    env.appendChild(svgEl("polygon", { class: "orchard", points: pts(or.polygon), fill: "#cfd8ac", "fill-opacity": 0.5, stroke: "#8a8a5f", "stroke-width": 0.3 }));
+    for (const t2 of or.trees) {
+      env.appendChild(svgEl("circle", { class: "orchard-tree", cx: t2[0], cy: t2[1], r: 1.4, fill: "#8fae6e", stroke: "#5d7a45", "stroke-width": 0.3 }));
+    }
+  }
+  for (const t2 of cs.woods) {
+    env.appendChild(svgEl("circle", { class: "wood-tree", cx: t2[0], cy: t2[1], r: 1.6 + ((t2[0] * 7 + t2[1] * 13) % 10) / 12, fill: "#7d9b62", stroke: "#55703f", "stroke-width": 0.3 }));
+  }
   for (const r of layout.suburbRoads) {
     env.appendChild(svgEl("polyline", { class: "suburb-road", points: pts(r), fill: "none", stroke: "#c9bb96", "stroke-width": 1.6, "stroke-linecap": "round" }));
   }
   for (const b of layout.suburbs) {
     env.appendChild(svgEl("polygon", { class: "suburb", points: pts(b), fill: "#e0d6c0", stroke: "#9a8a70", "stroke-width": 0.4 }));
+  }
+  // farm buildings: drawn above their fields/pastures, alongside the suburb houses
+  for (const fm of cs.farmsteads) {
+    if (fm.yard) env.appendChild(svgEl("polygon", { class: "farm-yard", points: pts(fm.yard), fill: "none", stroke: "#8a6a44", "stroke-width": 0.4, "stroke-dasharray": "1.2 1" }));
+    env.appendChild(svgEl("polygon", { class: "farm-barn", points: pts(fm.barn), fill: "#7a5a3a", stroke: "#4d3620", "stroke-width": 0.4 }));
+    env.appendChild(svgEl("polygon", { class: "farm-house", points: pts(fm.house), fill: "#e0d6c0", stroke: "#9a8a70", "stroke-width": 0.4 }));
   }
   for (const o of layout.outworks) {
     const [x, y] = o.at;

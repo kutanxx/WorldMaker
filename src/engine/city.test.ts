@@ -234,4 +234,12 @@ describe("city harbor (Phase 3)", () => {
       }
     }
   });
+  it("attaches a countryside outside the walls", () => {
+    const layout = generateCityLayout({ id: 7, name: "Test", size: 3, coastal: false, isCapital: false, elevation: 0.4, biome: GRASSLAND }, 1);
+    const cs = layout.countryside;
+    expect(cs.fields.length).toBeGreaterThanOrEqual(2);
+    expect(cs.pastures.length).toBeGreaterThanOrEqual(1);
+    for (const f of cs.fields) expect(pointInPolygon(centroid(f.polygon), layout.boundary)).toBe(false);
+    for (const p of cs.pastures) expect(pointInPolygon(centroid(p.fence), layout.boundary)).toBe(false);
+  });
 });

@@ -20,6 +20,8 @@ import { generateWards } from "./city/wards";
 import { assignZones } from "./city/zoning";
 import type { WardType } from "./city/zoning";
 import { subdivide } from "./city/buildings";
+import { generateCountryside } from "./city/countryside";
+import type { Countryside } from "./city/countryside";
 import type { CityMarker } from "../types/world";
 
 export interface Ward {
@@ -68,6 +70,7 @@ export interface CityLayout {
   abbey: Abbey | null;
   cemetery: Cemetery | null;
   gallows: Point | null;
+  countryside: Countryside;
 }
 
 export interface CityContext {
@@ -327,9 +330,18 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
   { const s = findSpot(13); if (s) { const graves: Point[] = []; for (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++) graves.push([s[0] + (c - 1) * 3, s[1] + (r - 1) * 3.2]); cemetery = { at: s, graves }; } }
   const gallows: Point | null = ctx.size >= 2 ? findSpot(10) : null;
 
+  // countryside: generated LAST (rng-stream tail, per convention) so it avoids every
+  // suburb/outwork/landmark already placed above (occupied carries all of their centres).
+  const countryside = generateCountryside(rng, {
+    bounds, boundary, water, mountains,
+    roads: suburbRoads,
+    obstacles: [...occupied],
+    size: ctx.size, biome: ctx.biome, oasis: archetype.oasis,
+  });
+
   return {
     name: ctx.name, size: ctx.size, coastal: ctx.coastal, isCapital: ctx.isCapital,
     archetype, bounds, boundary, water, mountains, wall, moat, gateBridges, mainRoads, minorRoads, wards, parks, labels, features, suburbRoads, suburbs, outworks, harbor,
-    abbey, cemetery, gallows,
+    abbey, cemetery, gallows, countryside,
   };
 }
