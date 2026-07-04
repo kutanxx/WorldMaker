@@ -193,6 +193,22 @@ describe("gate roads reach the countryside", () => {
   });
 });
 
+describe("seigneurial mills", () => {
+  it("a watermill sits on dry land with a mill-race reaching the watercourse", () => {
+    let found: { water: ReturnType<typeof generateCityLayout>["water"]; race: [ [number, number], [number, number] ]; at: [number, number] } | null = null;
+    for (let s = 1; s <= 40 && !found; s++) {
+      for (const size of [2, 3, 4]) {
+        const l = generateCityLayout({ id: 7, name: "T", size, coastal: true, isCapital: false, elevation: 0.4, biome: GRASSLAND }, s);
+        const wm = l.outworks.find((o) => o.type === "watermill" && o.race);
+        if (wm && wm.race) { found = { water: l.water, race: wm.race, at: wm.at }; break; }
+      }
+    }
+    expect(found).not.toBeNull();
+    expect(inWater(found!.water, found!.race[1])).toBe(true); // the race reaches the water
+    expect(inWater(found!.water, found!.at)).toBe(false);     // the mill building is on dry land
+  });
+});
+
 describe("city mountain (Phase 2)", () => {
   const mtn = { ...base, id: 5, coastal: false, elevation: 0.9, biome: 4 };
   // some high-elevation cities pick a mountain-mass archetype (hillside/spur/valleyPass); find one

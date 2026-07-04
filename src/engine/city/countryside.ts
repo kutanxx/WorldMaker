@@ -10,16 +10,19 @@ import { inMountains } from "./mountain";
 import type { MountainMass } from "./mountain";
 import { DESERT, WETLAND, TAIGA, TEMPERATE_FOREST, TROPICAL, TUNDRA, ALPINE } from "../biome";
 
-export interface FieldPatch { polygon: Polygon; strips: Polyline[] }
+export interface FieldPatch { polygon: Polygon; strips: Polyline[]; state: "cultivated" | "fallow" }
 export interface Pasture { fence: Polygon; animals: Point[]; kind: "sheep" | "cattle" }
 export interface Farmstead { house: Polygon; barn: Polygon; yard: Polygon | null }
 export interface Orchard { polygon: Polygon; trees: Point[] }
+// a dependent hamlet: church + common green + a cluster of dwellings (held the open-field strips)
+export interface Village { green: Polygon; chapel: Point; houses: Polygon[] }
 export interface Countryside {
   gardens: Polygon[];
   fields: FieldPatch[];
   pastures: Pasture[];
   farmsteads: Farmstead[];
   orchards: Orchard[];
+  villages: Village[];
   woods: Point[];
   dry: boolean;
 }
@@ -123,6 +126,9 @@ export function generateCountryside(rng: Rng, opts: CountrysideOpts): Countrysid
   // ring 2: great fields — 2-3 sectors anchored to road spines, furlong blocks of strips
   const fields: FieldPatch[] = [];
   const sectors = roads.length >= 2 ? Math.min(3, roads.length) : roads.length;
+  // three-field rotation: one whole sector lies fallow this year (grazed), the rest cropped.
+  // Deserts irrigate rather than rotate, so nothing there lies fallow.
+  const fallowSector = sectors >= 2 && !prof.dry ? Math.floor(rng() * sectors) : -1;
   for (let sIdx = 0; sIdx < sectors; sIdx++) {
     const road = roads[sIdx % roads.length];
     for (let tries = 0; tries < 200 && fields.length < Math.ceil((prof.fields * (sIdx + 1)) / Math.max(1, sectors)); tries++) {
@@ -149,7 +155,7 @@ export function generateCountryside(rng: Rng, opts: CountrysideOpts): Countrysid
           [c[0] + ux * (hl - 1.2) + -uy * w, c[1] + uy * (hl - 1.2) + ux * w],
         ]);
       }
-      fields.push({ polygon: plot, strips }); claim(plot);
+      fields.push({ polygon: plot, strips, state: sIdx === fallowSector ? "fallow" : "cultivated" }); claim(plot);
     }
   }
   // desert: keep only fields near water/oasis (irrigation)
@@ -202,6 +208,39 @@ export function generateCountryside(rng: Rng, opts: CountrysideOpts): Countrysid
     farmsteads.push({ house, barn, yard }); claim(house); claim(barn);
   }
 
+  // nucleated villages: church + common green + a ring of dwellings — the community that held
+  // the open-field strips. Out in open country along a road, past the field ring.
+  const villages: Village[] = [];
+  const wantV = 1 + Math.floor(size / 3);
+  for (let tries = 0; tries < 160 && villages.length < wantV && roads.length > 0; tries++) {
+    const road = roads[Math.floor(rng() * roads.length)];
+    const t = 0.55 + rng() * 0.35;
+    const i = Math.min(road.length - 2, Math.floor(t * (road.length - 1)));
+    const frac = t * (road.length - 1) - i;
+    const ax = road[i][0] + (road[i + 1][0] - road[i][0]) * frac;
+    const ay = road[i][1] + (road[i + 1][1] - road[i][1]) * frac;
+    let ux = road[i + 1][0] - road[i][0], uy = road[i + 1][1] - road[i][1];
+    const rl = Math.hypot(ux, uy) || 1; ux /= rl; uy /= rl;
+    const side = rng() < 0.5 ? -1 : 1;
+    const off = 20 + rng() * 12;                        // clear of the roadside fields
+    const vc: Point = [ax + -uy * side * off, ay + ux * side * off];
+    const gr = 4 + rng() * 1.5;                          // common green radius
+    const green: Polygon = [];
+    for (let k = 0; k < 6; k++) { const a = (k / 6) * Math.PI * 2; const rr = gr * (0.8 + rng() * 0.4); green.push([vc[0] + Math.cos(a) * rr, vc[1] + Math.sin(a) * rr]); }
+    const nH = 5 + Math.floor(rng() * 5);
+    const houses: Polygon[] = [];
+    const hr = 8 + rng() * 2;
+    for (let k = 0; k < nH; k++) {
+      const a = (k / nH) * Math.PI * 2 + rng() * 0.3;
+      const hc: Point = [vc[0] + Math.cos(a) * hr, vc[1] + Math.sin(a) * hr];
+      houses.push(orientedRect(hc, Math.cos(a), Math.sin(a), 2, 1.4)); // gable end toward the green
+    }
+    const chapel: Point = [vc[0], vc[1] - (gr + 1)];      // church beside the green
+    if ([green, ...houses].some((poly) => !polyOk(poly, 6))) continue;
+    villages.push({ green, chapel, houses });
+    [green, ...houses].forEach(claim);
+  }
+
   // woodland fringe: tree points along the outer margin (the world continues into forest)
   const woods: Point[] = [];
   for (let tries = 0; tries < prof.woods * 8 && woods.length < prof.woods; tries++) {
@@ -216,5 +255,5 @@ export function generateCountryside(rng: Rng, opts: CountrysideOpts): Countrysid
     woods.push(p);
   }
 
-  return { gardens, fields: keptFields, pastures, farmsteads, orchards, woods, dry: prof.dry };
+  return { gardens, fields: keptFields, pastures, farmsteads, orchards, villages, woods, dry: prof.dry };
 }

@@ -101,8 +101,13 @@ export function renderCity(layout: CityLayout, lang: Lang = "en"): SVGSVGElement
   for (const g2 of cs.gardens) env.appendChild(svgEl("polygon", { class: "garden", points: pts(g2), fill: "#c9d0a0", stroke: "#8a8a5f", "stroke-width": 0.3 }));
   const dry = cs.dry; // engine is the single source of truth for the desert palette
   for (const f of cs.fields) {
-    env.appendChild(svgEl("polygon", { class: "field", points: pts(f.polygon), fill: dry ? "#e0cf9a" : "#d9cc9a", stroke: "#b3a26e", "stroke-width": 0.4 }));
-    for (const s of f.strips) env.appendChild(svgEl("polyline", { class: "furrow", points: pts(s), fill: "none", stroke: dry ? "#c9b47a" : "#c4b581", "stroke-width": 0.35 }));
+    // fallow fields (three-field rotation) rest under grass; the ridge-and-furrow earthwork
+    // persists so the furrows stay, just lighter.
+    const fallow = f.state === "fallow";
+    const fill = fallow ? "#c8cba0" : dry ? "#e0cf9a" : "#d9cc9a";
+    const furrow = fallow ? "#b3b585" : dry ? "#c9b47a" : "#c4b581";
+    env.appendChild(svgEl("polygon", { class: fallow ? "field field-fallow" : "field", points: pts(f.polygon), fill, stroke: "#b3a26e", "stroke-width": 0.4 }));
+    for (const s of f.strips) env.appendChild(svgEl("polyline", { class: "furrow", points: pts(s), fill: "none", stroke: furrow, "stroke-width": 0.35 }));
   }
   for (const p of cs.pastures) {
     env.appendChild(svgEl("polygon", { class: "pasture", points: pts(p.fence), fill: "#ccd6a8", "fill-opacity": 0.7, stroke: "#8a6a44", "stroke-width": 0.5, "stroke-dasharray": "1.6 1.1" }));
@@ -129,6 +134,14 @@ export function renderCity(layout: CityLayout, lang: Lang = "en"): SVGSVGElement
     env.appendChild(svgEl("polygon", { class: "farm-barn", points: pts(fm.barn), fill: "#7a5a3a", stroke: "#4d3620", "stroke-width": 0.4 }));
     env.appendChild(svgEl("polygon", { class: "farm-house", points: pts(fm.house), fill: "#e0d6c0", stroke: "#9a8a70", "stroke-width": 0.4 }));
   }
+  // nucleated hamlets: common green + church + a ring of cottages (a miniature of the town)
+  for (const v of cs.villages) {
+    env.appendChild(svgEl("polygon", { class: "village-green", points: pts(v.green), fill: "#bcd0a0", stroke: "#8a8a5f", "stroke-width": 0.3 }));
+    for (const h of v.houses) env.appendChild(svgEl("polygon", { class: "village-house", points: pts(h), fill: "#e0d6c0", stroke: "#9a8a70", "stroke-width": 0.4 }));
+    const [cx, cy] = v.chapel;
+    env.appendChild(svgEl("rect", { class: "village-chapel", x: cx - 1.4, y: cy - 1.1, width: 2.8, height: 2.2, fill: "#d8d2c4", stroke: "#7a6f56", "stroke-width": 0.4 }));
+    env.appendChild(svgEl("path", { class: "village-cross", d: `M${cx.toFixed(1)},${(cy - 1.1).toFixed(1)}L${cx.toFixed(1)},${(cy - 3).toFixed(1)}M${(cx - 0.8).toFixed(1)},${(cy - 2.3).toFixed(1)}L${(cx + 0.8).toFixed(1)},${(cy - 2.3).toFixed(1)}`, stroke: "#3c2f1c", "stroke-width": 0.6, fill: "none", "stroke-linecap": "round" }));
+  }
   for (const o of layout.outworks) {
     const [x, y] = o.at;
     if (o.type === "windmill") {
@@ -136,8 +149,13 @@ export function renderCity(layout: CityLayout, lang: Lang = "en"): SVGSVGElement
       const c = Math.cos(o.angle), s = Math.sin(o.angle), r = 4;
       env.appendChild(svgEl("path", { class: "outwork-sails", d: `M${(x - c * r).toFixed(1)} ${(y - s * r).toFixed(1)} L${(x + c * r).toFixed(1)} ${(y + s * r).toFixed(1)} M${(x + s * r).toFixed(1)} ${(y - c * r).toFixed(1)} L${(x - s * r).toFixed(1)} ${(y + c * r).toFixed(1)}`, stroke: "#6b5a44", "stroke-width": 0.8, fill: "none" }));
     } else {
+      // watermill: race channel to the water, mill house on the bank, wheel at the water end
+      if (o.race) {
+        env.appendChild(svgEl("line", { class: "mill-race", x1: o.race[0][0].toFixed(1), y1: o.race[0][1].toFixed(1), x2: o.race[1][0].toFixed(1), y2: o.race[1][1].toFixed(1), stroke: "#9fc1d6", "stroke-width": 1.4, "stroke-linecap": "round" }));
+      }
       env.appendChild(svgEl("rect", { class: "outwork", x: x - 2.5, y: y - 2, width: 5, height: 4, fill: "#c9a86a", stroke: "#8a6a44", "stroke-width": 0.5 }));
-      env.appendChild(svgEl("circle", { class: "outwork-wheel", cx: x + 3, cy: y + 1, r: 2, fill: "none", stroke: "#6b5a44", "stroke-width": 0.7 }));
+      const wheel = o.race ? o.race[1] : [x + 3, y + 1];
+      env.appendChild(svgEl("circle", { class: "outwork-wheel", cx: wheel[0], cy: wheel[1], r: 2, fill: "none", stroke: "#6b5a44", "stroke-width": 0.7 }));
     }
   }
   // extramural landmarks (outside the walls)

@@ -110,6 +110,7 @@ describe("renderCity organic", () => {
     expect(env.querySelectorAll(".pasture").length).toBe(layout.countryside.pastures.length);
     expect(env.querySelectorAll(".farm-barn").length).toBe(layout.countryside.farmsteads.length);
     expect(env.querySelectorAll(".wood-tree").length).toBe(layout.countryside.woods.length);
+    expect(env.querySelectorAll(".village-green").length).toBe(layout.countryside.villages.length);
   });
   it("draws the castle inner wall, towers and keep", () => {
     const layout = generateCityLayout({ id: 7, name: "T", size: 4, coastal: false, isCapital: false, elevation: 0.4, biome: GRASSLAND }, 1);

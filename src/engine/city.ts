@@ -41,7 +41,7 @@ export interface CityFeatures {
   groundColor: string;
 }
 
-export interface Outwork { type: "watermill" | "windmill"; at: Point; angle: number; }
+export interface Outwork { type: "watermill" | "windmill"; at: Point; angle: number; race?: [Point, Point]; }
 // extramural landmarks OUTSIDE the walls (research: abbey/cemetery/gallows sat beyond the gates)
 export interface Abbey { at: Point; angle: number; }
 export interface Cemetery { at: Point; graves: Point[]; }
@@ -323,16 +323,32 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
   const nearWater = (p: Point) =>
     inWater(water, [p[0] + 4, p[1]]) || inWater(water, [p[0] - 4, p[1]]) ||
     inWater(water, [p[0], p[1] + 4]) || inWater(water, [p[0], p[1] - 4]);
+  // the mill-race: march from the dry mill spot toward the water to the first wet point
+  const raceEnd = (p: Point): Point | null => {
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
+      for (let d = 3; d <= 12; d += 1.5) {
+        const q: Point = [p[0] + dx * d, p[1] + dy * d];
+        if (inWater(water, q)) return q;
+      }
+    }
+    return null;
+  };
+  // watermill on the watercourse (seigneurial: mill sits ON the water with a race)
   for (let tries = 0; tries < 80 && outworks.length === 0; tries++) {
     const p: Point = [3 + rng() * (bounds.w - 6), 3 + rng() * (bounds.h - 6)];
     if (pointInPolygon(p, boundary) || inWater(water, p) || inMountains(mountains, p) || !inCanvas(p)) continue;
-    if (nearWater(p)) outworks.push({ type: "watermill", at: p, angle: rng() * Math.PI * 2 });
+    if (nearWater(p)) { const r = raceEnd(p); outworks.push({ type: "watermill", at: p, angle: rng() * Math.PI * 2, race: r ? [p, r] : undefined }); }
   }
-  for (let tries = 0; tries < 80 && outworks.length === 0; tries++) {
-    const p: Point = [3 + rng() * (bounds.w - 6), 3 + rng() * (bounds.h - 6)];
-    if (pointInPolygon(p, boundary) || inWater(water, p) || inMountains(mountains, p) || !inCanvas(p)) continue;
-    if (suburbs.some((b) => { const c = centroid(b); return Math.hypot(c[0] - p[0], c[1] - p[1]) < 10; })) continue;
-    outworks.push({ type: "windmill", at: p, angle: rng() * Math.PI * 2 });
+  // windmill on exposed high ground: phase 0 insists on open country well past the wall,
+  // phase 1 falls back to any valid spot so a cramped canvas still yields a mill
+  for (let phase = 0; phase < 2 && outworks.length === 0; phase++) {
+    for (let tries = 0; tries < 80 && outworks.length === 0; tries++) {
+      const p: Point = [3 + rng() * (bounds.w - 6), 3 + rng() * (bounds.h - 6)];
+      if (pointInPolygon(p, boundary) || inWater(water, p) || inMountains(mountains, p) || !inCanvas(p)) continue;
+      if (suburbs.some((b) => { const c = centroid(b); return Math.hypot(c[0] - p[0], c[1] - p[1]) < 10; })) continue;
+      if (phase === 0 && Math.hypot(p[0] - center[0], p[1] - center[1]) < radius + 22) continue; // exposed, on a rise
+      outworks.push({ type: "windmill", at: p, angle: rng() * Math.PI * 2 });
+    }
   }
 
   // harbor: generated LAST of the intramural/water features (its rng draws don't perturb the layout above); sea cities only

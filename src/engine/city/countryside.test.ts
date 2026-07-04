@@ -84,6 +84,7 @@ describe("generateCountryside — pastures/farmsteads/woods", () => {
       const patches: Polygon[] = [
         ...c.gardens, ...c.fields.map((f) => f.polygon), ...c.pastures.map((p) => p.fence),
         ...c.orchards.map((or) => or.polygon), ...c.farmsteads.flatMap((f) => [f.house, f.barn]),
+        ...c.villages.flatMap((v) => [v.green, ...v.houses]),
       ];
       for (let i = 0; i < patches.length; i++) {
         for (let j = i + 1; j < patches.length; j++) {
@@ -103,6 +104,39 @@ describe("generateCountryside — pastures/farmsteads/woods", () => {
       for (const t of c.woods) for (const patch of patches) expect(pointInPolygon(t, patch)).toBe(false);
     }
   });
+  it("places nucleated villages (chapel + green + house cluster) out in open country", () => {
+    const o = plainOpts();
+    let total = 0;
+    for (const seed of [9, 3, 7, 21, 42]) {
+      const c = generateCountryside(mulberry32(seed), o);
+      for (const v of c.villages) {
+        total++;
+        expect(v.houses.length).toBeGreaterThanOrEqual(5);
+        expect(pointInPolygon(v.chapel, o.boundary)).toBe(false);
+        expect(pointInPolygon(centroid(v.green), o.boundary)).toBe(false);
+        for (const h of v.houses) expect(pointInPolygon(centroid(h), o.boundary)).toBe(false);
+      }
+    }
+    expect(total).toBeGreaterThanOrEqual(1);
+  });
+  it("runs a three-field rotation: one sector lies fallow, the rest cultivated", () => {
+    let sawFallow = false, sawCultivated = false;
+    for (const seed of [3, 7, 9, 21, 42]) {
+      const c = generateCountryside(mulberry32(seed), plainOpts());
+      for (const f of c.fields) {
+        expect(["cultivated", "fallow"]).toContain(f.state);
+        if (f.state === "fallow") sawFallow = true;
+        if (f.state === "cultivated") sawCultivated = true;
+      }
+    }
+    expect(sawFallow).toBe(true);
+    expect(sawCultivated).toBe(true);
+  });
+  it("desert fields are all cultivated (irrigation, not rotation)", () => {
+    const c = generateCountryside(mulberry32(9), { ...plainOpts(), biome: DESERT });
+    for (const f of c.fields) expect(f.state).toBe("cultivated");
+  });
+
   it("desert city has no pastures and no woods", () => {
     const o = { ...plainOpts(), biome: DESERT };
     const c = generateCountryside(mulberry32(9), o);
