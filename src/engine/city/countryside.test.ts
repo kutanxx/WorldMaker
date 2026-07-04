@@ -84,6 +84,7 @@ describe("generateCountryside — pastures/farmsteads/woods", () => {
       const patches: Polygon[] = [
         ...c.gardens, ...c.fields.map((f) => f.polygon), ...c.pastures.map((p) => p.fence),
         ...c.orchards.map((or) => or.polygon), ...c.farmsteads.flatMap((f) => [f.house, f.barn]),
+        ...c.villages.flatMap((v) => [v.green, ...v.houses]),
       ];
       for (let i = 0; i < patches.length; i++) {
         for (let j = i + 1; j < patches.length; j++) {
@@ -102,6 +103,21 @@ describe("generateCountryside — pastures/farmsteads/woods", () => {
       // trees stay out of patches too
       for (const t of c.woods) for (const patch of patches) expect(pointInPolygon(t, patch)).toBe(false);
     }
+  });
+  it("places nucleated villages (chapel + green + house cluster) out in open country", () => {
+    const o = plainOpts();
+    let total = 0;
+    for (const seed of [9, 3, 7, 21, 42]) {
+      const c = generateCountryside(mulberry32(seed), o);
+      for (const v of c.villages) {
+        total++;
+        expect(v.houses.length).toBeGreaterThanOrEqual(5);
+        expect(pointInPolygon(v.chapel, o.boundary)).toBe(false);
+        expect(pointInPolygon(centroid(v.green), o.boundary)).toBe(false);
+        for (const h of v.houses) expect(pointInPolygon(centroid(h), o.boundary)).toBe(false);
+      }
+    }
+    expect(total).toBeGreaterThanOrEqual(1);
   });
   it("runs a three-field rotation: one sector lies fallow, the rest cultivated", () => {
     let sawFallow = false, sawCultivated = false;

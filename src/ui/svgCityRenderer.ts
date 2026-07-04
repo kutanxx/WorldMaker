@@ -134,6 +134,14 @@ export function renderCity(layout: CityLayout, lang: Lang = "en"): SVGSVGElement
     env.appendChild(svgEl("polygon", { class: "farm-barn", points: pts(fm.barn), fill: "#7a5a3a", stroke: "#4d3620", "stroke-width": 0.4 }));
     env.appendChild(svgEl("polygon", { class: "farm-house", points: pts(fm.house), fill: "#e0d6c0", stroke: "#9a8a70", "stroke-width": 0.4 }));
   }
+  // nucleated hamlets: common green + church + a ring of cottages (a miniature of the town)
+  for (const v of cs.villages) {
+    env.appendChild(svgEl("polygon", { class: "village-green", points: pts(v.green), fill: "#bcd0a0", stroke: "#8a8a5f", "stroke-width": 0.3 }));
+    for (const h of v.houses) env.appendChild(svgEl("polygon", { class: "village-house", points: pts(h), fill: "#e0d6c0", stroke: "#9a8a70", "stroke-width": 0.4 }));
+    const [cx, cy] = v.chapel;
+    env.appendChild(svgEl("rect", { class: "village-chapel", x: cx - 1.4, y: cy - 1.1, width: 2.8, height: 2.2, fill: "#d8d2c4", stroke: "#7a6f56", "stroke-width": 0.4 }));
+    env.appendChild(svgEl("path", { class: "village-cross", d: `M${cx.toFixed(1)},${(cy - 1.1).toFixed(1)}L${cx.toFixed(1)},${(cy - 3).toFixed(1)}M${(cx - 0.8).toFixed(1)},${(cy - 2.3).toFixed(1)}L${(cx + 0.8).toFixed(1)},${(cy - 2.3).toFixed(1)}`, stroke: "#3c2f1c", "stroke-width": 0.6, fill: "none", "stroke-linecap": "round" }));
+  }
   for (const o of layout.outworks) {
     const [x, y] = o.at;
     if (o.type === "windmill") {
