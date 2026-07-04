@@ -90,4 +90,10 @@ describe("zoning.assignZones", () => {
       expect(dCastle).toBeLessThanOrEqual(Math.hypot(w.site[0] - anchor[0], w.site[1] - anchor[1]) + 1e-6);
     }
   });
+  it("reserves a castle even when there are fewer wards than civic slots", () => {
+    const rng = mulberry32(2);
+    const cells = ringWards(14).slice(0, 3);
+    const zoned = assignZones(rng, cells, [150, 150], 100, { hasCastle: true, coastal: false });
+    expect(zoned.some((z) => z.type === "castle")).toBe(true);
+  });
 });

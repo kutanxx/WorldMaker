@@ -76,6 +76,14 @@ export function assignZones(
 
   if (harborWard) harborWard.type = "harbor";
 
+  // tiny cities can run out of wards before the castle slot — the lord's seat still claims one
+  // (every walled town has its castle): repurpose the outermost non-harbor ward.
+  if (opts.hasCastle && !out.some((w) => w.type === "castle")) {
+    for (let j = out.length - 1; j >= 0; j--) {
+      if (out[j] !== harborWard) { out[j].type = "castle"; break; }
+    }
+  }
+
   // medieval social zonation by distance from the civic core: market at the heart (beside the
   // plaza), the wealthy (merchant/patriciate) in the inner ring, artisans (craftsmen) in the
   // middle, the poor + garrison (slum/military/park) at the rim, urban all the way to the wall
