@@ -210,11 +210,20 @@ export function renderCity(layout: CityLayout, lang: Lang = "en"): SVGSVGElement
     const ca = layout.castle;
     const cg = svgEl("g", { class: "castle-inner" });
     for (const an of ca.annexes) cg.appendChild(svgEl("polygon", { class: "castle-annex", points: pts(an), fill: "#cfd4dd", stroke: "#5a6272", "stroke-width": 0.4 }));
-    cg.appendChild(svgEl("polygon", { class: "castle-wall", points: pts(ca.innerWall), fill: "none", stroke: "#5a5346", "stroke-width": 1.3, "stroke-linejoin": "round" }));
-    for (const t2 of ca.towers) cg.appendChild(svgEl("circle", { class: "castle-tower", cx: t2[0], cy: t2[1], r: 1.3, fill: "#8a8272", stroke: "#4c463c", "stroke-width": 0.4 }));
+    // inner wall: town-wall-style double stroke
+    cg.appendChild(svgEl("polygon", { class: "castle-wall", points: pts(ca.innerWall), fill: "none", stroke: "#5a5346", "stroke-width": 1.6, "stroke-linejoin": "round" }));
+    cg.appendChild(svgEl("polygon", { class: "castle-wall-inner", points: pts(ca.innerWall), fill: "none", stroke: "#8a7a60", "stroke-width": 0.6, "stroke-linejoin": "round" }));
+    for (const t2 of ca.towers) cg.appendChild(svgEl("circle", { class: "castle-tower", cx: t2[0], cy: t2[1], r: 2.1, fill: "#8a8272", stroke: "#4c463c", "stroke-width": 0.6 }));
     cg.appendChild(svgEl("circle", { class: "castle-gate", cx: ca.gate[0], cy: ca.gate[1], r: 1.1, fill: "#e8dfc9", stroke: "#4c463c", "stroke-width": 0.5 }));
     if (ca.postern) cg.appendChild(svgEl("circle", { class: "castle-postern", cx: ca.postern[0], cy: ca.postern[1], r: 0.9, fill: "#e8dfc9", stroke: "#7a2f2f", "stroke-width": 0.5 }));
-    cg.appendChild(svgEl("polygon", { class: "castle-keep", points: pts(ca.keep), fill: "#6e7686", stroke: "#3a4050", "stroke-width": 0.6 }));
+    // donjon: shadow + body + inner great-tower square + corner turrets (concentric-square, top-down)
+    const kctr = avg(ca.keep);
+    const shadow = ca.keep.map(([x, y]) => [x + 1, y + 1] as [number, number]);
+    const innerKeep = ca.keep.map(([x, y]) => [x + (kctr[0] - x) * 0.42, y + (kctr[1] - y) * 0.42] as [number, number]);
+    cg.appendChild(svgEl("polygon", { class: "castle-keep-shadow", points: pts(shadow), fill: "#2f333c", "fill-opacity": 0.5 }));
+    cg.appendChild(svgEl("polygon", { class: "castle-keep", points: pts(ca.keep), fill: "#6e7686", stroke: "#3a4050", "stroke-width": 0.8 }));
+    cg.appendChild(svgEl("polygon", { class: "castle-keep-inner", points: pts(innerKeep), fill: "#565e6e", stroke: "#333a48", "stroke-width": 0.5 }));
+    for (const [x, y] of ca.keep) cg.appendChild(svgEl("circle", { class: "castle-turret", cx: x, cy: y, r: 1.6, fill: "#7c8494", stroke: "#3a4050", "stroke-width": 0.5 }));
     clipped.appendChild(cg);
   }
   root.appendChild(clipped);
