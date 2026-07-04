@@ -3,7 +3,7 @@
 // farmhouses at field edges (spec 2026-07-05-extramural-countryside-castle-design.md).
 import type { Rng } from "../rng";
 import type { Point, Polygon, Polyline } from "../geometry";
-import { pointInPolygon, centroid, polysOverlap, pointSegDist } from "../geometry";
+import { pointInPolygon, centroid, polysOverlap, pointSegDist, segmentsIntersect } from "../geometry";
 import { inWater } from "./water";
 import type { Water } from "./water";
 import { inMountains } from "./mountain";
@@ -32,6 +32,7 @@ export interface CountrysideOpts {
   water: Water;
   mountains: MountainMass[];
   roads: Polyline[];      // extended gate roads (spines)
+  moat: Polyline[];       // wall moat ring (separate blue geometry the patches must clear)
   obstacles: Point[];     // suburb/outwork/landmark centres to keep clear of
   size: number;
   biome: number;          // biome constants from ../biome
@@ -84,12 +85,23 @@ export function generateCountryside(rng: Rng, opts: CountrysideOpts): Countrysid
     for (const road of roads) for (let i = 0; i < road.length - 1; i++) d = Math.min(d, pointSegDist(p, road[i], road[i + 1]));
     return d;
   };
+  // the moat is a ~5px-wide blue ring just outside the wall; keep every patch off it so
+  // wall-hugging gardens don't sit under the water line (user-reported farm/water overlap)
+  const MOAT_CLEAR = 4;
+  const nearMoat = (poly: Polygon) => {
+    for (const seg of opts.moat) for (let i = 0; i < seg.length - 1; i++) {
+      const a = seg[i], b = seg[i + 1];
+      for (const v of poly) if (pointSegDist(v, a, b) < MOAT_CLEAR) return true;
+      for (let j = 0; j < poly.length; j++) if (segmentsIntersect(a, b, poly[j], poly[(j + 1) % poly.length])) return true;
+    }
+    return false;
+  };
   const polyOk = (poly: Polygon, gap: number) => {
     const c = centroid(poly);
     if (poly.some(blocked) || blocked(c)) return false;
     if (obstacles.some((o) => Math.hypot(o[0] - c[0], o[1] - c[1]) < gap)) return false;
     if (claimedPolys.some((cp) => polysOverlap(poly, cp))) return false;
-    if (roadThrough(poly)) return false;
+    if (roadThrough(poly) || nearMoat(poly)) return false;
     return true;
   };
   const claim = (poly: Polygon) => { obstacles.push(centroid(poly)); claimedPolys.push(poly); };
@@ -98,9 +110,12 @@ export function generateCountryside(rng: Rng, opts: CountrysideOpts): Countrysid
   const gardens: Polygon[] = [];
   const orchards: Orchard[] = [];
   const wallR = (() => { let s = 0; for (const p of boundary) s += Math.hypot(p[0] - bc[0], p[1] - bc[1]); return s / boundary.length; })();
+  // moated archetypes push the wall-fringe rings out past the ~9px moat band so gardens/orchards
+  // sit just beyond the water, not under it
+  const moatOff = opts.moat.length ? 9 : 0;
   for (let tries = 0; tries < 140 && gardens.length < 3 + size; tries++) {
     const a = rng() * Math.PI * 2;
-    const r = wallR + 8 + rng() * 8;
+    const r = wallR + 8 + moatOff + rng() * 8;
     const c: Point = [bc[0] + Math.cos(a) * r, bc[1] + Math.sin(a) * r];
     const ux = -Math.sin(a), uy = Math.cos(a); // long side parallel to the wall
     const plot = orientedRect(c, ux, uy, 5 + rng() * 3, 3);
@@ -109,7 +124,7 @@ export function generateCountryside(rng: Rng, opts: CountrysideOpts): Countrysid
   }
   for (let tries = 0; tries < 140 && orchards.length < prof.orchards; tries++) {
     const a = rng() * Math.PI * 2;
-    const r = wallR + 12 + rng() * 14;
+    const r = wallR + 12 + moatOff + rng() * 14;
     const c: Point = [bc[0] + Math.cos(a) * r, bc[1] + Math.sin(a) * r];
     const ux = -Math.sin(a), uy = Math.cos(a);
     const hl = 8 + rng() * 4, hw = 6 + rng() * 3;

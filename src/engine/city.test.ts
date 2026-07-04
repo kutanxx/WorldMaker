@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { generateCityLayout, cityContext } from "./city";
-import { centroid, pointInPolygon } from "./geometry";
+import { centroid, pointInPolygon, polysOverlap } from "./geometry";
 import { inWater } from "./city/water";
 import { inMountains } from "./city/mountain";
 import { GRASSLAND } from "./biome";
@@ -190,6 +190,49 @@ describe("gate roads reach the countryside", () => {
         }
       }
     }
+  });
+});
+
+describe("countryside vs water", () => {
+  it("no field/pasture/orchard/garden/village/farmstead overlaps a water body (seed sweep)", () => {
+    const offenders: string[] = [];
+    for (let s = 1; s <= 30; s++) {
+      for (const [coastal, elevation] of [[true, 0.4], [false, 0.4], [false, 0.5]] as const) {
+        const l = generateCityLayout({ id: 7, name: "T", size: 3 + (s % 3), coastal, isCapital: false, elevation, biome: GRASSLAND }, s);
+        if (!l.water.bodies.length) continue;
+        const cs = l.countryside;
+        const patches = [
+          ...cs.gardens, ...cs.fields.map((f) => f.polygon), ...cs.pastures.map((p) => p.fence),
+          ...cs.orchards.map((o) => o.polygon), ...cs.farmsteads.flatMap((f) => [f.house, f.barn]),
+          ...cs.villages.flatMap((v) => [v.green, ...v.houses]),
+        ];
+        for (const patch of patches) for (const body of l.water.bodies) {
+          if (polysOverlap(patch, body)) offenders.push(`seed ${s} coastal=${coastal} el=${elevation}`);
+        }
+      }
+    }
+    expect(offenders).toEqual([]);
+  });
+  it("no field/pasture/garden/orchard sits on the wall moat (seed sweep)", () => {
+    const dist = (p: [number, number], a: [number, number], b: [number, number]) => {
+      const dx = b[0] - a[0], dy = b[1] - a[1], L2 = dx * dx + dy * dy || 1;
+      const t = Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / L2));
+      return Math.hypot(p[0] - (a[0] + t * dx), p[1] - (a[1] + t * dy));
+    };
+    const offenders: string[] = [];
+    for (let s = 1; s <= 30; s++) {
+      const l = generateCityLayout({ id: 7, name: "T", size: 3 + (s % 3), coastal: false, isCapital: false, elevation: 0.4, biome: GRASSLAND }, s);
+      if (!l.moat) continue;
+      const cs = l.countryside;
+      const patches = [
+        ...cs.gardens, ...cs.fields.map((f) => f.polygon), ...cs.pastures.map((p) => p.fence),
+        ...cs.orchards.map((o) => o.polygon),
+      ];
+      for (const patch of patches) for (const seg of l.moat) for (let i = 0; i < seg.length - 1; i++) {
+        for (const v of patch) if (dist(v, seg[i], seg[i + 1]) < 2.5) offenders.push(`seed ${s}`);
+      }
+    }
+    expect(offenders).toEqual([]);
   });
 });
 
