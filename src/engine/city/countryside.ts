@@ -183,7 +183,7 @@ export function generateCountryside(rng: Rng, opts: CountrysideOpts): Countrysid
   const woods: Point[] = [];
   for (let tries = 0; tries < prof.woods * 8 && woods.length < prof.woods; tries++) {
     const edge = Math.floor(rng() * 4);
-    const t = rng() * bounds.w;
+    const t = rng() * (edge < 2 ? bounds.w : bounds.h);
     const depth = 4 + rng() * 30;
     const p: Point = edge === 0 ? [t, depth] : edge === 1 ? [t, bounds.h - depth] : edge === 2 ? [depth, t] : [bounds.w - depth, t];
     if (blocked(p)) continue;
