@@ -251,10 +251,7 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
   const inCanvas = (p: Point) => p[0] > 3 && p[0] < bounds.w - 3 && p[1] > 3 && p[1] < bounds.h - 3;
   const suburbRoads: Polyline[] = [];
   const suburbs: Polygon[] = [];
-  const gateBudget = 1 + Math.floor(ctx.size / 2);
-  let gatesUsed = 0;
   for (const g of wall.gates) {
-    if (gatesUsed >= gateBudget) break;
     const dx = g[0] - center[0], dy = g[1] - center[1];
     const gl = Math.hypot(dx, dy) || 1;
     const ux = dx / gl, uy = dy / gl;        // outward unit
@@ -264,13 +261,17 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
     const distY = uy > 0.001 ? (bounds.h - 3 - start[1]) / uy : uy < -0.001 ? (3 - start[1]) / uy : Infinity;
     const room = Math.min(distX, distY);
     if (room < 14 || inWater(water, start) || inMountains(mountains, start) || !inCanvas(start)) continue;
-    const L = Math.min(38, room - 4);
+    const L = room - 1;                       // run all the way to the canvas edge
     const end: Point = [start[0] + ux * L, start[1] + uy * L];
-    if (inWater(water, end)) continue; // don't run a faubourg road into the sea
-    suburbRoads.push([[g[0], g[1]], end]);
-    gatesUsed++;
-    for (let d = 6; d < L; d += 9) {
-      const prob = 0.9 - (d / L) * 0.5;
+    if (inWater(water, end)) continue; // don't run a highway into the sea
+    // gentle bend at the midpoint so the highway reads hand-drawn, not ruled
+    const bendOff = (rng() - 0.5) * 12;
+    const mid: Point = [start[0] + ux * L * 0.5 + nx * bendOff, start[1] + uy * L * 0.5 + ny * bendOff];
+    suburbRoads.push([[g[0], g[1]], inWater(water, mid) || inMountains(mountains, mid) ? [start[0] + ux * L * 0.5, start[1] + uy * L * 0.5] : mid, end]);
+    // faubourg ribbon: houses flank the first stretch out of the gate, thinning with distance
+    const ribbon = Math.min(55, L);
+    for (let d = 6; d < ribbon; d += 8) {
+      const prob = 0.9 - (d / ribbon) * 0.5;
       for (const side of [-1, 1]) {
         if (rng() > prob) continue;
         const off = 4 + rng() * 4;

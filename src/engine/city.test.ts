@@ -160,6 +160,20 @@ describe("canvas 460", () => {
   });
 });
 
+describe("gate roads reach the countryside", () => {
+  it("extends every usable gate road to the canvas edge", () => {
+    const layout = generateCityLayout({ id: 7, name: "Test", size: 3, coastal: false, isCapital: false, elevation: 0.4, biome: GRASSLAND }, 1);
+    expect(layout.suburbRoads.length).toBeGreaterThanOrEqual(2);
+    for (const road of layout.suburbRoads) {
+      const [ex, ey] = road[road.length - 1];
+      const nearEdge = ex < 12 || ex > 448 || ey < 12 || ey > 448;
+      expect(nearEdge).toBe(true);
+      expect(road.length).toBeGreaterThanOrEqual(3); // gate, bend, edge
+    }
+    expect(layout.suburbs.length).toBeGreaterThanOrEqual(8); // denser faubourg
+  });
+});
+
 describe("city mountain (Phase 2)", () => {
   const mtn = { ...base, id: 5, coastal: false, elevation: 0.9, biome: 4 };
   // some high-elevation cities pick a mountain-mass archetype (hillside/spur/valleyPass); find one
