@@ -112,11 +112,38 @@ describe("renderCity organic", () => {
     expect(env.querySelectorAll(".wood-tree").length).toBe(layout.countryside.woods.length);
     expect(env.querySelectorAll(".village-green").length).toBe(layout.countryside.villages.length);
   });
-  it("draws the castle inner wall, towers and keep", () => {
+  it("draws the castle as a donjon: inner wall, towers, keep with shadow, inner tower and 4 corner turrets", () => {
     const layout = generateCityLayout({ id: 7, name: "T", size: 4, coastal: false, isCapital: false, elevation: 0.4, biome: GRASSLAND }, 1);
     const svg = renderCity(layout, "en");
     expect(svg.querySelector(".castle-wall")).not.toBeNull();
     expect(svg.querySelector(".castle-keep")).not.toBeNull();
+    expect(svg.querySelector(".castle-keep-shadow")).not.toBeNull();
+    expect(svg.querySelector(".castle-keep-inner")).not.toBeNull();
+    expect(svg.querySelectorAll(".castle-turret").length).toBe(4);
     expect(svg.querySelectorAll(".castle-tower").length).toBe(layout.castle!.towers.length);
+  });
+  it("renders a parish-church steeple per parishChurches entry", () => {
+    const layout = generateCityLayout({ id: 7, name: "T", size: 3, coastal: false, isCapital: false, elevation: 0.4, biome: GRASSLAND }, 1);
+    const svg = renderCity(layout, "en");
+    expect(svg.querySelectorAll(".parish-church").length).toBe(layout.parishChurches.length);
+  });
+  it("renders market cross, well and inns", () => {
+    const layout = generateCityLayout({ id: 7, name: "T", size: 4, coastal: false, isCapital: false, elevation: 0.4, biome: GRASSLAND }, 2);
+    const svg = renderCity(layout, "en");
+    expect(svg.querySelectorAll(".market-cross").length).toBe(layout.marketCross ? 1 : 0);
+    expect(svg.querySelectorAll(".well").length).toBe(layout.well ? 1 : 0);
+    expect(svg.querySelectorAll(".inn").length).toBe(layout.inns.length);
+  });
+  it("renders barbican towers and walls", () => {
+    const layout = generateCityLayout({ id: 7, name: "T", size: 4, coastal: false, isCapital: false, elevation: 0.4, biome: GRASSLAND }, 1);
+    const svg = renderCity(layout, "en");
+    expect(svg.querySelectorAll(".barbican").length).toBe(layout.barbicans.length * 2);
+    expect(svg.querySelectorAll(".barbican-wall").length).toBe(layout.barbicans.length * 2);
+  });
+  it("renders a workshop per riverside trade", () => {
+    let layout = generateCityLayout({ id: 7, name: "T", size: 4, coastal: true, isCapital: false, elevation: 0.4, biome: GRASSLAND }, 1);
+    for (let s = 2; s <= 20 && !layout.riversideTrades.length; s++) layout = generateCityLayout({ id: 7, name: "T", size: 4, coastal: true, isCapital: false, elevation: 0.4, biome: GRASSLAND }, s);
+    const svg = renderCity(layout, "en");
+    expect(svg.querySelectorAll(".riverside-trade").length).toBe(layout.riversideTrades.length);
   });
 });

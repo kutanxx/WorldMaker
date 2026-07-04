@@ -328,3 +328,70 @@ describe("city harbor (Phase 3)", () => {
     }
   });
 });
+
+describe("parish churches", () => {
+  it("scatters 1+size churches across non-civic wards, all inside the walls", () => {
+    const l = generateCityLayout({ id: 7, name: "T", size: 3, coastal: false, isCapital: false, elevation: 0.4, biome: GRASSLAND }, 1);
+    const eligible = l.wards.filter((w) => !["cathedral", "castle", "plaza", "harbor"].includes(w.type)).length;
+    expect(l.parishChurches.length).toBe(Math.min(1 + 3, eligible));
+    for (const p of l.parishChurches) expect(pointInPolygon(p, l.boundary)).toBe(true);
+  });
+});
+
+describe("market square + inns", () => {
+  it("puts the market cross on the plaza and inns outside the gate", () => {
+    const l = generateCityLayout({ id: 7, name: "T", size: 4, coastal: false, isCapital: false, elevation: 0.4, biome: GRASSLAND }, 2);
+    const plaza = l.wards.find((w) => w.type === "plaza");
+    expect(l.marketCross).not.toBeNull();
+    if (plaza) { const c = centroid(plaza.polygon); expect(Math.hypot(l.marketCross![0] - c[0], l.marketCross![1] - c[1])).toBeLessThan(0.01); }
+    expect(l.well).not.toBeNull();
+    expect(l.inns.length).toBeGreaterThanOrEqual(1);
+    for (const p of l.inns) expect(pointInPolygon(p, l.boundary)).toBe(false);
+  });
+});
+
+describe("barbican", () => {
+  it("builds a forward gate-work at the principal (non-water) gate, outside the wall", () => {
+    const l = generateCityLayout({ id: 7, name: "T", size: 4, coastal: false, isCapital: false, elevation: 0.4, biome: GRASSLAND }, 1);
+    expect(l.barbicans.length).toBeGreaterThanOrEqual(1);
+    for (const b of l.barbicans) {
+      expect(pointInPolygon(b.at, l.boundary)).toBe(false);
+      expect(inWater(l.water, b.at)).toBe(false);
+      expect(b.towers.length).toBe(2);
+      expect(b.walls.length).toBe(2);
+    }
+  });
+});
+
+describe("inn/barbican separation", () => {
+  it("keeps inns clear of barbican towers at the principal gate", () => {
+    for (const s of [1, 2, 3]) {
+      const l = generateCityLayout({ id: 7, name: "T", size: 4, coastal: false, isCapital: false, elevation: 0.4, biome: GRASSLAND }, s);
+      for (const inn of l.inns) for (const b of l.barbicans) for (const t of b.towers) {
+        expect(Math.hypot(inn[0] - t[0], inn[1] - t[1])).toBeGreaterThan(5);
+      }
+    }
+  });
+});
+
+describe("waterside trades", () => {
+  it("puts tanners/dyers by the water outside the walls, none inland-dry", () => {
+    const nearWater = (w: ReturnType<typeof generateCityLayout>["water"], p: [number, number]) =>
+      inWater(w, [p[0] + 5, p[1]]) || inWater(w, [p[0] - 5, p[1]]) || inWater(w, [p[0], p[1] + 5]) || inWater(w, [p[0], p[1] - 5]);
+    let coastalHit = false;
+    for (let s = 1; s <= 20 && !coastalHit; s++) {
+      const l = generateCityLayout({ id: 7, name: "T", size: 4, coastal: true, isCapital: false, elevation: 0.4, biome: GRASSLAND }, s);
+      if (l.riversideTrades.length) {
+        coastalHit = true;
+        for (const t of l.riversideTrades) {
+          expect(pointInPolygon(t.at, l.boundary)).toBe(false);
+          expect(nearWater(l.water, t.at)).toBe(true);
+        }
+      }
+    }
+    expect(coastalHit).toBe(true);
+    // inland dry (elevation<0.7, non-coastal, no water archetype) → empty
+    const dry = generateCityLayout({ id: 7, name: "T", size: 3, coastal: false, isCapital: false, elevation: 0.4, biome: GRASSLAND }, 9);
+    if (!dry.water.bodies.length) expect(dry.riversideTrades.length).toBe(0);
+  });
+});

@@ -72,6 +72,12 @@ export interface CityLayout {
   abbey: Abbey | null;
   cemetery: Cemetery | null;
   gallows: Point | null;
+  parishChurches: Point[];
+  marketCross: Point | null;
+  well: Point | null;
+  inns: Point[];
+  barbicans: { at: Point; towers: [Point, Point]; walls: [Polyline, Polyline] }[];
+  riversideTrades: { at: Point; kind: "tanner" | "dyer" }[];
   countryside: Countryside;
   castle: Castle | null;
 }
@@ -376,6 +382,79 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
   { const s = findSpot(13); if (s) { const graves: Point[] = []; for (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++) graves.push([s[0] + (c - 1) * 3, s[1] + (r - 1) * 3.2]); cemetery = { at: s, graves }; } }
   const gallows: Point | null = ctx.size >= 2 ? findSpot(10) : null;
 
+  // parish churches: a steeple in a few non-civic wards (skyline). Uses zoned wards, no overlap
+  // (distinct Voronoi cells) so the count is exactly min(1+size, eligible).
+  const parishChurches: Point[] = [];
+  {
+    const pool = zoned.filter((z) => !(["cathedral", "castle", "plaza", "harbor"] as WardType[]).includes(z.type));
+    const want = Math.min(1 + ctx.size, pool.length);
+    for (let k = 0; k < want; k++) {
+      const idx = Math.floor(rng() * pool.length);
+      parishChurches.push(centroid(pool.splice(idx, 1)[0].polygon));
+    }
+  }
+
+  // market square furniture: a market cross + public well on the open plaza (no rng)
+  const plazaWard = zoned.find((z) => z.type === "plaza") ?? null;
+  const marketCross: Point | null = plazaWard ? centroid(plazaWard.polygon) : null;
+  const well: Point | null = marketCross ? [marketCross[0] + 4, marketCross[1] + 3] : null;
+  // inns cluster just outside the busiest gates (travelers). Into occupied so countryside avoids them.
+  const inns: Point[] = [];
+  {
+    const want = Math.min(1 + Math.floor(ctx.size / 3), suburbRoads.length);
+    for (let k = 0; k < want; k++) {
+      const road = suburbRoads[k];
+      if (road.length < 2) continue;
+      const a = road[0], b = road[1];
+      const dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy) || 1;
+      const ux = dx / L, uy = dy / L, nx = -uy, ny = ux;
+      const p: Point = [a[0] + ux * 20 + nx * 5, a[1] + uy * 20 + ny * 5];
+      if (pointInPolygon(p, boundary) || inWater(water, p) || inMountains(mountains, p)) continue;
+      inns.push(p); occupied.push(p);
+    }
+  }
+
+  // barbican: a forward gate-work at the principal gate(s) — the longest gate-road is the main
+  // approach (ties by index). Skip water/mountain-facing gates. Into occupied.
+  const barbicans: { at: Point; towers: [Point, Point]; walls: [Polyline, Polyline] }[] = [];
+  {
+    const ranked = suburbRoads
+      .map((r) => { let len = 0; for (let i = 0; i < r.length - 1; i++) len += Math.hypot(r[i + 1][0] - r[i][0], r[i + 1][1] - r[i][1]); return { r, len }; })
+      .sort((a, b) => b.len - a.len);
+    const wantB = ctx.size >= 4 ? 2 : 1;
+    for (const { r } of ranked) {
+      if (barbicans.length >= wantB) break;
+      if (r.length < 2) continue;
+      const gate = r[0];
+      const dx = r[1][0] - gate[0], dy = r[1][1] - gate[1], L = Math.hypot(dx, dy) || 1;
+      const ux = dx / L, uy = dy / L, nx = -uy, ny = ux;
+      const front: Point = [gate[0] + ux * 12, gate[1] + uy * 12];
+      if (pointInPolygon(front, boundary) || inWater(water, front) || inMountains(mountains, front)) continue;
+      const t1: Point = [gate[0] + ux * 11 + nx * 4, gate[1] + uy * 11 + ny * 4];
+      const t2: Point = [gate[0] + ux * 11 - nx * 4, gate[1] + uy * 11 - ny * 4];
+      const wallA: Polyline = [[gate[0] + nx * 3, gate[1] + ny * 3], t1];
+      const wallB: Polyline = [[gate[0] - nx * 3, gate[1] - ny * 3], t2];
+      barbicans.push({ at: front, towers: [t1, t2], walls: [wallA, wallB] });
+      occupied.push(front, t1, t2);
+    }
+  }
+
+  // waterside trades: tanners/dyers pushed to the water's edge outside the walls (stench/effluent).
+  // Honest approximation of "by the water" — no flow data for true downstream. Into occupied.
+  const riversideTrades: { at: Point; kind: "tanner" | "dyer" }[] = [];
+  if (water.bodies.length) {
+    const nearW = (p: Point) => inWater(water, [p[0] + 4, p[1]]) || inWater(water, [p[0] - 4, p[1]]) || inWater(water, [p[0], p[1] + 4]) || inWater(water, [p[0], p[1] - 4]);
+    const want = 2 + (ctx.size >= 4 ? 1 : 0);
+    for (let tries = 0; tries < 140 && riversideTrades.length < want; tries++) {
+      const p: Point = [4 + rng() * (bounds.w - 8), 4 + rng() * (bounds.h - 8)];
+      if (pointInPolygon(p, boundary) || inWater(water, p) || inMountains(mountains, p)) continue;
+      if (!nearW(p)) continue;
+      if (occupied.some((o) => Math.hypot(o[0] - p[0], o[1] - p[1]) < 8)) continue;
+      const kind: "tanner" | "dyer" = rng() < 0.5 ? "tanner" : "dyer";
+      riversideTrades.push({ at: p, kind }); occupied.push(p);
+    }
+  }
+
   // countryside: generated LAST (rng-stream tail, per convention) so it avoids every
   // suburb/outwork/landmark already placed above (occupied carries all of their centres).
   const countryside = generateCountryside(rng, {
@@ -389,6 +468,6 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
   return {
     name: ctx.name, size: ctx.size, coastal: ctx.coastal, isCapital: ctx.isCapital,
     archetype, bounds, boundary, water, mountains, wall, moat, gateBridges, mainRoads, minorRoads, wards, parks, labels, features, suburbRoads, suburbs, outworks, harbor,
-    abbey, cemetery, gallows, countryside, castle,
+    abbey, cemetery, gallows, parishChurches, marketCross, well, inns, barbicans, riversideTrades, countryside, castle,
   };
 }
