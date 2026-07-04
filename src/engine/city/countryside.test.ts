@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { mulberry32 } from "../rng";
 import { generateCountryside } from "./countryside";
-import { pointInPolygon, centroid, polysOverlap } from "../geometry";
+import { pointInPolygon, centroid, polysOverlap, pointSegDist } from "../geometry";
 import type { Polygon } from "../geometry";
 import { GRASSLAND, DESERT } from "../biome";
 import { buildWater } from "./water";
@@ -15,8 +15,15 @@ function plainOpts(): CountrysideOpts {
     water: buildWater(mulberry32(1), "none", { w: 460, h: 460 }),
     mountains: [],
     roads: [[[330, 230], [395, 232], [457, 230]], [[230, 330], [232, 395], [230, 457]]],
-    obstacles: [], size: 3, biome: GRASSLAND, oasis: false,
+    obstacles: [], moat: [], size: 3, biome: GRASSLAND, oasis: false,
   };
+}
+
+// a ring just outside the r=100 boundary, like the real wall-offset moat
+function moatRing(): [number, number][][] {
+  const ring: [number, number][] = [];
+  for (let k = 0; k <= 24; k++) { const a = (k / 24) * Math.PI * 2; ring.push([230 + Math.cos(a) * 104, 230 + Math.sin(a) * 104]); }
+  return [ring];
 }
 
 describe("generateCountryside — fields/gardens/orchards", () => {
@@ -135,6 +142,37 @@ describe("generateCountryside — pastures/farmsteads/woods", () => {
   it("desert fields are all cultivated (irrigation, not rotation)", () => {
     const c = generateCountryside(mulberry32(9), { ...plainOpts(), biome: DESERT });
     for (const f of c.fields) expect(f.state).toBe("cultivated");
+  });
+
+  it("keeps gardens and every patch clear of the moat ring (user-reported farm-vs-water overlap)", () => {
+    for (const seed of [9, 3, 7, 21, 42]) {
+      const o = { ...plainOpts(), moat: moatRing() };
+      const c = generateCountryside(mulberry32(seed), o);
+      const patches: Polygon[] = [
+        ...c.gardens, ...c.fields.map((f) => f.polygon), ...c.pastures.map((p) => p.fence),
+        ...c.orchards.map((or) => or.polygon), ...c.farmsteads.flatMap((f) => [f.house, f.barn]),
+        ...c.villages.flatMap((v) => [v.green, ...v.houses]),
+      ];
+      for (const patch of patches) for (const seg of o.moat) for (let i = 0; i < seg.length - 1; i++) {
+        for (const v of patch) expect(pointSegDist(v, seg[i], seg[i + 1])).toBeGreaterThan(2.5);
+      }
+      expect(c.gardens.length).toBeGreaterThanOrEqual(2); // still populated past the moat
+    }
+  });
+  it("no countryside patch overlaps the watercourse when a river crosses the map", () => {
+    for (const seed of [3, 7, 9, 21, 42]) {
+      const o = plainOpts();
+      o.water = buildWater(mulberry32(seed), "river", { w: 460, h: 460 });
+      const c = generateCountryside(mulberry32(seed), o);
+      const patches: Polygon[] = [
+        ...c.gardens, ...c.fields.map((f) => f.polygon), ...c.pastures.map((p) => p.fence),
+        ...c.orchards.map((or) => or.polygon), ...c.farmsteads.flatMap((f) => [f.house, f.barn]),
+        ...c.villages.flatMap((v) => [v.green, ...v.houses]),
+      ];
+      for (const patch of patches) for (const body of o.water.bodies) {
+        expect(polysOverlap(patch, body)).toBe(false);
+      }
+    }
   });
 
   it("desert city has no pastures and no woods", () => {

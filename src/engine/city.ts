@@ -309,6 +309,9 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
         if (suburbs.some((b) => { const c = centroid(b); return Math.hypot(c[0] - cx, c[1] - cy) < 6; })) continue;
         // keep the house off OTHER gate roads crossing this faubourg (own road is ≥4 away by construction)
         if (suburbRoads.some((r) => { for (let si = 0; si < r.length - 1; si++) if (pointSegDist([cx, cy], r[si], r[si + 1]) < 3.8) return true; return false; })) continue;
+        // and off the moat ring (blue water line just outside the wall); 6 clears the house
+        // half-diagonal (~3.2) plus the moat's half stroke so no corner touches the water line
+        if (moat && moat.some((seg) => { for (let si = 0; si < seg.length - 1; si++) if (pointSegDist([cx, cy], seg[si], seg[si + 1]) < 6) return true; return false; })) continue;
         const hw = 2.5, hh = 2;
         suburbs.push([
           [cx - ux * hw - nx * hh, cy - uy * hw - ny * hh],
@@ -378,6 +381,7 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
   const countryside = generateCountryside(rng, {
     bounds, boundary, water, mountains,
     roads: suburbRoads,
+    moat: moat ?? [],
     obstacles: [...occupied],
     size: ctx.size, biome: ctx.biome, oasis: archetype.oasis,
   });
