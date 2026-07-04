@@ -1,7 +1,7 @@
 import { mulberry32, deriveSeed } from "./rng";
 import type { Rng } from "./rng";
 import type { Point, Polygon, Polyline } from "./geometry";
-import { centroid, pointInPolygon, bbox } from "./geometry";
+import { centroid, pointInPolygon, bbox, pointSegDist } from "./geometry";
 import { selectArchetype } from "./city/archetypes";
 import type { Archetype } from "./city/archetypes";
 import { makeTensorField } from "./city/tensorField";
@@ -307,6 +307,8 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
         const cy = start[1] + uy * d + ny * side * off;
         if (pointInPolygon([cx, cy], boundary) || inWater(water, [cx, cy]) || inMountains(mountains, [cx, cy]) || !inCanvas([cx, cy])) continue;
         if (suburbs.some((b) => { const c = centroid(b); return Math.hypot(c[0] - cx, c[1] - cy) < 6; })) continue;
+        // keep the house off OTHER gate roads crossing this faubourg (own road is ≥4 away by construction)
+        if (suburbRoads.some((r) => { for (let si = 0; si < r.length - 1; si++) if (pointSegDist([cx, cy], r[si], r[si + 1]) < 3.8) return true; return false; })) continue;
         const hw = 2.5, hh = 2;
         suburbs.push([
           [cx - ux * hw - nx * hh, cy - uy * hw - ny * hh],

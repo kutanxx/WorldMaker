@@ -1,9 +1,29 @@
 import { describe, it, expect } from "vitest";
 import { signedArea, area, centroid, bbox, perimeter, pointInPolygon } from "./geometry";
 import { convexHull, clipToConvex, splitByLine, insetPolygon } from "./geometry";
+import { pointSegDist, segmentsIntersect, polysOverlap } from "./geometry";
 import type { Polygon } from "./geometry";
 
 const square: Polygon = [[0, 0], [10, 0], [10, 10], [0, 10]];
+
+describe("proximity/overlap helpers", () => {
+  it("measures point-to-segment distance incl. clamped endpoints", () => {
+    expect(pointSegDist([5, 5], [0, 0], [10, 0])).toBeCloseTo(5, 6);
+    expect(pointSegDist([-3, 4], [0, 0], [10, 0])).toBeCloseTo(5, 6); // beyond endpoint a
+  });
+  it("detects proper segment crossings only", () => {
+    expect(segmentsIntersect([0, 0], [10, 10], [0, 10], [10, 0])).toBe(true);
+    expect(segmentsIntersect([0, 0], [10, 0], [0, 5], [10, 5])).toBe(false);
+  });
+  it("detects polygon overlap: intersecting, contained, disjoint", () => {
+    const shifted: Polygon = [[5, 5], [15, 5], [15, 15], [5, 15]];
+    const inside: Polygon = [[4, 4], [6, 4], [6, 6], [4, 6]];
+    const away: Polygon = [[20, 20], [30, 20], [30, 30], [20, 30]];
+    expect(polysOverlap(square, shifted)).toBe(true);
+    expect(polysOverlap(square, inside)).toBe(true);
+    expect(polysOverlap(square, away)).toBe(false);
+  });
+});
 
 describe("geometry measures", () => {
   it("computes signed area (CCW positive) and absolute area", () => {

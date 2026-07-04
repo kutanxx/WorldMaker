@@ -3,7 +3,7 @@
 // farmhouses at field edges (spec 2026-07-05-extramural-countryside-castle-design.md).
 import type { Rng } from "../rng";
 import type { Point, Polygon, Polyline } from "../geometry";
-import { pointInPolygon, centroid } from "../geometry";
+import { pointInPolygon, centroid, polysOverlap, pointSegDist } from "../geometry";
 import { inWater } from "./water";
 import type { Water } from "./water";
 import { inMountains } from "./mountain";
@@ -63,19 +63,39 @@ export function generateCountryside(rng: Rng, opts: CountrysideOpts): Countrysid
   const obstacles: Point[] = [...opts.obstacles];
   const inCanvas = (p: Point) => p[0] > 3 && p[0] < bounds.w - 3 && p[1] > 3 && p[1] < bounds.h - 3;
   const blocked = (p: Point) => pointInPolygon(p, boundary) || inWater(water, p) || inMountains(mountains, p) || !inCanvas(p);
+  // exact geometry, not centroid gaps: big furlong blocks overlapped each other and roads
+  // cut through them when only centre distances were checked (user-reported overlaps)
+  const claimedPolys: Polygon[] = [];
+  const roadThrough = (poly: Polygon) => {
+    for (const road of roads) for (let i = 0; i < road.length - 1; i++) {
+      const [x1, y1] = road[i], [x2, y2] = road[i + 1];
+      const steps = Math.max(1, Math.ceil(Math.hypot(x2 - x1, y2 - y1) / 4));
+      for (let s = 0; s <= steps; s++) {
+        if (pointInPolygon([x1 + ((x2 - x1) * s) / steps, y1 + ((y2 - y1) * s) / steps], poly)) return true;
+      }
+    }
+    return false;
+  };
+  const distToRoads = (p: Point) => {
+    let d = Infinity;
+    for (const road of roads) for (let i = 0; i < road.length - 1; i++) d = Math.min(d, pointSegDist(p, road[i], road[i + 1]));
+    return d;
+  };
   const polyOk = (poly: Polygon, gap: number) => {
     const c = centroid(poly);
     if (poly.some(blocked) || blocked(c)) return false;
     if (obstacles.some((o) => Math.hypot(o[0] - c[0], o[1] - c[1]) < gap)) return false;
+    if (claimedPolys.some((cp) => polysOverlap(poly, cp))) return false;
+    if (roadThrough(poly)) return false;
     return true;
   };
-  const claim = (poly: Polygon) => obstacles.push(centroid(poly));
+  const claim = (poly: Polygon) => { obstacles.push(centroid(poly)); claimedPolys.push(poly); };
 
   // ring 1: kitchen gardens + orchards against the wall, between the gate roads
   const gardens: Polygon[] = [];
   const orchards: Orchard[] = [];
   const wallR = (() => { let s = 0; for (const p of boundary) s += Math.hypot(p[0] - bc[0], p[1] - bc[1]); return s / boundary.length; })();
-  for (let tries = 0; tries < 90 && gardens.length < 3 + size; tries++) {
+  for (let tries = 0; tries < 140 && gardens.length < 3 + size; tries++) {
     const a = rng() * Math.PI * 2;
     const r = wallR + 8 + rng() * 8;
     const c: Point = [bc[0] + Math.cos(a) * r, bc[1] + Math.sin(a) * r];
@@ -84,7 +104,7 @@ export function generateCountryside(rng: Rng, opts: CountrysideOpts): Countrysid
     if (!polyOk(plot, 8)) continue;
     gardens.push(plot); claim(plot);
   }
-  for (let tries = 0; tries < 90 && orchards.length < prof.orchards; tries++) {
+  for (let tries = 0; tries < 140 && orchards.length < prof.orchards; tries++) {
     const a = rng() * Math.PI * 2;
     const r = wallR + 12 + rng() * 14;
     const c: Point = [bc[0] + Math.cos(a) * r, bc[1] + Math.sin(a) * r];
@@ -105,7 +125,7 @@ export function generateCountryside(rng: Rng, opts: CountrysideOpts): Countrysid
   const sectors = roads.length >= 2 ? Math.min(3, roads.length) : roads.length;
   for (let sIdx = 0; sIdx < sectors; sIdx++) {
     const road = roads[sIdx % roads.length];
-    for (let tries = 0; tries < 120 && fields.length < Math.ceil((prof.fields * (sIdx + 1)) / Math.max(1, sectors)); tries++) {
+    for (let tries = 0; tries < 200 && fields.length < Math.ceil((prof.fields * (sIdx + 1)) / Math.max(1, sectors)); tries++) {
       const t = 0.25 + rng() * 0.65;                    // along the road, clear of the gate
       const i = Math.min(road.length - 2, Math.floor(t * (road.length - 1)));
       const frac = t * (road.length - 1) - i;
@@ -139,7 +159,7 @@ export function generateCountryside(rng: Rng, opts: CountrysideOpts): Countrysid
 
   // pastures: fenced irregular paddocks in the gaps between field sectors; meadows prefer water
   const pastures: Pasture[] = [];
-  for (let tries = 0; tries < 140 && pastures.length < prof.pastures; tries++) {
+  for (let tries = 0; tries < 200 && pastures.length < prof.pastures; tries++) {
     const a = rng() * Math.PI * 2;
     const r = wallR + 24 + rng() * (Math.min(bounds.w, bounds.h) / 2 - wallR - 40);
     const c: Point = [bc[0] + Math.cos(a) * r, bc[1] + Math.sin(a) * r];
@@ -166,7 +186,7 @@ export function generateCountryside(rng: Rng, opts: CountrysideOpts): Countrysid
   // out (no water nearby for irrigation) intentionally ends up with zero farmsteads.
   const farmsteads: Farmstead[] = [];
   const wantF = 1 + Math.floor(size / 3);
-  for (let tries = 0; tries < 100 && farmsteads.length < wantF && keptFields.length > 0; tries++) {
+  for (let tries = 0; tries < 140 && farmsteads.length < wantF && keptFields.length > 0; tries++) {
     const f = keptFields[Math.floor(rng() * keptFields.length)];
     const corner = f.polygon[Math.floor(rng() * f.polygon.length)];
     const away = 4 + rng() * 3;
@@ -192,6 +212,7 @@ export function generateCountryside(rng: Rng, opts: CountrysideOpts): Countrysid
     if (blocked(p)) continue;
     if (obstacles.some((o) => Math.hypot(o[0] - p[0], o[1] - p[1]) < 7)) continue;
     if (woods.some((w2) => Math.hypot(w2[0] - p[0], w2[1] - p[1]) < 5)) continue;
+    if (claimedPolys.some((cp) => pointInPolygon(p, cp)) || distToRoads(p) < 3) continue;
     woods.push(p);
   }
 
