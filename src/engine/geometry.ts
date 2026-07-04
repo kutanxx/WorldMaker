@@ -158,6 +158,33 @@ export function splitByLine(poly: Polygon, a: Point, b: Point): Polygon[] {
   return out;
 }
 
+export function pointSegDist(p: Point, a: Point, b: Point): number {
+  const dx = b[0] - a[0], dy = b[1] - a[1];
+  const L2 = dx * dx + dy * dy;
+  if (L2 < 1e-12) return Math.hypot(p[0] - a[0], p[1] - a[1]);
+  const t = Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / L2));
+  return Math.hypot(p[0] - (a[0] + t * dx), p[1] - (a[1] + t * dy));
+}
+
+export function segmentsIntersect(a: Point, b: Point, c: Point, d: Point): boolean {
+  const o = (p: Point, q: Point, r: Point) => (q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0]);
+  const o1 = o(a, b, c), o2 = o(a, b, d), o3 = o(c, d, a), o4 = o(c, d, b);
+  return o1 * o2 < 0 && o3 * o4 < 0;
+}
+
+// true when two simple polygons overlap: a vertex of one inside the other, or crossing edges
+export function polysOverlap(a: Polygon, b: Polygon): boolean {
+  for (const p of a) if (pointInPolygon(p, b)) return true;
+  for (const p of b) if (pointInPolygon(p, a)) return true;
+  for (let i = 0; i < a.length; i++) {
+    const a1 = a[i], a2 = a[(i + 1) % a.length];
+    for (let j = 0; j < b.length; j++) {
+      if (segmentsIntersect(a1, a2, b[j], b[(j + 1) % b.length])) return true;
+    }
+  }
+  return false;
+}
+
 export function insetPolygon(poly: Polygon, d: number): Polygon {
   const c = centroid(poly);
   return poly.map(([x, y]) => {

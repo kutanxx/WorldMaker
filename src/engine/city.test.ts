@@ -172,6 +172,25 @@ describe("gate roads reach the countryside", () => {
     }
     expect(layout.suburbs.length).toBeGreaterThanOrEqual(8); // denser faubourg
   });
+  it("suburb houses and countryside patches stay clear of every gate road (user-reported overlap)", () => {
+    for (const seed of [1, 5, 12]) {
+      const layout = generateCityLayout({ id: 7, name: "Test", size: 3, coastal: false, isCapital: false, elevation: 0.4, biome: GRASSLAND }, seed);
+      const cs = layout.countryside;
+      const patches = [
+        ...cs.gardens, ...cs.fields.map((f) => f.polygon), ...cs.pastures.map((p) => p.fence),
+        ...cs.orchards.map((or) => or.polygon), ...cs.farmsteads.flatMap((f) => [f.house, f.barn]),
+      ];
+      for (const road of layout.suburbRoads) for (let i = 0; i < road.length - 1; i++) {
+        const [x1, y1] = road[i], [x2, y2] = road[i + 1];
+        const steps = Math.max(1, Math.ceil(Math.hypot(x2 - x1, y2 - y1) / 4));
+        for (let s = 0; s <= steps; s++) {
+          const p: [number, number] = [x1 + ((x2 - x1) * s) / steps, y1 + ((y2 - y1) * s) / steps];
+          for (const b of layout.suburbs) expect(pointInPolygon(p, b)).toBe(false);
+          for (const patch of patches) expect(pointInPolygon(p, patch)).toBe(false);
+        }
+      }
+    }
+  });
 });
 
 describe("city mountain (Phase 2)", () => {

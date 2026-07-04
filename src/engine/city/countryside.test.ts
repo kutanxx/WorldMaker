@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { mulberry32 } from "../rng";
 import { generateCountryside } from "./countryside";
-import { pointInPolygon, centroid } from "../geometry";
+import { pointInPolygon, centroid, polysOverlap } from "../geometry";
 import type { Polygon } from "../geometry";
 import { GRASSLAND, DESERT } from "../biome";
 import { buildWater } from "./water";
@@ -75,6 +75,32 @@ describe("generateCountryside — pastures/farmsteads/woods", () => {
     for (const t of c.woods) {
       const nearEdge = t[0] < 40 || t[0] > 420 || t[1] < 40 || t[1] > 420;
       expect(nearEdge).toBe(true);
+    }
+  });
+  it("patches never overlap each other and roads never cut through them (user-reported)", () => {
+    for (const seed of [7, 9, 21]) {
+      const o = plainOpts();
+      const c = generateCountryside(mulberry32(seed), o);
+      const patches: Polygon[] = [
+        ...c.gardens, ...c.fields.map((f) => f.polygon), ...c.pastures.map((p) => p.fence),
+        ...c.orchards.map((or) => or.polygon), ...c.farmsteads.flatMap((f) => [f.house, f.barn]),
+      ];
+      for (let i = 0; i < patches.length; i++) {
+        for (let j = i + 1; j < patches.length; j++) {
+          expect(polysOverlap(patches[i], patches[j])).toBe(false);
+        }
+      }
+      // sample every road at 4px steps: no sample may land inside a patch
+      for (const road of o.roads) for (let i = 0; i < road.length - 1; i++) {
+        const [x1, y1] = road[i], [x2, y2] = road[i + 1];
+        const steps = Math.max(1, Math.ceil(Math.hypot(x2 - x1, y2 - y1) / 4));
+        for (let s = 0; s <= steps; s++) {
+          const p: [number, number] = [x1 + ((x2 - x1) * s) / steps, y1 + ((y2 - y1) * s) / steps];
+          for (const patch of patches) expect(pointInPolygon(p, patch)).toBe(false);
+        }
+      }
+      // trees stay out of patches too
+      for (const t of c.woods) for (const patch of patches) expect(pointInPolygon(t, patch)).toBe(false);
     }
   });
   it("desert city has no pastures and no woods", () => {
