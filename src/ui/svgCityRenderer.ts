@@ -149,8 +149,13 @@ export function renderCity(layout: CityLayout, lang: Lang = "en"): SVGSVGElement
       const c = Math.cos(o.angle), s = Math.sin(o.angle), r = 4;
       env.appendChild(svgEl("path", { class: "outwork-sails", d: `M${(x - c * r).toFixed(1)} ${(y - s * r).toFixed(1)} L${(x + c * r).toFixed(1)} ${(y + s * r).toFixed(1)} M${(x + s * r).toFixed(1)} ${(y - c * r).toFixed(1)} L${(x - s * r).toFixed(1)} ${(y + c * r).toFixed(1)}`, stroke: "#6b5a44", "stroke-width": 0.8, fill: "none" }));
     } else {
+      // watermill: race channel to the water, mill house on the bank, wheel at the water end
+      if (o.race) {
+        env.appendChild(svgEl("line", { class: "mill-race", x1: o.race[0][0].toFixed(1), y1: o.race[0][1].toFixed(1), x2: o.race[1][0].toFixed(1), y2: o.race[1][1].toFixed(1), stroke: "#9fc1d6", "stroke-width": 1.4, "stroke-linecap": "round" }));
+      }
       env.appendChild(svgEl("rect", { class: "outwork", x: x - 2.5, y: y - 2, width: 5, height: 4, fill: "#c9a86a", stroke: "#8a6a44", "stroke-width": 0.5 }));
-      env.appendChild(svgEl("circle", { class: "outwork-wheel", cx: x + 3, cy: y + 1, r: 2, fill: "none", stroke: "#6b5a44", "stroke-width": 0.7 }));
+      const wheel = o.race ? o.race[1] : [x + 3, y + 1];
+      env.appendChild(svgEl("circle", { class: "outwork-wheel", cx: wheel[0], cy: wheel[1], r: 2, fill: "none", stroke: "#6b5a44", "stroke-width": 0.7 }));
     }
   }
   // extramural landmarks (outside the walls)
