@@ -32,8 +32,9 @@ function avg(poly: Polygon): [number, number] {
 
 export function renderCity(layout: CityLayout, lang: Lang = "en"): SVGSVGElement {
   const { w, h } = layout.bounds;
-  const root = svgEl("svg", { width: "100%", viewBox: `0 0 ${w} ${h}`, class: "city" }) as SVGSVGElement;
-  root.appendChild(svgEl("rect", { x: 0, y: 0, width: w, height: h, fill: "#f3efe4" }));
+  const LEGW = 108; // right-hand strip that holds the district key, OUTSIDE the map so it never covers the city
+  const root = svgEl("svg", { width: "100%", viewBox: `0 0 ${w + LEGW} ${h}`, class: "city" }) as SVGSVGElement;
+  root.appendChild(svgEl("rect", { x: 0, y: 0, width: w + LEGW, height: h, fill: "#f3efe4" }));
 
   const clipId = "cityclip";
   const defs = svgEl("defs", {});
@@ -224,8 +225,8 @@ export function renderCity(layout: CityLayout, lang: Lang = "en"): SVGSVGElement
     ...present.map((wt) => [TINT[wt]!, WARD_NAME[lang][wt] ?? ""] as [string, string]),
     ["#9fc1d6", t(lang, "water")], ["#d8b65e", t(lang, "mainRoad")],
   ];
-  const x0 = 6, y0 = h - 8 - items.length * 11;
-  legend.appendChild(svgEl("rect", { x: x0 - 4, y: y0 - 8, width: 92, height: items.length * 11 + 12, rx: 3, fill: "#f7f2e6", "fill-opacity": 0.92, stroke: "#cbb784", "stroke-width": 0.5 }));
+  const x0 = w + 12, y0 = 20; // in the right-hand strip, clear of the map
+  legend.appendChild(svgEl("rect", { x: x0 - 4, y: y0 - 8, width: 92, height: items.length * 11 + 12, rx: 3, fill: "#f7f2e6", stroke: "#cbb784", "stroke-width": 0.5 }));
   items.forEach(([color, label], i) => {
     const y = y0 + i * 11;
     legend.appendChild(svgEl("rect", { class: "legend-item", x: x0, y: y - 6, width: 8, height: 8, fill: color, stroke: "#9a8a70", "stroke-width": 0.4 }));
