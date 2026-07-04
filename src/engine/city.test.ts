@@ -31,6 +31,18 @@ describe("city organic", () => {
     const ctx = cityContext(base);
     expect(JSON.stringify(generateCityLayout(ctx, 1))).not.toBe(JSON.stringify(generateCityLayout(ctx, 2)));
   });
+  it("places extramural landmarks (abbey/cemetery/gallows) outside the walls, on dry land", () => {
+    const l = generateCityLayout(cityContext(base), 7); // size 4 → an abbey is placed
+    expect(l.abbey).not.toBeNull();
+    expect(l.cemetery).not.toBeNull();
+    expect(l.gallows).not.toBeNull();
+    expect(l.cemetery!.graves.length).toBeGreaterThan(0);
+    for (const p of [l.abbey!.at, l.cemetery!.at, l.gallows!]) {
+      expect(pointInPolygon(p, l.boundary)).toBe(false); // extramural: outside the town wall
+      expect(inWater(l.water, p)).toBe(false);
+      expect(inMountains(l.mountains, p)).toBe(false);
+    }
+  });
   it("exposes an irregular boundary polygon (radius varies)", () => {
     const l = generateCityLayout(cityContext(base), 5);
     const rs = l.boundary.map((p) => Math.hypot(p[0] - 150, p[1] - 150));

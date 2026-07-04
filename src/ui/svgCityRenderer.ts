@@ -32,8 +32,9 @@ function avg(poly: Polygon): [number, number] {
 
 export function renderCity(layout: CityLayout, lang: Lang = "en"): SVGSVGElement {
   const { w, h } = layout.bounds;
-  const root = svgEl("svg", { width: "100%", viewBox: `0 0 ${w} ${h}`, class: "city" }) as SVGSVGElement;
-  root.appendChild(svgEl("rect", { x: 0, y: 0, width: w, height: h, fill: "#f3efe4" }));
+  const LEGW = 108; // right-hand strip that holds the district key, OUTSIDE the map so it never covers the city
+  const root = svgEl("svg", { width: "100%", viewBox: `0 0 ${w + LEGW} ${h}`, class: "city" }) as SVGSVGElement;
+  root.appendChild(svgEl("rect", { x: 0, y: 0, width: w + LEGW, height: h, fill: "#f3efe4" }));
 
   const clipId = "cityclip";
   const defs = svgEl("defs", {});
@@ -110,6 +111,28 @@ export function renderCity(layout: CityLayout, lang: Lang = "en"): SVGSVGElement
       env.appendChild(svgEl("rect", { class: "outwork", x: x - 2.5, y: y - 2, width: 5, height: 4, fill: "#c9a86a", stroke: "#8a6a44", "stroke-width": 0.5 }));
       env.appendChild(svgEl("circle", { class: "outwork-wheel", cx: x + 3, cy: y + 1, r: 2, fill: "none", stroke: "#6b5a44", "stroke-width": 0.7 }));
     }
+  }
+  // extramural landmarks (outside the walls)
+  if (layout.abbey) {
+    const [ax, ay] = layout.abbey.at;
+    const ag = svgEl("g", { class: "abbey", transform: `rotate(${((layout.abbey.angle * 180) / Math.PI).toFixed(1)} ${ax} ${ay})` });
+    ag.appendChild(svgEl("rect", { class: "cloister", x: ax - 6, y: ay - 6, width: 12, height: 12, rx: 0.5, fill: "#d8d2c4", stroke: "#8a7f6a", "stroke-width": 0.6 }));
+    ag.appendChild(svgEl("rect", { class: "garth", x: ax - 2.5, y: ay - 2.5, width: 5, height: 5, fill: "#bcd0a0", stroke: "#8a7f6a", "stroke-width": 0.3 }));
+    ag.appendChild(svgEl("path", { class: "church", d: `M${ax},${ay - 6}L${ax},${ay - 11}M${ax - 2},${ay - 9}L${ax + 2},${ay - 9}`, fill: "none", stroke: "#3c2f1c", "stroke-width": 1, "stroke-linecap": "round" }));
+    env.appendChild(ag);
+  }
+  if (layout.cemetery) {
+    const cg = svgEl("g", { class: "cemetery" });
+    const [cx, cy] = layout.cemetery.at;
+    cg.appendChild(svgEl("rect", { class: "churchyard", x: cx - 6, y: cy - 6.5, width: 12, height: 13, rx: 1, fill: "#e4dfcd", stroke: "#9a8a70", "stroke-width": 0.4 }));
+    for (const [gx, gy] of layout.cemetery.graves) {
+      cg.appendChild(svgEl("rect", { class: "grave", x: gx - 0.8, y: gy - 1.3, width: 1.6, height: 2.6, rx: 0.7, fill: "#cfc8b8", stroke: "#7a715f", "stroke-width": 0.3 }));
+    }
+    env.appendChild(cg);
+  }
+  if (layout.gallows) {
+    const [gx, gy] = layout.gallows;
+    env.appendChild(svgEl("path", { class: "gallows", d: `M${gx},${gy + 4}L${gx},${gy - 6}L${gx + 5},${gy - 6}M${gx + 5},${gy - 6}L${gx + 5},${gy - 3}`, fill: "none", stroke: "#3c2f1c", "stroke-width": 0.9, "stroke-linecap": "round" }));
   }
   root.appendChild(env);
 
@@ -224,8 +247,8 @@ export function renderCity(layout: CityLayout, lang: Lang = "en"): SVGSVGElement
     ...present.map((wt) => [TINT[wt]!, WARD_NAME[lang][wt] ?? ""] as [string, string]),
     ["#9fc1d6", t(lang, "water")], ["#d8b65e", t(lang, "mainRoad")],
   ];
-  const x0 = 6, y0 = h - 8 - items.length * 11;
-  legend.appendChild(svgEl("rect", { x: x0 - 4, y: y0 - 8, width: 92, height: items.length * 11 + 12, rx: 3, fill: "#f7f2e6", "fill-opacity": 0.92, stroke: "#cbb784", "stroke-width": 0.5 }));
+  const x0 = w + 12, y0 = 20; // in the right-hand strip, clear of the map
+  legend.appendChild(svgEl("rect", { x: x0 - 4, y: y0 - 8, width: 92, height: items.length * 11 + 12, rx: 3, fill: "#f7f2e6", stroke: "#cbb784", "stroke-width": 0.5 }));
   items.forEach(([color, label], i) => {
     const y = y0 + i * 11;
     legend.appendChild(svgEl("rect", { class: "legend-item", x: x0, y: y - 6, width: 8, height: 8, fill: color, stroke: "#9a8a70", "stroke-width": 0.4 }));

@@ -100,6 +100,7 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
   let reliefD = "";
   for (let i = 0; i < grid.count; i++) {
     if (world.biome[i] !== ALPINE) continue;
+    if (!grid.neighbors[i].some((nb) => world.biome[nb] === ALPINE)) continue; // skip lone peaks in the plains — only draw where mountains cluster into a range
     const x = grid.points[i * 2], y = grid.points[i * 2 + 1];
     reliefD += `M${(x - 3).toFixed(1)},${(y + 2).toFixed(1)}L${x.toFixed(1)},${(y - 2.6).toFixed(1)}L${(x + 3).toFixed(1)},${(y + 2).toFixed(1)}`;
   }

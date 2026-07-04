@@ -28,6 +28,16 @@ describe("renderCity organic", () => {
     const legend = [...svg.querySelectorAll(".legend text")].map((t) => t.textContent);
     expect(legend).toContain("Slums"); // the legend names the districts, not just "Buildings"
   });
+  it("puts the district legend in a right-hand strip outside the map (never covering the city)", () => {
+    const layout = generateCityLayout(cityContext(marker), 7);
+    const svg = renderCity(layout);
+    const vbW = Number((svg.getAttribute("viewBox") || "0 0 0 0").split(" ")[2]);
+    expect(vbW).toBeGreaterThan(layout.bounds.w); // widened by a legend strip
+    // every legend swatch sits at x >= the map width (in the strip, not over the city)
+    const swatches = [...svg.querySelectorAll(".legend .legend-item")];
+    expect(swatches.length).toBeGreaterThan(0);
+    for (const s of swatches) expect(Number(s.getAttribute("x"))).toBeGreaterThanOrEqual(layout.bounds.w);
+  });
   it("tints the ground and uses timber walls for a forest city", () => {
     const layout = generateCityLayout(cityContext({ ...marker, coastal: false, elevation: 0.5, biome: 3 }), 7);
     const svg = renderCity(layout);
