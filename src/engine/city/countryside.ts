@@ -10,7 +10,7 @@ import { inMountains } from "./mountain";
 import type { MountainMass } from "./mountain";
 import { DESERT, WETLAND, TAIGA, TEMPERATE_FOREST, TROPICAL, TUNDRA, ALPINE } from "../biome";
 
-export interface FieldPatch { polygon: Polygon; strips: Polyline[] }
+export interface FieldPatch { polygon: Polygon; strips: Polyline[]; state: "cultivated" | "fallow" }
 export interface Pasture { fence: Polygon; animals: Point[]; kind: "sheep" | "cattle" }
 export interface Farmstead { house: Polygon; barn: Polygon; yard: Polygon | null }
 export interface Orchard { polygon: Polygon; trees: Point[] }
@@ -123,6 +123,9 @@ export function generateCountryside(rng: Rng, opts: CountrysideOpts): Countrysid
   // ring 2: great fields — 2-3 sectors anchored to road spines, furlong blocks of strips
   const fields: FieldPatch[] = [];
   const sectors = roads.length >= 2 ? Math.min(3, roads.length) : roads.length;
+  // three-field rotation: one whole sector lies fallow this year (grazed), the rest cropped.
+  // Deserts irrigate rather than rotate, so nothing there lies fallow.
+  const fallowSector = sectors >= 2 && !prof.dry ? Math.floor(rng() * sectors) : -1;
   for (let sIdx = 0; sIdx < sectors; sIdx++) {
     const road = roads[sIdx % roads.length];
     for (let tries = 0; tries < 200 && fields.length < Math.ceil((prof.fields * (sIdx + 1)) / Math.max(1, sectors)); tries++) {
@@ -149,7 +152,7 @@ export function generateCountryside(rng: Rng, opts: CountrysideOpts): Countrysid
           [c[0] + ux * (hl - 1.2) + -uy * w, c[1] + uy * (hl - 1.2) + ux * w],
         ]);
       }
-      fields.push({ polygon: plot, strips }); claim(plot);
+      fields.push({ polygon: plot, strips, state: sIdx === fallowSector ? "fallow" : "cultivated" }); claim(plot);
     }
   }
   // desert: keep only fields near water/oasis (irrigation)

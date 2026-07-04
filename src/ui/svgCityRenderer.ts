@@ -101,8 +101,13 @@ export function renderCity(layout: CityLayout, lang: Lang = "en"): SVGSVGElement
   for (const g2 of cs.gardens) env.appendChild(svgEl("polygon", { class: "garden", points: pts(g2), fill: "#c9d0a0", stroke: "#8a8a5f", "stroke-width": 0.3 }));
   const dry = cs.dry; // engine is the single source of truth for the desert palette
   for (const f of cs.fields) {
-    env.appendChild(svgEl("polygon", { class: "field", points: pts(f.polygon), fill: dry ? "#e0cf9a" : "#d9cc9a", stroke: "#b3a26e", "stroke-width": 0.4 }));
-    for (const s of f.strips) env.appendChild(svgEl("polyline", { class: "furrow", points: pts(s), fill: "none", stroke: dry ? "#c9b47a" : "#c4b581", "stroke-width": 0.35 }));
+    // fallow fields (three-field rotation) rest under grass; the ridge-and-furrow earthwork
+    // persists so the furrows stay, just lighter.
+    const fallow = f.state === "fallow";
+    const fill = fallow ? "#c8cba0" : dry ? "#e0cf9a" : "#d9cc9a";
+    const furrow = fallow ? "#b3b585" : dry ? "#c9b47a" : "#c4b581";
+    env.appendChild(svgEl("polygon", { class: fallow ? "field field-fallow" : "field", points: pts(f.polygon), fill, stroke: "#b3a26e", "stroke-width": 0.4 }));
+    for (const s of f.strips) env.appendChild(svgEl("polyline", { class: "furrow", points: pts(s), fill: "none", stroke: furrow, "stroke-width": 0.35 }));
   }
   for (const p of cs.pastures) {
     env.appendChild(svgEl("polygon", { class: "pasture", points: pts(p.fence), fill: "#ccd6a8", "fill-opacity": 0.7, stroke: "#8a6a44", "stroke-width": 0.5, "stroke-dasharray": "1.6 1.1" }));

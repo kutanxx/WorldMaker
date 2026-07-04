@@ -103,6 +103,24 @@ describe("generateCountryside — pastures/farmsteads/woods", () => {
       for (const t of c.woods) for (const patch of patches) expect(pointInPolygon(t, patch)).toBe(false);
     }
   });
+  it("runs a three-field rotation: one sector lies fallow, the rest cultivated", () => {
+    let sawFallow = false, sawCultivated = false;
+    for (const seed of [3, 7, 9, 21, 42]) {
+      const c = generateCountryside(mulberry32(seed), plainOpts());
+      for (const f of c.fields) {
+        expect(["cultivated", "fallow"]).toContain(f.state);
+        if (f.state === "fallow") sawFallow = true;
+        if (f.state === "cultivated") sawCultivated = true;
+      }
+    }
+    expect(sawFallow).toBe(true);
+    expect(sawCultivated).toBe(true);
+  });
+  it("desert fields are all cultivated (irrigation, not rotation)", () => {
+    const c = generateCountryside(mulberry32(9), { ...plainOpts(), biome: DESERT });
+    for (const f of c.fields) expect(f.state).toBe("cultivated");
+  });
+
   it("desert city has no pastures and no woods", () => {
     const o = { ...plainOpts(), biome: DESERT };
     const c = generateCountryside(mulberry32(9), o);
