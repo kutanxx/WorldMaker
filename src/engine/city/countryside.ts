@@ -21,6 +21,7 @@ export interface Countryside {
   farmsteads: Farmstead[];
   orchards: Orchard[];
   woods: Point[];
+  dry: boolean;
 }
 export interface CountrysideOpts {
   bounds: { w: number; h: number };
@@ -101,7 +102,7 @@ export function generateCountryside(rng: Rng, opts: CountrysideOpts): Countrysid
 
   // ring 2: great fields — 2-3 sectors anchored to road spines, furlong blocks of strips
   const fields: FieldPatch[] = [];
-  const sectors = roads.length >= 2 ? Math.min(3, roads.length) : roads.length || 0;
+  const sectors = roads.length >= 2 ? Math.min(3, roads.length) : roads.length;
   for (let sIdx = 0; sIdx < sectors; sIdx++) {
     const road = roads[sIdx % roads.length];
     for (let tries = 0; tries < 120 && fields.length < Math.ceil((prof.fields * (sIdx + 1)) / Math.max(1, sectors)); tries++) {
@@ -161,6 +162,8 @@ export function generateCountryside(rng: Rng, opts: CountrysideOpts): Countrysid
   }
 
   // farmsteads: at a field-block corner beside a road — never mid-field (Watabou lesson)
+  // note: requires keptFields.length > 0, so a desert city whose fields were all filtered
+  // out (no water nearby for irrigation) intentionally ends up with zero farmsteads.
   const farmsteads: Farmstead[] = [];
   const wantF = 1 + Math.floor(size / 3);
   for (let tries = 0; tries < 100 && farmsteads.length < wantF && keptFields.length > 0; tries++) {
@@ -192,5 +195,5 @@ export function generateCountryside(rng: Rng, opts: CountrysideOpts): Countrysid
     woods.push(p);
   }
 
-  return { gardens, fields: keptFields, pastures, farmsteads, orchards, woods };
+  return { gardens, fields: keptFields, pastures, farmsteads, orchards, woods, dry: prof.dry };
 }

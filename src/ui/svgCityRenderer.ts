@@ -99,7 +99,7 @@ export function renderCity(layout: CityLayout, lang: Lang = "en"): SVGSVGElement
   // suburb roads/houses so buildings and roads read on top of the open-field system.
   const cs = layout.countryside;
   for (const g2 of cs.gardens) env.appendChild(svgEl("polygon", { class: "garden", points: pts(g2), fill: "#c9d0a0", stroke: "#8a8a5f", "stroke-width": 0.3 }));
-  const dry = layout.features.groundColor === "#ece0c2"; // desert palette pair
+  const dry = cs.dry; // engine is the single source of truth for the desert palette
   for (const f of cs.fields) {
     env.appendChild(svgEl("polygon", { class: "field", points: pts(f.polygon), fill: dry ? "#e0cf9a" : "#d9cc9a", stroke: "#b3a26e", "stroke-width": 0.4 }));
     for (const s of f.strips) env.appendChild(svgEl("polyline", { class: "furrow", points: pts(s), fill: "none", stroke: dry ? "#c9b47a" : "#c4b581", "stroke-width": 0.35 }));

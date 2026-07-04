@@ -29,6 +29,7 @@ describe("generateCountryside — fields/gardens/orchards", () => {
     const o = plainOpts();
     const c = generateCountryside(mulberry32(9), o);
     expect(c.fields.length).toBeGreaterThanOrEqual(3);
+    expect(c.dry).toBe(false);
     for (const f of c.fields) {
       const ctr = centroid(f.polygon);
       expect(pointInPolygon(ctr, o.boundary)).toBe(false);
@@ -81,5 +82,6 @@ describe("generateCountryside — pastures/farmsteads/woods", () => {
     const c = generateCountryside(mulberry32(9), o);
     expect(c.pastures.length).toBe(0);
     expect(c.woods.length).toBe(0);
+    expect(c.dry).toBe(true);
   });
 });
