@@ -363,6 +363,17 @@ describe("barbican", () => {
   });
 });
 
+describe("inn/barbican separation", () => {
+  it("keeps inns clear of barbican towers at the principal gate", () => {
+    for (const s of [1, 2, 3]) {
+      const l = generateCityLayout({ id: 7, name: "T", size: 4, coastal: false, isCapital: false, elevation: 0.4, biome: GRASSLAND }, s);
+      for (const inn of l.inns) for (const b of l.barbicans) for (const t of b.towers) {
+        expect(Math.hypot(inn[0] - t[0], inn[1] - t[1])).toBeGreaterThan(5);
+      }
+    }
+  });
+});
+
 describe("waterside trades", () => {
   it("puts tanners/dyers by the water outside the walls, none inland-dry", () => {
     const nearWater = (w: ReturnType<typeof generateCityLayout>["water"], p: [number, number]) =>

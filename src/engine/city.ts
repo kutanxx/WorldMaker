@@ -408,7 +408,7 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
       const a = road[0], b = road[1];
       const dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy) || 1;
       const ux = dx / L, uy = dy / L, nx = -uy, ny = ux;
-      const p: Point = [a[0] + ux * 12 + nx * 5, a[1] + uy * 12 + ny * 5];
+      const p: Point = [a[0] + ux * 20 + nx * 5, a[1] + uy * 20 + ny * 5];
       if (pointInPolygon(p, boundary) || inWater(water, p) || inMountains(mountains, p)) continue;
       inns.push(p); occupied.push(p);
     }
