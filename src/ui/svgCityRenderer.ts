@@ -189,6 +189,11 @@ export function renderCity(layout: CityLayout, lang: Lang = "en"): SVGSVGElement
     for (const w of bb.walls) env.appendChild(svgEl("polyline", { class: "barbican-wall", points: pts(w), fill: "none", stroke: "#43392d", "stroke-width": 2.4, "stroke-linecap": "round" }));
     for (const t of bb.towers) env.appendChild(svgEl("circle", { class: "barbican", cx: t[0], cy: t[1], r: 2.2, fill: "#8a7858", stroke: "#43392d", "stroke-width": 0.8 }));
   }
+  for (const tr of layout.riversideTrades) {
+    const [x, y] = tr.at;
+    env.appendChild(svgEl("rect", { class: "riverside-trade", x: x - 2, y: y - 1.6, width: 4, height: 3.2, fill: "#6b5a44", stroke: "#3c2f1c", "stroke-width": 0.4 }));
+    if (tr.kind === "dyer") env.appendChild(svgEl("path", { class: "dye-rack", d: `M${(x - 2).toFixed(1)},${(y + 2.4).toFixed(1)}h4 M${(x - 1).toFixed(1)},${(y + 1.8).toFixed(1)}v1.2 M${(x + 1).toFixed(1)},${(y + 1.8).toFixed(1)}v1.2`, stroke: "#7a5a3a", "stroke-width": 0.4, fill: "none" }));
+  }
   root.appendChild(env);
 
   const clipped = svgEl("g", { "clip-path": `url(#${clipId})` });

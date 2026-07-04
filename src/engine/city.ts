@@ -77,6 +77,7 @@ export interface CityLayout {
   well: Point | null;
   inns: Point[];
   barbicans: { at: Point; towers: [Point, Point]; walls: [Polyline, Polyline] }[];
+  riversideTrades: { at: Point; kind: "tanner" | "dyer" }[];
   countryside: Countryside;
   castle: Castle | null;
 }
@@ -438,6 +439,22 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
     }
   }
 
+  // waterside trades: tanners/dyers pushed to the water's edge outside the walls (stench/effluent).
+  // Honest approximation of "by the water" — no flow data for true downstream. Into occupied.
+  const riversideTrades: { at: Point; kind: "tanner" | "dyer" }[] = [];
+  if (water.bodies.length) {
+    const nearW = (p: Point) => inWater(water, [p[0] + 4, p[1]]) || inWater(water, [p[0] - 4, p[1]]) || inWater(water, [p[0], p[1] + 4]) || inWater(water, [p[0], p[1] - 4]);
+    const want = 2 + (ctx.size >= 4 ? 1 : 0);
+    for (let tries = 0; tries < 140 && riversideTrades.length < want; tries++) {
+      const p: Point = [4 + rng() * (bounds.w - 8), 4 + rng() * (bounds.h - 8)];
+      if (pointInPolygon(p, boundary) || inWater(water, p) || inMountains(mountains, p)) continue;
+      if (!nearW(p)) continue;
+      if (occupied.some((o) => Math.hypot(o[0] - p[0], o[1] - p[1]) < 8)) continue;
+      const kind: "tanner" | "dyer" = rng() < 0.5 ? "tanner" : "dyer";
+      riversideTrades.push({ at: p, kind }); occupied.push(p);
+    }
+  }
+
   // countryside: generated LAST (rng-stream tail, per convention) so it avoids every
   // suburb/outwork/landmark already placed above (occupied carries all of their centres).
   const countryside = generateCountryside(rng, {
@@ -451,6 +468,6 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
   return {
     name: ctx.name, size: ctx.size, coastal: ctx.coastal, isCapital: ctx.isCapital,
     archetype, bounds, boundary, water, mountains, wall, moat, gateBridges, mainRoads, minorRoads, wards, parks, labels, features, suburbRoads, suburbs, outworks, harbor,
-    abbey, cemetery, gallows, parishChurches, marketCross, well, inns, barbicans, countryside, castle,
+    abbey, cemetery, gallows, parishChurches, marketCross, well, inns, barbicans, riversideTrades, countryside, castle,
   };
 }

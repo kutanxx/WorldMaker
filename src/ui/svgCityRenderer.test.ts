@@ -140,4 +140,10 @@ describe("renderCity organic", () => {
     expect(svg.querySelectorAll(".barbican").length).toBe(layout.barbicans.length * 2);
     expect(svg.querySelectorAll(".barbican-wall").length).toBe(layout.barbicans.length * 2);
   });
+  it("renders a workshop per riverside trade", () => {
+    let layout = generateCityLayout({ id: 7, name: "T", size: 4, coastal: true, isCapital: false, elevation: 0.4, biome: GRASSLAND }, 1);
+    for (let s = 2; s <= 20 && !layout.riversideTrades.length; s++) layout = generateCityLayout({ id: 7, name: "T", size: 4, coastal: true, isCapital: false, elevation: 0.4, biome: GRASSLAND }, s);
+    const svg = renderCity(layout, "en");
+    expect(svg.querySelectorAll(".riverside-trade").length).toBe(layout.riversideTrades.length);
+  });
 });

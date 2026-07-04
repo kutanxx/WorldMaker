@@ -362,3 +362,25 @@ describe("barbican", () => {
     }
   });
 });
+
+describe("waterside trades", () => {
+  it("puts tanners/dyers by the water outside the walls, none inland-dry", () => {
+    const nearWater = (w: ReturnType<typeof generateCityLayout>["water"], p: [number, number]) =>
+      inWater(w, [p[0] + 5, p[1]]) || inWater(w, [p[0] - 5, p[1]]) || inWater(w, [p[0], p[1] + 5]) || inWater(w, [p[0], p[1] - 5]);
+    let coastalHit = false;
+    for (let s = 1; s <= 20 && !coastalHit; s++) {
+      const l = generateCityLayout({ id: 7, name: "T", size: 4, coastal: true, isCapital: false, elevation: 0.4, biome: GRASSLAND }, s);
+      if (l.riversideTrades.length) {
+        coastalHit = true;
+        for (const t of l.riversideTrades) {
+          expect(pointInPolygon(t.at, l.boundary)).toBe(false);
+          expect(nearWater(l.water, t.at)).toBe(true);
+        }
+      }
+    }
+    expect(coastalHit).toBe(true);
+    // inland dry (elevation<0.7, non-coastal, no water archetype) → empty
+    const dry = generateCityLayout({ id: 7, name: "T", size: 3, coastal: false, isCapital: false, elevation: 0.4, biome: GRASSLAND }, 9);
+    if (!dry.water.bodies.length) expect(dry.riversideTrades.length).toBe(0);
+  });
+});
