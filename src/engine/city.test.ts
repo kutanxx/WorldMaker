@@ -3,6 +3,7 @@ import { generateCityLayout, cityContext } from "./city";
 import { centroid, pointInPolygon } from "./geometry";
 import { inWater } from "./city/water";
 import { inMountains } from "./city/mountain";
+import { GRASSLAND } from "./biome";
 import type { CityMarker } from "../types/world";
 
 const base: CityMarker = {
@@ -45,7 +46,7 @@ describe("city organic", () => {
   });
   it("exposes an irregular boundary polygon (radius varies)", () => {
     const l = generateCityLayout(cityContext(base), 5);
-    const rs = l.boundary.map((p) => Math.hypot(p[0] - 150, p[1] - 150));
+    const rs = l.boundary.map((p) => Math.hypot(p[0] - 230, p[1] - 230));
     expect(l.boundary.length).toBeGreaterThanOrEqual(16);
     expect(Math.max(...rs) / Math.min(...rs)).toBeGreaterThan(1.2);
   });
@@ -128,8 +129,8 @@ describe("city organic", () => {
       const c = centroid(b);
       expect(pointInPolygon(c, l.boundary)).toBe(false); // extramural
       expect(inWater(l.water, c)).toBe(false);
-      expect(c[0]).toBeGreaterThan(0); expect(c[0]).toBeLessThan(300);
-      expect(c[1]).toBeGreaterThan(0); expect(c[1]).toBeLessThan(300);
+      expect(c[0]).toBeGreaterThan(0); expect(c[0]).toBeLessThan(460);
+      expect(c[1]).toBeGreaterThan(0); expect(c[1]).toBeLessThan(460);
     }
   });
   it("places an outwork (mill) outside the boundary", () => {
@@ -144,6 +145,18 @@ describe("city organic", () => {
     expect(marsh.features.onStilts).toBe(true);
     const overWater = marsh.wards.flatMap((w) => w.buildings).filter((b) => inWater(marsh.water, centroid(b)));
     expect(overWater.length).toBeGreaterThan(0);
+  });
+});
+
+describe("canvas 460", () => {
+  it("uses a 460x460 canvas with the city centred", () => {
+    const layout = generateCityLayout({ id: 7, name: "Test", size: 3, coastal: false, isCapital: false, elevation: 0.4, biome: GRASSLAND }, 1);
+    expect(layout.bounds).toEqual({ w: 460, h: 460 });
+    // boundary stays a centred island: every vertex well inside the canvas
+    for (const [x, y] of layout.boundary) {
+      expect(x).toBeGreaterThan(60); expect(x).toBeLessThan(400);
+      expect(y).toBeGreaterThan(60); expect(y).toBeLessThan(400);
+    }
   });
 });
 

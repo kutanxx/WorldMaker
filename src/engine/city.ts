@@ -113,8 +113,8 @@ const MOAT_ARCHETYPES = new Set(["coastalPort", "bridgeTown", "plainsMarket"]);
 
 export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLayout {
   const rng: Rng = mulberry32(deriveSeed(worldSeed, ctx.id));
-  const bounds = { w: 300, h: 300 };
-  const center: Vec = [150, 150];
+  const bounds = { w: 460, h: 460 };
+  const center: Vec = [230, 230];
   const radius = 60 + ctx.size * 12;
   // mountain-variant pick uses a SEPARATE rng stream so the main stream (and thus every
   // existing non-mountain city) is byte-identical; only high-elevation form choice changes.

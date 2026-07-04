@@ -45,7 +45,7 @@ export function renderCity(layout: CityLayout, lang: Lang = "en"): SVGSVGElement
 
   for (const body of layout.water.bodies) {
     root.appendChild(svgEl("polygon", { class: "water-shallow", points: pts(body), fill: "#bfd8e4" }));
-    root.appendChild(svgEl("polygon", { class: "water", points: pts(body), fill: "#9fc1d6", transform: "scale(0.985)", "transform-origin": "150 150" }));
+    root.appendChild(svgEl("polygon", { class: "water", points: pts(body), fill: "#9fc1d6", transform: "scale(0.985)", "transform-origin": `${w / 2} ${h / 2}` }));
   }
 
   // harbor: breakwater/mole + lighthouse + piers + moored boats (on the sea)
@@ -86,7 +86,7 @@ export function renderCity(layout: CityLayout, lang: Lang = "en"): SVGSVGElement
       const step = m.steep ? 1 : 2, len = m.steep ? 5 : 3.5;
       for (let i = 0; i < m.innerEdge.length; i += step) {
         const p = m.innerEdge[i];
-        const dx = p[0] - 150, dy = p[1] - 150, L = Math.hypot(dx, dy) || 1;
+        const dx = p[0] - w / 2, dy = p[1] - h / 2, L = Math.hypot(dx, dy) || 1;
         const sx = p[0] + (dx / L) * len, sy = p[1] + (dy / L) * len; // start out in the mass, point downhill to the crest
         mg.appendChild(svgEl("line", { class: "hachure", x1: sx.toFixed(1), y1: sy.toFixed(1), x2: p[0].toFixed(1), y2: p[1].toFixed(1), stroke: crest, "stroke-width": 0.5 }));
       }

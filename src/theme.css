@@ -30,9 +30,9 @@ input[type=number] { width: 88px; cursor: text; }
   box-shadow: 0 1px 4px rgba(60,47,28,.15);
 }
 .stage svg { display: block; width: 100%; height: auto; }
-/* 762 = 560 * (408/300): the viewBox now includes the 108px legend strip,
-   so widen the cap to keep the city itself at ~560px */
-.stage svg.city { max-width: 762px; margin: 0 auto; }
+/* 1008 ≈ (460+108)/408 * 762 rounded to the #app content width: the viewBox gained the
+   countryside ring + legend strip, so widen the cap to keep the walled city the same size */
+.stage svg.city { max-width: 1008px; margin: 0 auto; }
 .timeline {
   display: flex; gap: 10px; padding: 10px 12px; align-items: center;
   background: #efe6cf; border: 1px solid #cbb784; border-radius: 6px; margin-top: 12px;
