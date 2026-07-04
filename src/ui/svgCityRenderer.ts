@@ -185,6 +185,10 @@ export function renderCity(layout: CityLayout, lang: Lang = "en"): SVGSVGElement
     env.appendChild(svgEl("path", { class: "inn-sign", d: `M${(ix + 3).toFixed(1)},${(iy - 2).toFixed(1)}h2 M${(ix + 5).toFixed(1)},${(iy - 2).toFixed(1)}v2`, stroke: "#5a4a34", "stroke-width": 0.5, fill: "none" }));
     env.appendChild(svgEl("rect", { class: "inn-sign", x: ix + 4.2, y: iy, width: 1.6, height: 1.4, fill: "#b98a4a", stroke: "#5a4a34", "stroke-width": 0.3 }));
   }
+  for (const bb of layout.barbicans) {
+    for (const w of bb.walls) env.appendChild(svgEl("polyline", { class: "barbican-wall", points: pts(w), fill: "none", stroke: "#43392d", "stroke-width": 2.4, "stroke-linecap": "round" }));
+    for (const t of bb.towers) env.appendChild(svgEl("circle", { class: "barbican", cx: t[0], cy: t[1], r: 2.2, fill: "#8a7858", stroke: "#43392d", "stroke-width": 0.8 }));
+  }
   root.appendChild(env);
 
   const clipped = svgEl("g", { "clip-path": `url(#${clipId})` });

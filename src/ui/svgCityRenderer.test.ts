@@ -134,4 +134,10 @@ describe("renderCity organic", () => {
     expect(svg.querySelectorAll(".well").length).toBe(layout.well ? 1 : 0);
     expect(svg.querySelectorAll(".inn").length).toBe(layout.inns.length);
   });
+  it("renders barbican towers and walls", () => {
+    const layout = generateCityLayout({ id: 7, name: "T", size: 4, coastal: false, isCapital: false, elevation: 0.4, biome: GRASSLAND }, 1);
+    const svg = renderCity(layout, "en");
+    expect(svg.querySelectorAll(".barbican").length).toBe(layout.barbicans.length * 2);
+    expect(svg.querySelectorAll(".barbican-wall").length).toBe(layout.barbicans.length * 2);
+  });
 });

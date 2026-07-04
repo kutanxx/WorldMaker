@@ -349,3 +349,16 @@ describe("market square + inns", () => {
     for (const p of l.inns) expect(pointInPolygon(p, l.boundary)).toBe(false);
   });
 });
+
+describe("barbican", () => {
+  it("builds a forward gate-work at the principal (non-water) gate, outside the wall", () => {
+    const l = generateCityLayout({ id: 7, name: "T", size: 4, coastal: false, isCapital: false, elevation: 0.4, biome: GRASSLAND }, 1);
+    expect(l.barbicans.length).toBeGreaterThanOrEqual(1);
+    for (const b of l.barbicans) {
+      expect(pointInPolygon(b.at, l.boundary)).toBe(false);
+      expect(inWater(l.water, b.at)).toBe(false);
+      expect(b.towers.length).toBe(2);
+      expect(b.walls.length).toBe(2);
+    }
+  });
+});

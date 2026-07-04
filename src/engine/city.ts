@@ -76,6 +76,7 @@ export interface CityLayout {
   marketCross: Point | null;
   well: Point | null;
   inns: Point[];
+  barbicans: { at: Point; towers: [Point, Point]; walls: [Polyline, Polyline] }[];
   countryside: Countryside;
   castle: Castle | null;
 }
@@ -412,6 +413,31 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
     }
   }
 
+  // barbican: a forward gate-work at the principal gate(s) — the longest gate-road is the main
+  // approach (ties by index). Skip water/mountain-facing gates. Into occupied.
+  const barbicans: { at: Point; towers: [Point, Point]; walls: [Polyline, Polyline] }[] = [];
+  {
+    const ranked = suburbRoads
+      .map((r) => { let len = 0; for (let i = 0; i < r.length - 1; i++) len += Math.hypot(r[i + 1][0] - r[i][0], r[i + 1][1] - r[i][1]); return { r, len }; })
+      .sort((a, b) => b.len - a.len);
+    const wantB = ctx.size >= 4 ? 2 : 1;
+    for (const { r } of ranked) {
+      if (barbicans.length >= wantB) break;
+      if (r.length < 2) continue;
+      const gate = r[0];
+      const dx = r[1][0] - gate[0], dy = r[1][1] - gate[1], L = Math.hypot(dx, dy) || 1;
+      const ux = dx / L, uy = dy / L, nx = -uy, ny = ux;
+      const front: Point = [gate[0] + ux * 12, gate[1] + uy * 12];
+      if (pointInPolygon(front, boundary) || inWater(water, front) || inMountains(mountains, front)) continue;
+      const t1: Point = [gate[0] + ux * 11 + nx * 4, gate[1] + uy * 11 + ny * 4];
+      const t2: Point = [gate[0] + ux * 11 - nx * 4, gate[1] + uy * 11 - ny * 4];
+      const wallA: Polyline = [[gate[0] + nx * 3, gate[1] + ny * 3], t1];
+      const wallB: Polyline = [[gate[0] - nx * 3, gate[1] - ny * 3], t2];
+      barbicans.push({ at: front, towers: [t1, t2], walls: [wallA, wallB] });
+      occupied.push(front, t1, t2);
+    }
+  }
+
   // countryside: generated LAST (rng-stream tail, per convention) so it avoids every
   // suburb/outwork/landmark already placed above (occupied carries all of their centres).
   const countryside = generateCountryside(rng, {
@@ -425,6 +451,6 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
   return {
     name: ctx.name, size: ctx.size, coastal: ctx.coastal, isCapital: ctx.isCapital,
     archetype, bounds, boundary, water, mountains, wall, moat, gateBridges, mainRoads, minorRoads, wards, parks, labels, features, suburbRoads, suburbs, outworks, harbor,
-    abbey, cemetery, gallows, parishChurches, marketCross, well, inns, countryside, castle,
+    abbey, cemetery, gallows, parishChurches, marketCross, well, inns, barbicans, countryside, castle,
   };
 }
