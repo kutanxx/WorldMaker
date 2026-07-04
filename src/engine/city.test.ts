@@ -328,3 +328,12 @@ describe("city harbor (Phase 3)", () => {
     }
   });
 });
+
+describe("parish churches", () => {
+  it("scatters 1+size churches across non-civic wards, all inside the walls", () => {
+    const l = generateCityLayout({ id: 7, name: "T", size: 3, coastal: false, isCapital: false, elevation: 0.4, biome: GRASSLAND }, 1);
+    const eligible = l.wards.filter((w) => !["cathedral", "castle", "plaza", "harbor"].includes(w.type)).length;
+    expect(l.parishChurches.length).toBe(Math.min(1 + 3, eligible));
+    for (const p of l.parishChurches) expect(pointInPolygon(p, l.boundary)).toBe(true);
+  });
+});

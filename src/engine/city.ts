@@ -72,6 +72,7 @@ export interface CityLayout {
   abbey: Abbey | null;
   cemetery: Cemetery | null;
   gallows: Point | null;
+  parishChurches: Point[];
   countryside: Countryside;
   castle: Castle | null;
 }
@@ -376,6 +377,18 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
   { const s = findSpot(13); if (s) { const graves: Point[] = []; for (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++) graves.push([s[0] + (c - 1) * 3, s[1] + (r - 1) * 3.2]); cemetery = { at: s, graves }; } }
   const gallows: Point | null = ctx.size >= 2 ? findSpot(10) : null;
 
+  // parish churches: a steeple in a few non-civic wards (skyline). Uses zoned wards, no overlap
+  // (distinct Voronoi cells) so the count is exactly min(1+size, eligible).
+  const parishChurches: Point[] = [];
+  {
+    const pool = zoned.filter((z) => !(["cathedral", "castle", "plaza", "harbor"] as WardType[]).includes(z.type));
+    const want = Math.min(1 + ctx.size, pool.length);
+    for (let k = 0; k < want; k++) {
+      const idx = Math.floor(rng() * pool.length);
+      parishChurches.push(centroid(pool.splice(idx, 1)[0].polygon));
+    }
+  }
+
   // countryside: generated LAST (rng-stream tail, per convention) so it avoids every
   // suburb/outwork/landmark already placed above (occupied carries all of their centres).
   const countryside = generateCountryside(rng, {
@@ -389,6 +402,6 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
   return {
     name: ctx.name, size: ctx.size, coastal: ctx.coastal, isCapital: ctx.isCapital,
     archetype, bounds, boundary, water, mountains, wall, moat, gateBridges, mainRoads, minorRoads, wards, parks, labels, features, suburbRoads, suburbs, outworks, harbor,
-    abbey, cemetery, gallows, countryside, castle,
+    abbey, cemetery, gallows, parishChurches, countryside, castle,
   };
 }

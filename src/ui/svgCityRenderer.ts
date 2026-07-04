@@ -226,6 +226,10 @@ export function renderCity(layout: CityLayout, lang: Lang = "en"): SVGSVGElement
     for (const [x, y] of ca.keep) cg.appendChild(svgEl("circle", { class: "castle-turret", cx: x, cy: y, r: 1.6, fill: "#7c8494", stroke: "#3a4050", "stroke-width": 0.5 }));
     clipped.appendChild(cg);
   }
+
+  for (const [cx, cy] of layout.parishChurches) {
+    clipped.appendChild(svgEl("path", { class: "parish-church", d: `M${cx.toFixed(1)},${(cy - 3).toFixed(1)}v6 M${(cx - 2).toFixed(1)},${(cy - 1).toFixed(1)}h4`, stroke: "#7a6a86", "stroke-width": 1.2, fill: "none", "stroke-linecap": "round" }));
+  }
   root.appendChild(clipped);
 
   if (layout.features.trees.length) {

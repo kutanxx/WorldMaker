@@ -122,4 +122,9 @@ describe("renderCity organic", () => {
     expect(svg.querySelectorAll(".castle-turret").length).toBe(4);
     expect(svg.querySelectorAll(".castle-tower").length).toBe(layout.castle!.towers.length);
   });
+  it("renders a parish-church steeple per parishChurches entry", () => {
+    const layout = generateCityLayout({ id: 7, name: "T", size: 3, coastal: false, isCapital: false, elevation: 0.4, biome: GRASSLAND }, 1);
+    const svg = renderCity(layout, "en");
+    expect(svg.querySelectorAll(".parish-church").length).toBe(layout.parishChurches.length);
+  });
 });
