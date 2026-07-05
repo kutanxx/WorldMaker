@@ -1,12 +1,10 @@
 import { mulberry32, deriveSeed } from "./rng";
 import type { Rng } from "./rng";
 import type { Point, Polygon, Polyline } from "./geometry";
-import { centroid, pointInPolygon, bbox, pointSegDist, insetPolygon } from "./geometry";
+import { centroid, pointInPolygon, bbox, pointSegDist, insetConvex } from "./geometry";
 import { selectArchetype } from "./city/archetypes";
 import type { Archetype } from "./city/archetypes";
-import { makeTensorField } from "./city/tensorField";
-import type { BasisField, Vec } from "./city/tensorField";
-import { generateStreets } from "./city/streets";
+import { extractStreets, classifyStreets } from "./city/blockStreets";
 import { buildWater, inWater, waterBridges } from "./city/water";
 import type { Water } from "./city/water";
 import { makeBoundary } from "./city/cityBoundary";
@@ -96,29 +94,6 @@ export function cityContext(c: CityMarker): CityContext {
   return { id: c.id, name: c.name, size: c.size, coastal: c.coastal, isCapital: c.isCapital, elevation: c.elevation, biome: c.biome };
 }
 
-function fieldsFor(arch: Archetype, center: Vec, radius: number, rng: Rng): BasisField[] {
-  const fields: BasisField[] = [];
-  if (arch.streetField === "radial") fields.push({ kind: "radial", center, size: radius * 3, decay: 1, theta: 0 });
-  else fields.push({ kind: "grid", center, size: radius * 4, decay: 1, theta: rng() * Math.PI });
-  // offset secondary centres bend the field so streamlines genuinely curve
-  for (let i = 0; i < 2; i++) {
-    const a = rng() * Math.PI * 2;
-    const oc: Vec = [center[0] + Math.cos(a) * radius * 0.7, center[1] + Math.sin(a) * radius * 0.7];
-    fields.push({ kind: i === 0 ? "radial" : "grid", center: oc, size: radius * 1.4, decay: 0.6, theta: rng() * Math.PI });
-  }
-  return fields;
-}
-
-// trim a street back from the wall: drop points off each end that fall outside the inset
-// boundary, so streets stop in a clear intramural band instead of dead-ending on the wall
-function trimEndsToInset(road: Polyline, inset: Polygon): Polyline {
-  let i = 0;
-  while (i < road.length && !pointInPolygon(road[i], inset)) i++;
-  let j = road.length - 1;
-  while (j >= i && !pointInPolygon(road[j], inset)) j--;
-  return road.slice(i, j + 1);
-}
-
 function offsetSegment(seg: Polyline, c: Point, d: number): Polyline {
   return seg.map((p) => {
     const dx = p[0] - c[0], dy = p[1] - c[1];
@@ -136,7 +111,7 @@ const MOAT_ARCHETYPES = new Set(["coastalPort", "bridgeTown", "plainsMarket"]);
 export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLayout {
   const rng: Rng = mulberry32(deriveSeed(worldSeed, ctx.id));
   const bounds = { w: 460, h: 460 };
-  const center: Vec = [230, 230];
+  const center: Point = [230, 230];
   const radius = 60 + ctx.size * 12;
   // mountain-variant pick uses a SEPARATE rng stream so the main stream (and thus every
   // existing non-mountain city) is byte-identical; only high-elevation form choice changes.
@@ -153,32 +128,28 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
   const boundary = makeBoundary(rng, archetype, ctx.size, center, water);
   const mountains = makeMountains(rng, archetype, boundary, [center[0], center[1]], bounds);
 
-  const noiseAmp = archetype.streetField === "grid" || archetype.streetField === "linear" ? 0.2 : 0.26;
-  // determinism: fieldsFor() consumes rng (3 draws) BEFORE makeTensorField()'s noise draw — keep this call order.
-  const field = makeTensorField(rng, fieldsFor(archetype, center, radius, rng), noiseAmp);
-  const insideRegion = (p: Point) => pointInPolygon(p, boundary) && !inWater(water, p);
-  const stop = (p: Vec) => !insideRegion(p);
+  // BLOCK-CENTRIC: wards are the city blocks; streets are the gaps (shared ward edges).
+  let wardCells = generateWards(rng, center[0], center[1], radius * 1.15, 8 + ctx.size * 3);
+  wardCells = wardCells.filter((c) => pointInPolygon(c.site, boundary) && !inWater(water, c.site));
+  const streetGraph = extractStreets(wardCells);
 
-  const seedCandidates: Vec[] = [center];
-  for (let k = 0; k < 6; k++) {
-    const a = (k / 6) * Math.PI * 2;
-    seedCandidates.push([center[0] + Math.cos(a) * radius * 0.45, center[1] + Math.sin(a) * radius * 0.45]);
-  }
-  const drySeeds = seedCandidates.filter((p) => insideRegion(p));
-  const seeds: Vec[] = drySeeds.length > 0 ? drySeeds : [center];
+  const maxGates = 2 + Math.floor(ctx.size / 3);
+  // gates sit where streets reach the wall: feed the street nodes as candidate road-ends
+  const wall = wallFromDefenses(boundary, water, mountains, streetGraph.nodes.map((nd) => [nd, nd]), maxGates);
 
-  let mainRoads = generateStreets(field, { dsep: 34, dtest: 17, step: 3, maxLength: 240, bounds, useMinor: false }, stop, seeds);
-  let minorRoads = generateStreets(field, { dsep: 15, dtest: 7, step: 3, maxLength: 180, bounds, useMinor: true }, stop, seeds);
+  const classified = classifyStreets(streetGraph, wall.gates, [center[0], center[1]]);
+  // drop MINOR streets that run through water (buildings avoid water so those blocks are empty);
+  // main streets/stubs are kept and bridged where they cross water
+  let mainRoads = classified.main;
+  // drop main segments that lie ENTIRELY in water (no bridge possible); one-wet-one-dry crossings
+  // are kept and bridged by waterBridges below
+  mainRoads = mainRoads.filter((r) => !(r.length === 2 && inWater(water, r[0]) && inWater(water, r[1])));
+  let minorRoads = classified.minor.filter((s) => !inWater(water, [(s[0][0] + s[1][0]) / 2, (s[0][1] + s[1][1]) / 2]));
   water.bridges = waterBridges([...mainRoads, ...minorRoads], water);
 
-  // a few well-placed main gates rather than one at every road (medieval towns had 2-4)
-  const maxGates = 2 + Math.floor(ctx.size / 3);
-  const wall = wallFromDefenses(boundary, water, mountains, mainRoads, maxGates);
-  // moat follows the wall offset outward; where that offset would fall in the sea, keep the wall point
   const moat = MOAT_ARCHETYPES.has(archetype.id)
     ? wall.segments.map((s) => offsetSegment(s, center, 6).map((o, i) => (inWater(water, o) ? s[i] : o)))
     : null;
-  // a causeway crossing the moat in front of each gate, so there is a way in
   const gateBridges: Polyline[] = moat
     ? wall.gates
         .map((g): Polyline | null => {
@@ -186,32 +157,13 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
           const L = Math.hypot(dx, dy) || 1;
           const ux = dx / L, uy = dy / L;
           const outer: Point = [g[0] + ux * 11, g[1] + uy * 11];
-          if (inWater(water, outer)) return null; // waterfront gate: no causeway into the sea
+          if (inWater(water, outer)) return null;
           return [[g[0] - ux * 3, g[1] - uy * 3], outer];
         })
         .filter((b): b is Polyline => b !== null)
     : [];
 
-  // streets should honour the wall: pull every street back into a clear intramural band so none
-  // dead-ends on blank wall, then give each ACTUAL gate a short connector road inward — so the
-  // network visibly leads to the gates (gates were derived from the untrimmed roads above).
-  const insetB = insetPolygon(boundary, 5);
-  mainRoads = mainRoads.map((r) => trimEndsToInset(r, insetB)).filter((r) => r.length >= 2);
-  minorRoads = minorRoads.map((r) => trimEndsToInset(r, insetB)).filter((r) => r.length >= 2);
-  const gateConnectors: Polyline[] = wall.gates.map((g) => {
-    const dx = center[0] - g[0], dy = center[1] - g[1], L = Math.hypot(dx, dy) || 1;
-    return [g, [g[0] + (dx / L) * 14, g[1] + (dy / L) * 14]] as Polyline;
-  });
-  mainRoads = [...mainRoads, ...gateConnectors];
-
-  const allRoads = [...mainRoads, ...minorRoads];
-  const nearRoad = (p: Point) => {
-    for (const r of allRoads) for (const q of r) if (Math.hypot(q[0] - p[0], q[1] - p[1]) < 3.5) return true;
-    return false;
-  };
-
-  let cells = generateWards(rng, center[0], center[1], radius * 1.15, 8 + ctx.size * 3);
-  cells = cells.filter((c) => pointInPolygon(c.site, boundary) && !inWater(water, c.site));
+  let cells = wardCells;
   // the keep sits on the high ground: anchor it toward the mountain mass, if any
   let castleAnchor: Point | undefined;
   if (mountains.length) {
@@ -256,11 +208,11 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
     }
     let buildings: Polygon[] = [];
     if (!NO_BUILDINGS.includes(z.type)) {
-      buildings = subdivide(rng, z.polygon, { minArea: DENSITY[z.type] ?? 130, margin: 1.5 });
+      buildings = subdivide(rng, insetConvex(z.polygon, 4), { minArea: DENSITY[z.type] ?? 130, margin: 0.5 });
       buildings = buildings.filter((b) => {
         const c = centroid(b);
         const dryOk = archetype.onStilts || !inWater(water, c);
-        return pointInPolygon(c, boundary) && dryOk && !nearRoad(c);
+        return pointInPolygon(c, boundary) && dryOk;
       });
     }
     return { polygon: z.polygon, type: z.type, buildings, inner: z.inner };
@@ -280,6 +232,12 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
   const castle = castleWard ? makeCastle(rng, castleWard.polygon, [center[0], center[1]], boundary, ctx.size) : null;
 
   const allBuildings = wards.flatMap((w) => w.buildings);
+  // trees stay clear of the street network (used only here now that buildings are inset off streets)
+  const allRoads = [...mainRoads, ...minorRoads];
+  const nearRoad = (p: Point) => {
+    for (const r of allRoads) for (const q of r) if (Math.hypot(q[0] - p[0], q[1] - p[1]) < 3.5) return true;
+    return false;
+  };
   const scatterTrees = (n: number): Point[] => {
     const out: Point[] = [];
     const bb = bbox(boundary);
@@ -412,7 +370,10 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
     const want = Math.min(1 + ctx.size, pool.length);
     for (let k = 0; k < want; k++) {
       const idx = Math.floor(rng() * pool.length);
-      parishChurches.push(centroid(pool.splice(idx, 1)[0].polygon));
+      // use the ward's Voronoi site, not its polygon centroid: a ward clipped against the
+      // (irregular) city boundary can have a centroid that falls just outside the boundary,
+      // while the site was already filtered to be inside it (see wardCells filter above)
+      parishChurches.push(pool.splice(idx, 1)[0].site);
     }
   }
 
