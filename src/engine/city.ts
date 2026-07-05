@@ -90,10 +90,11 @@ export interface CityContext {
   isCapital: boolean;
   elevation: number;
   biome: number;
+  river?: boolean; // world river through the cell (optional so test fixtures can omit it → no river)
 }
 
 export function cityContext(c: CityMarker): CityContext {
-  return { id: c.id, name: c.name, size: c.size, coastal: c.coastal, isCapital: c.isCapital, elevation: c.elevation, biome: c.biome };
+  return { id: c.id, name: c.name, size: c.size, coastal: c.coastal, isCapital: c.isCapital, elevation: c.elevation, biome: c.biome, river: c.river };
 }
 
 function offsetSegment(seg: Polyline, c: Point, d: number): Polyline {
@@ -118,7 +119,7 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
   // mountain-variant pick uses a SEPARATE rng stream so the main stream (and thus every
   // existing non-mountain city) is byte-identical; only high-elevation form choice changes.
   const pick = mulberry32(deriveSeed(worldSeed, ctx.id + 4200))();
-  const archetype = selectArchetype({ coastal: ctx.coastal, elevation: ctx.elevation, size: ctx.size, biome: ctx.biome, pick });
+  const archetype = selectArchetype({ coastal: ctx.coastal, elevation: ctx.elevation, size: ctx.size, biome: ctx.biome, pick, river: ctx.river });
 
   const water = buildWater(rng, archetype.water, bounds);
   if (archetype.oasis) {

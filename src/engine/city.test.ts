@@ -8,7 +8,7 @@ import type { CityMarker } from "../types/world";
 
 const base: CityMarker = {
   id: 2, cell: 0, x: 0, y: 0, name: "Testburg",
-  polityId: 0, isCapital: true, size: 4, coastal: false, elevation: 0.5, biome: 4,
+  polityId: 0, isCapital: true, size: 4, coastal: false, elevation: 0.5, biome: 4, river: false,
 };
 
 describe("city organic", () => {
@@ -56,6 +56,15 @@ describe("city organic", () => {
     const l = generateCityLayout(cityContext({ ...base, coastal: false, elevation: 0.85 }), 5);
     expect(l.moat).toBeNull(); // hilltopFortress has no moat
     expect(l.gateBridges.length).toBe(0);
+  });
+  it("shows a river in the drilldown when a world river runs through the city cell (world<->city coupling)", () => {
+    const withRiver = generateCityLayout({ id: 7, name: "T", size: 4, coastal: false, isCapital: false, elevation: 0.4, biome: GRASSLAND, river: true }, 1);
+    expect(withRiver.archetype.id).toBe("bridgeTown");
+    expect(withRiver.water.kind).toBe("river");
+    expect(withRiver.water.bodies.length).toBeGreaterThan(0);
+    // the same inland cell WITHOUT a world river is a dry-market town, not a river town
+    const noRiver = generateCityLayout({ id: 7, name: "T", size: 4, coastal: false, isCapital: false, elevation: 0.4, biome: GRASSLAND, river: false }, 1);
+    expect(noRiver.archetype.id).not.toBe("bridgeTown");
   });
   it("keeps minor-road midpoints and building centroids out of water (main streets may be bridged)", () => {
     const l = generateCityLayout(cityContext({ ...base, coastal: true }), 8);

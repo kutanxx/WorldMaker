@@ -36,6 +36,11 @@ export function generateWorld(params: WorldParams): GeneratedWorld {
     name: makeNameGen(rng, phonAt(s.capital)).nation(),
   }));
 
+  // river GEOMETRY is rng-free (reads heights/terrain/biome), so tracing it here — before the
+  // cities — leaves the main rng stream (and the golden regression) byte-unchanged while letting
+  // each city know whether a world river runs through its cell (names still draw on stream 8002).
+  const { segments, trunks, riverCells } = traceRivers(grid, heights, terrain, biome);
+
   const cities: CityMarker[] = [];
   let cityId = 0;
   for (const p of polities) {
@@ -51,6 +56,7 @@ export function generateWorld(params: WorldParams): GeneratedWorld {
       coastal: isCoastal(p.capital),
       elevation: heights[p.capital],
       biome: biome[p.capital],
+      river: riverCells.has(p.capital),
     });
   }
 
@@ -76,6 +82,7 @@ export function generateWorld(params: WorldParams): GeneratedWorld {
       coastal: isCoastal(cell),
       elevation: heights[cell],
       biome: biome[cell],
+      river: riverCells.has(cell),
     });
   }
 
@@ -85,10 +92,9 @@ export function generateWorld(params: WorldParams): GeneratedWorld {
   const regions = nameGeography(geoRng, detectRegions(grid, Array.from(biome), Array.from(terrain)));
   const name = worldName(geoRng);
 
-  // rivers on a SEPARATE stream (8002) — geometry is rng-free (reads heights/terrain/biome),
-  // only naming draws, so the golden regression is byte-unchanged
+  // river NAMES on a SEPARATE stream (8002); geometry was already traced (rng-free) above, so the
+  // golden regression stays byte-unchanged
   const rivRng = mulberry32(deriveSeed(params.seed, 8002));
-  const { segments, trunks } = traceRivers(grid, heights, terrain, biome);
   const rivers = nameRivers(rivRng, trunks, phonAt);
 
   const world: World = {

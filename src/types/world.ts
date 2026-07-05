@@ -21,6 +21,7 @@ export interface CityMarker {
   coastal: boolean;
   elevation: number;
   biome: number;
+  river: boolean; // a world river runs through this cell — the drilldown should show it
 }
 
 export interface Polity {

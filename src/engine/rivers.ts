@@ -9,7 +9,9 @@ import {
 } from "./biome";
 
 export interface RawRiver { mouthCell: number; path: [number, number][]; flux: number }
-export interface RiverNetwork { segments: RiverSegment[]; trunks: RawRiver[] }
+// riverCells: land cells the drawn network runs through (flux >= drawThreshold) — used to give a
+// city whose cell a river crosses a river in its drilldown (world <-> city coupling)
+export interface RiverNetwork { segments: RiverSegment[]; trunks: RawRiver[]; riverCells: Set<number> }
 
 type GridLike = { count: number; neighbors: number[][]; points: number[] };
 
@@ -97,7 +99,7 @@ export function traceRivers(
       if (flux[c] > maxMouthFlux) maxMouthFlux = flux[c];
     }
   }
-  if (maxMouthFlux <= 0) return { segments: [], trunks: [] };
+  if (maxMouthFlux <= 0) return { segments: [], trunks: [], riverCells: new Set() };
   const drawThreshold = DRAW_FRAC * maxMouthFlux;
 
   const px = (c: number) => grid.points[c * 2];
@@ -106,11 +108,13 @@ export function traceRivers(
   // network segments (includes the mouth hop into the ocean cell, so rivers reach the sea)
   const segments: RiverSegment[] = [];
   const children: number[][] = Array.from({ length: n }, () => []);
+  const riverCells = new Set<number>(); // land cells the drawn network passes through
   for (let c = 0; c < n; c++) {
     if (terrain[c] === OCEAN || receiver[c] < 0 || flux[c] < drawThreshold) continue;
     const r = receiver[c];
     segments.push({ x1: px(c), y1: py(c), x2: px(r), y2: py(r), f: flux[c] });
     children[r].push(c); // upstream river cell feeding r
+    riverCells.add(c); // flux only grows downstream, so every land receiver is itself a source too
   }
 
   // named trunks: mouths above the "major" bar, most flux first (index tie-break)
@@ -137,7 +141,7 @@ export function traceRivers(
     return { mouthCell: m, path, flux: flux[m] };
   });
 
-  return { segments, trunks };
+  return { segments, trunks, riverCells };
 }
 
 const RIVER_NOUNS = ["River", "Water", "Run", "Fork", "Flow", "Race", "Rill"];

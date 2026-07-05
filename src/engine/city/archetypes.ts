@@ -42,13 +42,16 @@ const TABLE: Record<ArchetypeId, Archetype> = {
 const MOUNTAIN_VARIANTS: ArchetypeId[] = ["hilltopFortress", "hillside", "spur", "valleyPass"];
 
 export function selectArchetype(
-  opts: { coastal: boolean; elevation: number; size: number; biome: number; pick?: number }
+  opts: { coastal: boolean; elevation: number; size: number; biome: number; pick?: number; river?: boolean }
 ): Archetype {
   if (opts.coastal) return TABLE.coastalPort;
   if (opts.elevation >= 0.7) {
     const i = Math.min(MOUNTAIN_VARIANTS.length - 1, Math.floor((opts.pick ?? 0) * MOUNTAIN_VARIANTS.length));
     return TABLE[MOUNTAIN_VARIANTS[i]];
   }
+  // a world river runs through this cell → the drilldown must show it (world<->city coupling).
+  // Wetlands keep their marsh meander; every other inland biome becomes a bridge town on the river.
+  if (opts.river) return opts.biome === WETLAND ? TABLE.marshStilt : TABLE.bridgeTown;
   switch (opts.biome) {
     case WETLAND: return TABLE.marshStilt;
     case DESERT: return TABLE.desertOasis;

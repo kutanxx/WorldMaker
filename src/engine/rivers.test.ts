@@ -21,13 +21,16 @@ function chain(heights: number[]): {
 describe("traceRivers", () => {
   it("routes flow downhill to the ocean and accumulates flux", () => {
     const { grid, terrain, biome } = chain([0.0, 0.2, 0.4, 0.6, 0.8]);
-    const { segments } = traceRivers(grid, [0.0, 0.2, 0.4, 0.6, 0.8], terrain, biome);
+    const { segments, riverCells } = traceRivers(grid, [0.0, 0.2, 0.4, 0.6, 0.8], terrain, biome);
     // 4 land cells → 4 segments, the mouth hop (cell1→cell0) reaches the ocean point x=0
     expect(segments.length).toBe(4);
     const mouth = segments.find((s) => s.x2 === 0);
     expect(mouth).toBeTruthy();
     // mouth flux = sum of the 4 land cells' rain (each 1.0)
     expect(mouth!.f).toBeCloseTo(4, 5);
+    // riverCells marks the land cells the network runs through (cells 1-4; cell 0 is the ocean mouth)
+    expect(riverCells.has(0)).toBe(false);
+    expect([1, 2, 3, 4].every((c) => riverCells.has(c))).toBe(true);
   });
 
   it("fills a pit so a local minimum still drains to the sea (no lakes, no cycle)", () => {
@@ -43,7 +46,7 @@ describe("traceRivers", () => {
 
   it("returns empty network when there is no land", () => {
     const grid = { count: 2, neighbors: [[1], [0]], points: [0, 0, 10, 0] };
-    expect(traceRivers(grid, [0, 0], [0, 0], [0, 0])).toEqual({ segments: [], trunks: [] });
+    expect(traceRivers(grid, [0, 0], [0, 0], [0, 0])).toEqual({ segments: [], trunks: [], riverCells: new Set() });
   });
 
   it("names a trunk mouth-to-source as the max-flux upstream path", () => {

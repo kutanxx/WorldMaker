@@ -37,6 +37,18 @@ describe("selectArchetype", () => {
     expect(plains.onStilts).toBe(false);
     expect(plains.oasis).toBe(false);
   });
+  it("a world river through the cell makes an inland town a bridge town (river shown in the drilldown)", () => {
+    // grassland/forest/etc river cell -> bridgeTown (has a river); wetland keeps its marsh meander
+    expect(selectArchetype({ ...inland, biome: GRASSLAND, river: true }).id).toBe("bridgeTown");
+    expect(selectArchetype({ ...inland, biome: TEMPERATE_FOREST, river: true }).id).toBe("bridgeTown");
+    expect(selectArchetype({ ...inland, biome: DESERT, river: true }).id).toBe("bridgeTown"); // a Nile through the sands
+    expect(selectArchetype({ ...inland, biome: WETLAND, river: true }).id).toBe("marshStilt");
+    // coast + elevation still win over the river branch
+    expect(selectArchetype({ ...inland, coastal: true, biome: GRASSLAND, river: true }).id).toBe("coastalPort");
+    expect(selectArchetype({ ...inland, elevation: 0.9, biome: GRASSLAND, river: true }).id).toBe("hilltopFortress");
+    // bridgeTown carries a river water body
+    expect(selectArchetype({ ...inland, biome: GRASSLAND, river: true }).water).toBe("river");
+  });
   it("high elevation picks among the four mountain variants by `pick`", () => {
     const mtn = { ...inland, elevation: 0.9, biome: GRASSLAND };
     expect(selectArchetype({ ...mtn, pick: 0.0 }).id).toBe("hilltopFortress");
