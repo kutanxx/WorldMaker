@@ -110,4 +110,14 @@ describe("createApp", () => {
     (Array.from(root.querySelectorAll(".view-toggle button")).find((b) => b.textContent === "Political") as HTMLButtonElement).click();
     expect((root.querySelector(".timeline-year") as HTMLElement).textContent).toBe("500년");
   });
+  it("mounts zoom controls on the world map and again on a city drilldown", () => {
+    const root = document.createElement("div");
+    createApp(root, { seed: 1, width: 1000, height: 700, cellCount: 4000, seaLevel: 0.3, mountainLevel: 0.55, polityCount: 8, townCount: 20 });
+    const stage = root.querySelector(".stage")!;
+    expect(stage.querySelector(".map-zoom-controls")).not.toBeNull(); // world map
+    const marker = stage.querySelector("[data-city]") as SVGElement;
+    marker.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    expect(stage.querySelector("svg.city")).not.toBeNull();          // drilled down
+    expect(stage.querySelector(".map-zoom-controls")).not.toBeNull(); // city map controls
+  });
 });

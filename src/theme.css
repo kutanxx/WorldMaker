@@ -26,9 +26,19 @@ button, input {
 button:hover { background: #e7d9b6; }
 input[type=number] { width: 88px; cursor: text; }
 .stage {
+  position: relative;
   background: #f6efdd; border: 1px solid #cbb784; border-radius: 6px; padding: 10px;
   box-shadow: 0 1px 4px rgba(60,47,28,.15);
 }
+.map-zoom-controls {
+  position: absolute; right: 14px; bottom: 14px;
+  display: flex; flex-direction: column; gap: 4px; z-index: 5;
+}
+.map-zoom-controls button {
+  width: 30px; height: 30px; padding: 0; font-size: 18px; line-height: 1;
+  background: #f3ead2; border: 1px solid #b7a071; border-radius: 4px; color: #3c2f1c; cursor: pointer;
+}
+.map-zoom-controls button:hover { background: #e7d9b6; }
 .stage svg { display: block; width: 100%; height: auto; }
 /* 1008 ≈ (460+108)/408 * 762 rounded to the #app content width: the viewBox gained the
    countryside ring + legend strip, so widen the cap to keep the walled city the same size */

@@ -10,6 +10,7 @@ import { worldToGazetteer } from "../engine/gazetteer";
 import { simulateHistory } from "../engine/history";
 import { renderChronicle, applyChronicleYear } from "./chronicle";
 import { createTimeline, type Timeline } from "./timeline";
+import { attachZoomPan, type ZoomPan } from "./zoomPan";
 import { politicalLayer } from "./politicalLayer";
 import { cultureLayer } from "./cultureLayer";
 import { type Lang, t } from "./i18n";
@@ -61,6 +62,8 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
   let generated: GeneratedWorld = generateWorld(params);
   let history = simulateHistory(generated.world, params.seed);
   let timeline: Timeline | null = null;
+  let worldZoom: ZoomPan | null = null;
+  let cityZoom: ZoomPan | null = null;
   let currentYearIndex = 0;
   let currentView: MapView = "terrain";
   let lang: Lang = "en";
@@ -130,6 +133,9 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
       if (id !== null && id !== "") openCity(Number(id));
     });
     stage.appendChild(svg);
+    cityZoom?.destroy(); cityZoom = null;
+    worldZoom?.destroy();
+    worldZoom = attachZoomPan(svg, stage);
 
     const chronicle = renderChronicle(history);
     const slot = svg.querySelector(".political-slot") as SVGGElement;
@@ -162,7 +168,11 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     back.textContent = "← " + t(lang, "backToWorld");
     back.addEventListener("click", showWorld);
     const layout = generateCityLayout(cityContext(marker), params.seed);
-    stage.append(back, renderCity(layout, lang));
+    const citySvg = renderCity(layout, lang);
+    stage.append(back, citySvg);
+    worldZoom?.destroy(); worldZoom = null;
+    cityZoom?.destroy();
+    cityZoom = attachZoomPan(citySvg, stage);
   }
 
   function regenerate(p: WorldParams): void {
