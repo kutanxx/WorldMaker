@@ -112,6 +112,18 @@ describe("renderCity organic", () => {
     expect(env.querySelectorAll(".wood-tree").length).toBe(layout.countryside.woods.length);
     expect(env.querySelectorAll(".village-green").length).toBe(layout.countryside.villages.length);
   });
+  it("draws roads on top of buildings (streets never buried under a block)", () => {
+    const layout = generateCityLayout({ id: 7, name: "T", size: 4, coastal: false, isCapital: false, elevation: 0.4, biome: GRASSLAND }, 1);
+    const svg = renderCity(layout, "en");
+    const clipped = svg.querySelector("g[clip-path]")!;
+    const kids = [...clipped.children];
+    const idxOf = (cls: string) => kids.reduce((acc, k, idx) => (k.classList.contains(cls) ? idx : acc), -1);
+    const firstIdxOf = (cls: string) => kids.findIndex((k) => k.classList.contains(cls));
+    const lastBuilding = idxOf("building");
+    const firstRoad = firstIdxOf("road-main-casing");
+    expect(lastBuilding).toBeGreaterThanOrEqual(0);
+    expect(firstRoad).toBeGreaterThan(lastBuilding); // roads come after buildings in DOM → drawn on top
+  });
   it("draws the castle as a donjon: inner wall, towers, keep with shadow, inner tower and 4 corner turrets", () => {
     const layout = generateCityLayout({ id: 7, name: "T", size: 4, coastal: false, isCapital: false, elevation: 0.4, biome: GRASSLAND }, 1);
     const svg = renderCity(layout, "en");

@@ -1,7 +1,7 @@
 import { mulberry32, deriveSeed } from "./rng";
 import type { Rng } from "./rng";
 import type { Point, Polygon, Polyline } from "./geometry";
-import { centroid, pointInPolygon, bbox, pointSegDist } from "./geometry";
+import { centroid, pointInPolygon, bbox, pointSegDist, insetPolygon } from "./geometry";
 import { selectArchetype } from "./city/archetypes";
 import type { Archetype } from "./city/archetypes";
 import { makeTensorField } from "./city/tensorField";
@@ -109,6 +109,16 @@ function fieldsFor(arch: Archetype, center: Vec, radius: number, rng: Rng): Basi
   return fields;
 }
 
+// trim a street back from the wall: drop points off each end that fall outside the inset
+// boundary, so streets stop in a clear intramural band instead of dead-ending on the wall
+function trimEndsToInset(road: Polyline, inset: Polygon): Polyline {
+  let i = 0;
+  while (i < road.length && !pointInPolygon(road[i], inset)) i++;
+  let j = road.length - 1;
+  while (j >= i && !pointInPolygon(road[j], inset)) j--;
+  return road.slice(i, j + 1);
+}
+
 function offsetSegment(seg: Polyline, c: Point, d: number): Polyline {
   return seg.map((p) => {
     const dx = p[0] - c[0], dy = p[1] - c[1];
@@ -157,8 +167,8 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
   const drySeeds = seedCandidates.filter((p) => insideRegion(p));
   const seeds: Vec[] = drySeeds.length > 0 ? drySeeds : [center];
 
-  const mainRoads = generateStreets(field, { dsep: 34, dtest: 17, step: 3, maxLength: 240, bounds, useMinor: false }, stop, seeds);
-  const minorRoads = generateStreets(field, { dsep: 15, dtest: 7, step: 3, maxLength: 180, bounds, useMinor: true }, stop, seeds);
+  let mainRoads = generateStreets(field, { dsep: 34, dtest: 17, step: 3, maxLength: 240, bounds, useMinor: false }, stop, seeds);
+  let minorRoads = generateStreets(field, { dsep: 15, dtest: 7, step: 3, maxLength: 180, bounds, useMinor: true }, stop, seeds);
   water.bridges = waterBridges([...mainRoads, ...minorRoads], water);
 
   // a few well-placed main gates rather than one at every road (medieval towns had 2-4)
@@ -181,6 +191,18 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
         })
         .filter((b): b is Polyline => b !== null)
     : [];
+
+  // streets should honour the wall: pull every street back into a clear intramural band so none
+  // dead-ends on blank wall, then give each ACTUAL gate a short connector road inward — so the
+  // network visibly leads to the gates (gates were derived from the untrimmed roads above).
+  const insetB = insetPolygon(boundary, 5);
+  mainRoads = mainRoads.map((r) => trimEndsToInset(r, insetB)).filter((r) => r.length >= 2);
+  minorRoads = minorRoads.map((r) => trimEndsToInset(r, insetB)).filter((r) => r.length >= 2);
+  const gateConnectors: Polyline[] = wall.gates.map((g) => {
+    const dx = center[0] - g[0], dy = center[1] - g[1], L = Math.hypot(dx, dy) || 1;
+    return [g, [g[0] + (dx / L) * 14, g[1] + (dy / L) * 14]] as Polyline;
+  });
+  mainRoads = [...mainRoads, ...gateConnectors];
 
   const allRoads = [...mainRoads, ...minorRoads];
   const nearRoad = (p: Point) => {
