@@ -1,7 +1,7 @@
 import { mulberry32, deriveSeed } from "./rng";
 import type { Rng } from "./rng";
 import type { Point, Polygon, Polyline } from "./geometry";
-import { centroid, pointInPolygon, bbox, pointSegDist, insetPolygon } from "./geometry";
+import { centroid, pointInPolygon, bbox, pointSegDist, insetConvex } from "./geometry";
 import { selectArchetype } from "./city/archetypes";
 import type { Archetype } from "./city/archetypes";
 import { extractStreets, classifyStreets } from "./city/blockStreets";
@@ -141,6 +141,9 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
   // drop MINOR streets that run through water (buildings avoid water so those blocks are empty);
   // main streets/stubs are kept and bridged where they cross water
   let mainRoads = classified.main;
+  // drop main segments that lie ENTIRELY in water (no bridge possible); one-wet-one-dry crossings
+  // are kept and bridged by waterBridges below
+  mainRoads = mainRoads.filter((r) => !(r.length === 2 && inWater(water, r[0]) && inWater(water, r[1])));
   let minorRoads = classified.minor.filter((s) => !inWater(water, [(s[0][0] + s[1][0]) / 2, (s[0][1] + s[1][1]) / 2]));
   water.bridges = waterBridges([...mainRoads, ...minorRoads], water);
 
@@ -205,7 +208,7 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
     }
     let buildings: Polygon[] = [];
     if (!NO_BUILDINGS.includes(z.type)) {
-      buildings = subdivide(rng, insetPolygon(z.polygon, 2.5), { minArea: DENSITY[z.type] ?? 130, margin: 0.5 });
+      buildings = subdivide(rng, insetConvex(z.polygon, 4), { minArea: DENSITY[z.type] ?? 130, margin: 0.5 });
       buildings = buildings.filter((b) => {
         const c = centroid(b);
         const dryOk = archetype.onStilts || !inWater(water, c);
@@ -367,7 +370,10 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
     const want = Math.min(1 + ctx.size, pool.length);
     for (let k = 0; k < want; k++) {
       const idx = Math.floor(rng() * pool.length);
-      parishChurches.push(centroid(pool.splice(idx, 1)[0].polygon));
+      // use the ward's Voronoi site, not its polygon centroid: a ward clipped against the
+      // (irregular) city boundary can have a centroid that falls just outside the boundary,
+      // while the site was already filtered to be inside it (see wardCells filter above)
+      parishChurches.push(pool.splice(idx, 1)[0].site);
     }
   }
 

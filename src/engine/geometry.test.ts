@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { signedArea, area, centroid, bbox, perimeter, pointInPolygon } from "./geometry";
-import { convexHull, clipToConvex, splitByLine, insetPolygon } from "./geometry";
+import { convexHull, clipToConvex, splitByLine, insetPolygon, insetConvex } from "./geometry";
 import { pointSegDist, segmentsIntersect, polysOverlap } from "./geometry";
 import type { Polygon } from "./geometry";
 
@@ -76,5 +76,14 @@ describe("geometry ops", () => {
     const sq: Polygon = [[0, 0], [10, 0], [10, 10], [0, 10]];
     const outer = insetPolygon(sq, -2);
     expect(area(outer)).toBeGreaterThan(100);
+  });
+  it("insetConvex offsets every edge uniformly inward (not a radial shrink)", () => {
+    const rect: Polygon = [[0, 0], [20, 0], [20, 4], [0, 4]]; // radial inset would be very non-uniform here
+    const inner = insetConvex(rect, 1);
+    const xs = inner.map((p) => p[0]), ys = inner.map((p) => p[1]);
+    expect(Math.min(...xs)).toBeCloseTo(1, 4);
+    expect(Math.max(...xs)).toBeCloseTo(19, 4);
+    expect(Math.min(...ys)).toBeCloseTo(1, 4);
+    expect(Math.max(...ys)).toBeCloseTo(3, 4);
   });
 });

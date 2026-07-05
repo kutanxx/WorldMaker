@@ -196,3 +196,76 @@ export function insetPolygon(poly: Polygon, d: number): Polygon {
     return [x + (dx / len) * move, y + (dy / len) * move] as Point;
   });
 }
+
+// true edge-normal inward offset for a CONVEX polygon: move each edge inward by d along its
+// inward normal, then re-intersect consecutive offset edges. Falls back to the radial
+// insetPolygon if the result degenerates (tiny/collapsed ward). Ward polygons are convex
+// (Voronoi cell clipped to a disc), so this gives a uniform street gap unlike the radial shrink.
+export function insetConvex(poly: Polygon, d: number): Polygon {
+  // strip duplicate/near-duplicate consecutive vertices (e.g. a closed ring whose last point
+  // repeats the first, as clipToConvex can emit) — a zero-length edge has no normal, which
+  // otherwise forces the radial insetPolygon fallback for the WHOLE ward below.
+  const clean: Polygon = [];
+  for (let i = 0; i < poly.length; i++) {
+    const p = poly[i];
+    const prev = clean[clean.length - 1];
+    if (!prev || Math.hypot(p[0] - prev[0], p[1] - prev[1]) > 1e-6) clean.push(p);
+  }
+  if (clean.length > 1) {
+    const first = clean[0], last = clean[clean.length - 1];
+    if (Math.hypot(first[0] - last[0], first[1] - last[1]) < 1e-6) clean.pop();
+  }
+  poly = clean;
+  const n = poly.length;
+  if (n < 3) return poly;
+  const c = centroid(poly);
+  const lineOf = (a: Point, b: Point): { p: Point; dir: Point } | null => {
+    let ex = b[0] - a[0], ey = b[1] - a[1];
+    const L = Math.hypot(ex, ey);
+    if (L < 1e-9) return null;
+    ex /= L; ey /= L;
+    let nx = -ey, ny = ex;
+    const mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2;
+    if ((c[0] - mx) * nx + (c[1] - my) * ny < 0) { nx = -nx; ny = -ny; } // point inward
+    return { p: [a[0] + nx * d, a[1] + ny * d], dir: [ex, ey] };
+  };
+  const lines: ({ p: Point; dir: Point } | null)[] = [];
+  for (let i = 0; i < n; i++) lines.push(lineOf(poly[i], poly[(i + 1) % n]));
+  const intersect = (l1: { p: Point; dir: Point }, l2: { p: Point; dir: Point }): Point | null => {
+    const denom = l1.dir[0] * l2.dir[1] - l1.dir[1] * l2.dir[0];
+    if (Math.abs(denom) < 1e-9) return null;
+    const t = ((l2.p[0] - l1.p[0]) * l2.dir[1] - (l2.p[1] - l1.p[1]) * l2.dir[0]) / denom;
+    return [l1.p[0] + l1.dir[0] * t, l1.p[1] + l1.dir[1] * t];
+  };
+  const out: Polygon = [];
+  for (let i = 0; i < n; i++) {
+    const l1 = lines[(i - 1 + n) % n], l2 = lines[i];
+    if (!l1 || !l2) return insetPolygon(poly, d);
+    const pt = intersect(l1, l2);
+    if (!pt) return insetPolygon(poly, d);
+    out.push(pt);
+  }
+  // degenerate guard: collapsed/flipped polygon → radial fallback
+  if (out.length < 3 || Math.abs(area(out)) < 1 || !pointInPolygon(centroid(out), poly)) return insetPolygon(poly, d);
+  // pinch guard: at a vertex whose two source edges are short/near-collinear (or where the ward
+  // is simply narrow across a "waist"), the mitered offset vertex sits a full d away from its OWN
+  // two source edges yet can land much closer than d to some OTHER edge across the pinch — a
+  // corner-only defect, not a whole-ward one. Nudge just that vertex further toward the centroid
+  // until it clears every edge by d (capped so it can't cross past the centroid), instead of
+  // discarding the correct edge-offset for the rest of the ward's vertices.
+  for (let i = 0; i < n; i++) {
+    let p = out[i];
+    for (let guard = 0; guard < 8; guard++) {
+      let worst = Infinity;
+      for (let j = 0; j < n; j++) worst = Math.min(worst, pointSegDist(p, poly[j], poly[(j + 1) % n]));
+      if (worst >= d - 1e-6) break;
+      const dx = c[0] - p[0], dy = c[1] - p[1];
+      const len = Math.hypot(dx, dy);
+      if (len < 1e-6) break;
+      const step = Math.min(len, (d - worst) + 0.25);
+      p = [p[0] + (dx / len) * step, p[1] + (dy / len) * step];
+    }
+    out[i] = p;
+  }
+  return out;
+}

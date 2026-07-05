@@ -157,6 +157,32 @@ describe("block-centric streets", () => {
     const ctx = { id: 3, name: "T", size: 4, coastal: true, isCapital: false, elevation: 0.4, biome: GRASSLAND };
     expect(JSON.stringify(generateCityLayout(ctx, 4))).toBe(JSON.stringify(generateCityLayout(ctx, 4)));
   });
+  it("keeps building corners a visible gap off the ward-edge streets (edge-offset inset)", () => {
+    const segDist = (p: [number, number], a: [number, number], b: [number, number]) => {
+      const dx = b[0] - a[0], dy = b[1] - a[1], L2 = dx * dx + dy * dy || 1;
+      const t = Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / L2));
+      return Math.hypot(p[0] - (a[0] + t * dx), p[1] - (a[1] + t * dy));
+    };
+    for (const s of [1, 3, 5, 7, 9]) {
+      const l = generateCityLayout({ id: 7, name: "T", size: 4, coastal: true, isCapital: false, elevation: 0.4, biome: GRASSLAND }, s);
+      // measure clearance to the ward-edge streets only (minor + main graph edges), NOT the gate/
+      // fallback stubs which legitimately cut toward gates/centre
+      const streets = l.minorRoads.filter((r) => r.length === 2);
+      let minClear = Infinity;
+      for (const w of l.wards) for (const b of w.buildings) for (const v of b) {
+        for (const r of streets) minClear = Math.min(minClear, segDist(v, r[0] as [number, number], r[1] as [number, number]));
+      }
+      expect(minClear).toBeGreaterThan(1.2); // was ~0.05 with the radial inset — roads painted over buildings
+    }
+  });
+  it("never draws a main street fully across open water", () => {
+    for (const s of [2, 4, 6, 8]) {
+      const l = generateCityLayout({ id: 7, name: "T", size: 4, coastal: true, isCapital: false, elevation: 0.4, biome: GRASSLAND }, s);
+      for (const r of l.mainRoads) if (r.length === 2) {
+        expect(inWater(l.water, r[0]) && inWater(l.water, r[1])).toBe(false);
+      }
+    }
+  });
 });
 
 describe("canvas 460", () => {
