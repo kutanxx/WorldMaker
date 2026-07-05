@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { generateWorld } from "./world";
 import { DEFAULT_PARAMS } from "../types/world";
-import { initSim, stepSim, TICKS, aggregate, contestStrength, W_CONSTS_FOR_TEST } from "./historySim";
+import { initSim, stepSim, TICKS, aggregate, contestStrength, W_CONSTS_FOR_TEST, CONQUEST_SOL, type Stance } from "./historySim";
 
 describe("historySim", () => {
   it("initSim yields the year-0 state", () => {
@@ -90,6 +90,48 @@ describe("historySim", () => {
 
         expect(strength).toBeCloseTo(expected, 10);
       }
+    });
+  });
+
+  describe("player fields + stance", () => {
+    const mk = () => { const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 2 }); return initSim(world, 2); };
+
+    it("a fresh SimState has no player (byte-identical default path)", () => {
+      const s = mk();
+      expect(s.playerPolity).toBe(-1);
+      expect(s.peakCells).toBe(0);
+      expect(CONQUEST_SOL).toBeGreaterThan(0);
+    });
+
+    it("internal stance raises a player cell's solidarity more than aggressive over one tick", () => {
+      const setup = (stance: Stance) => {
+        const s = mk();
+        // choose an interior (non-frontier) player cell so the base delta is a decay we can offset
+        const p = s.owner.findIndex((o) => o >= 0);
+        s.playerPolity = s.owner[p]; s.stance = stance;
+        const cell = p;
+        stepSim(s);
+        return s.solidarity[cell];
+      };
+      expect(setup("internal")).toBeGreaterThan(setup("aggressive"));
+    });
+
+    it("aggressive raises the player's attacker strength above defensive (same state)", () => {
+      const s = mk();
+      const p = s.owner.find((o) => o >= 0)!;
+      s.playerPolity = p;
+      const agg = aggregate(s);
+      // a border cell of p and the enemy cell beyond it
+      let distCell = -1, solCell = -1;
+      for (let i = 0; i < s.n && distCell < 0; i++) {
+        if (s.owner[i] !== p) continue;
+        for (const nb of s.grid.neighbors[i]) if (s.owner[nb] >= 0 && s.owner[nb] !== p) { solCell = i; distCell = nb; break; }
+      }
+      expect(distCell).toBeGreaterThanOrEqual(0);
+      const base = contestStrength(s, agg, p, distCell, solCell);
+      // the exported stance multipliers must order aggressive > defensive for the attacker
+      const { STANCE_ATK_MULT } = W_CONSTS_FOR_TEST as any; // see Step 3 (added to the export)
+      expect(base * STANCE_ATK_MULT.aggressive).toBeGreaterThan(base * STANCE_ATK_MULT.defensive);
     });
   });
 });

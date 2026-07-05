@@ -16,6 +16,13 @@ const GOLDEN_MIN_CELLS = 170, GOLDEN_MIN_ASA = 0.38;
 const HPALETTE = ["#cabfe6", "#bfe0d4", "#f0d9a8", "#e6b8c2", "#b8cce6", "#d4e6b8", "#e6d0b8", "#c2b8e6", "#b8e6dd", "#e6c2b8"];
 const FREE_COLOR = "#b7b1a4";
 
+// --- player stance (Phase 1): MODEST nudges, only active when playerPolity >= 0 (honest low-agency) ---
+const STANCE_ATK_MULT = { aggressive: 1.15, defensive: 0.6, internal: 0.75 } as const; // player-as-attacker multiplier
+const STANCE_DEF_MULT = { aggressive: 1.0, defensive: 1.2, internal: 1.05 } as const;  // player-as-defender multiplier
+const STANCE_SOL_DELTA = { aggressive: -0.01, defensive: 0.0, internal: 0.02 } as const; // per-tick solidarity nudge on player cells
+export const CONQUEST_SOL = CIVILWAR_BIRTH_SOL; // reuse the sim's fresh-conquest cohesion value
+export type Stance = "aggressive" | "defensive" | "internal";
+
 export interface Agg { cells: number; power: number; avg: number; }
 
 export interface HistoryPolity {
@@ -57,6 +64,9 @@ export interface SimState {
   zoneCells: Set<number>;
   cityCells: { cell: number; name: string }[];
   tick: number;
+  playerPolity: number; // -1 = pure history (default); else the player's polity id
+  stance: Stance;       // inert when playerPolity < 0
+  peakCells: number;    // max cells the player has held (scorecard); default 0
 }
 
 const px = (s: SimState, i: number) => s.grid.points[i * 2];
@@ -80,7 +90,7 @@ export function contestStrength(s: SimState, agg: Agg[], polity: number, distCel
     + Math.min(Math.sqrt(agg[polity].cells), SIZE_CAP) * W_POWER
     - dist(s, distCell, s.capitals[polity]) * W_DIST + zoneBonus(s, polity);
 }
-export const W_CONSTS_FOR_TEST = { W_ASA, W_LOCAL, W_POWER, W_DIST, SIZE_CAP };
+export const W_CONSTS_FOR_TEST = { W_ASA, W_LOCAL, W_POWER, W_DIST, SIZE_CAP, STANCE_ATK_MULT };
 // greedy farthest-point: pick `count` cells maximising min-distance to the chosen set
 function farthest(s: SimState, cells: number[], seed: number, count: number): number[] {
   const chosen = [seed]; const out: number[] = [];
@@ -129,7 +139,7 @@ export function initSim(world: World, worldSeed: number): SimState {
   const snapshots: HistorySnapshot[] = [{ year: 0, owner: owner.slice() }];
   const cityCells = world.cities.map((c) => ({ cell: c.cell, name: c.name }));
 
-  return { grid, terrain, n, owner, solidarity, polities, capitals, alive, golden, rng, nameGen, events, snapshots, economicZones, zoneCells, cityCells, tick: 0 };
+  return { grid, terrain, n, owner, solidarity, polities, capitals, alive, golden, rng, nameGen, events, snapshots, economicZones, zoneCells, cityCells, playerPolity: -1, stance: "internal", peakCells: 0, tick: 0 };
 }
 
 export function stepSim(s: SimState): void {
@@ -146,6 +156,7 @@ export function stepSim(s: SimState): void {
     let frontier = false;
     for (const nb of neighbors[c]) { if (terrain[nb] !== OCEAN && owner[nb] !== o) { frontier = true; break; } }
     let sv = s.solidarity[c] + (frontier ? SOL_RISE : -SOL_DECAY);
+    if (s.playerPolity >= 0 && o === s.playerPolity) sv += STANCE_SOL_DELTA[s.stance]; // gated stance nudge
     if (s.zoneCells.has(c) && sv < ECON_SOL_FLOOR) sv = ECON_SOL_FLOOR;
     nextSol[c] = sv < 0 ? 0 : sv > 1 ? 1 : sv;
   }
@@ -167,7 +178,12 @@ export function stepSim(s: SimState): void {
     if (best < 0) continue;
     const attack = contestStrength(s, agg, best, c, bestCell);
     const defend = o < 0 ? 0 : contestStrength(s, agg, o, c, c);
-    if (attack > defend * CONTEST_THRESH) nextOwner[c] = best;
+    let atk = attack, def = defend;
+    if (s.playerPolity >= 0) {
+      if (best === s.playerPolity) atk *= STANCE_ATK_MULT[s.stance];   // player attacking
+      if (o === s.playerPolity) def *= STANCE_DEF_MULT[s.stance];       // player defending
+    }
+    if (atk > def * CONTEST_THRESH) nextOwner[c] = best;
   }
   owner.set(nextOwner);
 
