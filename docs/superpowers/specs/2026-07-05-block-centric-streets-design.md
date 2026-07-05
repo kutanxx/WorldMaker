@@ -59,6 +59,19 @@ centre to their nearest node. Dijkstra from each gate-node to the centre-node; m
 on the returned path as `main`. All unmarked edges are `minor`. Return both as `Polyline[]`
 (2-point segments) for rendering and for `mainRoads`/`minorRoads`.
 
+**Water-crossing streets (§2a, gap found in self-review):** ward edges do NOT avoid water, so a
+Voronoi edge can run down a river/lake that crosses the town. `extractStreets` (or a filter in
+city.ts) DROPS any street segment whose midpoint is in water — buildings already avoid water so
+that block is empty and the street there is moot. Where a MAIN path must cross water to reach a
+gate, the segment is kept and `waterBridges`/gate bridges render the crossing (as today).
+
+**Connectivity fallback (§2b, gap found in self-review):** the node graph can fragment when
+out-of-boundary wards are dropped, so Dijkstra may find no gate→centre path. Every gate must
+still get a main road (else the "gate not connected" problem returns). Fallback: if Dijkstra
+yields no path, emit a straight main-road stub from the gate to its nearest street node (and on
+toward the centre), so each gate always joins the network. (This complements the existing
+14px gate connectors.)
+
 ## §3. Gates & wall
 
 Gates are placed where streets reach the wall, reusing the existing `wallFromDefenses` (which
@@ -71,13 +84,20 @@ today. `maxGates = 2 + floor(size/3)` unchanged. After the wall (gates known), r
 
 ## §4. Buildings
 
-`subdivide(insetPolygon(ward.polygon, STREET_HALF), { minArea, margin })` per non-open ward
-(STREET_HALF ≈ 2.5, so a ~5px street runs between neighbouring blocks). REMOVE the road-
-proximity building filter (`!nearRoad(c)`) — it is obsolete because the streets are now the
-inset gaps, so buildings can never sit on a street. Keep the water filter (`!inWater` unless
-`onStilts`) and `pointInPolygon(boundary)`. `plaza`/`park`/`field` wards stay open (no
-buildings) as today. Ward count may be bumped (`8 + size*3` → tune upward for finer blocks) if
-verification shows blocks too coarse.
+`subdivide(insetPolygon(ward.polygon, STREET_HALF), { minArea, margin: 0.5 })` per non-open
+ward (STREET_HALF ≈ 2.5, so a ~5px street runs between neighbouring blocks). The street gap now
+comes from the WARD-level inset, so the lot `margin` shrinks to ~0.5 (was 1.5) to avoid
+double-insetting buildings into slivers. REMOVE the road-proximity building filter
+(`!nearRoad(c)`) — obsolete because streets are the inset gaps, so buildings can never sit on a
+street. Keep the water filter (`!inWater` unless `onStilts`) and `pointInPolygon(boundary)`.
+`plaza`/`park`/`field` wards stay open (no buildings) as today. Ward count may be bumped
+(`8 + size*3` → tune upward for finer blocks) if verification shows blocks too coarse.
+
+**Ward clipping (self-review note):** wards are clipped to a disc (`radius*1.15`), not the
+irregular—possibly concave—boundary (`clipToConvex` handles convex clips only). As today, the
+render clips the whole `clipped` group to the boundary, so blocks/streets/buildings near the
+wall are cut by the boundary (same as the current build — not a regression). Gate candidates are
+the street nodes that snap within 15px of a wall segment.
 
 ## §5. Rendering
 
@@ -111,9 +131,13 @@ and their tests, plus the `fieldsFor`/tensor plumbing in `city.ts`. This is a ne
 - `city.test.ts`: every `mainRoads`/`minorRoads` segment endpoints coincide (within ε) with a
   ward polygon vertex (streets ARE ward edges); no building polygon overlaps any street segment
   (inset guarantee — sample check via `polysOverlap`/point-in-building on street midpoints);
-  every gate has a main road reaching it and a main path exists to the centre; determinism
-  (JSON equality across two runs); the road-vs-wall regression from the prior fix still holds
-  (gate connectors still added).
+  every gate has a main road reaching it (connectivity fallback) and a main path exists to the
+  centre; no street segment midpoint lies in water (water-crossing streets dropped, except
+  bridged main crossings); determinism (JSON equality across two runs); the road-vs-wall
+  regression from the prior fix still holds (gate connectors still added).
+- REMOVE the obsolete `city.test.ts` "has at least one genuinely curved main road across seeds"
+  test — block streets are straight Voronoi edges by design (the medieval look), so a curvature
+  assertion no longer applies. Replace it with the ward-edge-alignment assertion above.
 - `svgCityRenderer.test.ts`: road counts equal `mainRoads`/`minorRoads` lengths (unchanged);
   roads still render after buildings (z-order).
 - Existing zoning/castle/harbor/countryside/glyph tests keep passing (their inputs unchanged).
