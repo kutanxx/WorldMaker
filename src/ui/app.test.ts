@@ -120,4 +120,16 @@ describe("createApp", () => {
     expect(stage.querySelector("svg.city")).not.toBeNull();          // drilled down
     expect(stage.querySelector(".map-zoom-controls")).not.toBeNull(); // city map controls
   });
+  it("anchors zoom controls to a frame wrapping the map svg (world + city)", () => {
+    const root = document.createElement("div");
+    createApp(root, { seed: 1, width: 1000, height: 700, cellCount: 4000, seaLevel: 0.3, mountainLevel: 0.55, polityCount: 8, townCount: 20 });
+    const stage = root.querySelector(".stage")!;
+    const worldFrame = stage.querySelector(".map-frame")!;
+    expect(worldFrame.querySelector("svg")).not.toBeNull();
+    expect(worldFrame.querySelector(".map-zoom-controls")).not.toBeNull();
+    (stage.querySelector("[data-city]") as SVGElement).dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    const cityFrame = stage.querySelector(".map-frame")!;
+    expect(cityFrame.querySelector("svg.city")).not.toBeNull();
+    expect(cityFrame.querySelector(".map-zoom-controls")).not.toBeNull();
+  });
 });

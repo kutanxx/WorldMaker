@@ -132,10 +132,13 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
       const id = target.getAttribute("data-city");
       if (id !== null && id !== "") openCity(Number(id));
     });
-    stage.appendChild(svg);
+    const frame = document.createElement("div");
+    frame.className = "map-frame";
+    frame.appendChild(svg);
+    stage.appendChild(frame);
     cityZoom?.destroy(); cityZoom = null;
     worldZoom?.destroy();
-    worldZoom = attachZoomPan(svg, stage);
+    worldZoom = attachZoomPan(svg, frame);
 
     const chronicle = renderChronicle(history);
     const slot = svg.querySelector(".political-slot") as SVGGElement;
@@ -169,10 +172,13 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     back.addEventListener("click", showWorld);
     const layout = generateCityLayout(cityContext(marker), params.seed);
     const citySvg = renderCity(layout, lang);
-    stage.append(back, citySvg);
+    const frame = document.createElement("div");
+    frame.className = "map-frame";
+    frame.appendChild(citySvg);
+    stage.append(back, frame);
     worldZoom?.destroy(); worldZoom = null;
     cityZoom?.destroy();
-    cityZoom = attachZoomPan(citySvg, stage);
+    cityZoom = attachZoomPan(citySvg, frame);
   }
 
   function regenerate(p: WorldParams): void {

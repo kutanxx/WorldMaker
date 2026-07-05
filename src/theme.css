@@ -30,6 +30,7 @@ input[type=number] { width: 88px; cursor: text; }
   background: #f6efdd; border: 1px solid #cbb784; border-radius: 6px; padding: 10px;
   box-shadow: 0 1px 4px rgba(60,47,28,.15);
 }
+.map-frame { position: relative; }
 .map-zoom-controls {
   position: absolute; right: 14px; bottom: 14px;
   display: flex; flex-direction: column; gap: 4px; z-index: 5;
