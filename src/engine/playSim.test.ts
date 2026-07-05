@@ -51,4 +51,21 @@ describe("playSim", () => {
     expect(sc.rank).toBeGreaterThanOrEqual(1);
     expect(sc.rank).toBeLessThanOrEqual(sc.nations);
   });
+
+  it("defeat coincides EXACTLY with losing the capital cell (locks the civil-war-keeps-seat invariant)", () => {
+    // pick the largest polity so a civil war of the player's realm is likely over the full game
+    const { world } = generateWorld({ ...small, seed: 3 });
+    const counts = new Map<number, number>();
+    for (const o of world.polityOf) if (o >= 0) counts.set(o, (counts.get(o) ?? 0) + 1);
+    const largest = [...counts.entries()].sort((a, b) => b[1] - a[1])[0][0];
+    const s = initPlaySim(world, 3, largest, "aggressive");
+    for (let t = 0; t < 50; t++) {
+      const r = playTurn(s, null);
+      // The ONLY way to be defeated is for the seat cell to leave the player's hands (conquest). A
+      // civil war of the player keeps the old capital with the original polity id, so it never
+      // defeats — if that invariant ever broke, this equality would fail.
+      expect(r.defeated).toBe(s.owner[s.capitals[s.playerPolity]] !== s.playerPolity);
+      if (r.finished) break;
+    }
+  });
 });

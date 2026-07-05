@@ -217,3 +217,14 @@ Everything below describes the full design; Phase 1 implements the subset above.
 Save/load & undo (rng closure non-serializable); AI diplomacy beyond the one-sided truce; multiple
 actions per turn; map-click targeting; win-by-conquest goal; per-region stance. These are noted so
 the slice stays small.
+
+## Implementation reconciliation (Phase 1, 2026-07-06)
+
+The "player-polity follow on civil war" hook described above was proven UNNECESSARY during
+implementation and is intentionally NOT built: the sim's civil-war split assigns each cell to its
+nearest capital, and the old capital cell is at distance 0 from itself, so it always stays with the
+original polity id. The player therefore never loses its seat to its OWN civil war — only to
+conquest — and `defeated = !s.alive[playerPolity]` (equivalently, the seat cell leaving the player)
+is sufficient. This invariant is locked by a regression test in `playSim.test.ts` ("defeat coincides
+EXACTLY with losing the capital cell"). The design's promised civil-war-follow test is replaced by
+that invariant test.
