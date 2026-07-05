@@ -232,6 +232,17 @@ export function renderCity(layout: CityLayout, lang: Lang = "en"): SVGSVGElement
     if (tint) clipped.appendChild(svgEl("polygon", { class: "ward", points: pts(ward.polygon), fill: tint, "fill-opacity": 0.7 }));
   }
 
+  // re-draw the water channel over the ground + district tints but UNDER the buildings, so a
+  // river/lake reads as flowing THROUGH the town (the bottom pass is hidden by the opaque ground
+  // fill inside the walls) WITHOUT submerging the bank buildings — a building can't sit under the
+  // river. Skip marsh, whose stilt houses deliberately stand OVER the water and must stay visible.
+  if (!layout.features.onStilts) {
+    for (const body of layout.water.bodies) {
+      clipped.appendChild(svgEl("polygon", { class: "water-shallow", points: pts(body), fill: "#bfd8e4" }));
+      clipped.appendChild(svgEl("polygon", { class: "water", points: pts(body), fill: "#9fc1d6", transform: "scale(0.985)", "transform-origin": `${w / 2} ${h / 2}` }));
+    }
+  }
+
   for (const ward of layout.wards) {
     // colour the buildings by their district so the whole zone reads as its hue (otherwise
     // cream buildings cover the ground tint and the districts blur together)

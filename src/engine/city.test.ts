@@ -62,6 +62,15 @@ describe("city organic", () => {
     expect(withRiver.archetype.id).toBe("bridgeTown");
     expect(withRiver.water.kind).toBe("river");
     expect(withRiver.water.bodies.length).toBeGreaterThan(0);
+    // a river town is defended by the river, not a separate moat ring, and the banks are joined by
+    // bridges spanning the channel (a river bisecting the town used to get just one)
+    expect(withRiver.moat).toBeNull();
+    expect(withRiver.water.bridges.length).toBeGreaterThanOrEqual(2);
+    // every bridge is the continuation of a road across the river — both ends sit ON a street point
+    // (a floating bridge line that didn't meet any road read as "just a line", user-reported)
+    const roadPts = [...withRiver.mainRoads, ...withRiver.minorRoads].flat();
+    const onRoad = (p: [number, number]) => roadPts.some((q) => Math.hypot(q[0] - p[0], q[1] - p[1]) < 0.001);
+    for (const [a, b] of withRiver.water.bridges) { expect(onRoad(a)).toBe(true); expect(onRoad(b)).toBe(true); }
     // the same inland cell WITHOUT a world river is a dry-market town, not a river town
     const noRiver = generateCityLayout({ id: 7, name: "T", size: 4, coastal: false, isCapital: false, elevation: 0.4, biome: GRASSLAND, river: false }, 1);
     expect(noRiver.archetype.id).not.toBe("bridgeTown");

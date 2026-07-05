@@ -109,7 +109,9 @@ const NO_BUILDINGS: WardType[] = ["plaza", "park", "castle"];
 const DENSITY: Partial<Record<WardType, number>> = {
   slum: 70, craftsmen: 110, gate: 120, merchant: 150, market: 170, patriciate: 240, military: 260,
 };
-const MOAT_ARCHETYPES = new Set(["coastalPort", "bridgeTown", "plainsMarket"]);
+// river towns are defended by the river itself — a separate moat ring hugging the wall read as a
+// second, disconnected river alongside the big one, so bridgeTown gets no moat (user-reported)
+const MOAT_ARCHETYPES = new Set(["coastalPort", "plainsMarket"]);
 
 export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLayout {
   const rng: Rng = mulberry32(deriveSeed(worldSeed, ctx.id));
@@ -149,6 +151,51 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
   mainRoads = mainRoads.filter((r) => !(r.length === 2 && inWater(water, r[0]) && inWater(water, r[1])));
   let minorRoads = classified.minor.filter((s) => !inWater(water, [(s[0][0] + s[1][0]) / 2, (s[0][1] + s[1][1]) / 2]));
   water.bridges = waterBridges([...mainRoads, ...minorRoads], water);
+
+  // river towns: the block streets rarely cross the channel on their own, so a river bisecting the
+  // town got one floating bridge and the banks read as disconnected. Add real crossings — a bridge
+  // is a ROAD continued across the river: nearest street on bank A → the bank → (bridge over the
+  // water) → the far bank → nearest street on bank B (user: "the bridge doesn't join road to road").
+  if ((archetype.water === "river" || archetype.water === "meander") && water.bodies.length) {
+    const roadPts: Point[] = [...mainRoads, ...minorRoads].flat();
+    const nearestSameBank = (p: Point): Point | null => {
+      let best: Point | null = null, bd = 55 * 55;
+      for (const q of roadPts) {
+        const d = (q[0] - p[0]) ** 2 + (q[1] - p[1]) ** 2;
+        if (d >= bd) continue;
+        if (inWater(water, [(q[0] + p[0]) / 2, (q[1] + p[1]) / 2])) continue; // q must be on p's side (run doesn't cross the channel)
+        bd = d; best = q;
+      }
+      return best;
+    };
+    const bb = bbox(water.bodies[0]);
+    const horizontal = bb.maxX - bb.minX > bb.maxY - bb.minY; // river runs along its longer axis
+    const [lo, hi] = horizontal ? [bb.minX, bb.maxX] : [bb.minY, bb.maxY];
+    const [slo, shi] = horizontal ? [bb.minY, bb.maxY] : [bb.minX, bb.maxX];
+    const crossings: Polyline[] = [];
+    for (const tt of [0.3, 0.5, 0.7]) {
+      const along = lo + (hi - lo) * tt;
+      let prevWet = false, entry: number | null = null, exit: number | null = null;
+      for (let s = slo - 8; s <= shi + 8; s += 1) { // scan across the channel for the wet span
+        const p: Point = horizontal ? [along, s] : [s, along];
+        const wet = inWater(water, p);
+        if (wet && !prevWet) entry = s;
+        if (!wet && prevWet) { exit = s; break; }
+        prevWet = wet;
+      }
+      if (entry === null || exit === null) continue;
+      const p1: Point = horizontal ? [along, entry - 3] : [entry - 3, along]; // dry banks on both sides
+      const p2: Point = horizontal ? [along, exit + 3] : [exit + 3, along];
+      if (!pointInPolygon(p1, boundary) || !pointInPolygon(p2, boundary)) continue; // both banks in town
+      const a = nearestSameBank(p1), b = nearestSameBank(p2);
+      if (!a || !b) continue; // no street near a bank → skip (don't leave a bridge dangling in open ground)
+      const mid: Point = [(p1[0] + p2[0]) / 2, (p1[1] + p2[1]) / 2];
+      if (water.bridges.some((br) => Math.hypot((br[0][0] + br[1][0]) / 2 - mid[0], (br[0][1] + br[1][1]) / 2 - mid[1]) < 16)) continue; // not on an existing crossing
+      crossings.push([a, p1, p2, b]);  // a road that runs bank-to-bank via the bridge
+      water.bridges.push([p1, p2]);    // the bridge deck spanning the wet part
+    }
+    if (crossings.length) mainRoads = [...mainRoads, ...crossings];
+  }
 
   const moat = MOAT_ARCHETYPES.has(archetype.id)
     ? wall.segments.map((s) => offsetSegment(s, center, 6).map((o, i) => (inWater(water, o) ? s[i] : o)))

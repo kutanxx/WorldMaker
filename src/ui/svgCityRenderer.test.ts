@@ -177,6 +177,22 @@ describe("renderCity organic", () => {
     expect(svg.querySelectorAll(".barbican").length).toBe(layout.barbicans.length * 2);
     expect(svg.querySelectorAll(".barbican-wall").length).toBe(layout.barbicans.length * 2);
   });
+  it("re-draws the river channel ON TOP of the city ground (clipped) so it flows through the town", () => {
+    const layout = generateCityLayout({ id: 7, name: "T", size: 4, coastal: false, isCapital: false, elevation: 0.4, biome: GRASSLAND, river: true }, 1);
+    expect(layout.archetype.id).toBe("bridgeTown");
+    const svg = renderCity(layout, "en");
+    const clipped = svg.querySelector("g[clip-path]")!;
+    // the water is re-painted inside the boundary group, above the opaque ground fill (bottom pass
+    // alone is hidden inside the walls → the river looked like a band painted behind the city)
+    expect(clipped.querySelectorAll(".water").length).toBeGreaterThan(0);
+  });
+  it("does NOT re-draw water over a marsh city (stilt houses must stay visible)", () => {
+    const layout = generateCityLayout(cityContext({ ...marker, coastal: false, elevation: 0.5, biome: 7 }), 7);
+    expect(layout.features.onStilts).toBe(true);
+    const svg = renderCity(layout);
+    const clipped = svg.querySelector("g[clip-path]")!;
+    expect(clipped.querySelectorAll(".water").length).toBe(0);
+  });
   it("renders a workshop per riverside trade", () => {
     let layout = generateCityLayout({ id: 7, name: "T", size: 4, coastal: true, isCapital: false, elevation: 0.4, biome: GRASSLAND }, 1);
     for (let s = 2; s <= 20 && !layout.riversideTrades.length; s++) layout = generateCityLayout({ id: 7, name: "T", size: 4, coastal: true, isCapital: false, elevation: 0.4, biome: GRASSLAND }, s);
