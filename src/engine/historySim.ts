@@ -63,6 +63,20 @@ const px = (s: SimState, i: number) => s.grid.points[i * 2];
 const py = (s: SimState, i: number) => s.grid.points[i * 2 + 1];
 const dist = (s: SimState, a: number, b: number) => Math.hypot(px(s, a) - px(s, b), py(s, a) - py(s, b));
 
+export interface ContestParams {
+  polityId: number;
+  cellSolidarity: number;
+  cellCount: number;
+  avgAsabiyya: number;
+  distanceToCapital: number;
+  economicBonus: number;
+}
+
+export function calcContestStrength(params: ContestParams): number {
+  const { cellSolidarity, cellCount, avgAsabiyya, distanceToCapital, economicBonus } = params;
+  return avgAsabiyya * W_ASA + cellSolidarity * W_LOCAL + Math.min(Math.sqrt(cellCount), SIZE_CAP) * W_POWER - distanceToCapital * W_DIST + economicBonus;
+}
+
 function aggregate(s: SimState): Agg[] {
   const a: Agg[] = s.polities.map(() => ({ cells: 0, power: 0, avg: 0 }));
   for (let c = 0; c < s.n; c++) { const o = s.owner[c]; if (o >= 0) { a[o].cells++; a[o].power += s.solidarity[c]; } }
@@ -158,8 +172,22 @@ export function stepSim(s: SimState): void {
       if (agg[p].avg > bestAvg) { bestAvg = agg[p].avg; best = p; bestCell = nb; }
     }
     if (best < 0) continue;
-    const attack = agg[best].avg * W_ASA + s.solidarity[bestCell] * W_LOCAL + Math.min(Math.sqrt(agg[best].cells), SIZE_CAP) * W_POWER - dist(s, c, s.capitals[best]) * W_DIST + zoneBonus(s, best);
-    const defend = o < 0 ? 0 : agg[o].avg * W_ASA + s.solidarity[c] * W_LOCAL + Math.min(Math.sqrt(agg[o].cells), SIZE_CAP) * W_POWER - dist(s, c, s.capitals[o]) * W_DIST + zoneBonus(s, o);
+    const attack = calcContestStrength({
+      polityId: best,
+      cellSolidarity: s.solidarity[bestCell],
+      cellCount: agg[best].cells,
+      avgAsabiyya: agg[best].avg,
+      distanceToCapital: dist(s, c, s.capitals[best]),
+      economicBonus: zoneBonus(s, best),
+    });
+    const defend = o < 0 ? 0 : calcContestStrength({
+      polityId: o,
+      cellSolidarity: s.solidarity[c],
+      cellCount: agg[o].cells,
+      avgAsabiyya: agg[o].avg,
+      distanceToCapital: dist(s, c, s.capitals[o]),
+      economicBonus: zoneBonus(s, o),
+    });
     if (attack > defend * CONTEST_THRESH) nextOwner[c] = best;
   }
   owner.set(nextOwner);
