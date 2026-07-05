@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { generateCityLayout, cityContext } from "./city";
-import { centroid, pointInPolygon, polysOverlap } from "./geometry";
+import { centroid, pointInPolygon, polysOverlap, polygonSelfIntersects } from "./geometry";
 import { inWater } from "./city/water";
 import { inMountains } from "./city/mountain";
 import { GRASSLAND } from "./biome";
@@ -172,7 +172,12 @@ describe("block-centric streets", () => {
       for (const w of l.wards) for (const b of w.buildings) for (const v of b) {
         for (const r of streets) minClear = Math.min(minClear, segDist(v, r[0] as [number, number], r[1] as [number, number]));
       }
-      expect(minClear).toBeGreaterThan(1.2); // was ~0.05 with the radial inset — roads painted over buildings
+      // was ~0.05 with the radial inset — roads painted over buildings. Threshold relaxed slightly
+      // from 1.2 → 1.1: the insetConvex final bowtie/degenerate guard (see geometry.ts) now falls
+      // back to the radial inset for a handful of wards where the mitered+nudged offset would
+      // otherwise self-intersect, which trades a little clearance for guaranteed non-bowtie buildings.
+      expect(minClear).toBeGreaterThan(1.1);
+
     }
   });
   it("never draws a main street fully across open water", () => {
@@ -180,6 +185,14 @@ describe("block-centric streets", () => {
       const l = generateCityLayout({ id: 7, name: "T", size: 4, coastal: true, isCapital: false, elevation: 0.4, biome: GRASSLAND }, s);
       for (const r of l.mainRoads) if (r.length === 2) {
         expect(inWater(l.water, r[0]) && inWater(l.water, r[1])).toBe(false);
+      }
+    }
+  });
+  it("never produces a self-intersecting (bowtie) building", () => {
+    for (const s of [1, 3, 5, 7, 9]) {
+      const l = generateCityLayout({ id: 7, name: "T", size: 4, coastal: true, isCapital: false, elevation: 0.4, biome: GRASSLAND }, s);
+      for (const w of l.wards) for (const b of w.buildings) {
+        expect(polygonSelfIntersects(b)).toBe(false);
       }
     }
   });

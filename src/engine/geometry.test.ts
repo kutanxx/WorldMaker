@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { signedArea, area, centroid, bbox, perimeter, pointInPolygon } from "./geometry";
 import { convexHull, clipToConvex, splitByLine, insetPolygon, insetConvex } from "./geometry";
-import { pointSegDist, segmentsIntersect, polysOverlap } from "./geometry";
+import { pointSegDist, segmentsIntersect, polysOverlap, polygonSelfIntersects } from "./geometry";
 import type { Polygon } from "./geometry";
 
 const square: Polygon = [[0, 0], [10, 0], [10, 10], [0, 10]];
@@ -85,5 +85,16 @@ describe("geometry ops", () => {
     expect(Math.max(...xs)).toBeCloseTo(19, 4);
     expect(Math.min(...ys)).toBeCloseTo(1, 4);
     expect(Math.max(...ys)).toBeCloseTo(3, 4);
+  });
+  it("polygonSelfIntersects detects a bowtie and passes a simple quad", () => {
+    expect(polygonSelfIntersects([[0,0],[10,0],[0,10],[10,10]])).toBe(true);   // classic bowtie
+    expect(polygonSelfIntersects([[0,0],[10,0],[10,10],[0,10]])).toBe(false);  // simple square
+  });
+  it("insetConvex never returns a self-intersecting polygon (falls back if needed)", () => {
+    // a thin sliver where an edge-offset can pinch/cross → must fall back to a valid polygon
+    const sliver: Polygon = [[0,0],[30,0],[30,1.5],[15,2],[0,1.5]];
+    const inner = insetConvex(sliver, 4);
+    expect(polygonSelfIntersects(inner)).toBe(false);
+    expect(inner.length).toBeGreaterThanOrEqual(3);
   });
 });

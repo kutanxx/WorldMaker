@@ -172,6 +172,18 @@ export function segmentsIntersect(a: Point, b: Point, c: Point, d: Point): boole
   return o1 * o2 < 0 && o3 * o4 < 0;
 }
 
+// true if a simple polygon's edges cross each other (a "bowtie"). Non-adjacent edge pairs only.
+export function polygonSelfIntersects(poly: Polygon): boolean {
+  const n = poly.length;
+  for (let i = 0; i < n; i++) {
+    for (let j = i + 1; j < n; j++) {
+      if (j === i || (j + 1) % n === i || (i + 1) % n === j) continue; // skip shared-vertex neighbours
+      if (segmentsIntersect(poly[i], poly[(i + 1) % n], poly[j], poly[(j + 1) % n])) return true;
+    }
+  }
+  return false;
+}
+
 // true when two simple polygons overlap: a vertex of one inside the other, or crossing edges
 export function polysOverlap(a: Polygon, b: Polygon): boolean {
   for (const p of a) if (pointInPolygon(p, b)) return true;
@@ -266,6 +278,11 @@ export function insetConvex(poly: Polygon, d: number): Polygon {
       p = [p[0] + (dx / len) * step, p[1] + (dy / len) * step];
     }
     out[i] = p;
+  }
+  // final safety: a mitered/nudged offset can self-intersect on pinch corners — never return a
+  // bowtie/degenerate polygon (it would corrupt the building lots). Fall back to the radial inset.
+  if (out.length < 3 || Math.abs(area(out)) < 1 || polygonSelfIntersects(out) || !pointInPolygon(centroid(out), poly)) {
+    return insetPolygon(poly, d);
   }
   return out;
 }
