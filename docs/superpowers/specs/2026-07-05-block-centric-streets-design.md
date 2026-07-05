@@ -132,9 +132,14 @@ and their tests, plus the `fieldsFor`/tensor plumbing in `city.ts`. This is a ne
   ward polygon vertex (streets ARE ward edges); no building polygon overlaps any street segment
   (inset guarantee — sample check via `polysOverlap`/point-in-building on street midpoints);
   every gate has a main road reaching it (connectivity fallback) and a main path exists to the
-  centre; no street segment midpoint lies in water (water-crossing streets dropped, except
-  bridged main crossings); determinism (JSON equality across two runs); the road-vs-wall
-  regression from the prior fix still holds (gate connectors still added).
+  centre; no MINOR street segment midpoint lies in water (water-crossing minor streets dropped;
+  main crossings kept + bridged); determinism (JSON equality across two runs).
+  **Streamline-era trimming is retired:** block streets ARE ward edges, so they legitimately
+  reach the wall at block corners (a coherent grid, unlike the old streamlines that pierced the
+  wall at random tangents). The prior `trimEndsToInset` + 14px `gateConnectors` and the
+  "no street dead-ends on blank wall" test are REMOVED — superseded by this paradigm; gate
+  connectivity is now guaranteed by the classifyStreets gate→node stubs. (If the wall-adjacent
+  grid still reads poorly on the live map, a follow-up adds an intramural pomerium trim.)
 - REMOVE the obsolete `city.test.ts` "has at least one genuinely curved main road across seeds"
   test — block streets are straight Voronoi edges by design (the medieval look), so a curvature
   assertion no longer applies. Replace it with the ward-edge-alignment assertion above.
