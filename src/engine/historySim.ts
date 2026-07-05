@@ -16,7 +16,7 @@ const GOLDEN_MIN_CELLS = 170, GOLDEN_MIN_ASA = 0.38;
 const HPALETTE = ["#cabfe6", "#bfe0d4", "#f0d9a8", "#e6b8c2", "#b8cce6", "#d4e6b8", "#e6d0b8", "#c2b8e6", "#b8e6dd", "#e6c2b8"];
 const FREE_COLOR = "#b7b1a4";
 
-interface Agg { cells: number; power: number; avg: number; }
+export interface Agg { cells: number; power: number; avg: number; }
 
 export interface HistoryPolity {
   id: number; name: string; color: string;
@@ -63,21 +63,8 @@ const px = (s: SimState, i: number) => s.grid.points[i * 2];
 const py = (s: SimState, i: number) => s.grid.points[i * 2 + 1];
 const dist = (s: SimState, a: number, b: number) => Math.hypot(px(s, a) - px(s, b), py(s, a) - py(s, b));
 
-export interface ContestParams {
-  polityId: number;
-  cellSolidarity: number;
-  cellCount: number;
-  avgAsabiyya: number;
-  distanceToCapital: number;
-  economicBonus: number;
-}
 
-export function calcContestStrength(params: ContestParams): number {
-  const { cellSolidarity, cellCount, avgAsabiyya, distanceToCapital, economicBonus } = params;
-  return avgAsabiyya * W_ASA + cellSolidarity * W_LOCAL + Math.min(Math.sqrt(cellCount), SIZE_CAP) * W_POWER - distanceToCapital * W_DIST + economicBonus;
-}
-
-function aggregate(s: SimState): Agg[] {
+export function aggregate(s: SimState): Agg[] {
   const a: Agg[] = s.polities.map(() => ({ cells: 0, power: 0, avg: 0 }));
   for (let c = 0; c < s.n; c++) { const o = s.owner[c]; if (o >= 0) { a[o].cells++; a[o].power += s.solidarity[c]; } }
   for (const g of a) g.avg = g.cells > 0 ? g.power / g.cells : 0;
@@ -88,6 +75,12 @@ function zoneBonus(s: SimState, p: number): number {
   for (const z of s.economicZones) if (s.owner[z.cell] === p) b += ECON_BONUS;
   return b;
 }
+export function contestStrength(s: SimState, agg: Agg[], polity: number, distCell: number, solCell: number): number {
+  return agg[polity].avg * W_ASA + s.solidarity[solCell] * W_LOCAL
+    + Math.min(Math.sqrt(agg[polity].cells), SIZE_CAP) * W_POWER
+    - dist(s, distCell, s.capitals[polity]) * W_DIST + zoneBonus(s, polity);
+}
+export const W_CONSTS_FOR_TEST = { W_ASA, W_LOCAL, W_POWER, W_DIST, SIZE_CAP };
 // greedy farthest-point: pick `count` cells maximising min-distance to the chosen set
 function farthest(s: SimState, cells: number[], seed: number, count: number): number[] {
   const chosen = [seed]; const out: number[] = [];
@@ -172,22 +165,8 @@ export function stepSim(s: SimState): void {
       if (agg[p].avg > bestAvg) { bestAvg = agg[p].avg; best = p; bestCell = nb; }
     }
     if (best < 0) continue;
-    const attack = calcContestStrength({
-      polityId: best,
-      cellSolidarity: s.solidarity[bestCell],
-      cellCount: agg[best].cells,
-      avgAsabiyya: agg[best].avg,
-      distanceToCapital: dist(s, c, s.capitals[best]),
-      economicBonus: zoneBonus(s, best),
-    });
-    const defend = o < 0 ? 0 : calcContestStrength({
-      polityId: o,
-      cellSolidarity: s.solidarity[c],
-      cellCount: agg[o].cells,
-      avgAsabiyya: agg[o].avg,
-      distanceToCapital: dist(s, c, s.capitals[o]),
-      economicBonus: zoneBonus(s, o),
-    });
+    const attack = contestStrength(s, agg, best, c, bestCell);
+    const defend = o < 0 ? 0 : contestStrength(s, agg, o, c, c);
     if (attack > defend * CONTEST_THRESH) nextOwner[c] = best;
   }
   owner.set(nextOwner);

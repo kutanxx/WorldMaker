@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { generateWorld } from "./world";
 import { DEFAULT_PARAMS } from "../types/world";
-import { initSim, stepSim, TICKS, calcContestStrength } from "./historySim";
+import { initSim, stepSim, TICKS, aggregate, contestStrength, W_CONSTS_FOR_TEST } from "./historySim";
 
 describe("historySim", () => {
   it("initSim yields the year-0 state", () => {
@@ -40,18 +40,12 @@ describe("historySim", () => {
     expect(run()).toBe(run());
   });
 
-  describe("calcContestStrength", () => {
-    it("computes identical results to the inlined calculation from stepSim", () => {
+  describe("contestStrength", () => {
+    it("computes the formula: agg[polity].avg * W_ASA + solidarity[solCell] * W_LOCAL + sqrt(cells) * W_POWER - dist * W_DIST + zoneBonus", () => {
       const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 5 });
       const s = initSim(world, 5);
-      // take a snapshot after one step so solidarity/owner are evolved
       stepSim(s);
-      const agg = (() => {
-        const a = s.polities.map(() => ({ cells: 0, power: 0, avg: 0 }));
-        for (let c = 0; c < s.n; c++) { const o = s.owner[c]; if (o >= 0) { a[o].cells++; a[o].power += s.solidarity[c]; } }
-        for (const g of a) g.avg = g.cells > 0 ? g.power / g.cells : 0;
-        return a;
-      })();
+      const agg = aggregate(s);
 
       // find a cell with both a neighbor and an owner to test
       let testCell = -1;
@@ -82,25 +76,17 @@ describe("historySim", () => {
 
       if (best >= 0) {
         // use the exported function
-        const strength = calcContestStrength({
-          polityId: best,
-          cellSolidarity: s.solidarity[bestCell],
-          cellCount: agg[best].cells,
-          avgAsabiyya: agg[best].avg,
-          distanceToCapital: Math.hypot(
-            s.grid.points[testCell * 2] - s.grid.points[s.capitals[best] * 2],
-            s.grid.points[testCell * 2 + 1] - s.grid.points[s.capitals[best] * 2 + 1]
-          ),
-          economicBonus: s.zoneCells.has(bestCell) ? 0.12 : 0,
-        });
+        const strength = contestStrength(s, agg, best, testCell, bestCell);
 
-        // manually compute the expected strength
-        const W_ASA = 1.0, W_LOCAL = 0.5, W_POWER = 0.03, W_DIST = 0.002;
-        const SIZE_CAP = 24;
-        const expected = agg[best].avg * W_ASA + s.solidarity[bestCell] * W_LOCAL + Math.min(Math.sqrt(agg[best].cells), SIZE_CAP) * W_POWER - Math.hypot(
-          s.grid.points[testCell * 2] - s.grid.points[s.capitals[best] * 2],
-          s.grid.points[testCell * 2 + 1] - s.grid.points[s.capitals[best] * 2 + 1]
-        ) * W_DIST + (s.zoneCells.has(bestCell) ? 0.12 : 0);
+        // manually compute the expected strength using exported constants
+        const { W_ASA, W_LOCAL, W_POWER, W_DIST, SIZE_CAP } = W_CONSTS_FOR_TEST;
+        const px = (i: number) => s.grid.points[i * 2];
+        const py = (i: number) => s.grid.points[i * 2 + 1];
+        const dist = (a: number, b: number) => Math.hypot(px(a) - px(b), py(a) - py(b));
+        let zoneBonus = 0;
+        for (const z of s.economicZones) if (s.owner[z.cell] === best) zoneBonus += 0.12;
+
+        const expected = agg[best].avg * W_ASA + s.solidarity[bestCell] * W_LOCAL + Math.min(Math.sqrt(agg[best].cells), SIZE_CAP) * W_POWER - dist(testCell, s.capitals[best]) * W_DIST + zoneBonus;
 
         expect(strength).toBeCloseTo(expected, 10);
       }
