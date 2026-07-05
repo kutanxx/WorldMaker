@@ -21,7 +21,10 @@ export interface Centroid {
   cells: number;
 }
 
-// Mean of each present polity's owned cell-centre points, plus its cell count.
+// Label anchor for each present polity: the owned cell-centre NEAREST the polity's mean (a
+// medoid), plus its cell count. Snapping to a member cell — rather than using the bare mean —
+// keeps the label ON the territory; a concave or post-conquest (disconnected) shape can have a
+// mean that falls in the sea or a neighbour. Matches the region-label treatment in geography.ts.
 export function nationCentroids(grid: GridLike, owner: ArrayLike<number>): Map<number, Centroid> {
   const acc = new Map<number, { sx: number; sy: number; cells: number }>();
   for (let i = 0; i < grid.count; i++) {
@@ -33,7 +36,20 @@ export function nationCentroids(grid: GridLike, owner: ArrayLike<number>): Map<n
     a.cells++;
     acc.set(o, a);
   }
+  const mean = new Map<number, { mx: number; my: number; cells: number }>();
+  for (const [o, a] of acc) mean.set(o, { mx: a.sx / a.cells, my: a.sy / a.cells, cells: a.cells });
+  // second pass: for each polity, keep the owned cell closest to its mean
+  const best = new Map<number, { x: number; y: number; d: number }>();
+  for (let i = 0; i < grid.count; i++) {
+    const o = owner[i];
+    if (o < 0) continue;
+    const m = mean.get(o)!;
+    const x = grid.points[i * 2], y = grid.points[i * 2 + 1];
+    const dx = x - m.mx, dy = y - m.my, d = dx * dx + dy * dy;
+    const b = best.get(o);
+    if (!b || d < b.d) best.set(o, { x, y, d });
+  }
   const out = new Map<number, Centroid>();
-  for (const [o, a] of acc) out.set(o, { x: a.sx / a.cells, y: a.sy / a.cells, cells: a.cells });
+  for (const [o, m] of mean) { const b = best.get(o)!; out.set(o, { x: b.x, y: b.y, cells: m.cells }); }
   return out;
 }

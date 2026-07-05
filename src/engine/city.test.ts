@@ -278,9 +278,47 @@ describe("countryside vs water", () => {
         ...cs.gardens, ...cs.fields.map((f) => f.polygon), ...cs.pastures.map((p) => p.fence),
         ...cs.orchards.map((o) => o.polygon),
       ];
+      // clearance is to the moat CENTERLINE; the moat renders as a 5px-wide stroke (2.5 half), so a
+      // patch must clear that half plus a visible gap. 2.5 (bare half) left patches abutting the blue.
       for (const patch of patches) for (const seg of l.moat) for (let i = 0; i < seg.length - 1; i++) {
-        for (const v of patch) if (dist(v, seg[i], seg[i + 1]) < 2.5) offenders.push(`seed ${s}`);
+        for (const v of patch) if (dist(v, seg[i], seg[i + 1]) < 5) offenders.push(`seed ${s}`);
       }
+    }
+    expect(offenders).toEqual([]);
+  });
+  it("no intramural building overlaps a harbor wharf (user-reported building overlap, coastal sweep)", () => {
+    let sawWharves = false;
+    const offenders: string[] = [];
+    for (let s = 1; s <= 30; s++) {
+      const l = generateCityLayout({ id: 2, name: "T", size: 3 + (s % 3), coastal: true, isCapital: false, elevation: 0.4, biome: GRASSLAND }, s);
+      const wharves = l.harbor?.wharves ?? [];
+      if (!wharves.length) continue;
+      sawWharves = true;
+      const buildings = l.wards.flatMap((w) => w.buildings);
+      for (const wf of wharves) for (const b of buildings) if (polysOverlap(wf, b)) offenders.push(`seed ${s}`);
+    }
+    expect(sawWharves).toBe(true); // the sweep actually exercised coastal harbors
+    expect(offenders).toEqual([]);
+  });
+  it("no road runs through an intramural building (user-reported road-through-building, seed sweep)", () => {
+    const through = (line: [number, number][], poly: [number, number][]) => {
+      const si = (a: [number, number], b: [number, number], c: [number, number], d: [number, number]) => {
+        const o = (p: [number, number], q: [number, number], r: [number, number]) => (q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0]);
+        return o(a, b, c) * o(a, b, d) < 0 && o(c, d, a) * o(c, d, b) < 0;
+      };
+      for (let i = 0; i < line.length - 1; i++) {
+        const a = line[i], b = line[i + 1];
+        const steps = Math.max(1, Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) / 2));
+        for (let s = 0; s <= steps; s++) if (pointInPolygon([a[0] + (b[0] - a[0]) * s / steps, a[1] + (b[1] - a[1]) * s / steps], poly)) return true;
+        for (let j = 0; j < poly.length; j++) if (si(a, b, poly[j], poly[(j + 1) % poly.length])) return true;
+      }
+      return false;
+    };
+    const offenders: string[] = [];
+    for (let s = 1; s <= 30; s++) {
+      const l = generateCityLayout({ id: 2, name: "T", size: 2 + (s % 4), coastal: s % 2 === 0, isCapital: false, elevation: 0.4, biome: GRASSLAND }, s);
+      const buildings = l.wards.flatMap((w) => w.buildings);
+      for (const r of [...l.mainRoads, ...l.minorRoads]) for (const b of buildings) if (through(r, b)) { offenders.push(`seed ${s}`); break; }
     }
     expect(offenders).toEqual([]);
   });

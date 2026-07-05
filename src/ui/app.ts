@@ -201,6 +201,15 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     return svg;
   }
 
+  // The embedded Cinzel woff2 (~20 KB) is only needed when exporting, so it lives in a lazy chunk —
+  // keeps the initial map bundle lean for the majority who never export.
+  async function exportWorldSvgWithFonts(): Promise<SVGSVGElement> {
+    const svg = exportWorldSvg();
+    const { embedExportFonts } = await import("./exportFont");
+    embedExportFonts(svg); // standalone SVG/PNG carry the Cinzel display face (no external stylesheet)
+    return svg;
+  }
+
   regenBtn.addEventListener("click", () => regenerate({ ...params, seed: Number(seedInput.value) }));
   randomBtn.addEventListener("click", () => regenerate({ ...params, seed: randomSeed() }));
   jsonBtn.addEventListener("click", () =>
@@ -208,14 +217,15 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
   );
   pngBtn.addEventListener("click", async () => {
     try {
-      const blob = await svgToPngBlob(exportWorldSvg(), params.width, params.height);
+      const blob = await svgToPngBlob(await exportWorldSvgWithFonts(), params.width, params.height);
       downloadBlob("world.png", blob);
     } catch (e) {
       console.error("PNG export failed", e);
     }
   });
-  svgBtn.addEventListener("click", () => {
-    downloadBlob("world.svg", new Blob([svgToString(exportWorldSvg())], { type: "image/svg+xml" }));
+  svgBtn.addEventListener("click", async () => {
+    const svg = await exportWorldSvgWithFonts();
+    downloadBlob("world.svg", new Blob([svgToString(svg)], { type: "image/svg+xml" }));
   });
   gazBtn.addEventListener("click", () => {
     const md = worldToGazetteer(generated.world, history);

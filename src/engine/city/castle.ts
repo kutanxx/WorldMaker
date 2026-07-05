@@ -2,7 +2,7 @@
 // a gate to the town and a postern to the countryside (research: Wikipedia "Urban castle").
 import type { Rng } from "../rng";
 import type { Point, Polygon } from "../geometry";
-import { insetPolygon, centroid, pointInPolygon } from "../geometry";
+import { insetPolygon, centroid, pointInPolygon, polysOverlap } from "../geometry";
 
 export interface Castle {
   innerWall: Polygon;      // inset of the ward polygon
@@ -57,12 +57,19 @@ export function makeCastle(rng: Rng, ward: Polygon, townCenter: Point, boundary:
   if (size >= 3) {
     const n = 1 + (rng() < 0.5 ? 1 : 0);
     for (let i = 0; i < n; i++) {
-      const a = rng() * Math.PI * 2;
-      const ac: Point = [wc[0] + Math.cos(a) * kr * 2.2, wc[1] + Math.sin(a) * kr * 2.2];
-      if (!pointInPolygon(ac, inner)) continue;
-      annexes.push([
-        [ac[0] - 3, ac[1] - 2], [ac[0] + 3, ac[1] - 2], [ac[0] + 3, ac[1] + 2], [ac[0] - 3, ac[1] + 2],
-      ]);
+      // try a few angles so a second annex doesn't land on the first (or the keep) — the halls
+      // shared the bailey but never occupied the same footprint
+      for (let attempt = 0; attempt < 6; attempt++) {
+        const a = rng() * Math.PI * 2;
+        const ac: Point = [wc[0] + Math.cos(a) * kr * 2.2, wc[1] + Math.sin(a) * kr * 2.2];
+        if (!pointInPolygon(ac, inner)) continue;
+        const rect: Polygon = [
+          [ac[0] - 3, ac[1] - 2], [ac[0] + 3, ac[1] - 2], [ac[0] + 3, ac[1] + 2], [ac[0] - 3, ac[1] + 2],
+        ];
+        if (polysOverlap(rect, keep) || annexes.some((an) => polysOverlap(rect, an))) continue;
+        annexes.push(rect);
+        break;
+      }
     }
   }
   return { innerWall: inner, towers: [...inner], gate, postern, keep, annexes };

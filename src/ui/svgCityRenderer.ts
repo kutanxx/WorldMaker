@@ -1,7 +1,8 @@
 import { svgEl } from "./renderer";
 import type { CityLayout } from "../engine/city";
 import type { WardType } from "../engine/city/zoning";
-import type { Polygon, Polyline } from "../engine/geometry";
+import type { Point, Polygon, Polyline } from "../engine/geometry";
+import { pointInPolygon } from "../engine/geometry";
 import { type Lang, WARD_NAME, t } from "./i18n";
 
 // A distinct (but parchment-muted) colour per district so the wards read apart — each
@@ -134,9 +135,13 @@ export function renderCity(layout: CityLayout, lang: Lang = "en"): SVGSVGElement
     env.appendChild(svgEl("polygon", { class: "farm-barn", points: pts(fm.barn), fill: "#7a5a3a", stroke: "#4d3620", "stroke-width": 0.4 }));
     env.appendChild(svgEl("polygon", { class: "farm-house", points: pts(fm.house), fill: "#e0d6c0", stroke: "#9a8a70", "stroke-width": 0.4 }));
   }
-  // nucleated hamlets: common green + church + a ring of cottages (a miniature of the town)
+  // nucleated hamlets: a lane through a common green + church, cottages gable-to-the-street with
+  // garden tofts behind, and a pond — a clustered village, not a row of roadside houses
   for (const v of cs.villages) {
+    env.appendChild(svgEl("polyline", { class: "village-lane", points: pts(v.lane), fill: "none", stroke: "#c9bb96", "stroke-width": 1.3, "stroke-linecap": "round", "stroke-linejoin": "round" }));
+    for (const cr of v.crofts) env.appendChild(svgEl("polygon", { class: "village-croft", points: pts(cr), fill: "#c9d0a0", "fill-opacity": 0.55, stroke: "#8a8a5f", "stroke-width": 0.3, "stroke-dasharray": "1.2 1" }));
     env.appendChild(svgEl("polygon", { class: "village-green", points: pts(v.green), fill: "#bcd0a0", stroke: "#8a8a5f", "stroke-width": 0.3 }));
+    if (v.pond) env.appendChild(svgEl("polygon", { class: "village-pond", points: pts(v.pond), fill: "#9fc1d6", stroke: "#6f97ad", "stroke-width": 0.3 }));
     for (const h of v.houses) env.appendChild(svgEl("polygon", { class: "village-house", points: pts(h), fill: "#e0d6c0", stroke: "#9a8a70", "stroke-width": 0.4 }));
     const [cx, cy] = v.chapel;
     env.appendChild(svgEl("rect", { class: "village-chapel", x: cx - 1.4, y: cy - 1.1, width: 2.8, height: 2.2, fill: "#d8d2c4", stroke: "#7a6f56", "stroke-width": 0.4 }));
@@ -149,11 +154,14 @@ export function renderCity(layout: CityLayout, lang: Lang = "en"): SVGSVGElement
       const c = Math.cos(o.angle), s = Math.sin(o.angle), r = 4;
       env.appendChild(svgEl("path", { class: "outwork-sails", d: `M${(x - c * r).toFixed(1)} ${(y - s * r).toFixed(1)} L${(x + c * r).toFixed(1)} ${(y + s * r).toFixed(1)} M${(x + s * r).toFixed(1)} ${(y - c * r).toFixed(1)} L${(x - s * r).toFixed(1)} ${(y + c * r).toFixed(1)}`, stroke: "#6b5a44", "stroke-width": 0.8, fill: "none" }));
     } else {
-      // watermill: race channel to the water, mill house on the bank, wheel at the water end
+      // watermill: race channel to the water, mill house on the bank, wheel at the water end.
+      // Orient the mill house to face the watercourse (race direction, else the stored angle) so
+      // its long wall sits along the bank rather than at a fixed axis-aligned box.
       if (o.race) {
         env.appendChild(svgEl("line", { class: "mill-race", x1: o.race[0][0].toFixed(1), y1: o.race[0][1].toFixed(1), x2: o.race[1][0].toFixed(1), y2: o.race[1][1].toFixed(1), stroke: "#9fc1d6", "stroke-width": 1.4, "stroke-linecap": "round" }));
       }
-      env.appendChild(svgEl("rect", { class: "outwork", x: x - 2.5, y: y - 2, width: 5, height: 4, fill: "#c9a86a", stroke: "#8a6a44", "stroke-width": 0.5 }));
+      const wa = o.race ? Math.atan2(o.race[1][1] - o.race[0][1], o.race[1][0] - o.race[0][0]) : o.angle;
+      env.appendChild(svgEl("rect", { class: "outwork", x: x - 2.5, y: y - 2, width: 5, height: 4, fill: "#c9a86a", stroke: "#8a6a44", "stroke-width": 0.5, transform: `rotate(${((wa * 180) / Math.PI).toFixed(1)} ${x} ${y})` }));
       const wheel = o.race ? o.race[1] : [x + 3, y + 1];
       env.appendChild(svgEl("circle", { class: "outwork-wheel", cx: wheel[0], cy: wheel[1], r: 2, fill: "none", stroke: "#6b5a44", "stroke-width": 0.7 }));
     }
@@ -179,6 +187,26 @@ export function renderCity(layout: CityLayout, lang: Lang = "en"): SVGSVGElement
   if (layout.gallows) {
     const [gx, gy] = layout.gallows;
     env.appendChild(svgEl("path", { class: "gallows", d: `M${gx},${gy + 4}L${gx},${gy - 6}L${gx + 5},${gy - 6}M${gx + 5},${gy - 6}L${gx + 5},${gy - 3}`, fill: "none", stroke: "#3c2f1c", "stroke-width": 0.9, "stroke-linecap": "round" }));
+  }
+  // leper house (lazar house): a fenced compound with a small chapel (red warning cross) + huts
+  if (layout.leperHouse) {
+    const [lx, ly] = layout.leperHouse.at;
+    const lg = svgEl("g", { class: "leper-house", transform: `rotate(${((layout.leperHouse.angle * 180) / Math.PI).toFixed(1)} ${lx} ${ly})` });
+    lg.appendChild(svgEl("rect", { class: "leper-yard", x: lx - 6, y: ly - 5, width: 12, height: 10, fill: "none", stroke: "#8a7f6a", "stroke-width": 0.4, "stroke-dasharray": "1.6 1.2" }));
+    lg.appendChild(svgEl("rect", { class: "leper-chapel", x: lx - 2, y: ly - 3.4, width: 4, height: 3, fill: "#d8d2c4", stroke: "#7a6f56", "stroke-width": 0.4 }));
+    lg.appendChild(svgEl("path", { class: "leper-cross", d: `M${lx},${ly - 3.4}v-2 M${lx - 0.8},${ly - 4.4}h1.6`, stroke: "#7a2f2f", "stroke-width": 0.5, fill: "none", "stroke-linecap": "round" }));
+    lg.appendChild(svgEl("rect", { class: "leper-hut", x: lx - 4.5, y: ly + 0.8, width: 3, height: 2.4, fill: "#ccbf9e", stroke: "#8a7355", "stroke-width": 0.4 }));
+    lg.appendChild(svgEl("rect", { class: "leper-hut", x: lx + 1.5, y: ly + 0.8, width: 3, height: 2.4, fill: "#ccbf9e", stroke: "#8a7355", "stroke-width": 0.4 }));
+    env.appendChild(lg);
+  }
+  // fairground: an open green with rows of market stalls + bunting (periodic fair outside the walls)
+  if (layout.fairground) {
+    const fgn = svgEl("g", { class: "fairground" });
+    const [fx, fy] = layout.fairground.at;
+    fgn.appendChild(svgEl("ellipse", { class: "fair-green", cx: fx, cy: fy, rx: 9, ry: 7, fill: "#c4d2a2", "fill-opacity": 0.6, stroke: "#8a8a5f", "stroke-width": 0.3, transform: `rotate(${((layout.fairground.angle * 180) / Math.PI).toFixed(1)} ${fx} ${fy})` }));
+    for (const st of layout.fairground.stalls) fgn.appendChild(svgEl("polygon", { class: "fair-stall", points: pts(st), fill: "#d8b96a", stroke: "#8a6a3a", "stroke-width": 0.4 }));
+    fgn.appendChild(svgEl("path", { class: "fair-bunting", d: `M${(fx - 8).toFixed(1)},${(fy - 4).toFixed(1)}q8,-3 16,0`, fill: "none", stroke: "#9a6a3a", "stroke-width": 0.4, "stroke-dasharray": "0.6 1.2" }));
+    env.appendChild(fgn);
   }
   for (const [ix, iy] of layout.inns) {
     env.appendChild(svgEl("rect", { class: "inn", x: ix - 3, y: iy - 2.4, width: 6, height: 4.8, fill: "#d8c49a", stroke: "#7a5a3a", "stroke-width": 0.5 }));
@@ -278,8 +306,12 @@ export function renderCity(layout: CityLayout, lang: Lang = "en"): SVGSVGElement
 
   if (layout.features.onStilts) {
     const sg = svgEl("g", { class: "stilts", "clip-path": `url(#${clipId})` });
+    // stilts belong ONLY under the houses standing over the meander water — a building on dry
+    // ground sits on the earth, so a stilt there reads as an error.
+    const overWater = (c: Point) => layout.water.bodies.some((body) => pointInPolygon(c, body));
     for (const ward of layout.wards) for (const b of ward.buildings) {
       const c = avg(b);
+      if (!overWater(c)) continue;
       sg.appendChild(svgEl("line", { class: "stilt", x1: c[0], y1: c[1] + 1, x2: c[0], y2: c[1] + 4.5, stroke: "#6b5a44", "stroke-width": 0.8, "stroke-linecap": "round" }));
     }
     root.appendChild(sg);
@@ -305,11 +337,15 @@ export function renderCity(layout: CityLayout, lang: Lang = "en"): SVGSVGElement
       root.appendChild(svgEl("polyline", { class: "wall-seg", points: pts(s), fill: "none", stroke: wallStroke, "stroke-width": 4, "stroke-linejoin": "round", "stroke-linecap": "round" }));
       root.appendChild(svgEl("polyline", { class: "wall-seg-inner", points: pts(s), fill: "none", stroke: wallInner, "stroke-width": 1, "stroke-linejoin": "round" }));
     }
+    // towers/gates take the wall material: a timber-palisade town gets wood-toned works, not stone grey
+    const timber = layout.features.wallMaterial === "timber";
+    const towerFill = timber ? "#9c7a52" : "#8a7858", towerStroke = timber ? "#6b4f34" : "#5a4a36";
+    const gateFill = timber ? "#7a5a38" : "#9a9a9a", gateStroke = timber ? "#5a3f26" : "#43392d";
     const tg = svgEl("g", { class: "towers" });
-    for (const t of layout.wall.towers) tg.appendChild(svgEl("circle", { class: "tower", cx: t[0], cy: t[1], r: 2.6, fill: "#8a7858", stroke: "#5a4a36", "stroke-width": 0.8 }));
+    for (const t of layout.wall.towers) tg.appendChild(svgEl("circle", { class: "tower", cx: t[0], cy: t[1], r: 2.6, fill: towerFill, stroke: towerStroke, "stroke-width": 0.8 }));
     root.appendChild(tg);
     const gg = svgEl("g", { class: "gates" });
-    for (const ga of layout.wall.gates) gg.appendChild(svgEl("rect", { class: "gate", x: ga[0] - 3, y: ga[1] - 3, width: 6, height: 6, rx: 1, fill: "#9a9a9a", stroke: "#43392d", "stroke-width": 1 }));
+    for (const ga of layout.wall.gates) gg.appendChild(svgEl("rect", { class: "gate", x: ga[0] - 3, y: ga[1] - 3, width: 6, height: 6, rx: 1, fill: gateFill, stroke: gateStroke, "stroke-width": 1 }));
     root.appendChild(gg);
   }
 

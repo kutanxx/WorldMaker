@@ -1,7 +1,7 @@
 import { mulberry32, deriveSeed } from "./rng";
 import type { Rng } from "./rng";
 import type { Point, Polygon, Polyline } from "./geometry";
-import { centroid, pointInPolygon, bbox, pointSegDist, insetConvex } from "./geometry";
+import { centroid, pointInPolygon, bbox, pointSegDist, insetConvex, polysOverlap, segmentsIntersect } from "./geometry";
 import { selectArchetype } from "./city/archetypes";
 import type { Archetype } from "./city/archetypes";
 import { extractStreets, classifyStreets } from "./city/blockStreets";
@@ -70,6 +70,8 @@ export interface CityLayout {
   abbey: Abbey | null;
   cemetery: Cemetery | null;
   gallows: Point | null;
+  leperHouse: { at: Point; angle: number } | null;
+  fairground: { at: Point; angle: number; stalls: Polygon[] } | null;
   parishChurches: Point[];
   marketCross: Point | null;
   well: Point | null;
@@ -218,6 +220,21 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
     return { polygon: z.polygon, type: z.type, buildings, inner: z.inner };
   });
 
+  // drop any building a road centreline runs through: the block-centric inset (insetConvex) falls
+  // back to a radial inset for non-convex wards, which can leave a building corner under a main
+  // road — user-reported "road passes through a building/district". Sample each road densely.
+  const roadRunsThrough = (b: Polygon): boolean => {
+    for (const r of [...mainRoads, ...minorRoads]) for (let i = 0; i < r.length - 1; i++) {
+      const a: Point = r[i], c: Point = r[i + 1];
+      // centreline inside (through) OR an edge crossing (a corner clip) — both read as a road on the block
+      const steps = Math.max(1, Math.ceil(Math.hypot(c[0] - a[0], c[1] - a[1]) / 2));
+      for (let s = 0; s <= steps; s++) if (pointInPolygon([a[0] + ((c[0] - a[0]) * s) / steps, a[1] + ((c[1] - a[1]) * s) / steps], b)) return true;
+      for (let j = 0; j < b.length; j++) if (segmentsIntersect(a, c, b[j], b[(j + 1) % b.length])) return true;
+    }
+    return false;
+  };
+  for (const ward of wards) if (ward.buildings.length) ward.buildings = ward.buildings.filter((b) => !roadRunsThrough(b));
+
   // landmark districts get an on-map label; the display TEXT is localised at render time from
   // the ward type (so KO/EN can switch without regenerating the city).
   const LABELLED: WardType[] = ["plaza", "castle", "cathedral", "guildhall", "harbor"];
@@ -282,10 +299,11 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
     const bendOff = (rng() - 0.5) * 12;
     const mid: Point = [start[0] + ux * L * 0.5 + nx * bendOff, start[1] + uy * L * 0.5 + ny * bendOff];
     suburbRoads.push([[g[0], g[1]], inWater(water, mid) || inMountains(mountains, mid) ? [start[0] + ux * L * 0.5, start[1] + uy * L * 0.5] : mid, end]);
-    // faubourg ribbon: houses flank the first stretch out of the gate, thinning with distance
-    const ribbon = Math.min(55, L);
+    // faubourg: a SHORT cluster of houses right at the gate (a gate hamlet), not a long ribbon —
+    // the "village" character lives in the nucleated hamlets further out (countryside.villages)
+    const ribbon = Math.min(26, L);
     for (let d = 6; d < ribbon; d += 8) {
-      const prob = 0.9 - (d / ribbon) * 0.5;
+      const prob = 0.85 - (d / ribbon) * 0.35;
       for (const side of [-1, 1]) {
         if (rng() > prob) continue;
         const off = 4 + rng() * 4;
@@ -342,6 +360,14 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
 
   // harbor: generated LAST of the intramural/water features (its rng draws don't perturb the layout above); sea cities only
   const harbor = makeHarbor(rng, water, boundary, [center[0], center[1]]);
+  // the wharves ARE the dockside warehouses; drop any intramural house they cover so the quay
+  // buildings don't visually overlap the town blocks (user-reported "buildings overlapping").
+  if (harbor && harbor.wharves.length) {
+    for (const ward of wards) {
+      if (!ward.buildings.length) continue;
+      ward.buildings = ward.buildings.filter((b) => !harbor.wharves.some((wf) => polysOverlap(b, wf)));
+    }
+  }
 
   // extramural landmarks: an empty spot OUTSIDE the wall (not in the town/water/mountains, in the
   // canvas margin, clear of suburbs/mills). Generated after the harbor so coastal layouts are unchanged.
@@ -361,6 +387,34 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
   let cemetery: Cemetery | null = null;
   { const s = findSpot(13); if (s) { const graves: Point[] = []; for (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++) graves.push([s[0] + (c - 1) * 3, s[1] + (r - 1) * 3.2]); cemetery = { at: s, graves }; } }
   const gallows: Point | null = ctx.size >= 2 ? findSpot(10) : null;
+
+  // leper house (lazar house): a chapel + a couple of huts kept OUTSIDE the town at a distance
+  // (research: leprosaria were sited beyond the walls, along a road, to isolate the afflicted).
+  let leperHouse: { at: Point; angle: number } | null = null;
+  if (ctx.size >= 2) { const s = findSpot(16); if (s) leperHouse = { at: s, angle: rng() * Math.PI * 2 }; }
+
+  // fairground: an open green outside the walls where the periodic fair sets up its stall rows
+  // (research: fairs were held on commons/fields beyond the gates, not inside the market square).
+  let fairground: { at: Point; angle: number; stalls: Polygon[] } | null = null;
+  if (ctx.size >= 3) {
+    const s = findSpot(20);
+    if (s) {
+      const angle = rng() * Math.PI * 2;
+      const ux = Math.cos(angle), uy = Math.sin(angle), nx = -uy, ny = ux;
+      const stalls: Polygon[] = [];
+      for (const side of [-1, 1]) for (let j = -1; j <= 1; j++) {
+        const cx = s[0] + ux * j * 4 + nx * side * 4, cy = s[1] + uy * j * 4 + ny * side * 4;
+        const hw = 1.6, hh = 1.1;
+        stalls.push([
+          [cx - ux * hw - nx * hh, cy - uy * hw - ny * hh],
+          [cx + ux * hw - nx * hh, cy + uy * hw - ny * hh],
+          [cx + ux * hw + nx * hh, cy + uy * hw + ny * hh],
+          [cx - ux * hw + nx * hh, cy - uy * hw + ny * hh],
+        ]);
+      }
+      fairground = { at: s, angle, stalls };
+    }
+  }
 
   // parish churches: a steeple in a few non-civic wards (skyline). Uses zoned wards, no overlap
   // (distinct Voronoi cells) so the count is exactly min(1+size, eligible).
@@ -445,12 +499,13 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
     roads: suburbRoads,
     moat: moat ?? [],
     obstacles: [...occupied],
+    obstaclePolys: [...suburbs], // faubourg house footprints: patches must not overlap them (centre-gap missed big blocks)
     size: ctx.size, biome: ctx.biome, oasis: archetype.oasis,
   });
 
   return {
     name: ctx.name, size: ctx.size, coastal: ctx.coastal, isCapital: ctx.isCapital,
     archetype, bounds, boundary, water, mountains, wall, moat, gateBridges, mainRoads, minorRoads, wards, parks, labels, features, suburbRoads, suburbs, outworks, harbor,
-    abbey, cemetery, gallows, parishChurches, marketCross, well, inns, barbicans, riversideTrades, countryside, castle,
+    abbey, cemetery, gallows, leperHouse, fairground, parishChurches, marketCross, well, inns, barbicans, riversideTrades, countryside, castle,
   };
 }

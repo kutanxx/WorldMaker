@@ -113,7 +113,7 @@ describe("generateCountryside — pastures/farmsteads/woods", () => {
   });
   it("places nucleated villages (chapel + green + house cluster) out in open country", () => {
     const o = plainOpts();
-    let total = 0;
+    let total = 0, croftTotal = 0;
     for (const seed of [9, 3, 7, 21, 42]) {
       const c = generateCountryside(mulberry32(seed), o);
       for (const v of c.villages) {
@@ -122,9 +122,26 @@ describe("generateCountryside — pastures/farmsteads/woods", () => {
         expect(pointInPolygon(v.chapel, o.boundary)).toBe(false);
         expect(pointInPolygon(centroid(v.green), o.boundary)).toBe(false);
         for (const h of v.houses) expect(pointInPolygon(centroid(h), o.boundary)).toBe(false);
+        // a nucleated hamlet, not a ribbon: an approach lane + tofts/pond enrich the cluster,
+        // and the cottages sit tightly around the green (all within a compact radius)
+        expect(v.lane.length).toBeGreaterThanOrEqual(2);
+        const gc = centroid(v.green);
+        for (const h of v.houses) expect(Math.hypot(centroid(h)[0] - gc[0], centroid(h)[1] - gc[1])).toBeLessThan(14);
+        for (const cr of v.crofts) expect(pointInPolygon(centroid(cr), o.boundary)).toBe(false);
+        // the lane threads the gaps between cottages — it never runs through a house
+        for (const h of v.houses) {
+          let hit = false;
+          for (let i = 0; i < v.lane.length - 1; i++) {
+            const a = v.lane[i], b = v.lane[i + 1], steps = Math.max(1, Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) / 2));
+            for (let s = 0; s <= steps; s++) if (pointInPolygon([a[0] + (b[0] - a[0]) * s / steps, a[1] + (b[1] - a[1]) * s / steps], h)) hit = true;
+          }
+          expect(hit).toBe(false);
+        }
+        croftTotal += v.crofts.length;
       }
     }
     expect(total).toBeGreaterThanOrEqual(1);
+    expect(croftTotal).toBeGreaterThan(0); // garden tofts actually get placed (regressed to 0 once)
   });
   it("runs a three-field rotation: one sector lies fallow, the rest cultivated", () => {
     let sawFallow = false, sawCultivated = false;

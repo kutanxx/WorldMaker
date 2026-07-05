@@ -53,6 +53,26 @@ describe("politicalLayer", () => {
     expect(free.classList.contains("free-city")).toBe(true);
     expect(normal.getAttribute("fill")).not.toBe("#b7b1a4");
   });
+  it("marks free cities with a civic banner + name so they don't read as blank grey patches", () => {
+    const owner = new Int32Array(world.grid.count).fill(-1);
+    owner[0] = 0; owner[1] = 1;
+    const polities = [{ id: 0, name: "Realm", free: false }, { id: 1, name: "Freeport", free: true }];
+    const g = politicalLayer(world.grid, owner, polities, { fills: true });
+    const markers = g.querySelector(".free-city-markers")!;
+    expect(markers).not.toBeNull();
+    expect((markers as SVGElement).style.pointerEvents).toBe("none"); // never blocks city drilldown
+    expect(g.querySelectorAll(".free-city-markers .free-city-dot").length).toBe(1); // one per free polity
+    expect(g.querySelectorAll(".free-city-markers .free-city-banner").length).toBe(1);
+    const label = g.querySelector(".free-city-markers .free-city-label") as SVGElement;
+    expect(label.textContent).toBe("Freeport");
+  });
+  it("omits free-city markers when there are no fills (terrain view)", () => {
+    const owner = new Int32Array(world.grid.count).fill(-1);
+    owner[0] = 0; owner[1] = 1;
+    const polities = [{ id: 0, name: "Realm", free: false }, { id: 1, name: "Freeport", free: true }];
+    const g = politicalLayer(world.grid, owner, polities, {});
+    expect(g.querySelectorAll(".free-city-markers").length).toBe(0);
+  });
   it("with legend adds a nation legend", () => {
     const g = politicalLayer(world.grid, owner0, h.polities, { legend: true });
     expect(g.querySelectorAll(".nation-legend").length).toBe(1);

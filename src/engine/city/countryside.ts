@@ -14,8 +14,9 @@ export interface FieldPatch { polygon: Polygon; strips: Polyline[]; state: "cult
 export interface Pasture { fence: Polygon; animals: Point[]; kind: "sheep" | "cattle" }
 export interface Farmstead { house: Polygon; barn: Polygon; yard: Polygon | null }
 export interface Orchard { polygon: Polygon; trees: Point[] }
-// a dependent hamlet: church + common green + a cluster of dwellings (held the open-field strips)
-export interface Village { green: Polygon; chapel: Point; houses: Polygon[] }
+// a dependent hamlet: church + common green + a lane lined with cottages, garden tofts behind
+// them, and a pond — a nucleated settlement, not a ribbon of houses on a road
+export interface Village { green: Polygon; chapel: Point; houses: Polygon[]; lane: Polyline; crofts: Polygon[]; pond: Polygon | null }
 export interface Countryside {
   gardens: Polygon[];
   fields: FieldPatch[];
@@ -34,6 +35,7 @@ export interface CountrysideOpts {
   roads: Polyline[];      // extended gate roads (spines)
   moat: Polyline[];       // wall moat ring (separate blue geometry the patches must clear)
   obstacles: Point[];     // suburb/outwork/landmark centres to keep clear of
+  obstaclePolys?: Polygon[]; // suburb/faubourg house footprints the patches must not overlap
   size: number;
   biome: number;          // biome constants from ../biome
   oasis: boolean;
@@ -60,6 +62,16 @@ function orientedRect(c: Point, ux: number, uy: number, hl: number, hw: number):
   ];
 }
 
+// true if a polyline's centreline passes inside a polygon (a road running through a building)
+function polyCrossedByLine(poly: Polygon, line: Polyline): boolean {
+  for (let i = 0; i < line.length - 1; i++) {
+    const [x1, y1] = line[i], [x2, y2] = line[i + 1];
+    const steps = Math.max(1, Math.ceil(Math.hypot(x2 - x1, y2 - y1) / 2));
+    for (let s = 0; s <= steps; s++) if (pointInPolygon([x1 + ((x2 - x1) * s) / steps, y1 + ((y2 - y1) * s) / steps], poly)) return true;
+  }
+  return false;
+}
+
 export function generateCountryside(rng: Rng, opts: CountrysideOpts): Countryside {
   const { bounds, boundary, water, mountains, roads, size, biome } = opts;
   const prof = countrysideProfile(biome, size);
@@ -68,15 +80,17 @@ export function generateCountryside(rng: Rng, opts: CountrysideOpts): Countrysid
   const inCanvas = (p: Point) => p[0] > 3 && p[0] < bounds.w - 3 && p[1] > 3 && p[1] < bounds.h - 3;
   const blocked = (p: Point) => pointInPolygon(p, boundary) || inWater(water, p) || inMountains(mountains, p) || !inCanvas(p);
   // exact geometry, not centroid gaps: big furlong blocks overlapped each other and roads
-  // cut through them when only centre distances were checked (user-reported overlaps)
-  const claimedPolys: Polygon[] = [];
+  // cut through them when only centre distances were checked (user-reported overlaps). Seed with
+  // the faubourg house footprints so patches never sit on a gate-hamlet house (centre-gap missed it).
+  const claimedPolys: Polygon[] = [...(opts.obstaclePolys ?? [])];
   const roadThrough = (poly: Polygon) => {
     for (const road of roads) for (let i = 0; i < road.length - 1; i++) {
-      const [x1, y1] = road[i], [x2, y2] = road[i + 1];
-      const steps = Math.max(1, Math.ceil(Math.hypot(x2 - x1, y2 - y1) / 4));
+      const a: Point = road[i], b: Point = road[i + 1];
+      const steps = Math.max(1, Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) / 2));
       for (let s = 0; s <= steps; s++) {
-        if (pointInPolygon([x1 + ((x2 - x1) * s) / steps, y1 + ((y2 - y1) * s) / steps], poly)) return true;
+        if (pointInPolygon([a[0] + ((b[0] - a[0]) * s) / steps, a[1] + ((b[1] - a[1]) * s) / steps], poly)) return true;
       }
+      for (let j = 0; j < poly.length; j++) if (segmentsIntersect(a, b, poly[j], poly[(j + 1) % poly.length])) return true;
     }
     return false;
   };
@@ -86,8 +100,10 @@ export function generateCountryside(rng: Rng, opts: CountrysideOpts): Countrysid
     return d;
   };
   // the moat is a ~5px-wide blue ring just outside the wall; keep every patch off it so
-  // wall-hugging gardens don't sit under the water line (user-reported farm/water overlap)
-  const MOAT_CLEAR = 4;
+  // wall-hugging gardens don't sit under the water line (user-reported farm/water overlap).
+  // Clearance is to the moat CENTERLINE, so it must exceed the moat's 2.5px half-stroke plus a
+  // visible gap — 4px left gardens abutting the blue ring (65 patches within the stroke).
+  const MOAT_CLEAR = 7;
   const nearMoat = (poly: Polygon) => {
     for (const seg of opts.moat) for (let i = 0; i < seg.length - 1; i++) {
       const a = seg[i], b = seg[i + 1];
@@ -112,7 +128,7 @@ export function generateCountryside(rng: Rng, opts: CountrysideOpts): Countrysid
   const wallR = (() => { let s = 0; for (const p of boundary) s += Math.hypot(p[0] - bc[0], p[1] - bc[1]); return s / boundary.length; })();
   // moated archetypes push the wall-fringe rings out past the ~9px moat band so gardens/orchards
   // sit just beyond the water, not under it
-  const moatOff = opts.moat.length ? 9 : 0;
+  const moatOff = opts.moat.length ? 12 : 0;
   for (let tries = 0; tries < 140 && gardens.length < 3 + size; tries++) {
     const a = rng() * Math.PI * 2;
     const r = wallR + 8 + moatOff + rng() * 8;
@@ -223,37 +239,73 @@ export function generateCountryside(rng: Rng, opts: CountrysideOpts): Countrysid
     farmsteads.push({ house, barn, yard }); claim(house); claim(barn);
   }
 
-  // nucleated villages: church + common green + a ring of dwellings — the community that held
-  // the open-field strips. Out in open country along a road, past the field ring.
+  // nucleated villages: a common green with a church, cottages clustered around it gable-end
+  // inward, garden tofts behind them, a pond, and an approach lane off the road. A compact
+  // clustered hamlet reads as a village — the ribbon look was the gate faubourg (now shortened).
   const villages: Village[] = [];
   const wantV = 1 + Math.floor(size / 3);
-  for (let tries = 0; tries < 160 && villages.length < wantV && roads.length > 0; tries++) {
+  for (let tries = 0; tries < 200 && villages.length < wantV && roads.length > 0; tries++) {
     const road = roads[Math.floor(rng() * roads.length)];
     const t = 0.55 + rng() * 0.35;
     const i = Math.min(road.length - 2, Math.floor(t * (road.length - 1)));
     const frac = t * (road.length - 1) - i;
     const ax = road[i][0] + (road[i + 1][0] - road[i][0]) * frac;
     const ay = road[i][1] + (road[i + 1][1] - road[i][1]) * frac;
-    let ux = road[i + 1][0] - road[i][0], uy = road[i + 1][1] - road[i][1];
-    const rl = Math.hypot(ux, uy) || 1; ux /= rl; uy /= rl;
     const side = rng() < 0.5 ? -1 : 1;
-    const off = 20 + rng() * 12;                        // clear of the roadside fields
-    const vc: Point = [ax + -uy * side * off, ay + ux * side * off];
-    const gr = 4 + rng() * 1.5;                          // common green radius
+    let rx = road[i + 1][0] - road[i][0], ry = road[i + 1][1] - road[i][1];
+    const rl = Math.hypot(rx, ry) || 1; rx /= rl; ry /= rl;
+    const lux = -ry * side, luy = rx * side;             // toward open country, off the road
+    const pnx = -luy, pny = lux;
+    const off = 20 + rng() * 10;                          // clear of the roadside fields
+    const vc: Point = [ax + lux * off, ay + luy * off];   // the green at the village core
+
+    const gr = 4 + rng() * 1.5;                           // common green
     const green: Polygon = [];
-    for (let k = 0; k < 6; k++) { const a = (k / 6) * Math.PI * 2; const rr = gr * (0.8 + rng() * 0.4); green.push([vc[0] + Math.cos(a) * rr, vc[1] + Math.sin(a) * rr]); }
-    const nH = 5 + Math.floor(rng() * 5);
+    for (let k = 0; k < 7; k++) { const a = (k / 7) * Math.PI * 2; const rr = gr * (0.8 + rng() * 0.4); green.push([vc[0] + Math.cos(a) * rr, vc[1] + Math.sin(a) * rr]); }
+    const chapel: Point = [vc[0] - lux * (gr + 1.5), vc[1] - luy * (gr + 1.5)]; // church at the green, road side
+
+    // approach lane: a track off the road threading THROUGH the green (a street). The cottage ring
+    // is offset so the lane axis (±lux) falls in the GAPS between cottages, not over them.
+    const lane: Polyline = [[ax, ay], vc, [vc[0] + lux * (gr + 6), vc[1] + luy * (gr + 6)]];
+    const laneAngle = Math.atan2(luy, lux);
+
+    // cottages ring the green (gable-end inward); a candidate garden toft behind most of them
     const houses: Polygon[] = [];
-    const hr = 8 + rng() * 2;
+    const croftCand: Polygon[] = [];
+    const nH = 6 + Math.floor(rng() * 4);
+    const hr = gr + 3.5;
     for (let k = 0; k < nH; k++) {
-      const a = (k / nH) * Math.PI * 2 + rng() * 0.3;
-      const hc: Point = [vc[0] + Math.cos(a) * hr, vc[1] + Math.sin(a) * hr];
-      houses.push(orientedRect(hc, Math.cos(a), Math.sin(a), 2, 1.4)); // gable end toward the green
+      const a = laneAngle + ((k + 0.5) / nH) * Math.PI * 2 + (rng() - 0.5) * 0.14; // half-step off the lane axis
+      const cos = Math.cos(a), sin = Math.sin(a);
+      const hc: Point = [vc[0] + cos * hr, vc[1] + sin * hr];
+      houses.push(orientedRect(hc, cos, sin, 2, 1.4));
+      // toft sits BEHIND the cottage (clear of the house footprint at hr±2), out toward the field
+      if (rng() < 0.6) croftCand.push(orientedRect([vc[0] + cos * (hr + 5), vc[1] + sin * (hr + 5)], cos, sin, 2.4, 1.8));
     }
-    const chapel: Point = [vc[0], vc[1] - (gr + 1)];      // church beside the green
-    if ([green, ...houses].some((poly) => !polyOk(poly, 6))) continue;
-    villages.push({ green, chapel, houses });
-    [green, ...houses].forEach(claim);
+    let pondCand: Polygon | null = null;                    // candidate village pond on the green (inside the cottage ring)
+    if (rng() < 0.6) {
+      const pc: Point = [vc[0] + pnx * (gr * 0.8), vc[1] + pny * (gr * 0.8)];
+      pondCand = [];
+      for (let k = 0; k < 8; k++) { const a = (k / 8) * Math.PI * 2; const rr = 1.5 * (0.8 + rng() * 0.4); pondCand.push([pc[0] + Math.cos(a) * rr, pc[1] + Math.sin(a) * rr]); }
+    }
+
+    // the CLUSTER (green + cottages) must fit intact — that's what makes a village. The lane must
+    // also thread the gaps (never cut through a cottage), else reject and retry.
+    const core = [green, ...houses];
+    if (core.some((poly) => !polyOk(poly, 5))) continue;
+    let selfBad = false;
+    for (let a = 0; a < houses.length && !selfBad; a++) for (let b = a + 1; b < houses.length; b++) if (polysOverlap(houses[a], houses[b])) selfBad = true;
+    if (selfBad) continue;
+    if (houses.some((h) => polyCrossedByLine(h, lane))) continue; // lane never runs through a cottage
+    // Validate tofts/pond against pre-existing patches (fields etc.) BEFORE claiming this village, so
+    // no field overlaps them — but the pond may sit ON its own green (that's where village ponds go),
+    // which is why the green isn't claimed until after these checks.
+    const clearOfHouses = (poly: Polygon) => !houses.some((h) => polysOverlap(poly, h));
+    const crofts: Polygon[] = [];
+    for (const cr of croftCand) if (polyOk(cr, 3) && clearOfHouses(cr) && !crofts.some((c) => polysOverlap(cr, c))) crofts.push(cr);
+    const pond = pondCand && polyOk(pondCand, 3) && clearOfHouses(pondCand) && !crofts.some((c) => polysOverlap(pondCand!, c)) ? pondCand : null;
+    [...core, ...crofts, ...(pond ? [pond] : [])].forEach(claim); // now reserve the whole hamlet
+    villages.push({ green, chapel, houses, lane, crofts, pond });
   }
 
   // woodland fringe: tree points along the outer margin (the world continues into forest)

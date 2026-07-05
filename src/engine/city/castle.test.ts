@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { mulberry32 } from "../rng";
 import { makeCastle } from "./castle";
-import { pointInPolygon, centroid } from "../geometry";
+import { pointInPolygon, centroid, polysOverlap } from "../geometry";
 import type { Polygon } from "../geometry";
 
 const ward: Polygon = [[300, 180], [340, 200], [345, 250], [310, 275], [275, 240], [278, 200]];
@@ -22,6 +22,15 @@ describe("makeCastle", () => {
   it("small towns get a fortified manor: keep but no annexes", () => {
     const c = makeCastle(mulberry32(3), ward, [230, 230], boundary, 1)!;
     expect(c.annexes.length).toBe(0);
+  });
+  it("annexes never overlap each other or the keep (seed sweep)", () => {
+    for (let s = 1; s <= 40; s++) {
+      const c = makeCastle(mulberry32(s), ward, [230, 230], boundary, 4)!;
+      for (let i = 0; i < c.annexes.length; i++) {
+        expect(polysOverlap(c.annexes[i], c.keep)).toBe(false);
+        for (let j = i + 1; j < c.annexes.length; j++) expect(polysOverlap(c.annexes[i], c.annexes[j])).toBe(false);
+      }
+    }
   });
   it("emits a postern when the ward touches the town wall", () => {
     // this ward reaches the boundary circle (r=115 from 230,230): vertex [345,250] is ~117 out

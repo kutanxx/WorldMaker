@@ -49,6 +49,37 @@ export function politicalLayer(
     "stroke-linejoin": "round",
   }));
 
+  // free cities: a civic banner + name at each free polity's anchor, so an independent city reads
+  // as a marked place rather than a subtle grey patch. Only over the political fills (terrain view
+  // has no overlay), and pointer-events:none so it never blocks the city drilldown click.
+  if (opts.fills && freeSet.size) {
+    const anchors = nationCentroids(grid, owner);
+    const fg = svgEl("g", { class: "free-city-markers", style: "pointer-events:none" });
+    for (const id of freeSet) {
+      const c = anchors.get(id);
+      if (!c) continue;
+      fg.appendChild(svgEl("circle", {
+        class: "free-city-dot", cx: c.x, cy: c.y, r: 1.7, fill: FREE_COLOR, stroke: "#4a3f2c", "stroke-width": 0.7,
+      }));
+      fg.appendChild(svgEl("path", {
+        class: "free-city-banner",
+        d: `M${c.x.toFixed(1)},${(c.y - 1.7).toFixed(1)}L${c.x.toFixed(1)},${(c.y - 7).toFixed(1)}L${(c.x + 4).toFixed(1)},${(c.y - 6).toFixed(1)}L${c.x.toFixed(1)},${(c.y - 5).toFixed(1)}`,
+        fill: "#efe7d2", stroke: "#4a3f2c", "stroke-width": 0.6, "stroke-linejoin": "round",
+      }));
+      const name = nameOf.get(id);
+      if (name) {
+        const tx = svgEl("text", {
+          class: "free-city-label", x: c.x, y: c.y + 5.5, "text-anchor": "middle",
+          "font-size": 6.5, fill: "#5a5346", "font-style": "italic",
+          stroke: "#f3ead2", "stroke-width": 1.4, "paint-order": "stroke",
+        });
+        tx.textContent = name;
+        fg.appendChild(tx);
+      }
+    }
+    g.appendChild(fg);
+  }
+
   if (opts.labels || opts.legend) {
     const centroids = nationCentroids(grid, owner);
 

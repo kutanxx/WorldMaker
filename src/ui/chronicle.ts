@@ -6,25 +6,28 @@ export function renderChronicle(history: History): HTMLElement {
   const title = document.createElement("h3");
   title.textContent = `연대기 (0–${history.years}년)`;
   root.appendChild(title);
-  const list = document.createElement("ol");
-  list.className = "chronicle-list";
+  // group events by century: each century is a header (a section divider, NOT a list item) followed
+  // by its own <ol> of event rows — valid markup, since an <ol> may only contain <li> children.
   let lastCentury = -1;
+  let list: HTMLOListElement | null = null;
   for (const e of history.events) {
     const century = Math.floor(e.year / 100);
     if (century !== lastCentury) {
       lastCentury = century;
-      const h = document.createElement("li");
+      const h = document.createElement("div");
       h.className = "chronicle-era";
       h.textContent = `${century * 100}년대`;
-      list.appendChild(h);
+      root.appendChild(h);
+      list = document.createElement("ol");
+      list.className = "chronicle-list";
+      root.appendChild(list);
     }
     const row = document.createElement("li");
     row.className = `chronicle-event evt-${e.type}`;
     row.dataset.year = String(e.year);
     row.textContent = e.text;
-    list.appendChild(row);
+    list!.appendChild(row);
   }
-  root.appendChild(list);
   return root;
 }
 

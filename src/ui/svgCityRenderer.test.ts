@@ -3,7 +3,17 @@ import { describe, it, expect } from "vitest";
 import { generateCityLayout, cityContext } from "../engine/city";
 import { renderCity } from "./svgCityRenderer";
 import { GRASSLAND } from "../engine/biome";
+import { pointInPolygon } from "../engine/geometry";
+import type { Polygon } from "../engine/geometry";
 import type { CityMarker } from "../types/world";
+
+// the renderer anchors a stilt at the building's vertex-mean; replicate it so the test can
+// predict exactly which buildings sit over water.
+function vavg(p: Polygon): [number, number] {
+  let x = 0, y = 0;
+  for (const [px, py] of p) { x += px; y += py; }
+  return [x / p.length, y / p.length];
+}
 
 const marker: CityMarker = {
   id: 1, cell: 0, x: 0, y: 0, name: "Testburg",
@@ -39,11 +49,20 @@ describe("renderCity organic", () => {
     expect(swatches.length).toBeGreaterThan(0);
     for (const s of swatches) expect(Number(s.getAttribute("x"))).toBeGreaterThanOrEqual(layout.bounds.w);
   });
-  it("tints the ground and uses timber walls for a forest city", () => {
+  it("tints the ground and uses timber walls (incl. wood-toned gates/towers) for a forest city", () => {
     const layout = generateCityLayout(cityContext({ ...marker, coastal: false, elevation: 0.5, biome: 3 }), 7);
     const svg = renderCity(layout);
     expect(svg.querySelector(".boundary")?.getAttribute("fill")).toBe("#e3e7d0");
     expect(svg.querySelector(".wall-seg")?.getAttribute("stroke")).toBe("#6b4f34");
+    // gates/towers follow the wall material instead of staying stone grey
+    if (svg.querySelector(".tower")) expect(svg.querySelector(".tower")?.getAttribute("fill")).toBe("#9c7a52");
+    if (svg.querySelector(".gate")) expect(svg.querySelector(".gate")?.getAttribute("fill")).toBe("#7a5a38");
+  });
+  it("keeps stone-grey gates for a non-timber city", () => {
+    const layout = generateCityLayout(cityContext({ ...marker, coastal: false, elevation: 0.4, biome: GRASSLAND }), 9);
+    const svg = renderCity(layout);
+    expect(layout.features.wallMaterial).toBe("stone");
+    if (svg.querySelector(".gate")) expect(svg.querySelector(".gate")?.getAttribute("fill")).toBe("#9a9a9a");
   });
   it("draws a tree glyph per forest tree", () => {
     const layout = generateCityLayout(cityContext({ ...marker, coastal: false, elevation: 0.5, biome: 3 }), 7);
@@ -57,11 +76,15 @@ describe("renderCity organic", () => {
     expect(layout.features.oasis).not.toBeNull();
     expect(svg.querySelectorAll(".palm").length).toBeGreaterThan(0);
   });
-  it("draws stilts under marsh buildings", () => {
+  it("draws stilts ONLY under marsh buildings that sit over the water", () => {
     const layout = generateCityLayout(cityContext({ ...marker, coastal: false, elevation: 0.5, biome: 7 }), 7);
     const svg = renderCity(layout);
     expect(layout.features.onStilts).toBe(true);
-    expect(svg.querySelectorAll(".stilt").length).toBeGreaterThan(0);
+    const overWater = layout.wards
+      .flatMap((wd) => wd.buildings)
+      .filter((b) => layout.water.bodies.some((body) => pointInPolygon(vavg(b), body))).length;
+    expect(svg.querySelectorAll(".stilt").length).toBe(overWater);
+    expect(svg.querySelectorAll(".stilt").length).toBeGreaterThan(0); // seed 7 marsh has houses over the meander
   });
   it("draws extramural suburbs outside the boundary clip", () => {
     const layout = generateCityLayout(cityContext({ ...marker, coastal: false, elevation: 0.5, biome: 4, size: 4 }), 7);
@@ -111,6 +134,8 @@ describe("renderCity organic", () => {
     expect(env.querySelectorAll(".farm-barn").length).toBe(layout.countryside.farmsteads.length);
     expect(env.querySelectorAll(".wood-tree").length).toBe(layout.countryside.woods.length);
     expect(env.querySelectorAll(".village-green").length).toBe(layout.countryside.villages.length);
+    // each nucleated village draws an approach lane (the street that makes it read as a village)
+    expect(env.querySelectorAll(".village-lane").length).toBe(layout.countryside.villages.length);
   });
   it("draws roads on top of buildings (streets never buried under a block)", () => {
     const layout = generateCityLayout({ id: 7, name: "T", size: 4, coastal: false, isCapital: false, elevation: 0.4, biome: GRASSLAND }, 1);
@@ -157,5 +182,31 @@ describe("renderCity organic", () => {
     for (let s = 2; s <= 20 && !layout.riversideTrades.length; s++) layout = generateCityLayout({ id: 7, name: "T", size: 4, coastal: true, isCapital: false, elevation: 0.4, biome: GRASSLAND }, s);
     const svg = renderCity(layout, "en");
     expect(svg.querySelectorAll(".riverside-trade").length).toBe(layout.riversideTrades.length);
+  });
+  it("orients the watermill house toward the water (a rotate transform, not axis-aligned)", () => {
+    // a coastal city places its outwork by the water → a watermill (rect house), not a windmill
+    let layout = generateCityLayout(cityContext({ ...marker, coastal: true }), 5);
+    for (let s = 6; s <= 25 && layout.outworks[0]?.type !== "watermill"; s++) layout = generateCityLayout(cityContext({ ...marker, coastal: true }), s);
+    expect(layout.outworks[0]?.type).toBe("watermill");
+    const svg = renderCity(layout);
+    const house = svg.querySelector("rect.outwork") as SVGElement;
+    expect(house).not.toBeNull();
+    expect(house.getAttribute("transform") || "").toContain("rotate(");
+  });
+  it("renders a leper house + fairground outside the walls when generated", () => {
+    const layout = generateCityLayout({ id: 7, name: "T", size: 4, coastal: false, isCapital: false, elevation: 0.4, biome: GRASSLAND }, 1);
+    const svg = renderCity(layout, "en");
+    expect(svg.querySelectorAll(".leper-house").length).toBe(layout.leperHouse ? 1 : 0);
+    expect(svg.querySelectorAll(".fairground").length).toBe(layout.fairground ? 1 : 0);
+    if (layout.fairground) {
+      expect(svg.querySelectorAll(".fairground .fair-stall").length).toBe(layout.fairground.stalls.length);
+      // both live in the unclipped environs (outside the boundary), like the other landmarks
+      expect(svg.querySelector(".fairground")!.closest("[clip-path]")).toBeNull();
+    }
+  });
+  it("has no leper house or fairground for a tiny hamlet (size 1)", () => {
+    const layout = generateCityLayout({ id: 7, name: "T", size: 1, coastal: false, isCapital: false, elevation: 0.4, biome: GRASSLAND }, 1);
+    expect(layout.leperHouse).toBeNull(); // size < 2
+    expect(layout.fairground).toBeNull(); // size < 3
   });
 });
