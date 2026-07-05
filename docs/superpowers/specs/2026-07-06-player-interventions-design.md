@@ -4,6 +4,12 @@ Status: approved design (2026-07-06). Turns the empire sim from a passive histor
 game: you rule ONE nation, set its stance, and nudge it one action per decade while the existing
 Turchin AI runs the rest of the world.
 
+**Paradigm (decided):** this is a *steer-a-living-simulation* strategy game — NOT a Civ-style 4X
+(no direct unit/tech/production micromanagement) and not a fixed-rules board game. The Turchin
+structural model runs the whole world (including the player's nation) between turns; the player
+influences the emergent macro-history with a persistent stance + one action per turn. The design
+deliberately leverages the existing history engine rather than fighting it with micro-control.
+
 ## Goal & framing
 
 - **Survive to year 500** (50 ticks × 10 years). If your capital cell is captured, you are defeated
