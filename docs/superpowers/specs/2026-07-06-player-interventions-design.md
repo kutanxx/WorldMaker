@@ -10,6 +10,16 @@ structural model runs the whole world (including the player's nation) between tu
 influences the emergent macro-history with a persistent stance + one action per turn. The design
 deliberately leverages the existing history engine rather than fighting it with micro-control.
 
+**Agency stance (decided): HONEST LOW-AGENCY — no "protagonist" exemption.** The history engine was
+tuned (v2) so no single nation durably dominates — overextension caps, solidarity decay, civil war,
+free cities force rise-and-fall. We do NOT override that for the player. The player's stance and
+actions *tilt the odds and buy time*; they do not immunize a realm from the structural churn. Big
+fates are possible but not owed — usually you are buffeted by forces larger than you. This is the
+distinctive, honest experience and it fits the product's "readable history as lore" DNA: the payoff
+is the emergent **chronicle of your reign** (how your realm rose, strained, and fell under your
+nudges), scored at the end — not a guaranteed path to empire. Constants are therefore MODEST nudges,
+and durable effects (founded-city anchors) are small and few, never a nation-wide escape hatch.
+
 ## Goal & framing
 
 - **Survive to year 500** (50 ticks × 10 years). If your capital cell is captured, you are defeated
@@ -177,6 +187,29 @@ grow), `STANCE_INTERNAL_RISE`, `ATTACK_EDGE` (≈1.0 — even fight wins with th
 `CONQUEST_SOL` (reuse the sim's fresh-conquest value), `INVEST_DELTA` (≈0.15), `CITY_SOL_FLOOR`
 (≈0.55), `CITY_POWER_BONUS`, `PEACE_TICKS` (≈3 = 30 years), `CITY_MIN_GAP` (reuse sim spacing).
 Grouped and commented in historySim.ts / intervention.ts so they are easy to sweep.
+
+## Build order — phased (validate the feel before the full slice)
+
+Because the core risk is whether steering the sim *feels* meaningful (see Agency stance), build a
+**thin prototype first**, put it in front of the user to judge the feel, then expand.
+
+**Phase 1 — thin prototype (this plan):** just enough to play and judge the loop.
+- Engine: SimState `playerPolity` + `stance` (NOT truces/foundedCities yet); the **`contestStrength`
+  extraction** (behavior-preserving, golden-guarded); the **stance** hooks in `stepSim`; the
+  **attack** action + `borderTargets` enumerator + `CONQUEST_SOL` reuse; the civil-war
+  playerPolity-follow; `initPlaySim` / `setStance` / `playTurn` / `scorecard` in `playSim.ts`.
+- UI (`play.html` slice): nation picker → live political map + a small nation panel (cells, avg
+  cohesion, stance toggle, threatened-border count) + **Attack** (border-cell dropdown) + Pass +
+  Advance year + event log + defeat / year-500 scorecard.
+- Tests: contestStrength golden byte-identical; attack unit; stance single-tick; playSim
+  defeat + civil-war-follow; playMain jsdom smoke.
+- **Gate:** user plays it and decides if the nudge loop is fun before Phase 2.
+
+**Phase 2 — full slice (only if Phase 1 feels good):** add `invest`, `foundCity` (+ `foundedCities`
+anchor), `peace` (+ `truces`); richer observability panel (cohesion / overextension / civil-war
+risk cues); full scorecard/chronicle. Tune constants by playing.
+
+Everything below describes the full design; Phase 1 implements the subset above.
 
 ## Out of scope (later)
 
