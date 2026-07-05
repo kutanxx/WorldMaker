@@ -204,19 +204,20 @@ export function renderCity(layout: CityLayout, lang: Lang = "en"): SVGSVGElement
     if (tint) clipped.appendChild(svgEl("polygon", { class: "ward", points: pts(ward.polygon), fill: tint, "fill-opacity": 0.7 }));
   }
 
-  const road = (cls: string, r: Polyline, stroke: string, wd: number) =>
-    svgEl("polyline", { class: cls, points: pts(r), fill: "none", stroke, "stroke-width": wd, "stroke-linecap": "round", "stroke-linejoin": "round" });
-  for (const r of layout.minorRoads) clipped.appendChild(road("road-minor-casing", r, "#c4b594", 2.6));
-  for (const r of layout.mainRoads) clipped.appendChild(road("road-main-casing", r, "#a07c3e", 4.6));
-  for (const r of layout.minorRoads) clipped.appendChild(road("road-minor", r, "#f8f3e6", 1.4));
-  for (const r of layout.mainRoads) clipped.appendChild(road("road-main", r, "#d8b65e", 3));
-
   for (const ward of layout.wards) {
     // colour the buildings by their district so the whole zone reads as its hue (otherwise
     // cream buildings cover the ground tint and the districts blur together)
     const fill = TINT[ward.type] ?? "#e6dcc8";
     for (const b of ward.buildings) clipped.appendChild(svgEl("polygon", { class: "building", points: pts(b), fill, stroke: "#8a7a60", "stroke-width": 0.4 }));
   }
+
+  // roads drawn ON TOP of buildings so the street network always reads (never buried under a block)
+  const road = (cls: string, r: Polyline, stroke: string, wd: number) =>
+    svgEl("polyline", { class: cls, points: pts(r), fill: "none", stroke, "stroke-width": wd, "stroke-linecap": "round", "stroke-linejoin": "round" });
+  for (const r of layout.minorRoads) clipped.appendChild(road("road-minor-casing", r, "#c4b594", 2.6));
+  for (const r of layout.mainRoads) clipped.appendChild(road("road-main-casing", r, "#a07c3e", 4.6));
+  for (const r of layout.minorRoads) clipped.appendChild(road("road-minor", r, "#f8f3e6", 1.4));
+  for (const r of layout.mainRoads) clipped.appendChild(road("road-main", r, "#d8b65e", 3));
 
   // the lord's castle: inner enceinte + towers + gate/postern + keep + annexes, drawn over
   // the castle ward's buildings (there are none — NO_BUILDINGS skips it) so it reads as the citadel.

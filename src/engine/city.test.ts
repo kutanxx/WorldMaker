@@ -148,6 +148,37 @@ describe("city organic", () => {
   });
 });
 
+describe("roads respect the wall and gates", () => {
+  const segDist = (p: [number, number], a: [number, number], b: [number, number]) => {
+    const dx = b[0] - a[0], dy = b[1] - a[1], L2 = dx * dx + dy * dy || 1;
+    const t = Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / L2));
+    return Math.hypot(p[0] - (a[0] + t * dx), p[1] - (a[1] + t * dy));
+  };
+  it("no street dead-ends on blank wall (only gates breach it), and every gate has a road reaching it", () => {
+    for (const s of [1, 5, 9, 13]) {
+      const l = generateCityLayout({ id: 7, name: "T", size: 4, coastal: false, isCapital: false, elevation: 0.4, biome: GRASSLAND }, s);
+      const gates = l.wall!.gates;
+      const distToWall = (p: [number, number]) => {
+        let d = Infinity;
+        for (let k = 0; k < l.boundary.length; k++) d = Math.min(d, segDist(p, l.boundary[k], l.boundary[(k + 1) % l.boundary.length]));
+        return d;
+      };
+      let deadEndOnWall = 0;
+      for (const r of [...l.mainRoads, ...l.minorRoads]) {
+        if (r.length < 2) continue;
+        for (const e of [r[0], r[r.length - 1]]) {
+          if (distToWall(e) < 3 && !gates.some((g) => Math.hypot(g[0] - e[0], g[1] - e[1]) < 6)) deadEndOnWall++;
+        }
+      }
+      expect(deadEndOnWall).toBe(0);
+      for (const g of gates) {
+        const reached = [...l.mainRoads, ...l.minorRoads].some((r) => r.some((p) => Math.hypot(p[0] - g[0], p[1] - g[1]) < 2));
+        expect(reached).toBe(true);
+      }
+    }
+  });
+});
+
 describe("canvas 460", () => {
   it("uses a 460x460 canvas with the city centred", () => {
     const layout = generateCityLayout({ id: 7, name: "Test", size: 3, coastal: false, isCapital: false, elevation: 0.4, biome: GRASSLAND }, 1);
