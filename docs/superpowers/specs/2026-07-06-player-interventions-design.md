@@ -199,8 +199,9 @@ Because the core risk is whether steering the sim *feels* meaningful (see Agency
   **attack** action + `borderTargets` enumerator + `CONQUEST_SOL` reuse; the civil-war
   playerPolity-follow; `initPlaySim` / `setStance` / `playTurn` / `scorecard` in `playSim.ts`.
 - UI (`play.html` slice): nation picker → live political map + a small nation panel (cells, avg
-  cohesion, stance toggle, threatened-border count) + **Attack** (border-cell dropdown) + Pass +
-  Advance year + event log + defeat / year-500 scorecard.
+  cohesion, stance toggle, threatened-border count, and a **low-cohesion "civil-war risk" cue** when
+  avg cohesion drops below a threshold — minimal observability so the feel-test isn't blind) +
+  **Attack** (border-cell dropdown) + Pass + Advance year + event log + defeat / year-500 scorecard.
 - Tests: contestStrength golden byte-identical; attack unit; stance single-tick; playSim
   defeat + civil-war-follow; playMain jsdom smoke.
 - **Gate:** user plays it and decides if the nudge loop is fun before Phase 2.
