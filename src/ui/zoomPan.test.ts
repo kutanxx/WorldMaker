@@ -54,9 +54,10 @@ describe("attachZoomPan", () => {
     const zp = attachZoomPan(svg, container);
     svg.dispatchEvent(new WheelEvent("wheel", { deltaY: -100, clientX: 50, clientY: 50, cancelable: true })); // zoom in first
     const before = vb(svg);
+    // pointerdown on the svg starts the drag; move/up are tracked on window (real-browser drag)
     svg.dispatchEvent(new PointerEvent("pointerdown", { button: 0, clientX: 50, clientY: 50, pointerId: 1 }));
-    svg.dispatchEvent(new PointerEvent("pointermove", { clientX: 30, clientY: 50, pointerId: 1 }));
-    svg.dispatchEvent(new PointerEvent("pointerup", { clientX: 30, clientY: 50, pointerId: 1 }));
+    window.dispatchEvent(new PointerEvent("pointermove", { clientX: 30, clientY: 50, pointerId: 1 }));
+    window.dispatchEvent(new PointerEvent("pointerup", { clientX: 30, clientY: 50, pointerId: 1 }));
     const after = vb(svg);
     expect(after[0]).not.toBe(before[0]); // x panned
     expect(after[0]).toBeGreaterThanOrEqual(0);            // clamped ≥ base.x
@@ -80,16 +81,16 @@ describe("attachZoomPan", () => {
     let clicks = 0;
     svg.addEventListener("click", () => { clicks++; }); // app's drilldown handler (bubble)
 
-    // drag then click on the marker → swallowed
+    // drag (>4px from the press point) then click on the marker → swallowed
     svg.dispatchEvent(new PointerEvent("pointerdown", { button: 0, clientX: 50, clientY: 50, pointerId: 1 }));
-    svg.dispatchEvent(new PointerEvent("pointermove", { clientX: 70, clientY: 50, pointerId: 1 }));
-    svg.dispatchEvent(new PointerEvent("pointerup", { clientX: 70, clientY: 50, pointerId: 1 }));
+    window.dispatchEvent(new PointerEvent("pointermove", { clientX: 70, clientY: 50, pointerId: 1 }));
+    window.dispatchEvent(new PointerEvent("pointerup", { clientX: 70, clientY: 50, pointerId: 1 }));
     marker.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
     expect(clicks).toBe(0);
 
     // no-drag click on the marker → passes through
     svg.dispatchEvent(new PointerEvent("pointerdown", { button: 0, clientX: 50, clientY: 50, pointerId: 2 }));
-    svg.dispatchEvent(new PointerEvent("pointerup", { clientX: 50, clientY: 50, pointerId: 2 }));
+    window.dispatchEvent(new PointerEvent("pointerup", { clientX: 50, clientY: 50, pointerId: 2 }));
     marker.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
     expect(clicks).toBe(1);
     zp.destroy();
