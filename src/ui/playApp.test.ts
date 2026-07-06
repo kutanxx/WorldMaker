@@ -46,6 +46,43 @@ describe("playApp", () => {
     expect((root.querySelector(".btn-advance") as HTMLButtonElement).textContent).toContain("다음 해");
   });
 
+  it("logs a per-decade gain/loss line on advance", () => {
+    const root = document.createElement("div");
+    createPlayApp(root, 1);
+    (root.querySelector(".nation-choice") as HTMLButtonElement).click();
+    (root.querySelector(".btn-advance") as HTMLButtonElement).click();
+    const rows = [...root.querySelectorAll(".chronicle-event")].map((e) => e.textContent || "");
+    expect(rows.some((t) => /Year 10:/.test(t))).toBe(true);
+  });
+
+  it("keeps rendering the chronicle across many turns (headline wiring guard)", () => {
+    const root = document.createElement("div");
+    createPlayApp(root, 1);
+    (root.querySelector(".nation-choice") as HTMLButtonElement).click();
+    for (let i = 0; i < 20; i++) {
+      const adv = root.querySelector(".btn-advance") as HTMLButtonElement | null;
+      if (!adv) break;
+      adv.click();
+    }
+    expect(root.querySelector(".chronicle")).not.toBeNull();
+  });
+
+  it("shows the conqueror on the defeat banner, or 'endured' on survival", () => {
+    const root = document.createElement("div");
+    createPlayApp(root, 1);
+    (root.querySelector(".nation-choice") as HTMLButtonElement).click();
+    let banner: Element | null = null;
+    for (let i = 0; i < 50; i++) {
+      const adv = root.querySelector(".btn-advance") as HTMLButtonElement | null;
+      if (!adv) { banner = root.querySelector(".stub"); break; }
+      adv.click();
+      banner = root.querySelector(".stub");
+      if (banner) break;
+    }
+    expect(banner).not.toBeNull();
+    expect(/Conquered by |endured/.test(banner!.textContent || "")).toBe(true);
+  });
+
   it("offers an invest action that runs and logs on advance", () => {
     const root = document.createElement("div");
     createPlayApp(root, 1);

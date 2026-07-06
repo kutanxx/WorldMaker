@@ -7,7 +7,7 @@ import { borderTargets, frontEdges, type Action } from "../engine/intervention";
 import { sharedEdge } from "../engine/borders";
 import { renderWorld, politicalOpts } from "./svgWorldRenderer";
 import { politicalLayer } from "./politicalLayer";
-import { t, playT, playYear, playLog, playRuleIntro, playFell, playStats, type Lang } from "./i18n";
+import { t, playT, playYear, playLog, playRuleIntro, playFell, playStats, playDelta, playDefeatCause, type Lang } from "./i18n";
 
 const STANCES: Stance[] = ["aggressive", "defensive", "internal"];
 const LOW_COHESION = 0.4; // civil-war risk cue threshold
@@ -186,23 +186,44 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
       advance.className = "btn-advance";
       advance.textContent = playT(lang, "advance");
       advance.addEventListener("click", () => {
+        const before = Int32Array.from(s.owner);
         const r = playTurn(s, pendingAction);
         pendingAction = null;
+        let gained = 0, lost = 0;
+        for (let c = 0; c < s.n; c++) {
+          const was = before[c] === s.playerPolity, now = s.owner[c] === s.playerPolity;
+          if (now && !was) gained++; else if (was && !now) lost++;
+        }
+        appendLog(playDelta(lang, r.year, gained, lost));
         const msg = playLog(lang, r.actionCode, r.actionData);
         if (msg) appendLog(`— ${msg}`);
-        for (const e of r.events) appendLog(e.text);
-        if (r.finished) return end(r.defeated);
+        for (const e of r.events) {
+          const hl = isPlayerEvent(e);
+          appendLog(hl ? `${HEADLINE_ICON[e.type] ?? "•"} ${e.text}` : e.text, hl);
+        }
+        if (r.finished) {
+          const conq = r.events.find((e) => e.type === "conquer" && e.otherId === s.playerPolity);
+          return end(r.defeated, conq ? s.polities[conq.polityId].name : "");
+        }
         renderAll();
       });
       actions.append(status, sel, inv, advance);
     }
 
-    function appendLog(text: string): void {
+    function appendLog(text: string, headline = false): void {
+      if (!text) return;
       const row = document.createElement("div");
-      row.className = "chronicle-event";
+      row.className = headline ? "chronicle-event headline" : "chronicle-event";
       row.textContent = text;
       log.appendChild(row);
       log.scrollTop = log.scrollHeight;
+    }
+
+    const HEADLINE_ICON: Record<string, string> = {
+      civilwar: "⚔", independence: "🏴", conquer: "👑", goldenage: "☀",
+    };
+    function isPlayerEvent(e: { polityId: number; otherId?: number }): boolean {
+      return e.polityId === s.playerPolity || e.otherId === s.playerPolity;
     }
 
     function renderAll(): void { renderMap(); renderPanel(); renderActions(); }
@@ -213,6 +234,7 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
     }
 
     let defeatedFlag = false;
+    let defeatCause = "";
     function renderBanner(): void {
       root.querySelector(".stub")?.remove();
       const sc = scorecard(s);
@@ -220,13 +242,15 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
       banner.className = "stub";
       const head = defeatedFlag ? playFell(lang, sc.survivedYears) : playT(lang, "endured");
       const rankText = sc.rank > 0 ? `${sc.rank} / ${sc.nations}` : "—";
-      banner.innerHTML = `<h2>${head}</h2><p>${playStats(lang, sc.peakCells, sc.cells, rankText)}</p>`;
+      const cause = defeatedFlag && defeatCause ? ` ${playDefeatCause(lang, defeatCause)}` : "";
+      banner.innerHTML = `<h2>${head}${cause}</h2><p>${playStats(lang, sc.peakCells, sc.cells, rankText)}</p>`;
       root.insertBefore(banner, log);
     }
 
-    function end(defeated: boolean): void {
+    function end(defeated: boolean, conqueror = ""): void {
       over = true;
       defeatedFlag = defeated;
+      defeatCause = conqueror;
       actions.innerHTML = "";
       renderPanel();
       renderBanner();
