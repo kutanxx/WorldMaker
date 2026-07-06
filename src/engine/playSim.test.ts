@@ -52,6 +52,21 @@ describe("playSim", () => {
     expect(sc.rank).toBeLessThanOrEqual(sc.nations);
   });
 
+  it("scorecard reports a defeated player as unranked (rank 0), not mis-ranked past the nation count", () => {
+    const { world } = generateWorld({ ...small, seed: 1 });
+    const s = initPlaySim(world, 1, 0, "internal");
+    const cap = s.capitals[0];
+    const enemy = s.polities.findIndex((_, i) => i !== 0);
+    for (const nb of s.grid.neighbors[cap]) s.owner[nb] = enemy;
+    s.owner[cap] = enemy;
+    const r = playTurn(s, null);
+    expect(r.defeated).toBe(true);
+    const sc = scorecard(s);
+    expect(sc.alive).toBe(false);
+    expect(sc.rank).toBe(0);                        // 0 = unranked (was 1 + living-nation count → "7 of 6")
+    expect(sc.rank).toBeLessThanOrEqual(sc.nations);
+  });
+
   it("defeat coincides EXACTLY with losing the capital cell (locks the civil-war-keeps-seat invariant)", () => {
     // pick the largest polity so a civil war of the player's realm is likely over the full game
     const { world } = generateWorld({ ...small, seed: 3 });

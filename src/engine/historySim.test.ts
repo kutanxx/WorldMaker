@@ -1,7 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { generateWorld } from "./world";
 import { DEFAULT_PARAMS } from "../types/world";
-import { initSim, stepSim, TICKS, aggregate, contestStrength, W_CONSTS_FOR_TEST, CONQUEST_SOL, type Stance } from "./historySim";
+import { initSim, stepSim, TICKS, aggregate, contestStrength, W_CONSTS_FOR_TEST, CONQUEST_SOL, buildStraitLinks, type Stance } from "./historySim";
+import { OCEAN, LAND } from "./terrain";
 
 describe("historySim", () => {
   it("initSim yields the year-0 state", () => {
@@ -90,6 +91,59 @@ describe("historySim", () => {
 
         expect(strength).toBeCloseTo(expected, 10);
       }
+    });
+  });
+
+  describe("buildStraitLinks", () => {
+    // chain: 0(L) - 1(O) - 2(L) - 3(O) - 4(O) - 5(L)
+    const grid = {
+      count: 6,
+      neighbors: [[1], [0, 2], [1, 3], [2, 4], [3, 5], [4]],
+      points: new Float64Array(12),
+    } as any;
+    const terrain = [LAND, OCEAN, LAND, OCEAN, OCEAN, LAND];
+
+    it("links land cells separated by a narrow strait (≤ hops ocean cells)", () => {
+      const links = buildStraitLinks(grid, terrain, 2);
+      expect(links[0]).toContain(2);        // 0 and 2 are one ocean cell apart
+      expect(links[2].slice().sort()).toEqual([0, 5]); // 2 reaches 0 (1 hop) and 5 (2 hops)
+    });
+
+    it("does not link land cells beyond the hop budget", () => {
+      const links = buildStraitLinks(grid, terrain, 2);
+      expect(links[0]).not.toContain(5);    // 0→5 is 3 ocean cells; out of a 2-hop strait
+    });
+  });
+
+  describe("amphibious strait contest (symmetric, gated on playerPolity)", () => {
+    it("lets a strong enemy across a strait take a weak, isolated player coastal cell in one tick", () => {
+      const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });
+      const s = initSim(world, 1);
+      const enemy = s.owner.find((o) => o >= 0)!;
+      const player = s.owner.find((o) => o >= 0 && o !== enemy)!;
+      // a player cell with NO enemy LAND neighbour (so only a strait invasion can flip it)
+      const pcTarget = [...Array(s.n).keys()].find(
+        (c) => s.owner[c] === player && s.grid.neighbors[c].every((nb) => s.owner[nb] === player || s.terrain[nb] === OCEAN),
+      );
+      const bc = s.owner.findIndex((o) => o === enemy);
+      expect(pcTarget).toBeDefined();
+      expect(bc).toBeGreaterThanOrEqual(0);
+      // make the enemy overwhelming and the target defenceless
+      for (let c = 0; c < s.n; c++) if (s.owner[c] === enemy) s.solidarity[c] = 1;
+      s.solidarity[pcTarget!] = 0;
+      s.playerPolity = player;
+      s.stance = "internal";
+      s.straitLinks = Array.from({ length: s.n }, () => [] as number[]);
+      s.straitLinks[pcTarget!] = [bc];
+      s.straitLinks[bc] = [pcTarget!];
+      stepSim(s);
+      expect(s.owner[pcTarget!]).toBe(enemy);
+    });
+
+    it("never runs the strait pass on the pure-history path (no straitLinks)", () => {
+      const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });
+      const s = initSim(world, 1);
+      expect(s.straitLinks).toBeUndefined(); // pure path builds none → golden byte-identity holds
     });
   });
 

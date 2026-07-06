@@ -23,4 +23,29 @@ describe("playApp", () => {
     (root.querySelector(".btn-advance") as HTMLButtonElement).click();
     expect(root.querySelector(".play-year")!.textContent).not.toBe(yearBefore);
   });
+
+  it("toggles the play screen to Korean", () => {
+    const root = document.createElement("div");
+    createPlayApp(root, 1);
+    (root.querySelector(".nation-choice") as HTMLButtonElement).click();
+    const toggle = root.querySelector(".lang-toggle") as HTMLButtonElement;
+    expect(toggle).not.toBeNull();
+    toggle.click();
+    const panel = root.querySelector(".play-panel")!.textContent!;
+    expect(panel).toContain("년");        // Korean year
+    expect(panel).toContain("결속");      // Korean "cohesion"
+    expect((root.querySelector(".btn-advance") as HTMLButtonElement).textContent).toContain("다음 해");
+  });
+
+  it("offers an invest action that runs and logs on advance", () => {
+    const root = document.createElement("div");
+    createPlayApp(root, 1);
+    (root.querySelector(".nation-choice") as HTMLButtonElement).click();
+    const inv = root.querySelector(".invest-select") as HTMLSelectElement;
+    expect(inv).not.toBeNull();
+    inv.value = "nation";
+    inv.dispatchEvent(new Event("change", { bubbles: true }));
+    (root.querySelector(".btn-advance") as HTMLButtonElement).click();
+    expect(root.querySelector(".chronicle")!.textContent).toContain("Invested");
+  });
 });

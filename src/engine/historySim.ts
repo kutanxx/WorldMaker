@@ -23,6 +23,13 @@ const STANCE_SOL_DELTA = { aggressive: -0.01, defensive: 0.0, internal: 0.02 } a
 export const CONQUEST_SOL = CIVILWAR_BIRTH_SOL; // reuse the sim's fresh-conquest cohesion value
 export type Stance = "aggressive" | "defensive" | "internal";
 
+// --- amphibious warfare (only in a game, playerPolity >= 0): coastal cells can contest enemy coastal
+// cells across a narrow strait; the assault is weakened by the sea crossing. The pure history path
+// builds no straitLinks so it never runs this — golden byte-identity holds. ---
+const STRAIT_SEA_HOPS = 2;          // a "narrow strait" = at most this many ocean cells to cross
+export const STRAIT_HOPS = STRAIT_SEA_HOPS;
+export const AMPHIB_MULT = 0.85;    // attacker strength penalty for crossing water
+
 export interface Agg { cells: number; power: number; avg: number; }
 
 export interface HistoryPolity {
@@ -67,6 +74,7 @@ export interface SimState {
   playerPolity: number; // -1 = pure history (default); else the player's polity id
   stance: Stance;       // inert when playerPolity < 0
   peakCells: number;    // max cells the player has held (scorecard); default 0
+  straitLinks?: number[][]; // per-cell coastal cells reachable across a narrow strait; only set in a game
 }
 
 const px = (s: SimState, i: number) => s.grid.points[i * 2];
@@ -91,6 +99,32 @@ export function contestStrength(s: SimState, agg: Agg[], polity: number, distCel
     - dist(s, distCell, s.capitals[polity]) * W_DIST + zoneBonus(s, polity);
 }
 export const W_CONSTS_FOR_TEST = { W_ASA, W_LOCAL, W_POWER, W_DIST, SIZE_CAP, STANCE_ATK_MULT };
+
+// for each land cell, the coastal land cells reachable across ≤ `hops` ocean cells (a narrow strait).
+// Pure geometry (no rng); symmetric by construction. Built once per game, never on the pure path.
+export function buildStraitLinks(grid: World["grid"], terrain: number[], hops: number): number[][] {
+  const n = grid.count;
+  const links: number[][] = Array.from({ length: n }, () => []);
+  for (let c = 0; c < n; c++) {
+    if (terrain[c] === OCEAN) continue;
+    const seenOcean = new Set<number>();
+    let frontier: number[] = [];
+    for (const nb of grid.neighbors[c]) if (terrain[nb] === OCEAN) { seenOcean.add(nb); frontier.push(nb); }
+    const found = new Set<number>();
+    for (let d = 0; d < hops && frontier.length; d++) {
+      const next: number[] = [];
+      for (const o of frontier) {
+        for (const nb of grid.neighbors[o]) {
+          if (terrain[nb] === OCEAN) { if (!seenOcean.has(nb)) { seenOcean.add(nb); next.push(nb); } }
+          else if (nb !== c) found.add(nb);
+        }
+      }
+      frontier = next;
+    }
+    links[c] = [...found];
+  }
+  return links;
+}
 // greedy farthest-point: pick `count` cells maximising min-distance to the chosen set
 function farthest(s: SimState, cells: number[], seed: number, count: number): number[] {
   const chosen = [seed]; const out: number[] = [];
@@ -184,6 +218,29 @@ export function stepSim(s: SimState): void {
       if (o === s.playerPolity) def *= STANCE_DEF_MULT[s.stance];       // player defending
     }
     if (atk > def * CONTEST_THRESH) nextOwner[c] = best;
+  }
+  // amphibious strait contests (only in a game; the pure path has no straitLinks so this is skipped).
+  // Land contests take priority: only cells NOT already changing hands can be taken from the sea.
+  const straitLinks = s.straitLinks;
+  if (s.playerPolity >= 0 && straitLinks) {
+    for (let c = 0; c < n; c++) {
+      if (terrain[c] === OCEAN || nextOwner[c] !== owner[c]) continue;
+      const o = owner[c];
+      const links = straitLinks[c];
+      if (!links.length) continue;
+      let best = -1, bestAvg = -Infinity, bestCell = -1;
+      for (const b of links) {
+        const p = owner[b];
+        if (p < 0 || p === o || s.polities[p].free) continue;
+        if (agg[p].avg > bestAvg) { bestAvg = agg[p].avg; best = p; bestCell = b; }
+      }
+      if (best < 0) continue;
+      let atk = contestStrength(s, agg, best, c, bestCell) * AMPHIB_MULT;
+      let def = o < 0 ? 0 : contestStrength(s, agg, o, c, c);
+      if (best === s.playerPolity) atk *= STANCE_ATK_MULT[s.stance];
+      if (o === s.playerPolity) def *= STANCE_DEF_MULT[s.stance];
+      if (atk > def * CONTEST_THRESH) nextOwner[c] = best;
+    }
   }
   owner.set(nextOwner);
 
