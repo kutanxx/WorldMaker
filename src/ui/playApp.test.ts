@@ -46,6 +46,51 @@ describe("playApp", () => {
     expect((root.querySelector(".btn-advance") as HTMLButtonElement).textContent).toContain("다음 해");
   });
 
+  it("offers found-city and peace selects, one action shared across all four", () => {
+    const root = document.createElement("div");
+    createPlayApp(root, 1);
+    (root.querySelector(".nation-choice") as HTMLButtonElement).click();
+    const found = root.querySelector(".found-select") as HTMLSelectElement;
+    const peace = root.querySelector(".peace-select") as HTMLSelectElement;
+    const attack = root.querySelector(".attack-select") as HTMLSelectElement;
+    expect(found).not.toBeNull();
+    expect(peace).not.toBeNull();
+    expect(found.options.length).toBeGreaterThan(1);
+    expect(peace.options.length).toBeGreaterThan(1);
+    // picking attack then foundCity clears the attack pick
+    attack.value = attack.options[1].value;
+    attack.dispatchEvent(new Event("change"));
+    found.value = found.options[1].value;
+    found.dispatchEvent(new Event("change"));
+    expect(attack.value).toBe("");
+    expect((root.querySelector(".btn-attack") as HTMLButtonElement).textContent).toContain("Found");
+  });
+
+  it("founding a city logs it and draws a ★ marker on the map", () => {
+    const root = document.createElement("div");
+    createPlayApp(root, 1);
+    (root.querySelector(".nation-choice") as HTMLButtonElement).click();
+    const found = root.querySelector(".found-select") as HTMLSelectElement;
+    found.value = found.options[1].value;
+    found.dispatchEvent(new Event("change"));
+    (root.querySelector(".btn-advance") as HTMLButtonElement).click();
+    const rows = [...root.querySelectorAll(".chronicle-event")].map((e) => e.textContent || "");
+    expect(rows.some((t) => /Founded the city of/.test(t))).toBe(true);
+    expect(root.querySelector(".founded-city")).not.toBeNull();
+  });
+
+  it("suing for peace logs the truce", () => {
+    const root = document.createElement("div");
+    createPlayApp(root, 1);
+    (root.querySelector(".nation-choice") as HTMLButtonElement).click();
+    const peace = root.querySelector(".peace-select") as HTMLSelectElement;
+    peace.value = peace.options[1].value;
+    peace.dispatchEvent(new Event("change"));
+    (root.querySelector(".btn-advance") as HTMLButtonElement).click();
+    const rows = [...root.querySelectorAll(".chronicle-event")].map((e) => e.textContent || "");
+    expect(rows.some((t) => /Made peace with/.test(t))).toBe(true);
+  });
+
   it("logs a per-decade gain/loss line on advance", () => {
     const root = document.createElement("div");
     createPlayApp(root, 1);

@@ -3,7 +3,7 @@ import { DEFAULT_PARAMS } from "../types/world";
 import { aggregate, YEARS_PER_TICK } from "../engine/historySim";
 import { initPlaySim, playTurn, setStance, scorecard, playerCells } from "../engine/playSim";
 import type { Stance } from "../engine/historySim";
-import { borderTargets, frontEdges, type Action } from "../engine/intervention";
+import { borderTargets, frontEdges, foundCityTargets, hostileNeighbors, type Action } from "../engine/intervention";
 import { sharedEdge } from "../engine/borders";
 import { renderWorld, politicalOpts } from "./svgWorldRenderer";
 import { politicalLayer } from "./politicalLayer";
@@ -105,6 +105,19 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
         tx.textContent = "⛵";
         g.appendChild(tx);
       }
+      // player-founded cities: gold star (dim outline when the anchor was captured)
+      for (const fc of s.foundedCities) {
+        const tx = document.createElementNS(NS, "text");
+        tx.setAttribute("x", String(world.grid.points[fc * 2]));
+        tx.setAttribute("y", String(world.grid.points[fc * 2 + 1]));
+        tx.setAttribute("class", "founded-city");
+        tx.setAttribute("text-anchor", "middle");
+        tx.setAttribute("font-size", "9");
+        tx.setAttribute("fill", "#a8842c");
+        tx.setAttribute("pointer-events", "none");
+        tx.textContent = s.owner[fc] === s.playerPolity ? "★" : "☆";
+        g.appendChild(tx);
+      }
       slot.parentNode!.insertBefore(g, slot.nextSibling); // above political fills, below markers
       mapFrame.appendChild(svg);
     }
@@ -148,7 +161,9 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
       const label = () =>
         !pendingAction ? playT(lang, "noAction")
           : pendingAction.type === "attack" ? playT(lang, "attackChosen")
-            : playT(lang, pendingAction.scope === "border" ? "investFrontierChosen" : "investRealmChosen");
+            : pendingAction.type === "foundCity" ? playT(lang, "foundChosen")
+              : pendingAction.type === "peace" ? playT(lang, "peaceChosen")
+                : playT(lang, pendingAction.scope === "border" ? "investFrontierChosen" : "investRealmChosen");
       status.textContent = label();
 
       const sel = document.createElement("select");
@@ -171,14 +186,54 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
         inv.appendChild(opt);
       }
 
+      // found-city: best (most cohesive) eligible sites first, capped to keep the list scannable
+      const fnd = document.createElement("select");
+      fnd.className = "found-select";
+      const fndNone = document.createElement("option");
+      fndNone.value = ""; fndNone.textContent = playT(lang, "foundPlaceholder");
+      fnd.appendChild(fndNone);
+      for (const target of foundCityTargets(s).slice(0, 20)) {
+        const opt = document.createElement("option");
+        opt.value = String(target.cell);
+        opt.textContent = `cell ${target.cell} · ${(target.sol * 100) | 0}%`;
+        fnd.appendChild(opt);
+      }
+
+      const pce = document.createElement("select");
+      pce.className = "peace-select";
+      const pceNone = document.createElement("option");
+      pceNone.value = ""; pceNone.textContent = playT(lang, "peacePlaceholder");
+      pce.appendChild(pceNone);
+      for (const h of hostileNeighbors(s)) {
+        const opt = document.createElement("option");
+        opt.value = String(h.id);
+        opt.textContent = h.trucedUntil > s.tick ? `${h.name} ✓` : h.name;
+        pce.appendChild(opt);
+      }
+
+      // one action per turn: picking in any select clears the other three
+      const selects = [sel, inv, fnd, pce];
+      const clearOthers = (keep: HTMLSelectElement) => {
+        for (const other of selects) if (other !== keep) other.value = "";
+      };
       sel.addEventListener("change", () => {
         pendingAction = sel.value ? { type: "attack", cell: Number(sel.value) } : null;
-        if (pendingAction) inv.value = "";
+        if (pendingAction) clearOthers(sel);
         status.textContent = label();
       });
       inv.addEventListener("change", () => {
         pendingAction = inv.value ? { type: "invest", scope: inv.value as "nation" | "border" } : null;
-        if (pendingAction) sel.value = "";
+        if (pendingAction) clearOthers(inv);
+        status.textContent = label();
+      });
+      fnd.addEventListener("change", () => {
+        pendingAction = fnd.value ? { type: "foundCity", cell: Number(fnd.value) } : null;
+        if (pendingAction) clearOthers(fnd);
+        status.textContent = label();
+      });
+      pce.addEventListener("change", () => {
+        pendingAction = pce.value ? { type: "peace", polity: Number(pce.value) } : null;
+        if (pendingAction) clearOthers(pce);
         status.textContent = label();
       });
 
@@ -207,7 +262,7 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
         }
         renderAll();
       });
-      actions.append(status, sel, inv, advance);
+      actions.append(status, sel, inv, fnd, pce, advance);
     }
 
     function appendLog(text: string, headline = false): void {
@@ -243,7 +298,7 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
       const head = defeatedFlag ? playFell(lang, sc.survivedYears) : playT(lang, "endured");
       const rankText = sc.rank > 0 ? `${sc.rank} / ${sc.nations}` : "—";
       const cause = defeatedFlag && defeatCause ? ` ${playDefeatCause(lang, defeatCause)}` : "";
-      banner.innerHTML = `<h2>${head}${cause}</h2><p>${playStats(lang, sc.peakCells, sc.cells, rankText)}</p>`;
+      banner.innerHTML = `<h2>${head}${cause}</h2><p>${playStats(lang, sc.peakCells, sc.cells, rankText, sc.citiesFounded)}</p>`;
       root.insertBefore(banner, log);
     }
 
