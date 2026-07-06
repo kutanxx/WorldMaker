@@ -5,6 +5,7 @@ import { initPlaySim, playTurn, setStance, scorecard, playerCells } from "../eng
 import type { Stance } from "../engine/historySim";
 import { borderTargets, frontEdges, foundCityTargets, hostileNeighbors, type Action } from "../engine/intervention";
 import { sharedEdge } from "../engine/borders";
+import { cellPath } from "./svgPaths";
 import { renderWorld, politicalOpts } from "./svgWorldRenderer";
 import { politicalLayer } from "./politicalLayer";
 import { t, playT, playYear, playLog, playRuleIntro, playFell, playStats, playDelta, playDefeatCause, type Lang } from "./i18n";
@@ -105,6 +106,30 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
         tx.textContent = "⛵";
         g.appendChild(tx);
       }
+      // clickable attack targets: an invisible-ish overlay per enemy border cell (capturable ones
+      // tinted) — the intuitive "point at the map" way to aim; the dropdown stays as the synced twin
+      const tg = document.createElementNS(NS, "g");
+      tg.setAttribute("class", "attack-targets");
+      for (const target of borderTargets(s)) {
+        const p = document.createElementNS(NS, "path");
+        p.setAttribute("d", cellPath(world.grid.polygons[target.cell]));
+        const selected = pendingAction?.type === "attack" && pendingAction.cell === target.cell;
+        p.setAttribute("class", `target-cell${target.capturable ? " capturable" : ""}${selected ? " selected" : ""}`);
+        p.setAttribute("data-cell", String(target.cell));
+        p.setAttribute("fill", target.capturable ? "rgba(63,158,87,0.16)" : "rgba(0,0,0,0)");
+        if (selected) { p.setAttribute("stroke", "#2a2118"); p.setAttribute("stroke-width", "1.6"); }
+        const tip = document.createElementNS(NS, "title");
+        tip.textContent = `${target.sea ? "⛵ " : ""}${target.ownerName} ${target.capturable ? "✓" : "✗"}`;
+        p.appendChild(tip);
+        p.addEventListener("click", () => {
+          pendingAction = { type: "attack", cell: target.cell };
+          renderMap();
+          renderActions();
+        });
+        tg.appendChild(p);
+      }
+      g.insertBefore(tg, g.firstChild); // under the front lines (which are pointer-events:none)
+
       // player-founded cities: gold star (dim outline when the anchor was captured)
       for (const fc of s.foundedCities) {
         const tx = document.createElementNS(NS, "text");
@@ -262,6 +287,11 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
         }
         renderAll();
       });
+      // restore the pending pick into its select (map clicks and re-renders keep the UI in sync)
+      if (pendingAction?.type === "attack") sel.value = String(pendingAction.cell);
+      else if (pendingAction?.type === "invest") inv.value = pendingAction.scope;
+      else if (pendingAction?.type === "foundCity") fnd.value = String(pendingAction.cell);
+      else if (pendingAction?.type === "peace") pce.value = String(pendingAction.polity);
       actions.append(status, sel, inv, fnd, pce, advance);
     }
 

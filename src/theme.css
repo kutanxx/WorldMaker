@@ -111,3 +111,6 @@ svg.world .legend { pointer-events: none; }
 .chronicle-event.headline { font-weight: 600; }
 .front line { pointer-events: none; }
 .sea-target { pointer-events: none; }
+/* map-click attack targeting: enemy border cells are live */
+.target-cell { cursor: pointer; }
+.target-cell:hover { stroke: #2a2118; stroke-width: 1.2; }

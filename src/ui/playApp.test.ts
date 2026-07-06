@@ -91,6 +91,20 @@ describe("playApp", () => {
     expect(rows.some((t) => /Made peace with/.test(t))).toBe(true);
   });
 
+  it("map shows clickable attack-target cells; clicking one picks the attack and syncs the select", () => {
+    const root = document.createElement("div");
+    createPlayApp(root, 1);
+    (root.querySelector(".nation-choice") as HTMLButtonElement).click();
+    const targets = root.querySelectorAll(".target-cell");
+    expect(targets.length).toBeGreaterThan(0);
+    const cell = (targets[0] as SVGPathElement).getAttribute("data-cell")!;
+    (targets[0] as SVGPathElement).dispatchEvent(new Event("click", { bubbles: true }));
+    expect((root.querySelector(".attack-select") as HTMLSelectElement).value).toBe(cell);
+    expect((root.querySelector(".btn-attack") as HTMLButtonElement).textContent).toContain("Attack");
+    // the picked cell is marked selected on the map
+    expect(root.querySelector(".target-cell.selected")).not.toBeNull();
+  });
+
   it("logs a per-decade gain/loss line on advance", () => {
     const root = document.createElement("div");
     createPlayApp(root, 1);
