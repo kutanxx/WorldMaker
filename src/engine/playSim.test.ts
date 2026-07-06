@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { generateWorld } from "./world";
 import { DEFAULT_PARAMS } from "../types/world";
 import { initPlaySim, playTurn, playerCells, scorecard, setStance } from "./playSim";
+import { applyIntervention, foundCityTargets } from "./intervention";
 
 const small = { ...DEFAULT_PARAMS, width: 300, height: 300, cellCount: 400, townCount: 6 };
 
@@ -65,6 +66,26 @@ describe("playSim", () => {
     expect(sc.alive).toBe(false);
     expect(sc.rank).toBe(0);                        // 0 = unranked (was 1 + living-nation count → "7 of 6")
     expect(sc.rank).toBeLessThanOrEqual(sc.nations);
+  });
+
+  it("scorecard counts founded cities, held vs lost", () => {
+    // full-size world: CITY_MIN_GAP leaves no viable sites on the 300×300 test world
+    const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });
+    const counts = new Map<number, number>();
+    for (const o of world.polityOf) if (o >= 0) counts.set(o, (counts.get(o) ?? 0) + 1);
+    const largest = [...counts.entries()].sort((a, b) => b[1] - a[1])[0][0];
+    const s = initPlaySim(world, 1, largest, "internal");
+    const t = foundCityTargets(s)[0];
+    expect(t).toBeTruthy();
+    applyIntervention(s, { type: "foundCity", cell: t.cell });
+    let sc = scorecard(s);
+    expect(sc.citiesFounded).toBe(1);
+    expect(sc.citiesHeld).toBe(1);
+    const other = s.polities.find((p) => p.id !== s.playerPolity)!;
+    s.owner[t.cell] = other.id; // captured
+    sc = scorecard(s);
+    expect(sc.citiesFounded).toBe(1);
+    expect(sc.citiesHeld).toBe(0);
   });
 
   it("defeat coincides EXACTLY with losing the capital cell (locks the civil-war-keeps-seat invariant)", () => {

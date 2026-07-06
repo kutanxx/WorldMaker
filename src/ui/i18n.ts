@@ -125,10 +125,11 @@ export function playRuleIntro(lang: Lang, name: string): string {
 export function playFell(lang: Lang, years: number): string {
   return lang === "ko" ? `당신의 나라는 ${years}년 만에 멸망했습니다.` : `Your realm fell in ${years} years.`;
 }
-export function playStats(lang: Lang, peak: number, final: number, rank: string): string {
+export function playStats(lang: Lang, peak: number, final: number, rank: string, cities = 0): string {
+  const cityPart = cities ? (lang === "ko" ? ` · 도시 ${cities}` : ` · ${cities} cities founded`) : "";
   return lang === "ko"
-    ? `최대 ${peak}셀 · 최종 ${final}셀 · 순위 ${rank}.`
-    : `Peak ${peak} cells · final ${final} cells · rank ${rank}.`;
+    ? `최대 ${peak}셀 · 최종 ${final}셀${cityPart} · 순위 ${rank}.`
+    : `Peak ${peak} cells · final ${final} cells${cityPart} · rank ${rank}.`;
 }
 // per-decade gain/loss summary; "−" is U+2212 to match the minus used elsewhere
 export function playDelta(lang: Lang, year: number, gained: number, lost: number): string {

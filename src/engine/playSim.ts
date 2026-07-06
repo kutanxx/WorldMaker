@@ -3,7 +3,7 @@ import { initSim, stepSim, aggregate, buildStraitLinks, STRAIT_HOPS, TICKS, YEAR
 import { applyIntervention, type Action } from "./intervention";
 
 export interface TurnResult { year: number; defeated: boolean; finished: boolean; events: HistoryEvent[]; message: string; actionCode?: string; actionData?: Record<string, string | number> }
-export interface Scorecard { cells: number; peakCells: number; rank: number; nations: number; survivedYears: number; alive: boolean }
+export interface Scorecard { cells: number; peakCells: number; rank: number; nations: number; survivedYears: number; alive: boolean; citiesFounded: number; citiesHeld: number }
 
 export function playerCells(s: SimState): number {
   let n = 0;
@@ -53,7 +53,9 @@ export function scorecard(s: SimState): Scorecard {
     nations++;
     if (agg[o].cells > mine) rank++;
   }
+  let citiesHeld = 0;
+  for (const fc of s.foundedCities) if (s.owner[fc] === s.playerPolity) citiesHeld++;
   // a defeated realm is not counted among the living, so it has no rank (0 = unranked) — otherwise
   // rank counts every living nation above its 0 cells and reports the impossible "N+1 of N".
-  return { cells: mine, peakCells: s.peakCells, rank: alive ? rank : 0, nations, survivedYears: s.tick * YEARS_PER_TICK, alive };
+  return { cells: mine, peakCells: s.peakCells, rank: alive ? rank : 0, nations, survivedYears: s.tick * YEARS_PER_TICK, alive, citiesFounded: s.foundedCities.size, citiesHeld };
 }
