@@ -106,3 +106,8 @@ svg.world .legend { pointer-events: none; }
 .stub-badge { display: inline-block; font-family: 'Cinzel', serif; font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: #8a7550; border: 1px solid #cbb784; border-radius: 20px; padding: 4px 14px; margin-bottom: 18px; }
 .home-link { display: inline-block; margin-top: 18px; color: #7a5a2f; text-decoration: none; border-bottom: 1px solid #cbb784; padding-bottom: 1px; }
 .home-link:hover { color: #5a3f1a; }
+
+/* play-mode legibility: emphasized player headlines + non-interactive map overlay */
+.chronicle-event.headline { font-weight: 600; }
+.front line { pointer-events: none; }
+.sea-target { pointer-events: none; }
