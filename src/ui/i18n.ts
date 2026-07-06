@@ -85,13 +85,14 @@ export function playYear(lang: Lang, year: number): string {
 export function playLog(lang: Lang, code: string | undefined, data: Record<string, string | number> = {}): string {
   const name = String(data.name ?? "");
   const n = Number(data.n ?? 0);
+  const cnt = Math.max(1, Number(data.n ?? 1)); // cells captured by an attack (breakthrough > 1)
   const where = data.scope === "border"
     ? (lang === "ko" ? "국경" : "the frontier")
     : (lang === "ko" ? "전국" : "the realm");
   if (lang === "ko") {
     switch (code) {
-      case "captured": return `${name}에게서 셀을 빼앗았습니다.`;
-      case "landed": return `${name}에 상륙하여 셀을 점령했습니다.`;
+      case "captured": return cnt > 1 ? `${name}에게서 셀 ${cnt}개를 빼앗았습니다.` : `${name}에게서 셀을 빼앗았습니다.`;
+      case "landed": return cnt > 1 ? `${name}에 상륙하여 셀 ${cnt}개를 점령했습니다.` : `${name}에 상륙하여 셀을 점령했습니다.`;
       case "repulsed": return `${name} 공격이 격퇴당했습니다.`;
       case "invested": return `${where}에 투자: ${n}개 셀의 결속이 올랐습니다.`;
       case "notEnemy": return "적의 영토가 아닙니다.";
@@ -100,8 +101,8 @@ export function playLog(lang: Lang, code: string | undefined, data: Record<strin
     }
   }
   switch (code) {
-    case "captured": return `Captured a cell from ${name}.`;
-    case "landed": return `Landed on and captured a cell from ${name}.`;
+    case "captured": return cnt > 1 ? `Captured ${cnt} cells from ${name}.` : `Captured a cell from ${name}.`;
+    case "landed": return cnt > 1 ? `Landed on and captured ${cnt} cells from ${name}.` : `Landed on and captured a cell from ${name}.`;
     case "repulsed": return `Attack on ${name} was repulsed.`;
     case "invested": return `Invested in ${where}: cohesion raised on ${n} cells.`;
     case "notEnemy": return "Not an enemy cell.";

@@ -10,6 +10,7 @@ export interface InterventionResult { ok: boolean; message: string; code?: strin
 export interface BorderTarget { cell: number; owner: number; ownerName: string; capturable: boolean; sea?: boolean }
 
 export const ATTACK_EDGE = 1.0; // even fight goes to the player (their edge is picking the cell)
+export const ATTACK_FOLLOW_MAX = 3; // max extra cells a breakthrough carries beyond the picked cell
 export const INVEST_DELTA = 0.15; // one-time cohesion boost from an invest action (then decays normally)
 
 // a player cell counts as "border" if it touches an enemy/unclaimed LAND cell (a frontier under pressure)
@@ -95,8 +96,24 @@ export function applyIntervention(s: SimState, action: Action): InterventionResu
     if (atkStr * ATTACK_EDGE >= defStr) {
       s.owner[target] = s.playerPolity;
       s.solidarity[target] = CONQUEST_SOL;
+      // breakthrough: the assault carries into adjacent cells of the SAME defender that also lose
+      // the same contest (honest low-agency: only cells the player could take anyway) — a
+      // well-picked attack reads as a real offensive instead of a single-cell nibble.
+      let captured = 1;
+      for (const nb of s.grid.neighbors[target]) {
+        if (captured >= 1 + ATTACK_FOLLOW_MAX) break;
+        if (s.terrain[nb] === OCEAN || s.owner[nb] !== def) continue;
+        const fAtk = contestStrength(s, agg, s.playerPolity, nb, target) * (amphib ? AMPHIB_MULT : 1);
+        const fDef = contestStrength(s, agg, def, nb, nb);
+        if (fAtk * ATTACK_EDGE >= fDef) {
+          s.owner[nb] = s.playerPolity;
+          s.solidarity[nb] = CONQUEST_SOL;
+          captured++;
+        }
+      }
       const how = amphib ? "Landed on and captured" : "Captured";
-      return { ok: true, message: `${how} a cell from ${name}.`, code: amphib ? "landed" : "captured", data: { name } };
+      const what = captured > 1 ? `${captured} cells` : "a cell";
+      return { ok: true, message: `${how} ${what} from ${name}.`, code: amphib ? "landed" : "captured", data: { name, n: captured } };
     }
     return { ok: false, message: `Attack on ${name} was repulsed.`, code: "repulsed", data: { name } };
   }

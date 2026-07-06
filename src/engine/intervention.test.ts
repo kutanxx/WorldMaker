@@ -3,7 +3,7 @@ import { generateWorld } from "./world";
 import { DEFAULT_PARAMS } from "../types/world";
 import { initSim, CONQUEST_SOL } from "./historySim";
 import { OCEAN } from "./terrain";
-import { borderTargets, applyIntervention, frontEdges, INVEST_DELTA } from "./intervention";
+import { borderTargets, applyIntervention, frontEdges, INVEST_DELTA, ATTACK_FOLLOW_MAX } from "./intervention";
 
 const small = { ...DEFAULT_PARAMS, width: 300, height: 300, cellCount: 400, townCount: 6 };
 function playerState(seed: number) {
@@ -103,6 +103,43 @@ describe("amphibious attack across a strait", () => {
       (c) => s.owner[c] >= 0 && s.owner[c] !== s.playerPolity && s.grid.neighbors[c].every((nb) => s.owner[nb] !== s.playerPolity),
     )!;
     expect(applyIntervention(s, { type: "attack", cell: far }).ok).toBe(false);
+  });
+});
+
+describe("attack breakthrough (follow-on capture)", () => {
+  it("an overwhelming attack also captures weak same-owner neighbours, capped at 1+ATTACK_FOLLOW_MAX", () => {
+    const s = biggestPlayerState(1);
+    for (let c = 0; c < s.n; c++) {
+      if (s.owner[c] === s.playerPolity) s.solidarity[c] = 1;
+      else if (s.owner[c] >= 0) s.solidarity[c] = 0; // defenceless enemies
+    }
+    const target = borderTargets(s).find((t) => t.capturable && !t.sea)!;
+    expect(target).toBeTruthy();
+    const before = new Set<number>();
+    for (let c = 0; c < s.n; c++) if (s.owner[c] === s.playerPolity) before.add(c);
+    const r = applyIntervention(s, { type: "attack", cell: target.cell });
+    expect(r.ok).toBe(true);
+    let gained = 0;
+    for (let c = 0; c < s.n; c++) if (s.owner[c] === s.playerPolity && !before.has(c)) gained++;
+    expect(gained).toBe(Number(r.data!.n));
+    expect(gained).toBeGreaterThanOrEqual(1);
+    expect(gained).toBeLessThanOrEqual(1 + ATTACK_FOLLOW_MAX);
+    // follow-ons only ever come adjacent to the target, with fresh-conquest cohesion
+    for (let c = 0; c < s.n; c++) {
+      if (s.owner[c] === s.playerPolity && !before.has(c) && c !== target.cell) {
+        expect(s.grid.neighbors[target.cell]).toContain(c);
+        expect(s.solidarity[c]).toBeCloseTo(CONQUEST_SOL, 6);
+      }
+    }
+  });
+
+  it("reports the captured count in data.n (at least the picked cell)", () => {
+    const s = biggestPlayerState(1);
+    for (let c = 0; c < s.n; c++) if (s.owner[c] === s.playerPolity) s.solidarity[c] = 1;
+    const target = borderTargets(s).find((t) => t.capturable && !t.sea)!;
+    const r = applyIntervention(s, { type: "attack", cell: target.cell });
+    expect(r.ok).toBe(true);
+    expect(Number(r.data!.n)).toBeGreaterThanOrEqual(1);
   });
 });
 
