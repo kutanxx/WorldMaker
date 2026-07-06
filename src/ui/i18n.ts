@@ -97,6 +97,8 @@ export function playLog(lang: Lang, code: string | undefined, data: Record<strin
       case "invested": return `${where}에 투자: ${n}개 셀의 결속이 올랐습니다.`;
       case "founded": return `${name}을(를) 건설했습니다.`;
       case "badSite": return "도시를 세울 수 없는 곳입니다.";
+      case "peaceMade": return `${name}과(와) ${Number(data.years ?? 0)}년 강화를 맺었습니다.`;
+      case "notHostile": return "접경한 적국이 아닙니다.";
       case "notEnemy": return "적의 영토가 아닙니다.";
       case "unreachable": return "당신의 영토에서 닿을 수 없습니다.";
       default: return "";
@@ -109,6 +111,8 @@ export function playLog(lang: Lang, code: string | undefined, data: Record<strin
     case "invested": return `Invested in ${where}: cohesion raised on ${n} cells.`;
     case "founded": return `Founded the city of ${name}.`;
     case "badSite": return "Not a viable city site.";
+    case "peaceMade": return `Made peace with ${name} for ${Number(data.years ?? 0)} years.`;
+    case "notHostile": return "Not a hostile neighbour.";
     case "notEnemy": return "Not an enemy cell.";
     case "unreachable": return "Not reachable from your territory.";
     default: return "";

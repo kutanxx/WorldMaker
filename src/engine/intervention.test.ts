@@ -1,9 +1,9 @@
 import { describe, it, expect } from "vitest";
 import { generateWorld } from "./world";
 import { DEFAULT_PARAMS } from "../types/world";
-import { initSim, stepSim, aggregate, contestStrength, CONQUEST_SOL, CITY_MIN_GAP, CITY_SOL_FLOOR, CITY_POWER_BONUS } from "./historySim";
+import { initSim, stepSim, aggregate, contestStrength, CONQUEST_SOL, CITY_MIN_GAP, CITY_SOL_FLOOR, CITY_POWER_BONUS, PEACE_TICKS } from "./historySim";
 import { OCEAN } from "./terrain";
-import { borderTargets, applyIntervention, frontEdges, foundCityTargets, INVEST_DELTA, ATTACK_FOLLOW_MAX } from "./intervention";
+import { borderTargets, applyIntervention, frontEdges, foundCityTargets, hostileNeighbors, INVEST_DELTA, ATTACK_FOLLOW_MAX } from "./intervention";
 
 const small = { ...DEFAULT_PARAMS, width: 300, height: 300, cellCount: 400, townCount: 6 };
 function playerState(seed: number) {
@@ -254,6 +254,60 @@ describe("foundCity", () => {
     applyIntervention(s, { type: "foundCity", cell: t.cell });
     const after = contestStrength(s, agg, s.playerPolity, t.cell, t.cell);
     expect(after).toBeCloseTo(before + CITY_POWER_BONUS, 6);
+  });
+});
+
+describe("peace", () => {
+  it("hostileNeighbors lists adjacent non-free enemy polities", () => {
+    const s = biggestPlayerState(1);
+    const hs = hostileNeighbors(s);
+    expect(hs.length).toBeGreaterThan(0);
+    for (const h of hs) {
+      expect(h.id).not.toBe(s.playerPolity);
+      expect(s.polities[h.id].free).toBe(false);
+    }
+  });
+
+  it("suing for peace records a truce until tick + PEACE_TICKS; a non-neighbour is rejected", () => {
+    const s = biggestPlayerState(1);
+    const h = hostileNeighbors(s)[0];
+    const r = applyIntervention(s, { type: "peace", polity: h.id });
+    expect(r.ok).toBe(true);
+    expect(r.code).toBe("peaceMade");
+    expect(s.truces.get(h.id)).toBe(s.tick + PEACE_TICKS);
+    expect(applyIntervention(s, { type: "peace", polity: 9999 }).ok).toBe(false);
+  });
+
+  it("a truced polity cannot take player cells in stepSim", () => {
+    const s = biggestPlayerState(1);
+    const h = hostileNeighbors(s)[0];
+    applyIntervention(s, { type: "peace", polity: h.id });
+    // make the enemy overwhelming so WITHOUT the truce it would take border cells
+    for (let c = 0; c < s.n; c++) {
+      if (s.owner[c] === h.id) s.solidarity[c] = 1;
+      else if (s.owner[c] === s.playerPolity) s.solidarity[c] = 0;
+    }
+    // only player cells whose sole enemy neighbour is h: those can ONLY be lost to h directly
+    // (a cell also bordering a third polity X can legitimately go player→X→h via X's fall)
+    const mine: number[] = [];
+    for (let c = 0; c < s.n; c++) {
+      if (s.owner[c] !== s.playerPolity) continue;
+      const enemies = s.grid.neighbors[c].filter((nb) => s.terrain[nb] !== OCEAN && s.owner[nb] >= 0 && s.owner[nb] !== s.playerPolity);
+      if (enemies.length > 0 && enemies.every((nb) => s.owner[nb] === h.id)) mine.push(c);
+    }
+    expect(mine.length).toBeGreaterThan(0);
+    stepSim(s);
+    for (const c of mine) expect(s.owner[c] === h.id).toBe(false); // truce held
+  });
+
+  it("attacking a truced polity breaks the truce", () => {
+    const s = biggestPlayerState(1);
+    for (let c = 0; c < s.n; c++) if (s.owner[c] === s.playerPolity) s.solidarity[c] = 1;
+    const t = borderTargets(s).find((x) => x.capturable && !x.sea)!;
+    applyIntervention(s, { type: "peace", polity: t.owner });
+    expect(s.truces.has(t.owner)).toBe(true);
+    applyIntervention(s, { type: "attack", cell: t.cell });
+    expect(s.truces.has(t.owner)).toBe(false);
   });
 });
 

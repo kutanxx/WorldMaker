@@ -1,11 +1,12 @@
 import { OCEAN } from "./terrain";
 import type { SimState } from "./historySim";
-import { aggregate, contestStrength, CONQUEST_SOL, AMPHIB_MULT, CONTEST_THRESH, CITY_MIN_GAP, YEARS_PER_TICK } from "./historySim";
+import { aggregate, contestStrength, CONQUEST_SOL, AMPHIB_MULT, CONTEST_THRESH, CITY_MIN_GAP, PEACE_TICKS, YEARS_PER_TICK } from "./historySim";
 
 export type Action =
   | { type: "attack"; cell: number }
   | { type: "invest"; scope: "nation" | "border" }
-  | { type: "foundCity"; cell: number };
+  | { type: "foundCity"; cell: number }
+  | { type: "peace"; polity: number };
 // `message` is the EN fallback; `code` + `data` let the UI render a localised (KO/EN) log line.
 export interface InterventionResult { ok: boolean; message: string; code?: string; data?: Record<string, string | number> }
 export interface BorderTarget { cell: number; owner: number; ownerName: string; capturable: boolean; sea?: boolean }
@@ -81,6 +82,22 @@ export function borderTargets(s: SimState): BorderTarget[] {
   return out;
 }
 
+export interface HostileNeighbor { id: number; name: string; trucedUntil: number }
+
+// adjacent non-free enemy polities (over land or strait) — the "sue for peace" list.
+// free cities never attack, so peace with them is meaningless.
+export function hostileNeighbors(s: SimState): HostileNeighbor[] {
+  if (s.playerPolity < 0) return [];
+  const ids = new Set<number>();
+  for (const t of borderTargets(s)) ids.add(t.owner);
+  const out: HostileNeighbor[] = [];
+  for (const id of ids) {
+    if (s.polities[id].free) continue;
+    out.push({ id, name: s.polities[id].name, trucedUntil: s.truces.get(id) ?? 0 });
+  }
+  return out.sort((a, b) => a.id - b.id);
+}
+
 export interface FoundTarget { cell: number; sol: number }
 
 // player-owned land cells far enough from every existing city (world cities + already-founded),
@@ -106,6 +123,7 @@ export function applyIntervention(s: SimState, action: Action): InterventionResu
     const target = action.cell;
     const def = s.owner[target];
     if (def < 0 || def === s.playerPolity) return { ok: false, message: "Not an enemy cell.", code: "notEnemy" };
+    if (s.truces.has(def)) s.truces.delete(def); // aggression voids the truce
     const landCell = launchCell(s, target);
     const amphib = landCell < 0;
     const solCell = amphib ? seaLaunchCell(s, target) : landCell; // fall back to a sea crossing
@@ -158,6 +176,15 @@ export function applyIntervention(s: SimState, action: Action): InterventionResu
     const year = s.tick * YEARS_PER_TICK;
     s.events.push({ year, type: "newCity", text: `${year}년, ${s.polities[s.playerPolity].name}이(가) ${name} 건설`, polityId: s.playerPolity, cell });
     return { ok: true, message: `Founded the city of ${name}.`, code: "founded", data: { name } };
+  }
+  if (action.type === "peace") {
+    const p = action.polity;
+    if (!hostileNeighbors(s).some((h) => h.id === p))
+      return { ok: false, message: "Not a hostile neighbour.", code: "notHostile" };
+    s.truces.set(p, s.tick + PEACE_TICKS);
+    const name = s.polities[p].name;
+    const years = PEACE_TICKS * YEARS_PER_TICK;
+    return { ok: true, message: `Made peace with ${name} for ${years} years.`, code: "peaceMade", data: { name, years } };
   }
   return { ok: false, message: "Unknown action." };
 }

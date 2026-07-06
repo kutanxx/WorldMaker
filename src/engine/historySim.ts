@@ -229,6 +229,7 @@ export function stepSim(s: SimState): void {
       if (terrain[nb] === OCEAN) continue;
       const p = owner[nb];
       if (p < 0 || p === o || s.polities[p].free) continue;
+      if (s.playerPolity >= 0 && o === s.playerPolity && s.truces.size > 0 && (s.truces.get(p) ?? 0) > s.tick) continue; // truce holds
       if (agg[p].avg > bestAvg) { bestAvg = agg[p].avg; best = p; bestCell = nb; }
     }
     if (best < 0) continue;
@@ -254,6 +255,7 @@ export function stepSim(s: SimState): void {
       for (const b of links) {
         const p = owner[b];
         if (p < 0 || p === o || s.polities[p].free) continue;
+        if (o === s.playerPolity && s.truces.size > 0 && (s.truces.get(p) ?? 0) > s.tick) continue; // truce holds at sea too
         if (agg[p].avg > bestAvg) { bestAvg = agg[p].avg; best = p; bestCell = b; }
       }
       if (best < 0) continue;
