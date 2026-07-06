@@ -5,7 +5,8 @@ import { makeNameGen, type NameGen } from "./names";
 
 export const TICKS = 50, YEARS_PER_TICK = 10;
 const SOL_INIT = 0.5, SOL_RISE = 0.03, SOL_DECAY = 0.02;
-const W_ASA = 1.0, W_LOCAL = 0.5, W_POWER = 0.03, W_DIST = 0.002, CONTEST_THRESH = 1.03;
+const W_ASA = 1.0, W_LOCAL = 0.5, W_POWER = 0.03, W_DIST = 0.002;
+export const CONTEST_THRESH = 1.03;
 const SIZE_CAP = 24;
 const HISTORY_SALT = 9001;
 const CIVILWAR_MIN_CELLS = 220, CIVILWAR_MAX_ASA = 0.42, CIVILWAR_PROB = 0.06, CIVILWAR_BIRTH_SOL = 0.7;

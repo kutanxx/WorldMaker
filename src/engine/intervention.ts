@@ -1,6 +1,6 @@
 import { OCEAN } from "./terrain";
 import type { SimState } from "./historySim";
-import { aggregate, contestStrength, CONQUEST_SOL, AMPHIB_MULT } from "./historySim";
+import { aggregate, contestStrength, CONQUEST_SOL, AMPHIB_MULT, CONTEST_THRESH } from "./historySim";
 
 export type Action =
   | { type: "attack"; cell: number }
@@ -112,4 +112,31 @@ export function applyIntervention(s: SimState, action: Action): InterventionResu
     return { ok: true, message: `Invested in ${where}: cohesion raised on ${n} cells.`, code: "invested", data: { scope: action.scope, n } };
   }
   return { ok: false, message: "Unknown action." };
+}
+
+export type FrontKind = "push" | "threat";
+export interface FrontEdge { cell: number; enemy: number; kind: FrontKind }
+
+// classify each player-vs-enemy LAND border edge: "threat" if the enemy could take the player's cell
+// (the sim's own contest rule), else "push" if the player could take the enemy cell (the dropdown's
+// rule). Threat wins when both apply. Pure read of state — never called on the pure-history path.
+export function frontEdges(s: SimState): FrontEdge[] {
+  if (s.playerPolity < 0) return [];
+  const agg = aggregate(s);
+  const out: FrontEdge[] = [];
+  for (let c = 0; c < s.n; c++) {
+    if (s.owner[c] !== s.playerPolity) continue;
+    const myDef = contestStrength(s, agg, s.playerPolity, c, c);
+    for (const nb of s.grid.neighbors[c]) {
+      if (s.terrain[nb] === OCEAN) continue;
+      const e = s.owner[nb];
+      if (e < 0 || e === s.playerPolity) continue;
+      const enemyAtk = contestStrength(s, agg, e, c, nb);
+      if (enemyAtk > myDef * CONTEST_THRESH) { out.push({ cell: c, enemy: nb, kind: "threat" }); continue; }
+      const myAtk = contestStrength(s, agg, s.playerPolity, nb, c);
+      const enemyDef = contestStrength(s, agg, e, nb, nb);
+      if (myAtk * ATTACK_EDGE >= enemyDef) out.push({ cell: c, enemy: nb, kind: "push" });
+    }
+  }
+  return out;
 }

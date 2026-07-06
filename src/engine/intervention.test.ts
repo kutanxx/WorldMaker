@@ -3,7 +3,7 @@ import { generateWorld } from "./world";
 import { DEFAULT_PARAMS } from "../types/world";
 import { initSim, CONQUEST_SOL } from "./historySim";
 import { OCEAN } from "./terrain";
-import { borderTargets, applyIntervention, INVEST_DELTA } from "./intervention";
+import { borderTargets, applyIntervention, frontEdges, INVEST_DELTA } from "./intervention";
 
 const small = { ...DEFAULT_PARAMS, width: 300, height: 300, cellCount: 400, townCount: 6 };
 function playerState(seed: number) {
@@ -144,5 +144,33 @@ describe("applyIntervention invest", () => {
     applyIntervention(s, { type: "invest", scope: "border" });
     expect(s.solidarity[interior!]).toBeCloseTo(0.5, 6);
     expect(s.solidarity[border!]).toBeCloseTo(0.5 + INVEST_DELTA, 6);
+  });
+});
+
+describe("frontEdges", () => {
+  it("an overwhelming player yields only push edges at capturable enemy cells", () => {
+    const s = biggestPlayerState(1);
+    for (let c = 0; c < s.n; c++) if (s.owner[c] === s.playerPolity) s.solidarity[c] = 1;
+    const edges = frontEdges(s);
+    expect(edges.length).toBeGreaterThan(0);
+    for (const e of edges) {
+      expect(s.owner[e.cell]).toBe(s.playerPolity);
+      expect(s.owner[e.enemy]).toBeGreaterThanOrEqual(0);
+      expect(s.owner[e.enemy]).not.toBe(s.playerPolity);
+      expect(s.terrain[e.enemy]).not.toBe(OCEAN);
+    }
+    expect(edges.some((e) => e.kind === "threat")).toBe(false);
+  });
+
+  it("a defenceless player against strong enemies yields threat edges on its own border", () => {
+    const s = biggestPlayerState(1);
+    for (let c = 0; c < s.n; c++) {
+      if (s.owner[c] === s.playerPolity) s.solidarity[c] = 0;
+      else if (s.owner[c] >= 0) s.solidarity[c] = 1;
+    }
+    const edges = frontEdges(s);
+    const threats = edges.filter((e) => e.kind === "threat");
+    expect(threats.length).toBeGreaterThan(0);
+    for (const e of threats) expect(s.owner[e.cell]).toBe(s.playerPolity);
   });
 });

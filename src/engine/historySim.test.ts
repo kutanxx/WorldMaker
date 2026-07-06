@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { generateWorld } from "./world";
 import { DEFAULT_PARAMS } from "../types/world";
-import { initSim, stepSim, TICKS, aggregate, contestStrength, W_CONSTS_FOR_TEST, CONQUEST_SOL, buildStraitLinks, type Stance } from "./historySim";
+import { initSim, stepSim, TICKS, aggregate, contestStrength, W_CONSTS_FOR_TEST, CONQUEST_SOL, CONTEST_THRESH, buildStraitLinks, type Stance } from "./historySim";
 import { OCEAN, LAND } from "./terrain";
 
 describe("historySim", () => {
@@ -17,6 +17,10 @@ describe("historySim", () => {
     const founds = s.events.filter((e) => e.type === "found" && e.year === 0);
     expect(founds.length).toBe(world.polities.length);
     expect(s.events.some((e) => e.type === "staple")).toBe(true);
+  });
+
+  it("exports CONTEST_THRESH (> 1)", () => {
+    expect(CONTEST_THRESH).toBeGreaterThan(1);
   });
 
   it("stepSim advances one tick and appends a snapshot", () => {
