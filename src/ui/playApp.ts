@@ -3,7 +3,8 @@ import { DEFAULT_PARAMS } from "../types/world";
 import { aggregate, YEARS_PER_TICK } from "../engine/historySim";
 import { initPlaySim, playTurn, setStance, scorecard, playerCells } from "../engine/playSim";
 import type { Stance } from "../engine/historySim";
-import { borderTargets, type Action } from "../engine/intervention";
+import { borderTargets, frontEdges, type Action } from "../engine/intervention";
+import { sharedEdge } from "../engine/borders";
 import { renderWorld, politicalOpts } from "./svgWorldRenderer";
 import { politicalLayer } from "./politicalLayer";
 import { t, playT, playYear, playLog, playRuleIntro, playFell, playStats, type Lang } from "./i18n";
@@ -76,6 +77,35 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
       const svg = renderWorld(world, "political", s.economicZones.map((z) => z.cell), lang);
       const slot = svg.querySelector(".political-slot") as SVGGElement;
       slot.replaceChildren(politicalLayer(world.grid, s.owner, s.polities, politicalOpts("political")));
+      // front-line overlay: green = can push here, red = my cell is vulnerable here
+      const NS = "http://www.w3.org/2000/svg";
+      const g = document.createElementNS(NS, "g");
+      g.setAttribute("class", "front");
+      for (const e of frontEdges(s)) {
+        const seg = sharedEdge(world.grid.polygons[e.cell], world.grid.polygons[e.enemy]);
+        if (!seg) continue;
+        const line = document.createElementNS(NS, "line");
+        line.setAttribute("x1", String(seg[0][0])); line.setAttribute("y1", String(seg[0][1]));
+        line.setAttribute("x2", String(seg[1][0])); line.setAttribute("y2", String(seg[1][1]));
+        line.setAttribute("class", e.kind === "threat" ? "front-threat" : "front-push");
+        line.setAttribute("stroke", e.kind === "threat" ? "#c0473f" : "#3f9e57");
+        line.setAttribute("stroke-width", "2.4");
+        line.setAttribute("stroke-linecap", "round");
+        g.appendChild(line);
+      }
+      // amphibious opportunities: a small ⛵ at each capturable sea target
+      for (const target of borderTargets(s)) {
+        if (!target.sea || !target.capturable) continue;
+        const tx = document.createElementNS(NS, "text");
+        tx.setAttribute("x", String(world.grid.points[target.cell * 2]));
+        tx.setAttribute("y", String(world.grid.points[target.cell * 2 + 1]));
+        tx.setAttribute("class", "sea-target");
+        tx.setAttribute("text-anchor", "middle");
+        tx.setAttribute("font-size", "10");
+        tx.textContent = "⛵";
+        g.appendChild(tx);
+      }
+      slot.parentNode!.insertBefore(g, slot.nextSibling); // above political fills, below markers
       mapFrame.appendChild(svg);
     }
 

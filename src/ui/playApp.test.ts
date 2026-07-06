@@ -24,6 +24,15 @@ describe("playApp", () => {
     expect(root.querySelector(".play-year")!.textContent).not.toBe(yearBefore);
   });
 
+  it("draws a colored front line on the map", () => {
+    const root = document.createElement("div");
+    createPlayApp(root, 1);
+    (root.querySelector(".nation-choice") as HTMLButtonElement).click();
+    const front = root.querySelector(".front");
+    expect(front).not.toBeNull();
+    expect(front!.querySelectorAll("line").length).toBeGreaterThan(0);
+  });
+
   it("toggles the play screen to Korean", () => {
     const root = document.createElement("div");
     createPlayApp(root, 1);
