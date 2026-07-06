@@ -1,9 +1,9 @@
 import { describe, it, expect } from "vitest";
 import { generateWorld } from "./world";
 import { DEFAULT_PARAMS } from "../types/world";
-import { initSim, CONQUEST_SOL } from "./historySim";
+import { initSim, stepSim, aggregate, contestStrength, CONQUEST_SOL, CITY_MIN_GAP, CITY_SOL_FLOOR, CITY_POWER_BONUS } from "./historySim";
 import { OCEAN } from "./terrain";
-import { borderTargets, applyIntervention, frontEdges, INVEST_DELTA, ATTACK_FOLLOW_MAX } from "./intervention";
+import { borderTargets, applyIntervention, frontEdges, foundCityTargets, INVEST_DELTA, ATTACK_FOLLOW_MAX } from "./intervention";
 
 const small = { ...DEFAULT_PARAMS, width: 300, height: 300, cellCount: 400, townCount: 6 };
 function playerState(seed: number) {
@@ -181,6 +181,79 @@ describe("applyIntervention invest", () => {
     applyIntervention(s, { type: "invest", scope: "border" });
     expect(s.solidarity[interior!]).toBeCloseTo(0.5, 6);
     expect(s.solidarity[border!]).toBeCloseTo(0.5 + INVEST_DELTA, 6);
+  });
+});
+
+describe("foundCity", () => {
+  // CITY_MIN_GAP is sized for the real 1000×1000 map — the 300×300 test world has no room,
+  // so these tests use a full-size world (generated once, initSim per test is cheap)
+  const { world: bigWorld } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });
+  function bigPlayerState() {
+    const s = initSim(bigWorld, 1);
+    const counts = new Map<number, number>();
+    for (const o of s.owner) if (o >= 0) counts.set(o, (counts.get(o) ?? 0) + 1);
+    s.playerPolity = [...counts.entries()].sort((a, b) => b[1] - a[1])[0][0];
+    return s;
+  }
+  const cellDist = (s: ReturnType<typeof playerState>, a: number, b: number) =>
+    Math.hypot(s.grid.points[a * 2] - s.grid.points[b * 2], s.grid.points[a * 2 + 1] - s.grid.points[b * 2 + 1]);
+
+  it("initSim defaults: empty foundedCities and truces (golden guard)", () => {
+    const s = playerState(1);
+    expect(s.foundedCities.size).toBe(0);
+    expect(s.truces.size).toBe(0);
+  });
+
+  it("targets are player-owned and respect CITY_MIN_GAP from existing cities", () => {
+    const s = bigPlayerState();
+    const ts = foundCityTargets(s);
+    expect(ts.length).toBeGreaterThan(0);
+    for (const t of ts) {
+      expect(s.owner[t.cell]).toBe(s.playerPolity);
+      for (const c of s.cityCells) expect(cellDist(s, t.cell, c.cell)).toBeGreaterThanOrEqual(CITY_MIN_GAP);
+    }
+  });
+
+  it("founding adds an anchor + a newCity event; too-close site is rejected", () => {
+    const s = bigPlayerState();
+    const t = foundCityTargets(s)[0];
+    const before = s.events.length;
+    const r = applyIntervention(s, { type: "foundCity", cell: t.cell });
+    expect(r.ok).toBe(true);
+    expect(r.code).toBe("founded");
+    expect(String(r.data!.name).length).toBeGreaterThan(0);
+    expect(s.foundedCities.has(t.cell)).toBe(true);
+    expect(s.events.length).toBe(before + 1);
+    expect(s.events[before].type).toBe("newCity");
+    // second founding on the SAME cell: now too close to the new city
+    expect(applyIntervention(s, { type: "foundCity", cell: t.cell }).ok).toBe(false);
+  });
+
+  it("anchor floors the cell's solidarity while owned; a captured anchor stays in the set", () => {
+    const s = bigPlayerState();
+    const t = foundCityTargets(s)[0];
+    applyIntervention(s, { type: "foundCity", cell: t.cell });
+    s.solidarity[t.cell] = 0.1;
+    stepSim(s);
+    if (s.owner[t.cell] === s.playerPolity) expect(s.solidarity[t.cell]).toBeGreaterThanOrEqual(CITY_SOL_FLOOR);
+    // captured anchor goes inert but the city still exists in the tally
+    const s2 = bigPlayerState();
+    const t2 = foundCityTargets(s2)[0];
+    applyIntervention(s2, { type: "foundCity", cell: t2.cell });
+    const other = s2.polities.find((p) => p.id !== s2.playerPolity && s2.alive[p.id])!;
+    s2.owner[t2.cell] = other.id;
+    stepSim(s2);
+    expect(s2.foundedCities.has(t2.cell)).toBe(true);
+  });
+
+  it("anchor adds CITY_POWER_BONUS to the player's contest strength at the cell", () => {
+    const s = bigPlayerState();
+    const t = foundCityTargets(s)[0];
+    const agg = aggregate(s);
+    const before = contestStrength(s, agg, s.playerPolity, t.cell, t.cell);
+    applyIntervention(s, { type: "foundCity", cell: t.cell });
+    const after = contestStrength(s, agg, s.playerPolity, t.cell, t.cell);
+    expect(after).toBeCloseTo(before + CITY_POWER_BONUS, 6);
   });
 });
 

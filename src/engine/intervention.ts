@@ -1,10 +1,11 @@
 import { OCEAN } from "./terrain";
 import type { SimState } from "./historySim";
-import { aggregate, contestStrength, CONQUEST_SOL, AMPHIB_MULT, CONTEST_THRESH } from "./historySim";
+import { aggregate, contestStrength, CONQUEST_SOL, AMPHIB_MULT, CONTEST_THRESH, CITY_MIN_GAP, YEARS_PER_TICK } from "./historySim";
 
 export type Action =
   | { type: "attack"; cell: number }
-  | { type: "invest"; scope: "nation" | "border" };
+  | { type: "invest"; scope: "nation" | "border" }
+  | { type: "foundCity"; cell: number };
 // `message` is the EN fallback; `code` + `data` let the UI render a localised (KO/EN) log line.
 export interface InterventionResult { ok: boolean; message: string; code?: string; data?: Record<string, string | number> }
 export interface BorderTarget { cell: number; owner: number; ownerName: string; capturable: boolean; sea?: boolean }
@@ -80,6 +81,26 @@ export function borderTargets(s: SimState): BorderTarget[] {
   return out;
 }
 
+export interface FoundTarget { cell: number; sol: number }
+
+// player-owned land cells far enough from every existing city (world cities + already-founded),
+// best (most cohesive) first — the UI shows the head of this list.
+export function foundCityTargets(s: SimState): FoundTarget[] {
+  if (s.playerPolity < 0) return [];
+  const px = (i: number) => s.grid.points[i * 2], py = (i: number) => s.grid.points[i * 2 + 1];
+  const sites = [...s.cityCells.map((c) => c.cell), ...s.foundedCities];
+  const out: FoundTarget[] = [];
+  for (let c = 0; c < s.n; c++) {
+    if (s.owner[c] !== s.playerPolity) continue;
+    let ok = true;
+    for (const sc of sites) {
+      if (Math.hypot(px(c) - px(sc), py(c) - py(sc)) < CITY_MIN_GAP) { ok = false; break; }
+    }
+    if (ok) out.push({ cell: c, sol: s.solidarity[c] });
+  }
+  return out.sort((a, b) => b.sol - a.sol);
+}
+
 export function applyIntervention(s: SimState, action: Action): InterventionResult {
   if (action.type === "attack") {
     const target = action.cell;
@@ -127,6 +148,16 @@ export function applyIntervention(s: SimState, action: Action): InterventionResu
     }
     const where = action.scope === "border" ? "the frontier" : "the realm";
     return { ok: true, message: `Invested in ${where}: cohesion raised on ${n} cells.`, code: "invested", data: { scope: action.scope, n } };
+  }
+  if (action.type === "foundCity") {
+    const cell = action.cell;
+    if (!foundCityTargets(s).some((t) => t.cell === cell))
+      return { ok: false, message: "Not a viable city site.", code: "badSite" };
+    const name = s.nameGen.place();
+    s.foundedCities.add(cell);
+    const year = s.tick * YEARS_PER_TICK;
+    s.events.push({ year, type: "newCity", text: `${year}년, ${s.polities[s.playerPolity].name}이(가) ${name} 건설`, polityId: s.playerPolity, cell });
+    return { ok: true, message: `Founded the city of ${name}.`, code: "founded", data: { name } };
   }
   return { ok: false, message: "Unknown action." };
 }

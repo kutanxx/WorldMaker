@@ -24,6 +24,13 @@ const STANCE_SOL_DELTA = { aggressive: -0.01, defensive: 0.0, internal: 0.02 } a
 export const CONQUEST_SOL = CIVILWAR_BIRTH_SOL; // reuse the sim's fresh-conquest cohesion value
 export type Stance = "aggressive" | "defensive" | "internal";
 
+// --- foundCity anchors (Phase 2): a founded city is a PERMANENT but SMALL anchor — effects apply
+// only while the player still owns the cell (honest low-agency: no nation-wide escape hatch) ---
+export const CITY_SOL_FLOOR = 0.55;   // founded-city cell solidarity floor per tick (while owned)
+export const CITY_POWER_BONUS = 0.08; // contest bonus at the founded cell + its neighbours (while owned)
+export const CITY_MIN_GAP = 60;       // min map-distance from any existing city to found a new one
+export const PEACE_TICKS = 3;         // a truce lasts 3 ticks = 30 years
+
 // --- amphibious warfare (only in a game, playerPolity >= 0): coastal cells can contest enemy coastal
 // cells across a narrow strait; the assault is weakened by the sea crossing. The pure history path
 // builds no straitLinks so it never runs this — golden byte-identity holds. ---
@@ -75,6 +82,8 @@ export interface SimState {
   playerPolity: number; // -1 = pure history (default); else the player's polity id
   stance: Stance;       // inert when playerPolity < 0
   peakCells: number;    // max cells the player has held (scorecard); default 0
+  truces: Map<number, number>;  // polityId -> tick until which they won't attack the player; default empty
+  foundedCities: Set<number>;   // player-founded anchor cells (inert while not owned); default empty
   straitLinks?: number[][]; // per-cell coastal cells reachable across a narrow strait; only set in a game
 }
 
@@ -94,10 +103,21 @@ function zoneBonus(s: SimState, p: number): number {
   for (const z of s.economicZones) if (s.owner[z.cell] === p) b += ECON_BONUS;
   return b;
 }
+// founded-city anchor bonus at the contested cell + its neighbours — only for the player's polity
+// and only while the player still owns the anchor (playerPolity === -1 ⇒ always 0 ⇒ golden safe)
+function cityAnchorBonus(s: SimState, polity: number, distCell: number): number {
+  if (polity !== s.playerPolity || s.foundedCities.size === 0) return 0;
+  for (const fc of s.foundedCities) {
+    if (s.owner[fc] !== s.playerPolity) continue; // captured anchor is inert
+    if (fc === distCell || s.grid.neighbors[fc].includes(distCell)) return CITY_POWER_BONUS;
+  }
+  return 0;
+}
 export function contestStrength(s: SimState, agg: Agg[], polity: number, distCell: number, solCell: number): number {
   return agg[polity].avg * W_ASA + s.solidarity[solCell] * W_LOCAL
     + Math.min(Math.sqrt(agg[polity].cells), SIZE_CAP) * W_POWER
-    - dist(s, distCell, s.capitals[polity]) * W_DIST + zoneBonus(s, polity);
+    - dist(s, distCell, s.capitals[polity]) * W_DIST + zoneBonus(s, polity)
+    + cityAnchorBonus(s, polity, distCell);
 }
 export const W_CONSTS_FOR_TEST = { W_ASA, W_LOCAL, W_POWER, W_DIST, SIZE_CAP, STANCE_ATK_MULT };
 
@@ -174,7 +194,7 @@ export function initSim(world: World, worldSeed: number): SimState {
   const snapshots: HistorySnapshot[] = [{ year: 0, owner: owner.slice() }];
   const cityCells = world.cities.map((c) => ({ cell: c.cell, name: c.name }));
 
-  return { grid, terrain, n, owner, solidarity, polities, capitals, alive, golden, rng, nameGen, events, snapshots, economicZones, zoneCells, cityCells, playerPolity: -1, stance: "internal", peakCells: 0, tick: 0 };
+  return { grid, terrain, n, owner, solidarity, polities, capitals, alive, golden, rng, nameGen, events, snapshots, economicZones, zoneCells, cityCells, playerPolity: -1, stance: "internal", peakCells: 0, truces: new Map(), foundedCities: new Set(), tick: 0 };
 }
 
 export function stepSim(s: SimState): void {
@@ -192,6 +212,7 @@ export function stepSim(s: SimState): void {
     for (const nb of neighbors[c]) { if (terrain[nb] !== OCEAN && owner[nb] !== o) { frontier = true; break; } }
     let sv = s.solidarity[c] + (frontier ? SOL_RISE : -SOL_DECAY);
     if (s.playerPolity >= 0 && o === s.playerPolity) sv += STANCE_SOL_DELTA[s.stance]; // gated stance nudge
+    if (s.playerPolity >= 0 && o === s.playerPolity && s.foundedCities.has(c) && sv < CITY_SOL_FLOOR) sv = CITY_SOL_FLOOR; // owned anchor
     if (s.zoneCells.has(c) && sv < ECON_SOL_FLOOR) sv = ECON_SOL_FLOOR;
     nextSol[c] = sv < 0 ? 0 : sv > 1 ? 1 : sv;
   }
