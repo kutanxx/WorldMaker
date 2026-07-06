@@ -121,3 +121,16 @@ export function playStats(lang: Lang, peak: number, final: number, rank: string)
     ? `최대 ${peak}셀 · 최종 ${final}셀 · 순위 ${rank}.`
     : `Peak ${peak} cells · final ${final} cells · rank ${rank}.`;
 }
+// per-decade gain/loss summary; "−" is U+2212 to match the minus used elsewhere
+export function playDelta(lang: Lang, year: number, gained: number, lost: number): string {
+  const parts: string[] = [];
+  if (gained) parts.push(`+${gained}`);
+  if (lost) parts.push(`−${lost}`);
+  const unit = lang === "ko" ? "셀" : "cells";
+  const still = lang === "ko" ? "변동 없음" : "no change";
+  const change = parts.length ? `${parts.join(" ")} ${unit}` : still;
+  return lang === "ko" ? `${year}년: ${change}` : `Year ${year}: ${change}`;
+}
+export function playDefeatCause(lang: Lang, name: string): string {
+  return lang === "ko" ? `${name}에게 정복당함.` : `Conquered by ${name}.`;
+}
