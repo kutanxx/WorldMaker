@@ -27,7 +27,7 @@ export function computeStanding(s: SimState, opts: { neighborsOnly?: boolean } =
 
   // distinct rival polities touching the player's front line
   const borderSet = new Set<number>();
-  for (const e of frontEdges(s)) borderSet.add(e.enemy);
+  for (const e of frontEdges(s)) borderSet.add(s.owner[e.enemy]);
 
   // rival average cells: whole living field by default; bordering rivals only if requested
   let sum = 0, cnt = 0;
