@@ -154,6 +154,11 @@ svg.world .legend { pointer-events: none; }
 .meter.shaky  { border-left-color: #c8a344; }
 .threat-line { margin: 3px 0; font-size: 12px; color: #6a5a42; }
 
+.nation-chip { display: inline-flex; align-items: center; gap: 5px; font-weight: 600; color: #2a2118;
+  padding: 2px 8px; background: #f2ead8; border-radius: 4px; }
+.nation-swatch { width: 12px; height: 12px; border: 1px solid #8a7a5c; border-radius: 2px; display: inline-block; }
+.capital-crown { fill: #b8860b; stroke: #f3ead2; stroke-width: 0.5px; paint-order: stroke; }
+
 /* map-click targeting: enemy border regions (attack/landing) + own gold sites (found city) are live */
 .target-cell, .site-cell { cursor: pointer; }
 .target-cell:hover, .site-cell:hover { stroke: #2a2118; stroke-width: 1.2; }

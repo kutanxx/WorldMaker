@@ -7,13 +7,14 @@ import { borderTargets, frontEdges, foundCityTargets, hostileNeighbors, predictC
 import { OCEAN } from "../engine/terrain";
 import { sharedEdge } from "../engine/borders";
 import { cellPath } from "./svgPaths";
-import { renderWorld, politicalOpts } from "./svgWorldRenderer";
+import { renderWorld } from "./svgWorldRenderer";
 import { reignChronicle } from "../engine/reign";
 import { downloadBlob } from "./export";
 import { politicalLayer } from "./politicalLayer";
 import { t, playT, playYear, playLog, playRuleIntro, playFell, playStats, playDelta, playDefeatCause, playDilemma, playDilemmaOutcome, type Lang } from "./i18n";
 import { offerDilemma, resolveDilemma, type Dilemma } from "../engine/dilemma";
 import { computeStanding, type Standing } from "../engine/standing";
+import { nationColor } from "./nationPalette";
 
 const STANCES: Stance[] = ["aggressive", "defensive", "internal"];
 
@@ -115,7 +116,7 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
       mapFrame.innerHTML = "";
       const svg = renderWorld(world, "political", s.economicZones.map((z) => z.cell), lang);
       const slot = svg.querySelector(".political-slot") as SVGGElement;
-      slot.replaceChildren(politicalLayer(world.grid, s.owner, s.polities, politicalOpts("political")));
+      slot.replaceChildren(politicalLayer(world.grid, s.owner, s.polities, { fills: true, labels: true, legend: false }));
       // front-line overlay: green = can push here, red = my cell is vulnerable here
       const NS = "http://www.w3.org/2000/svg";
       const g = document.createElementNS(NS, "g");
@@ -234,6 +235,30 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
         tx.textContent = s.owner[fc] === s.playerPolity ? "★" : "☆";
         g.appendChild(tx);
       }
+      // own-territory tint: a faint light wash so the player's realm reads brighter than neighbours
+      const mine: number[] = [];
+      for (let c = 0; c < s.n; c++) if (s.owner[c] === s.playerPolity) mine.push(c);
+      if (mine.length) {
+        const tint = document.createElementNS(NS, "path");
+        tint.setAttribute("d", mine.map((c) => cellPath(world.grid.polygons[c])).join(""));
+        tint.setAttribute("class", "own-tint");
+        tint.setAttribute("fill", "rgba(255,250,235,0.12)");
+        tint.setAttribute("pointer-events", "none");
+        g.insertBefore(tint, g.firstChild); // under the interactive targets and front lines
+      }
+      // capital crown — only while the player still holds the seat
+      const cap = s.capitals[s.playerPolity];
+      if (s.owner[cap] === s.playerPolity) {
+        const crown = document.createElementNS(NS, "text");
+        crown.setAttribute("x", String(world.grid.points[cap * 2]));
+        crown.setAttribute("y", String(world.grid.points[cap * 2 + 1]));
+        crown.setAttribute("class", "capital-crown");
+        crown.setAttribute("text-anchor", "middle");
+        crown.setAttribute("font-size", "13");
+        crown.setAttribute("pointer-events", "none");
+        crown.textContent = "♛";
+        g.appendChild(crown);
+      }
       slot.parentNode!.insertBefore(g, slot.nextSibling); // above political fills, below markers
       mapFrame.appendChild(svg);
     }
@@ -312,6 +337,14 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
       }
       const st: Standing = computeStanding(s);
       panel.innerHTML = `<b class="play-year">${year}</b> · ${name}`;
+
+      const chip = document.createElement("span");
+      chip.className = "nation-chip";
+      const sw = document.createElement("span");
+      sw.className = "nation-swatch";
+      sw.style.background = nationColor(s.playerPolity);
+      chip.append(sw, document.createTextNode(` ${playT(lang, "yourNation")}: ${name}`));
+      panel.insertBefore(chip, panel.firstChild);
 
       // ① momentum headline — the real new signal
       const mo = document.createElement("div");

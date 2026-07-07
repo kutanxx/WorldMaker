@@ -318,4 +318,17 @@ describe("playApp", () => {
     expect(col.querySelector(".play-panel")).not.toBeNull();
     expect(col.querySelector(".play-actions")).not.toBeNull();
   });
+
+  it("shows which nation is the player's: chip with coloured swatch + capital crown, no in-map legend", () => {
+    const root = document.createElement("div");
+    createPlayApp(root, 1);
+    (root.querySelector(".nation-choice") as HTMLButtonElement).click();
+    const chip = root.querySelector(".nation-chip");
+    expect(chip).not.toBeNull();
+    expect(chip!.textContent).toMatch(/\S/);                       // has the nation name
+    expect(root.querySelector(".nation-chip .nation-swatch")).not.toBeNull();
+    expect(root.querySelector(".capital-crown")).not.toBeNull();   // ♛ on the map
+    expect(root.querySelector(".own-tint")).not.toBeNull();        // own-territory wash
+    expect(root.querySelector("svg.world .nation-legend")).toBeNull(); // in-map legend suppressed
+  });
 });
