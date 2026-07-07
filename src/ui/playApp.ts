@@ -44,10 +44,13 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
     const picker = document.createElement("div");
     picker.className = "landing";
     root.append(title, langButton(renderPicker), picker);
+    const maxCells = nationsByCells[0]?.cells || 1;
     for (const { p, cells } of nationsByCells) {
       const b = document.createElement("button");
       b.className = "nation-choice choice-card";
-      b.innerHTML = `<span class="choice-title" style="color:${p.color}">${p.name}</span><span class="choice-sub">${cells} ${playT(lang, "cells")}</span>`;
+      // picking a realm IS picking a difficulty — say so (big = safe start, small = hard mode)
+      const diff = cells >= maxCells * 0.66 ? "diffEasy" : cells >= maxCells * 0.33 ? "diffNormal" : "diffHard";
+      b.innerHTML = `<span class="choice-title" style="color:${p.color}">${p.name}</span><span class="choice-sub">${cells} ${playT(lang, "cells")} · ${playT(lang, diff)}</span>`;
       b.addEventListener("click", () => startGame(p.id));
       picker.appendChild(b);
     }

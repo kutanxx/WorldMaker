@@ -3,6 +3,15 @@ import { describe, it, expect } from "vitest";
 import { createPlayApp } from "./playApp";
 
 describe("playApp", () => {
+  it("nation picker labels each realm with a difficulty (biggest=easy, smallest=hard)", () => {
+    const root = document.createElement("div");
+    createPlayApp(root, 1);
+    const subs = [...root.querySelectorAll(".nation-choice .choice-sub")].map((e) => e.textContent || "");
+    expect(subs.length).toBeGreaterThan(2);
+    expect(subs[0]).toMatch(/easy/i);                 // biggest nation first (sorted desc)
+    expect(subs[subs.length - 1]).toMatch(/hard/i);   // smallest last
+  });
+
   it("shows a nation picker, then mounts the play screen on selection", () => {
     const root = document.createElement("div");
     createPlayApp(root, 1);

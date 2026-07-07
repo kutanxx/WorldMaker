@@ -56,6 +56,7 @@ export function t(lang: Lang, key: string): string {
 export const PLAY_UI: Record<Lang, Record<string, string>> = {
   en: {
     chooseRealm: "Choose your realm", cells: "cells", cohesion: "cohesion", threats: "threats",
+    diffEasy: "easy", diffNormal: "normal", diffHard: "hard",
     civilWarRisk: "civil-war risk", fallen: "fallen",
     aggressive: "aggressive", defensive: "defensive", internal: "internal",
     noAction: "No action (Pass)", attackChosen: "Attack: chosen ✓",
@@ -68,6 +69,7 @@ export const PLAY_UI: Record<Lang, Record<string, string>> = {
   },
   ko: {
     chooseRealm: "국가를 선택하세요", cells: "셀", cohesion: "결속", threats: "위협",
+    diffEasy: "쉬움", diffNormal: "보통", diffHard: "어려움",
     civilWarRisk: "내전 위험", fallen: "멸망",
     aggressive: "공격적", defensive: "방어적", internal: "내치",
     noAction: "행동 없음 (넘기기)", attackChosen: "공격 지정됨 ✓",
