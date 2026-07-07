@@ -146,6 +146,43 @@ describe("playApp", () => {
     expect(rows.some((t) => /Founded the city of/.test(t))).toBe(true);
   });
 
+  it("opens with a how-to-rule card that dismisses, and can be reopened from the panel", () => {
+    const root = document.createElement("div");
+    createPlayApp(root, 1);
+    (root.querySelector(".nation-choice") as HTMLButtonElement).click();
+    const howto = root.querySelector(".howto");
+    expect(howto).not.toBeNull();
+    expect(howto!.textContent).toMatch(/500/); // the goal is stated
+    (root.querySelector(".howto-start") as HTMLButtonElement).click();
+    expect(root.querySelector(".howto")).toBeNull();
+    (root.querySelector(".help-btn") as HTMLButtonElement).click(); // reopen
+    expect(root.querySelector(".howto")).not.toBeNull();
+  });
+
+  it("shows a map legend and a contextual advice line every turn", () => {
+    const root = document.createElement("div");
+    createPlayApp(root, 1);
+    (root.querySelector(".nation-choice") as HTMLButtonElement).click();
+    const legend = root.querySelector(".play-legend");
+    expect(legend).not.toBeNull();
+    expect(legend!.querySelectorAll(".legend-chip").length).toBeGreaterThanOrEqual(4);
+    const advice = root.querySelector(".advice");
+    expect(advice).not.toBeNull();
+    expect((advice!.textContent || "").length).toBeGreaterThan(4);
+    (root.querySelector(".btn-advance") as HTMLButtonElement).click();
+    expect(root.querySelector(".advice")).not.toBeNull(); // refreshed each turn
+  });
+
+  it("stance buttons carry explanatory tooltips and the panel names the cohesion state", () => {
+    const root = document.createElement("div");
+    createPlayApp(root, 1);
+    (root.querySelector(".nation-choice") as HTMLButtonElement).click();
+    const stanceBtns = [...root.querySelectorAll(".view-toggle button")];
+    expect(stanceBtns.length).toBe(3);
+    for (const b of stanceBtns) expect((b.getAttribute("title") || "").length).toBeGreaterThan(4);
+    expect(root.querySelector(".play-panel")!.textContent).toMatch(/steady|shaky|critical/);
+  });
+
   it("dilemma cards appear during a reign; answering one logs the outcome and clears the card", () => {
     const root = document.createElement("div");
     createPlayApp(root, 1);

@@ -65,7 +65,10 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
     let pendingAction: Action | null = null;
     let dilemma: Dilemma | null = null;
     let over = false;
+    let showHelp = true; // the how-to-rule card opens the reign; dismissible, reopenable via "?"
 
+    const howtoBox = document.createElement("div");
+    howtoBox.className = "howto-slot";
     const panel = document.createElement("div");
     panel.className = "play-panel controls";
     const dilemmaBox = document.createElement("div");
@@ -77,11 +80,13 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
     actions.className = "play-actions controls";
     const log = document.createElement("div");
     log.className = "chronicle";
-    root.append(panel, dilemmaBox, stage, actions, log);
+    root.append(howtoBox, panel, dilemmaBox, stage, actions, log);
 
     const mapFrame = document.createElement("div");
     mapFrame.className = "map-frame";
-    stage.appendChild(mapFrame);
+    const legend = document.createElement("div");
+    legend.className = "play-legend";
+    stage.append(mapFrame, legend);
 
     function renderMap(): void {
       mapFrame.innerHTML = "";
@@ -182,6 +187,49 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
       mapFrame.appendChild(svg);
     }
 
+    // the "what do I do?" fixes: an opening how-to card, a map legend, and a per-turn advice line
+    function renderHowto(): void {
+      howtoBox.innerHTML = "";
+      if (!showHelp || over) return;
+      const card = document.createElement("div");
+      card.className = "howto controls";
+      const lines = ["howto1", "howto2", "howto3", "howto4"]
+        .map((k) => `<div class="howto-line">${playT(lang, k)}</div>`).join("");
+      card.innerHTML = `<b>${playT(lang, "howtoTitle")}</b>${lines}`;
+      const start = document.createElement("button");
+      start.className = "howto-start";
+      start.textContent = playT(lang, "howtoStart");
+      start.addEventListener("click", () => { showHelp = false; renderHowto(); });
+      card.appendChild(start);
+      howtoBox.appendChild(card);
+    }
+
+    function renderLegend(): void {
+      const chips: [string, string][] = [
+        ["rgba(63,158,87,0.5)", "legendPush"],
+        ["rgba(59,116,166,0.55)", "legendSea"],
+        ["rgba(168,132,44,0.5)", "legendSite"],
+        ["#c0473f", "legendThreat"],
+        ["#a8842c", "legendCity"],
+      ];
+      legend.innerHTML = chips
+        .map(([color, key]) => `<span class="legend-chip"><span class="legend-swatch" style="background:${color}"></span>${key === "legendCity" ? "★ " : ""}${playT(lang, key)}</span>`)
+        .join("");
+    }
+
+    // one contextual hint per turn: turn the numbers into "what should I do now"
+    function adviceKey(): string {
+      const agg = aggregate(s);
+      const avg = agg[s.playerPolity]?.avg ?? 0;
+      if (avg < 0.45) return "adviceLowSol";
+      const edges = frontEdges(s);
+      const threats = edges.filter((e) => e.kind === "threat").length;
+      const pushes = edges.length - threats;
+      if (threats >= 6 && threats > pushes) return "adviceDefend";
+      if (borderTargets(s).filter((t) => t.capturable).length >= 3) return "adviceExpand";
+      return "adviceBuild";
+    }
+
     function renderPanel(): void {
       const year = playYear(lang, s.tick * YEARS_PER_TICK);
       const name = s.polities[s.playerPolity].name;
@@ -196,21 +244,31 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
       const agg = aggregate(s);
       const avg = agg[s.playerPolity]?.avg ?? 0;
       const pct = (avg * 100) | 0;
+      const solWord = playT(lang, avg >= 0.55 ? "solStable" : avg >= LOW_COHESION ? "solShaky" : "solDanger");
       const threats = borderTargets(s).length;
-      const risk = avg < LOW_COHESION ? ` · ⚠ ${playT(lang, "civilWarRisk")} (${playT(lang, "cohesion")} ${pct}%)` : "";
+      const risk = avg < LOW_COHESION ? ` · ⚠ ${playT(lang, "civilWarRisk")}` : "";
       panel.innerHTML =
         `<b class="play-year">${year}</b> · ${name}` +
-        ` · ${cells} ${playT(lang, "cells")} · ${playT(lang, "cohesion")} ${pct}%${risk} · ${playT(lang, "threats")} ${threats}`;
+        ` · ${cells} ${playT(lang, "cells")} · ${playT(lang, "cohesion")} ${pct}% (${solWord})${risk} · ${playT(lang, "threats")} ${threats}`;
       const stanceRow = document.createElement("span");
       stanceRow.className = "view-toggle";
       for (const st of STANCES) {
         const btn = document.createElement("button");
         btn.textContent = playT(lang, st);
+        btn.title = playT(lang, `tip${st[0].toUpperCase()}${st.slice(1)}`); // what the stance DOES
         btn.className = s.stance === st ? "active" : "";
         btn.addEventListener("click", () => { setStance(s, st); renderAll(); });
         stanceRow.appendChild(btn);
       }
-      panel.append(stanceRow, langButton(rerender));
+      const helpBtn = document.createElement("button");
+      helpBtn.className = "help-btn";
+      helpBtn.textContent = playT(lang, "help");
+      helpBtn.addEventListener("click", () => { showHelp = true; renderHowto(); });
+      panel.append(stanceRow, helpBtn, langButton(rerender));
+      const advice = document.createElement("div");
+      advice.className = "advice";
+      advice.textContent = playT(lang, adviceKey());
+      panel.appendChild(advice);
     }
 
     function renderActions(): void {
@@ -372,7 +430,7 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
       }
     }
 
-    function renderAll(): void { renderMap(); renderPanel(); renderActions(); renderDilemma(); }
+    function renderAll(): void { renderMap(); renderPanel(); renderActions(); renderDilemma(); renderHowto(); renderLegend(); }
 
     // re-render the live screen in the current language (keeps the accumulated log)
     function rerender(): void {
@@ -411,6 +469,7 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
       actions.innerHTML = "";
       renderPanel();
       renderDilemma();
+      renderHowto();
       renderBanner();
     }
 
