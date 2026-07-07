@@ -146,6 +146,19 @@ describe("playApp", () => {
     expect(rows.some((t) => /Founded the city of/.test(t))).toBe(true);
   });
 
+  it("lays the play screen out as a map column + a sidebar (status/actions/log)", () => {
+    const root = document.createElement("div");
+    createPlayApp(root, 1);
+    (root.querySelector(".nation-choice") as HTMLButtonElement).click();
+    const grid = root.querySelector(".play-grid")!;
+    expect(grid).not.toBeNull();
+    expect(grid.querySelector(".play-main svg.world")).not.toBeNull();
+    const side = grid.querySelector(".play-side")!;
+    for (const sel of [".play-panel", ".play-actions", ".chronicle"]) {
+      expect(side.querySelector(sel)).not.toBeNull();
+    }
+  });
+
   it("opens with a how-to-rule card that dismisses, and can be reopened from the panel", () => {
     const root = document.createElement("div");
     createPlayApp(root, 1);

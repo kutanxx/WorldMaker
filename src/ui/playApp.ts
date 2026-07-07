@@ -80,7 +80,18 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
     actions.className = "play-actions controls";
     const log = document.createElement("div");
     log.className = "chronicle";
-    root.append(howtoBox, panel, dilemmaBox, stage, actions, log);
+    // game layout: big map on the left, everything the player reads/clicks in a right sidebar —
+    // the vertical pile of cards was unreadable (user feedback); the how-to card floats as an overlay
+    const grid = document.createElement("div");
+    grid.className = "play-grid";
+    const main = document.createElement("div");
+    main.className = "play-main";
+    const side = document.createElement("div");
+    side.className = "play-side";
+    main.appendChild(stage);
+    side.append(panel, dilemmaBox, actions, log);
+    grid.append(main, side);
+    root.append(howtoBox, grid);
 
     const mapFrame = document.createElement("div");
     mapFrame.className = "map-frame";
@@ -458,7 +469,7 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
         downloadBlob(`${nation}_reign.md`, new Blob([md], { type: "text/markdown" }));
       });
       banner.appendChild(exp);
-      root.insertBefore(banner, log);
+      side.insertBefore(banner, log);
     }
 
     function end(defeated: boolean, conqueror = ""): void {
