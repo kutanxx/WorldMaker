@@ -119,6 +119,24 @@ describe("playApp", () => {
     expect(opts.some((t) => /×\d/.test(t))).toBe(true);
   });
 
+  it("shows clickable found-city sites on the map; clicking one picks foundCity and syncs the select", () => {
+    const root = document.createElement("div");
+    createPlayApp(root, 1);
+    (root.querySelector(".nation-choice") as HTMLButtonElement).click();
+    const sites = root.querySelectorAll(".site-cell");
+    expect(sites.length).toBeGreaterThan(0);
+    expect(sites.length).toBeLessThanOrEqual(20);
+    const cell = (sites[0] as SVGPathElement).getAttribute("data-cell")!;
+    (sites[0] as SVGPathElement).dispatchEvent(new Event("click", { bubbles: true }));
+    expect((root.querySelector(".found-select") as HTMLSelectElement).value).toBe(cell);
+    expect((root.querySelector(".btn-attack") as HTMLButtonElement).textContent).toContain("Found");
+    expect(root.querySelector(".site-cell.selected")).not.toBeNull();
+    // advancing founds the city there
+    (root.querySelector(".btn-advance") as HTMLButtonElement).click();
+    const rows = [...root.querySelectorAll(".chronicle-event")].map((e) => e.textContent || "");
+    expect(rows.some((t) => /Founded the city of/.test(t))).toBe(true);
+  });
+
   it("logs a per-decade gain/loss line on advance", () => {
     const root = document.createElement("div");
     createPlayApp(root, 1);

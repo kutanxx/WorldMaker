@@ -117,16 +117,37 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
         const p = document.createElementNS(NS, "path");
         p.setAttribute("d", cells.map((c) => cellPath(world.grid.polygons[c])).join(""));
         const selected = pendingAction?.type === "attack" && pendingAction.cell === target.cell;
-        p.setAttribute("class", `target-cell${target.capturable ? " capturable" : ""}${selected ? " selected" : ""}`);
+        p.setAttribute("class", `target-cell${target.capturable ? " capturable" : ""}${target.sea ? " sea" : ""}${selected ? " selected" : ""}`);
         p.setAttribute("data-cell", String(target.cell));
         p.setAttribute("data-gain", String(cluster.length));
-        p.setAttribute("fill", target.capturable ? "rgba(63,158,87,0.16)" : "rgba(0,0,0,0)");
+        // landing zones (across a strait) tinted blue so they read differently from land pushes
+        p.setAttribute("fill", !target.capturable ? "rgba(0,0,0,0)" : target.sea ? "rgba(59,116,166,0.24)" : "rgba(63,158,87,0.16)");
         if (selected) { p.setAttribute("stroke", "#2a2118"); p.setAttribute("stroke-width", "1.6"); }
         const tip = document.createElementNS(NS, "title");
         tip.textContent = `${target.sea ? "⛵ " : ""}${target.ownerName} ${target.capturable ? `✓ ×${cluster.length}` : "✗"}`;
         p.appendChild(tip);
         p.addEventListener("click", () => {
           pendingAction = { type: "attack", cell: target.cell };
+          renderMap();
+          renderActions();
+        });
+        tg.appendChild(p);
+      }
+      // clickable found-city sites: the dropdown's top candidates, gold-tinted on the player's own
+      // land — click your land to build, click enemy land to attack (no spatial overlap)
+      for (const site of foundCityTargets(s).slice(0, 20)) {
+        const p = document.createElementNS(NS, "path");
+        p.setAttribute("d", cellPath(world.grid.polygons[site.cell]));
+        const selected = pendingAction?.type === "foundCity" && pendingAction.cell === site.cell;
+        p.setAttribute("class", `site-cell${selected ? " selected" : ""}`);
+        p.setAttribute("data-cell", String(site.cell));
+        p.setAttribute("fill", "rgba(168,132,44,0.15)");
+        if (selected) { p.setAttribute("stroke", "#a8842c"); p.setAttribute("stroke-width", "1.6"); }
+        const tip = document.createElementNS(NS, "title");
+        tip.textContent = `★ ${(site.sol * 100) | 0}%`;
+        p.appendChild(tip);
+        p.addEventListener("click", () => {
+          pendingAction = { type: "foundCity", cell: site.cell };
           renderMap();
           renderActions();
         });
