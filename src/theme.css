@@ -124,6 +124,10 @@ svg.world .legend { pointer-events: none; }
 .play-panel .standing { flex-direction: row; flex-wrap: wrap; gap: 4px 10px; }
 /* command bar: a slim horizontal row under the map */
 .play-actions.controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.play-actions .action-status { font-weight: 600; color: #4a3d2c; margin-right: 4px; }
+.play-actions .invest-seg button { font-size: 13px; }
+.play-actions .peace-select { max-width: 200px; }
+.play-actions .btn-advance { margin-left: auto; font-weight: 700; }
 .chronicle { max-height: 240px; }
 
 /* onboarding + guidance: how-to card (a floating overlay, not another stacked box), legend, advice */

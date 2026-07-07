@@ -20,7 +20,7 @@ describe("playApp", () => {
     (choices[0] as HTMLButtonElement).click();
     expect(root.querySelector("svg.world")).not.toBeNull();     // live map
     expect(root.querySelector(".play-panel")).not.toBeNull();   // nation panel
-    expect(root.querySelector(".btn-attack")).not.toBeNull();   // attack action
+    expect(root.querySelector(".action-status")).not.toBeNull();   // action status line
     expect(root.querySelector(".btn-advance")).not.toBeNull();  // advance year
   });
 
@@ -55,33 +55,29 @@ describe("playApp", () => {
     expect((root.querySelector(".btn-advance") as HTMLButtonElement).textContent).toContain("다음 해");
   });
 
-  it("offers found-city and peace selects, one action shared across all four", () => {
+  it("offers a peace select; picking found-city on the map then invest shares one pending action", () => {
     const root = document.createElement("div");
     createPlayApp(root, 1);
     (root.querySelector(".nation-choice") as HTMLButtonElement).click();
-    const found = root.querySelector(".found-select") as HTMLSelectElement;
     const peace = root.querySelector(".peace-select") as HTMLSelectElement;
-    const attack = root.querySelector(".attack-select") as HTMLSelectElement;
-    expect(found).not.toBeNull();
     expect(peace).not.toBeNull();
-    expect(found.options.length).toBeGreaterThan(1);
     expect(peace.options.length).toBeGreaterThan(1);
-    // picking attack then foundCity clears the attack pick
-    attack.value = attack.options[1].value;
-    attack.dispatchEvent(new Event("change"));
-    found.value = found.options[1].value;
-    found.dispatchEvent(new Event("change"));
-    expect(attack.value).toBe("");
-    expect((root.querySelector(".btn-attack") as HTMLButtonElement).textContent).toContain("Found");
+    // picking a found-city site on the map, then invest, replaces the pending pick (one action per turn)
+    const site = root.querySelector(".site-cell") as SVGPathElement;
+    site.dispatchEvent(new Event("click", { bubbles: true }));
+    expect(root.querySelector(".action-status")!.textContent).toContain("Found");
+    const investBtn = root.querySelector(".invest-seg button") as HTMLButtonElement;
+    investBtn.click();
+    expect(root.querySelector(".action-status")!.textContent).toContain("Invest");
+    expect(root.querySelector(".site-cell.selected")).toBeNull(); // the found pick is gone
   });
 
   it("founding a city logs it and draws a ★ marker on the map", () => {
     const root = document.createElement("div");
     createPlayApp(root, 1);
     (root.querySelector(".nation-choice") as HTMLButtonElement).click();
-    const found = root.querySelector(".found-select") as HTMLSelectElement;
-    found.value = found.options[1].value;
-    found.dispatchEvent(new Event("change"));
+    const site = root.querySelector(".site-cell") as SVGPathElement;
+    site.dispatchEvent(new Event("click", { bubbles: true }));
     (root.querySelector(".btn-advance") as HTMLButtonElement).click();
     const rows = [...root.querySelectorAll(".chronicle-event")].map((e) => e.textContent || "");
     expect(rows.some((t) => /Founded the city of/.test(t))).toBe(true);
@@ -100,21 +96,19 @@ describe("playApp", () => {
     expect(rows.some((t) => /Made peace with/.test(t))).toBe(true);
   });
 
-  it("map shows clickable attack-target cells; clicking one picks the attack and syncs the select", () => {
+  it("map shows clickable attack-target cells; clicking one picks the attack and updates the status", () => {
     const root = document.createElement("div");
     createPlayApp(root, 1);
     (root.querySelector(".nation-choice") as HTMLButtonElement).click();
     const targets = root.querySelectorAll(".target-cell");
     expect(targets.length).toBeGreaterThan(0);
-    const cell = (targets[0] as SVGPathElement).getAttribute("data-cell")!;
     (targets[0] as SVGPathElement).dispatchEvent(new Event("click", { bubbles: true }));
-    expect((root.querySelector(".attack-select") as HTMLSelectElement).value).toBe(cell);
-    expect((root.querySelector(".btn-attack") as HTMLButtonElement).textContent).toContain("Attack");
+    expect((root.querySelector(".action-status") as HTMLElement).textContent).toContain("Attack");
     // the picked cell is marked selected on the map
     expect(root.querySelector(".target-cell.selected")).not.toBeNull();
   });
 
-  it("capturable targets are drawn as the whole region the attack would take (data-gain), and the select advertises it", () => {
+  it("capturable targets are drawn as the whole region the attack would take (data-gain)", () => {
     const root = document.createElement("div");
     createPlayApp(root, 1);
     (root.querySelector(".nation-choice") as HTMLButtonElement).click();
@@ -124,21 +118,17 @@ describe("playApp", () => {
     // a breakthrough region is one path made of several cell subpaths (multiple "M" commands)
     const multi = caps.find((c) => Number(c.getAttribute("data-gain")) > 1);
     if (multi) expect((multi.getAttribute("d")!.match(/M/g) || []).length).toBe(Number(multi.getAttribute("data-gain")));
-    const opts = [...root.querySelectorAll(".attack-select option")].map((o) => o.textContent || "");
-    expect(opts.some((t) => /×\d/.test(t))).toBe(true);
   });
 
-  it("shows clickable found-city sites on the map; clicking one picks foundCity and syncs the select", () => {
+  it("shows clickable found-city sites on the map; clicking one picks foundCity", () => {
     const root = document.createElement("div");
     createPlayApp(root, 1);
     (root.querySelector(".nation-choice") as HTMLButtonElement).click();
     const sites = root.querySelectorAll(".site-cell");
     expect(sites.length).toBeGreaterThan(0);
     expect(sites.length).toBeLessThanOrEqual(20);
-    const cell = (sites[0] as SVGPathElement).getAttribute("data-cell")!;
     (sites[0] as SVGPathElement).dispatchEvent(new Event("click", { bubbles: true }));
-    expect((root.querySelector(".found-select") as HTMLSelectElement).value).toBe(cell);
-    expect((root.querySelector(".btn-attack") as HTMLButtonElement).textContent).toContain("Found");
+    expect((root.querySelector(".action-status") as HTMLElement).textContent).toContain("Found");
     expect(root.querySelector(".site-cell.selected")).not.toBeNull();
     // advancing founds the city there
     (root.querySelector(".btn-advance") as HTMLButtonElement).click();
@@ -177,31 +167,30 @@ describe("playApp", () => {
     const root = document.createElement("div");
     createPlayApp(root, 1);
     (root.querySelector(".nation-choice") as HTMLButtonElement).click();
-    const stanceBtns = [...root.querySelectorAll(".view-toggle button")];
+    const stanceBtns = [...root.querySelectorAll(".play-panel .view-toggle button")];
     expect(stanceBtns.length).toBe(3);
     for (const b of stanceBtns) expect((b.getAttribute("title") || "").length).toBeGreaterThan(4);
     expect(root.querySelector(".play-panel")!.textContent).toMatch(/steady|shaky|critical/);
   });
 
-  it("invest options state their real effect (cell count + cohesion gain), selects carry tooltips", () => {
+  it("invest segments state their real effect (cohesion gain), and carry tooltips alongside peace", () => {
     const root = document.createElement("div");
     createPlayApp(root, 1);
     (root.querySelector(".nation-choice") as HTMLButtonElement).click();
-    const inv = root.querySelector(".invest-select") as HTMLSelectElement;
-    const labels = [...inv.options].map((o) => o.textContent || "");
-    expect(labels.some((t) => /\+\d+%p/.test(t) && /\d+/.test(t))).toBe(true); // numeric preview
-    for (const sel of [".attack-select", ".invest-select", ".found-select", ".peace-select"]) {
-      expect(((root.querySelector(sel) as HTMLSelectElement).title || "").length).toBeGreaterThan(8);
-    }
+    const btns = [...root.querySelectorAll(".invest-seg button")];
+    expect(btns.length).toBe(2);
+    const labels = btns.map((b) => b.textContent || "");
+    expect(labels.some((t) => /\+\d+%p/.test(t))).toBe(true); // numeric preview
+    for (const b of btns) expect((b.getAttribute("title") || "").length).toBeGreaterThan(8);
+    expect(((root.querySelector(".peace-select") as HTMLSelectElement).title || "").length).toBeGreaterThan(8);
   });
 
   it("picking invest or peace paints the affected area on the map (action preview)", () => {
     const root = document.createElement("div");
     createPlayApp(root, 1);
     (root.querySelector(".nation-choice") as HTMLButtonElement).click();
-    const inv = root.querySelector(".invest-select") as HTMLSelectElement;
-    inv.value = "border";
-    inv.dispatchEvent(new Event("change"));
+    const investBtns = root.querySelectorAll(".invest-seg button");
+    (investBtns[1] as HTMLButtonElement).click(); // border scope (2nd segment)
     expect(root.querySelector(".preview-invest")).not.toBeNull();
     const peace = root.querySelector(".peace-select") as HTMLSelectElement;
     peace.value = peace.options[1].value;
@@ -274,10 +263,9 @@ describe("playApp", () => {
     const root = document.createElement("div");
     createPlayApp(root, 1);
     (root.querySelector(".nation-choice") as HTMLButtonElement).click();
-    const inv = root.querySelector(".invest-select") as HTMLSelectElement;
-    expect(inv).not.toBeNull();
-    inv.value = "nation";
-    inv.dispatchEvent(new Event("change", { bubbles: true }));
+    const investBtns = root.querySelectorAll(".invest-seg button");
+    expect(investBtns.length).toBe(2);
+    (investBtns[0] as HTMLButtonElement).click(); // nation scope
     (root.querySelector(".btn-advance") as HTMLButtonElement).click();
     expect(root.querySelector(".chronicle")!.textContent).toContain("Invested");
   });
@@ -330,5 +318,30 @@ describe("playApp", () => {
     expect(root.querySelector(".capital-crown")).not.toBeNull();   // ♛ on the map
     expect(root.querySelector(".own-tint")).not.toBeNull();        // own-territory wash
     expect(root.querySelector("svg.world .nation-legend")).toBeNull(); // in-map legend suppressed
+  });
+
+  it("command bar has invest segments + labelled peace + advance, and no dropdown clutter", () => {
+    const root = document.createElement("div");
+    createPlayApp(root, 1);
+    (root.querySelector(".nation-choice") as HTMLButtonElement).click();
+    expect(root.querySelector(".invest-seg")).not.toBeNull();
+    expect(root.querySelectorAll(".invest-seg button").length).toBe(2); // 전국 | 국경
+    expect(root.querySelector(".peace-select")).not.toBeNull();
+    expect(root.querySelector(".btn-advance")).not.toBeNull();
+    expect(root.querySelector(".btn-pass")).not.toBeNull();
+    expect(root.querySelector(".action-status")).not.toBeNull();
+    // the old four stacked dropdowns are gone
+    expect(root.querySelector(".attack-select")).toBeNull();
+    expect(root.querySelector(".found-select")).toBeNull();
+    expect(root.querySelector(".invest-select")).toBeNull();
+  });
+
+  it("advancing a year still works from the new command bar", () => {
+    const root = document.createElement("div");
+    createPlayApp(root, 1);
+    (root.querySelector(".nation-choice") as HTMLButtonElement).click();
+    const yearBefore = root.querySelector(".play-year")!.textContent;
+    (root.querySelector(".btn-advance") as HTMLButtonElement).click();
+    expect(root.querySelector(".play-year")!.textContent).not.toBe(yearBefore);
   });
 });

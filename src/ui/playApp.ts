@@ -399,9 +399,12 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
 
     function renderActions(): void {
       actions.innerHTML = "";
-      // the player gets ONE action per turn; attack and invest share the slot (picking one clears the other)
-      const status = document.createElement("button");
-      status.className = "btn-attack"; // status label (kept class name for existing consumers)
+      if (over) return; // a fallen realm has no actions (the banner tells the story)
+
+      // the current pending action, in words — the bar always states what "Advance" will do,
+      // so map-clicks (attack / found-city) have a visible confirmation
+      const status = document.createElement("span");
+      status.className = "action-status";
       const label = () =>
         !pendingAction ? playT(lang, "noAction")
           : pendingAction.type === "attack" ? playT(lang, "attackChosen")
@@ -410,48 +413,26 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
                 : playT(lang, pendingAction.scope === "border" ? "investFrontierChosen" : "investRealmChosen");
       status.textContent = label();
 
-      const sel = document.createElement("select");
-      sel.className = "attack-select";
-      const none = document.createElement("option");
-      none.value = ""; none.textContent = playT(lang, "attackPlaceholder");
-      sel.appendChild(none);
-      for (const target of borderTargets(s)) {
-        const opt = document.createElement("option");
-        opt.value = String(target.cell);
-        const gain = target.capturable ? ` ✓ ×${predictCapture(s, target.cell).length}` : " ✗";
-        opt.textContent = `${target.sea ? "⛵ " : ""}${target.ownerName} (cell ${target.cell})${gain}`;
-        sel.appendChild(opt);
+      // invest = a 2-segment control (전국 | 국경), each showing its numeric effect — not a dropdown
+      const investSeg = document.createElement("span");
+      investSeg.className = "view-toggle invest-seg";
+      for (const scope of ["nation", "border"] as const) {
+        const fx = investEffect(scope);
+        const b = document.createElement("button");
+        b.textContent = `💰 ${playT(lang, scope === "border" ? "investFrontierOpt" : "investRealmOpt")} (+${fx.gain}%p)`;
+        b.title = playT(lang, "tipInvest");
+        b.className = pendingAction?.type === "invest" && pendingAction.scope === scope ? "active" : "";
+        b.addEventListener("click", () => {
+          pendingAction = { type: "invest", scope };
+          renderMap(); renderActions();
+        });
+        investSeg.appendChild(b);
       }
 
-      const inv = document.createElement("select");
-      inv.className = "invest-select";
-      for (const [value, key] of [["", "investPlaceholder"], ["nation", "investRealmOpt"], ["border", "investFrontierOpt"]] as const) {
-        const opt = document.createElement("option");
-        opt.value = value;
-        if (value === "") opt.textContent = playT(lang, key);
-        else {
-          // Civ-style numeric preview: what this option actually does, in the label itself
-          const fx = investEffect(value);
-          opt.textContent = `${playT(lang, key)} (${fx.n} ${playT(lang, "cells")}, +${fx.gain}%p)`;
-        }
-        inv.appendChild(opt);
-      }
-
-      // found-city: best (most cohesive) eligible sites first, capped to keep the list scannable
-      const fnd = document.createElement("select");
-      fnd.className = "found-select";
-      const fndNone = document.createElement("option");
-      fndNone.value = ""; fndNone.textContent = playT(lang, "foundPlaceholder");
-      fnd.appendChild(fndNone);
-      for (const target of foundCityTargets(s).slice(0, 20)) {
-        const opt = document.createElement("option");
-        opt.value = String(target.cell);
-        opt.textContent = `cell ${target.cell} · ${(target.sol * 100) | 0}%`;
-        fnd.appendChild(opt);
-      }
-
+      // peace = the one remaining select, clearly labelled (not one of four tiny ones)
       const pce = document.createElement("select");
       pce.className = "peace-select";
+      pce.title = playT(lang, "tipPeace");
       const pceNone = document.createElement("option");
       pceNone.value = ""; pceNone.textContent = playT(lang, "peacePlaceholder");
       pce.appendChild(pceNone);
@@ -461,46 +442,22 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
         opt.textContent = h.trucedUntil > s.tick ? `${h.name} ✓` : h.name;
         pce.appendChild(opt);
       }
-
-      // what each action does + when to use it, on hover
-      sel.title = playT(lang, "tipAttack");
-      inv.title = playT(lang, "tipInvest");
-      fnd.title = playT(lang, "tipFound");
-      pce.title = playT(lang, "tipPeace");
-
-      // one action per turn: picking in any select clears the other three
-      const selects = [sel, inv, fnd, pce];
-      const clearOthers = (keep: HTMLSelectElement) => {
-        for (const other of selects) if (other !== keep) other.value = "";
-      };
-      sel.addEventListener("change", () => {
-        pendingAction = sel.value ? { type: "attack", cell: Number(sel.value) } : null;
-        if (pendingAction) clearOthers(sel);
-        status.textContent = label();
-        renderMap(); // show the pick on the map
-      });
-      inv.addEventListener("change", () => {
-        pendingAction = inv.value ? { type: "invest", scope: inv.value as "nation" | "border" } : null;
-        if (pendingAction) clearOthers(inv);
-        status.textContent = label();
-        renderMap();
-      });
-      fnd.addEventListener("change", () => {
-        pendingAction = fnd.value ? { type: "foundCity", cell: Number(fnd.value) } : null;
-        if (pendingAction) clearOthers(fnd);
-        status.textContent = label();
-        renderMap();
-      });
+      if (pendingAction?.type === "peace") pce.value = String(pendingAction.polity);
       pce.addEventListener("change", () => {
         pendingAction = pce.value ? { type: "peace", polity: Number(pce.value) } : null;
-        if (pendingAction) clearOthers(pce);
-        status.textContent = label();
-        renderMap();
+        renderMap(); renderActions();
       });
+
+      // pass clears any pending action
+      const pass = document.createElement("button");
+      pass.className = "btn-pass";
+      pass.textContent = playT(lang, "pass");
+      pass.addEventListener("click", () => { pendingAction = null; renderMap(); renderActions(); });
 
       const advance = document.createElement("button");
       advance.className = "btn-advance";
       advance.textContent = playT(lang, "advance");
+      // --- BEGIN verbatim advance handler (do not modify) ---
       advance.addEventListener("click", () => {
         const before = Int32Array.from(s.owner);
         const cohBefore = aggregate(s)[s.playerPolity]?.avg ?? 0;
@@ -528,12 +485,9 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
         dilemma = offerDilemma(s); // an unanswered card expires with the decade
         renderAll();
       });
-      // restore the pending pick into its select (map clicks and re-renders keep the UI in sync)
-      if (pendingAction?.type === "attack") sel.value = String(pendingAction.cell);
-      else if (pendingAction?.type === "invest") inv.value = pendingAction.scope;
-      else if (pendingAction?.type === "foundCity") fnd.value = String(pendingAction.cell);
-      else if (pendingAction?.type === "peace") pce.value = String(pendingAction.polity);
-      actions.append(status, sel, inv, fnd, pce, advance);
+      // --- END verbatim advance handler ---
+
+      actions.append(status, investSeg, pce, pass, advance);
     }
 
     function appendLog(text: string, headline = false): void {
