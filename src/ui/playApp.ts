@@ -3,7 +3,8 @@ import { DEFAULT_PARAMS } from "../types/world";
 import { aggregate, YEARS_PER_TICK } from "../engine/historySim";
 import { initPlaySim, playTurn, setStance, scorecard, playerCells } from "../engine/playSim";
 import type { Stance } from "../engine/historySim";
-import { borderTargets, frontEdges, foundCityTargets, hostileNeighbors, predictCapture, type Action } from "../engine/intervention";
+import { borderTargets, frontEdges, foundCityTargets, hostileNeighbors, predictCapture, INVEST_DELTA, type Action } from "../engine/intervention";
+import { OCEAN } from "../engine/terrain";
 import { sharedEdge } from "../engine/borders";
 import { cellPath } from "./svgPaths";
 import { renderWorld, politicalOpts } from "./svgWorldRenderer";
@@ -99,6 +100,22 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
     legend.className = "play-legend";
     stage.append(mapFrame, legend);
 
+    // same frontier rule the invest action uses (any non-ocean neighbour that isn't ours)
+    const isFrontier = (c: number) =>
+      world.grid.neighbors[c].some((nb) => world.terrain[nb] !== OCEAN && s.owner[nb] !== s.playerPolity);
+
+    // what an invest would actually do right now: affected cells + average cohesion gain (%p)
+    function investEffect(scope: "nation" | "border"): { n: number; gain: number } {
+      let n = 0, sum = 0;
+      for (let c = 0; c < s.n; c++) {
+        if (s.owner[c] !== s.playerPolity) continue;
+        if (scope === "border" && !isFrontier(c)) continue;
+        n++;
+        sum += INVEST_DELTA * (1 - s.solidarity[c]);
+      }
+      return { n, gain: n ? Math.round((sum / n) * 100) : 0 };
+    }
+
     function renderMap(): void {
       mapFrame.innerHTML = "";
       const svg = renderWorld(world, "political", s.economicZones.map((z) => z.cell), lang);
@@ -180,6 +197,34 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
         tg.appendChild(p);
       }
       g.insertBefore(tg, g.firstChild); // under the front lines (which are pointer-events:none)
+
+      // pending-action preview (Into the Breach-style): paint exactly what the chosen action
+      // touches, so "invest frontier" or "peace with X" is visible on the map before you commit
+      if (pendingAction?.type === "invest") {
+        const cells: number[] = [];
+        for (let c = 0; c < s.n; c++) {
+          if (s.owner[c] !== s.playerPolity) continue;
+          if (pendingAction.scope === "border" && !isFrontier(c)) continue;
+          cells.push(c);
+        }
+        const p = document.createElementNS(NS, "path");
+        p.setAttribute("d", cells.map((c) => cellPath(world.grid.polygons[c])).join(""));
+        p.setAttribute("class", "preview-invest");
+        p.setAttribute("fill", "rgba(230,189,102,0.35)");
+        p.setAttribute("pointer-events", "none");
+        g.appendChild(p);
+      }
+      if (pendingAction?.type === "peace") {
+        const polity = pendingAction.polity;
+        const cells: number[] = [];
+        for (let c = 0; c < s.n; c++) if (s.owner[c] === polity) cells.push(c);
+        const p = document.createElementNS(NS, "path");
+        p.setAttribute("d", cells.map((c) => cellPath(world.grid.polygons[c])).join(""));
+        p.setAttribute("class", "preview-peace");
+        p.setAttribute("fill", "rgba(91,131,166,0.3)");
+        p.setAttribute("pointer-events", "none");
+        g.appendChild(p);
+      }
 
       // player-founded cities: gold star (dim outline when the anchor was captured)
       for (const fc of s.foundedCities) {
@@ -312,7 +357,13 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
       inv.className = "invest-select";
       for (const [value, key] of [["", "investPlaceholder"], ["nation", "investRealmOpt"], ["border", "investFrontierOpt"]] as const) {
         const opt = document.createElement("option");
-        opt.value = value; opt.textContent = playT(lang, key);
+        opt.value = value;
+        if (value === "") opt.textContent = playT(lang, key);
+        else {
+          // Civ-style numeric preview: what this option actually does, in the label itself
+          const fx = investEffect(value);
+          opt.textContent = `${playT(lang, key)} (${fx.n} ${playT(lang, "cells")}, +${fx.gain}%p)`;
+        }
         inv.appendChild(opt);
       }
 
@@ -341,6 +392,12 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
         pce.appendChild(opt);
       }
 
+      // what each action does + when to use it, on hover
+      sel.title = playT(lang, "tipAttack");
+      inv.title = playT(lang, "tipInvest");
+      fnd.title = playT(lang, "tipFound");
+      pce.title = playT(lang, "tipPeace");
+
       // one action per turn: picking in any select clears the other three
       const selects = [sel, inv, fnd, pce];
       const clearOthers = (keep: HTMLSelectElement) => {
@@ -350,21 +407,25 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
         pendingAction = sel.value ? { type: "attack", cell: Number(sel.value) } : null;
         if (pendingAction) clearOthers(sel);
         status.textContent = label();
+        renderMap(); // show the pick on the map
       });
       inv.addEventListener("change", () => {
         pendingAction = inv.value ? { type: "invest", scope: inv.value as "nation" | "border" } : null;
         if (pendingAction) clearOthers(inv);
         status.textContent = label();
+        renderMap();
       });
       fnd.addEventListener("change", () => {
         pendingAction = fnd.value ? { type: "foundCity", cell: Number(fnd.value) } : null;
         if (pendingAction) clearOthers(fnd);
         status.textContent = label();
+        renderMap();
       });
       pce.addEventListener("change", () => {
         pendingAction = pce.value ? { type: "peace", polity: Number(pce.value) } : null;
         if (pendingAction) clearOthers(pce);
         status.textContent = label();
+        renderMap();
       });
 
       const advance = document.createElement("button");

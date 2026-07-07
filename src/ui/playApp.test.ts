@@ -196,6 +196,33 @@ describe("playApp", () => {
     expect(root.querySelector(".play-panel")!.textContent).toMatch(/steady|shaky|critical/);
   });
 
+  it("invest options state their real effect (cell count + cohesion gain), selects carry tooltips", () => {
+    const root = document.createElement("div");
+    createPlayApp(root, 1);
+    (root.querySelector(".nation-choice") as HTMLButtonElement).click();
+    const inv = root.querySelector(".invest-select") as HTMLSelectElement;
+    const labels = [...inv.options].map((o) => o.textContent || "");
+    expect(labels.some((t) => /\+\d+%p/.test(t) && /\d+/.test(t))).toBe(true); // numeric preview
+    for (const sel of [".attack-select", ".invest-select", ".found-select", ".peace-select"]) {
+      expect(((root.querySelector(sel) as HTMLSelectElement).title || "").length).toBeGreaterThan(8);
+    }
+  });
+
+  it("picking invest or peace paints the affected area on the map (action preview)", () => {
+    const root = document.createElement("div");
+    createPlayApp(root, 1);
+    (root.querySelector(".nation-choice") as HTMLButtonElement).click();
+    const inv = root.querySelector(".invest-select") as HTMLSelectElement;
+    inv.value = "border";
+    inv.dispatchEvent(new Event("change"));
+    expect(root.querySelector(".preview-invest")).not.toBeNull();
+    const peace = root.querySelector(".peace-select") as HTMLSelectElement;
+    peace.value = peace.options[1].value;
+    peace.dispatchEvent(new Event("change"));
+    expect(root.querySelector(".preview-invest")).toBeNull(); // previews are exclusive
+    expect(root.querySelector(".preview-peace")).not.toBeNull();
+  });
+
   it("dilemma cards appear during a reign; answering one logs the outcome and clears the card", () => {
     const root = document.createElement("div");
     createPlayApp(root, 1);
