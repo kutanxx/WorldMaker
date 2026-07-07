@@ -117,7 +117,11 @@ describe("playApp", () => {
     for (const c of caps) expect(Number(c.getAttribute("data-gain"))).toBeGreaterThanOrEqual(1);
     // a breakthrough region is one path made of several cell subpaths (multiple "M" commands)
     const multi = caps.find((c) => Number(c.getAttribute("data-gain")) > 1);
-    if (multi) expect((multi.getAttribute("d")!.match(/M/g) || []).length).toBe(Number(multi.getAttribute("data-gain")));
+    if (multi) {
+      expect((multi.getAttribute("d")!.match(/M/g) || []).length).toBe(Number(multi.getAttribute("data-gain")));
+      // the tooltip advertises the capture-size multiplier (e.g. "✓ ×3")
+      expect(multi.querySelector("title")!.textContent).toMatch(/×\d/);
+    }
   });
 
   it("shows clickable found-city sites on the map; clicking one picks foundCity", () => {
