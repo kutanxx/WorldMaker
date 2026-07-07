@@ -1,7 +1,7 @@
 import { generateWorld } from "../engine/world";
 import { DEFAULT_PARAMS } from "../types/world";
 import { aggregate, YEARS_PER_TICK } from "../engine/historySim";
-import { initPlaySim, playTurn, setStance, scorecard, playerCells } from "../engine/playSim";
+import { initPlaySim, playTurn, setStance, scorecard } from "../engine/playSim";
 import type { Stance } from "../engine/historySim";
 import { borderTargets, frontEdges, foundCityTargets, hostileNeighbors, predictCapture, INVEST_DELTA, type Action } from "../engine/intervention";
 import { OCEAN } from "../engine/terrain";
@@ -13,9 +13,9 @@ import { downloadBlob } from "./export";
 import { politicalLayer } from "./politicalLayer";
 import { t, playT, playYear, playLog, playRuleIntro, playFell, playStats, playDelta, playDefeatCause, playDilemma, playDilemmaOutcome, type Lang } from "./i18n";
 import { offerDilemma, resolveDilemma, type Dilemma } from "../engine/dilemma";
+import { computeStanding, type Standing } from "../engine/standing";
 
 const STANCES: Stance[] = ["aggressive", "defensive", "internal"];
-const LOW_COHESION = 0.4; // civil-war risk cue threshold
 
 export function createPlayApp(root: HTMLElement, seed: number): void {
   root.innerHTML = "";
@@ -67,6 +67,7 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
     let dilemma: Dilemma | null = null;
     let over = false;
     let showHelp = true; // the how-to-rule card opens the reign; dismissible, reopenable via "?"
+    let momentum: { dCells: number; dCohesionDir: -1 | 0 | 1; lost: number } | null = null;
 
     const howtoBox = document.createElement("div");
     howtoBox.className = "howto-slot";
@@ -286,34 +287,74 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
       return "adviceBuild";
     }
 
+    function meterRow(cls: string, label: string, value: string, state: string): HTMLElement {
+      const row = document.createElement("div");
+      row.className = `meter ${cls} ${state}`;
+      const l = document.createElement("span"); l.className = "meter-label"; l.textContent = label;
+      const v = document.createElement("span"); v.className = "meter-value"; v.textContent = value;
+      row.append(l, v);
+      return row;
+    }
+
+    function momentumText(): string {
+      if (!momentum) return playT(lang, "firstTurn");
+      const d = momentum.dCells;
+      const cellArrow = d > 0 ? `▲+${d}` : d < 0 ? `▼${-d}` : "–";
+      const dir = momentum.dCohesionDir;
+      const cohArrow = dir > 0 ? "▲" : dir < 0 ? "▼" : "–";
+      const lostClause = momentum.lost > 0 ? ` · ${momentum.lost}${playT(lang, "cellsLost")}` : "";
+      return `${playT(lang, "thisTurn")} · ${playT(lang, "strength")} ${cellArrow}${playT(lang, "cells")}` +
+        ` · ${playT(lang, "cohesion")} ${cohArrow}${lostClause}`;
+    }
+
     function renderPanel(): void {
       const year = playYear(lang, s.tick * YEARS_PER_TICK);
       const name = s.polities[s.playerPolity].name;
-      // a fallen realm has no cells, cohesion, or stance to speak of — don't show a civil-war warning
-      // on a 0-cell dead nation (the scorecard banner tells the real story)
+      // a fallen realm has no standing to speak of — the scorecard banner tells that story
       if (!s.alive[s.playerPolity]) {
         panel.innerHTML = `<b class="play-year">${year}</b> · ${name} — ${playT(lang, "fallen")}`;
         panel.appendChild(langButton(rerender));
         return;
       }
-      const cells = playerCells(s);
-      const agg = aggregate(s);
-      const avg = agg[s.playerPolity]?.avg ?? 0;
-      const pct = (avg * 100) | 0;
-      const solWord = playT(lang, avg >= 0.55 ? "solStable" : avg >= LOW_COHESION ? "solShaky" : "solDanger");
-      const threats = borderTargets(s).length;
-      const risk = avg < LOW_COHESION ? ` · ⚠ ${playT(lang, "civilWarRisk")}` : "";
-      panel.innerHTML =
-        `<b class="play-year">${year}</b> · ${name}` +
-        ` · ${cells} ${playT(lang, "cells")} · ${playT(lang, "cohesion")} ${pct}% (${solWord})${risk} · ${playT(lang, "threats")} ${threats}`;
+      const st: Standing = computeStanding(s);
+      panel.innerHTML = `<b class="play-year">${year}</b> · ${name}`;
+
+      // ① momentum headline — the real new signal
+      const mo = document.createElement("div");
+      mo.className = "momentum";
+      mo.textContent = momentumText();
+      panel.appendChild(mo);
+
+      // ② two health meters (context the momentum moves within)
+      const meters = document.createElement("div");
+      meters.className = "standing";
+      const strengthWord = playT(lang,
+        st.strength === "strong" ? "strengthStrong" : st.strength === "weak" ? "strengthWeak" : "strengthEven");
+      const strengthVal = `${strengthWord} (${st.cells} ${playT(lang, "vs")} ${Math.round(st.rivalAvgCells)})`;
+      meters.appendChild(meterRow("meter-strength", playT(lang, "strength"), strengthVal, st.strength));
+      const cohWord = playT(lang,
+        st.cohesionState === "stable" ? "solStable" : st.cohesionState === "shaky" ? "solShaky" : "solDanger");
+      const warn = st.cohesionState === "danger" ? "⚠ " : "";
+      const cohVal = `${warn}${(st.cohesion * 100) | 0}% (${cohWord})`;
+      meters.appendChild(meterRow("meter-cohesion", playT(lang, "cohesion"), cohVal, st.cohesionState));
+      panel.appendChild(meters);
+
+      // ③ threat line
+      const threat = document.createElement("div");
+      threat.className = "threat-line";
+      const truceStr = st.truceCount > 0 ? ` · ${playT(lang, "truce")} ${st.truceCount}` : "";
+      threat.textContent = `${playT(lang, "border")} ${st.borderPolities}${truceStr}`;
+      panel.appendChild(threat);
+
+      // stance levers + help + language (unchanged behaviour)
       const stanceRow = document.createElement("span");
       stanceRow.className = "view-toggle";
-      for (const st of STANCES) {
+      for (const st2 of STANCES) {
         const btn = document.createElement("button");
-        btn.textContent = playT(lang, st);
-        btn.title = playT(lang, `tip${st[0].toUpperCase()}${st.slice(1)}`); // what the stance DOES
-        btn.className = s.stance === st ? "active" : "";
-        btn.addEventListener("click", () => { setStance(s, st); renderAll(); });
+        btn.textContent = playT(lang, st2);
+        btn.title = playT(lang, `tip${st2[0].toUpperCase()}${st2.slice(1)}`);
+        btn.className = s.stance === st2 ? "active" : "";
+        btn.addEventListener("click", () => { setStance(s, st2); renderAll(); });
         stanceRow.appendChild(btn);
       }
       const helpBtn = document.createElement("button");
@@ -321,6 +362,8 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
       helpBtn.textContent = playT(lang, "help");
       helpBtn.addEventListener("click", () => { showHelp = true; renderHowto(); });
       panel.append(stanceRow, helpBtn, langButton(rerender));
+
+      // per-turn advice line (kept)
       const advice = document.createElement("div");
       advice.className = "advice";
       advice.textContent = playT(lang, adviceKey());
@@ -433,6 +476,7 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
       advance.textContent = playT(lang, "advance");
       advance.addEventListener("click", () => {
         const before = Int32Array.from(s.owner);
+        const cohBefore = aggregate(s)[s.playerPolity]?.avg ?? 0;
         const r = playTurn(s, pendingAction);
         pendingAction = null;
         let gained = 0, lost = 0;
@@ -440,6 +484,9 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
           const was = before[c] === s.playerPolity, now = s.owner[c] === s.playerPolity;
           if (now && !was) gained++; else if (was && !now) lost++;
         }
+        const cohAfter = aggregate(s)[s.playerPolity]?.avg ?? 0;
+        const dir: -1 | 0 | 1 = cohAfter > cohBefore + 0.005 ? 1 : cohAfter < cohBefore - 0.005 ? -1 : 0;
+        momentum = { dCells: gained - lost, dCohesionDir: dir, lost };
         appendLog(playDelta(lang, r.year, gained, lost));
         const msg = playLog(lang, r.actionCode, r.actionData);
         if (msg) appendLog(`— ${msg}`);

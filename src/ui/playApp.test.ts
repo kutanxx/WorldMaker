@@ -294,4 +294,27 @@ describe("playApp", () => {
     (root.querySelector(".btn-advance") as HTMLButtonElement).click();
     expect(root.querySelector(".chronicle")!.textContent).toContain("Invested");
   });
+
+  it("shows a standing panel: momentum headline, two meters, threat line", () => {
+    const root = document.createElement("div");
+    createPlayApp(root, 1);
+    (root.querySelector(".nation-choice") as HTMLButtonElement).click();
+    // before any turn: momentum headline reads "first turn"
+    expect(root.querySelector(".momentum")!.textContent).toMatch(/first turn/i);
+    // two meters present
+    expect(root.querySelector(".meter-strength")).not.toBeNull();
+    expect(root.querySelector(".meter-cohesion")).not.toBeNull();
+    // threat line present
+    expect(root.querySelector(".threat-line")).not.toBeNull();
+  });
+
+  it("after a turn the momentum headline reports the change (not 'first turn')", () => {
+    const root = document.createElement("div");
+    createPlayApp(root, 1);
+    (root.querySelector(".nation-choice") as HTMLButtonElement).click();
+    (root.querySelector(".btn-advance") as HTMLButtonElement).click();
+    const mo = root.querySelector(".momentum")!.textContent || "";
+    expect(mo).not.toMatch(/first turn/i);
+    expect(mo).toMatch(/This turn/);
+  });
 });

@@ -83,6 +83,9 @@ export const PLAY_UI: Record<Lang, Record<string, string>> = {
     adviceExpand: "💡 A good moment to expand — click a green region to attack.",
     adviceBuild: "💡 The realm is stable — found a city on a gold cell to build your base.",
     legendPush: "seizable region", legendSea: "sea landing", legendSite: "city site", legendThreat: "threatened border", legendCity: "your city",
+    strength: "power", strengthStrong: "ahead", strengthEven: "even", strengthWeak: "behind",
+    thisTurn: "This turn", firstTurn: "First turn", cellsLost: " lost",
+    border: "borders", truce: "truces", vs: "vs",
   },
   ko: {
     chooseRealm: "국가를 선택하세요", cells: "셀", cohesion: "결속", threats: "위협",
@@ -113,6 +116,9 @@ export const PLAY_UI: Record<Lang, Record<string, string>> = {
     adviceExpand: "💡 확장의 적기입니다 — 지도의 초록 구역을 클릭해 공격하세요.",
     adviceBuild: "💡 정세가 안정적입니다 — 금색 셀에 도시를 세워 기반을 다지세요.",
     legendPush: "점령 가능 구역", legendSea: "상륙 지점", legendSite: "도시 부지", legendThreat: "위험 국경", legendCity: "내 도시",
+    strength: "국력", strengthStrong: "우세", strengthEven: "균형", strengthWeak: "열세",
+    thisTurn: "이번 턴", firstTurn: "첫 턴", cellsLost: "셀 상실",
+    border: "국경 접촉", truce: "휴전", vs: "vs",
   },
 };
 export function playT(lang: Lang, key: string): string {
