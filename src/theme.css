@@ -115,16 +115,16 @@ svg.world .legend { pointer-events: none; }
 .dilemma { border-left: 3px solid #a8842c; }
 .dilemma .dilemma-title { font-weight: 600; margin-right: 8px; }
 
-/* play-screen layout: map column + sidebar, so status/actions/log stop stacking under the map */
+/* play-screen layout: single centred column, so the map gets the full width (user feedback: map too small) */
 #play { max-width: 1440px; margin: 0 auto; padding: 0 16px 32px; }
-.play-grid { display: grid; grid-template-columns: minmax(0, 1fr) 350px; gap: 12px; align-items: start; }
-.play-main { min-width: 0; }
-.play-side { min-width: 0; display: flex; flex-direction: column; }
-.play-side .controls { margin-bottom: 10px; }
-.play-side .chronicle { max-height: 340px; margin-top: 0; }
-.play-actions { flex-direction: column; align-items: stretch; }
-.play-actions select { width: 100%; }
-@media (max-width: 960px) { .play-grid { grid-template-columns: 1fr; } }
+/* single centred column: the map takes the full width, capped for readability on large screens */
+.play-col { max-width: 1100px; margin: 0 auto; display: flex; flex-direction: column; gap: 10px; }
+/* standing strip: horizontal, wraps on narrow screens */
+.play-panel { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; }
+.play-panel .standing { flex-direction: row; flex-wrap: wrap; gap: 4px 10px; }
+/* command bar: a slim horizontal row under the map */
+.play-actions.controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.chronicle { max-height: 240px; }
 
 /* onboarding + guidance: how-to card (a floating overlay, not another stacked box), legend, advice */
 .howto-slot:not(:empty) {

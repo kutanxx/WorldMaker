@@ -146,19 +146,6 @@ describe("playApp", () => {
     expect(rows.some((t) => /Founded the city of/.test(t))).toBe(true);
   });
 
-  it("lays the play screen out as a map column + a sidebar (status/actions/log)", () => {
-    const root = document.createElement("div");
-    createPlayApp(root, 1);
-    (root.querySelector(".nation-choice") as HTMLButtonElement).click();
-    const grid = root.querySelector(".play-grid")!;
-    expect(grid).not.toBeNull();
-    expect(grid.querySelector(".play-main svg.world")).not.toBeNull();
-    const side = grid.querySelector(".play-side")!;
-    for (const sel of [".play-panel", ".play-actions", ".chronicle"]) {
-      expect(side.querySelector(sel)).not.toBeNull();
-    }
-  });
-
   it("opens with a how-to-rule card that dismisses, and can be reopened from the panel", () => {
     const root = document.createElement("div");
     createPlayApp(root, 1);
@@ -316,5 +303,19 @@ describe("playApp", () => {
     const mo = root.querySelector(".momentum")!.textContent || "";
     expect(mo).not.toMatch(/first turn/i);
     expect(mo).toMatch(/This turn/);
+  });
+
+  it("lays the play screen out as a single centred column (map gets full width)", () => {
+    const root = document.createElement("div");
+    createPlayApp(root, 1);
+    (root.querySelector(".nation-choice") as HTMLButtonElement).click();
+    expect(root.querySelector(".play-col")).not.toBeNull();
+    expect(root.querySelector(".play-side")).toBeNull();   // old 2-col sidebar gone
+    expect(root.querySelector(".play-grid")).toBeNull();
+    // map, standing strip, and command bar all live inside the column
+    const col = root.querySelector(".play-col")!;
+    expect(col.querySelector("svg.world")).not.toBeNull();
+    expect(col.querySelector(".play-panel")).not.toBeNull();
+    expect(col.querySelector(".play-actions")).not.toBeNull();
   });
 });
