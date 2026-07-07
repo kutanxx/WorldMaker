@@ -177,7 +177,7 @@ describe("attack breakthrough (follow-on capture)", () => {
 });
 
 describe("applyIntervention invest", () => {
-  it("nation scope raises solidarity on every player cell by INVEST_DELTA", () => {
+  it("nation scope raises solidarity on every player cell with diminishing returns", () => {
     const s = playerState(1);
     for (let c = 0; c < s.n; c++) if (s.owner[c] === s.playerPolity) s.solidarity[c] = 0.5;
     const r = applyIntervention(s, { type: "invest", scope: "nation" });
@@ -185,16 +185,16 @@ describe("applyIntervention invest", () => {
     expect(r.code).toBe("invested");            // localisable outcome code + data (for KO/EN log)
     expect(r.data!.scope).toBe("nation");
     for (let c = 0; c < s.n; c++) {
-      if (s.owner[c] === s.playerPolity) expect(s.solidarity[c]).toBeCloseTo(0.5 + INVEST_DELTA, 6);
+      if (s.owner[c] === s.playerPolity) expect(s.solidarity[c]).toBeCloseTo(0.5 + INVEST_DELTA * 0.5, 6);
     }
   });
 
-  it("clamps invested solidarity at 1", () => {
+  it("investing an already-cohesive realm yields little and never exceeds 1", () => {
     const s = playerState(1);
     for (let c = 0; c < s.n; c++) if (s.owner[c] === s.playerPolity) s.solidarity[c] = 0.95;
     applyIntervention(s, { type: "invest", scope: "nation" });
     const some = s.owner.findIndex((o) => o === s.playerPolity);
-    expect(s.solidarity[some]).toBeCloseTo(1, 6);
+    expect(s.solidarity[some]).toBeCloseTo(0.95 + INVEST_DELTA * 0.05, 6);
     for (let c = 0; c < s.n; c++) if (s.owner[c] === s.playerPolity) expect(s.solidarity[c]).toBeLessThanOrEqual(1 + 1e-6);
   });
 
@@ -213,7 +213,7 @@ describe("applyIntervention invest", () => {
     expect(border).toBeDefined();
     applyIntervention(s, { type: "invest", scope: "border" });
     expect(s.solidarity[interior!]).toBeCloseTo(0.5, 6);
-    expect(s.solidarity[border!]).toBeCloseTo(0.5 + INVEST_DELTA, 6);
+    expect(s.solidarity[border!]).toBeCloseTo(0.5 + INVEST_DELTA * 0.5, 6);
   });
 });
 

@@ -13,7 +13,8 @@ export interface BorderTarget { cell: number; owner: number; ownerName: string; 
 
 export const ATTACK_EDGE = 1.0; // even fight goes to the player (their edge is picking the cell)
 export const ATTACK_FOLLOW_MAX = 3; // max extra cells a breakthrough carries beyond the picked cell
-export const INVEST_DELTA = 0.15; // one-time cohesion boost from an invest action (then decays normally)
+export const INVEST_DELTA = 0.15; // invest gain factor: sol += DELTA·(1−sol) — diminishing returns
+// so spamming invest on an already-cohesive realm stops being the auto-win button (balance pass)
 
 // a player cell counts as "border" if it touches an enemy/unclaimed LAND cell (a frontier under pressure)
 function isBorderCell(s: SimState, cell: number): boolean {
@@ -189,7 +190,7 @@ export function applyIntervention(s: SimState, action: Action): InterventionResu
     for (let c = 0; c < s.n; c++) {
       if (s.owner[c] !== s.playerPolity) continue;
       if (action.scope === "border" && !isBorderCell(s, c)) continue;
-      s.solidarity[c] = Math.min(1, s.solidarity[c] + INVEST_DELTA);
+      s.solidarity[c] = Math.min(1, s.solidarity[c] + INVEST_DELTA * (1 - s.solidarity[c]));
       n++;
     }
     const where = action.scope === "border" ? "the frontier" : "the realm";
