@@ -126,6 +126,57 @@ export function playLog(lang: Lang, code: string | undefined, data: Record<strin
     default: return "";
   }
 }
+// Reigns-style dilemma cards: title + the two choices, per dilemma code
+export function playDilemma(lang: Lang, code: string, data: Record<string, string | number> = {}): { title: string; a: string; b: string } {
+  const name = String(data.name ?? "");
+  if (lang === "ko") {
+    switch (code) {
+      case "unrest": return { title: "제후들의 불만이 끓어오릅니다.", a: "변경 영지를 양보한다 (영토 −, 결속 +)", b: "강경 진압한다 (도박)" };
+      case "raiders": return { title: "국경에 습격이 잇따릅니다.", a: "국경을 요새화한다 (국경 결속 +)", b: "보복 원정을 보낸다 (무료 공격)" };
+      case "prosperity": return { title: "나라에 풍년이 들었습니다.", a: "대축제를 연다 (전국 결속 +)", b: "변경 개척에 투자한다 (국경 결속 +)" };
+      case "defector": return { title: `${name}의 제후가 망명을 청합니다.`, a: "받아들인다 (영지 획득, 관계 악화)", b: "돌려보낸다 (10년 불가침)" };
+    }
+  }
+  switch (code) {
+    case "unrest": return { title: "The lords seethe with discontent.", a: "Concede border fiefs (lose land, regain cohesion)", b: "Crush them (a gamble)" };
+    case "raiders": return { title: "Raiders harry the frontier.", a: "Fortify the border (frontier cohesion +)", b: "Send a punitive raid (free strike)" };
+    case "prosperity": return { title: "The realm prospers.", a: "Hold a great festival (realm cohesion +)", b: "Fund the frontier (border cohesion +)" };
+    case "defector": return { title: `A lord of ${name} begs asylum.`, a: "Take them in (gain their fief, sour relations)", b: "Send them back (10-year non-aggression)" };
+  }
+  return { title: code, a: "A", b: "B" };
+}
+export function playDilemmaOutcome(lang: Lang, code: string, data: Record<string, string | number> = {}): string {
+  const name = String(data.name ?? "");
+  const n = Number(data.n ?? 0);
+  if (lang === "ko") {
+    switch (code) {
+      case "unrestConcede": return `변경 ${n}개 영지를 양보했다. 민심이 가라앉는다.`;
+      case "unrestCrushOk": return "반란의 싹을 잘랐다. 권위가 섰다.";
+      case "unrestCrushFail": return "진압이 역효과를 냈다. 민심이 흉흉하다.";
+      case "raidersFortify": return `국경 ${n}개 셀을 요새화했다.`;
+      case "raidersRaid": return `보복 원정이 ${name}에게서 셀 ${n}개를 빼앗았다.`;
+      case "raidersNoTarget": return "원정대가 마땅한 목표를 찾지 못했다.";
+      case "prosperityFeast": return "대축제가 열렸다. 온 나라가 하나가 된다.";
+      case "prosperityFrontier": return `변경 ${n}개 셀에 개척민이 들어섰다.`;
+      case "defectorAccept": return `${name}의 영지가 귀부했다.`;
+      case "defectorReturn": return `${name}이(가) 10년 불가침을 약속했다.`;
+      default: return "";
+    }
+  }
+  switch (code) {
+    case "unrestConcede": return `Conceded ${n} border fiefs; the realm breathes again.`;
+    case "unrestCrushOk": return "The unrest was crushed; authority holds.";
+    case "unrestCrushFail": return "The crackdown backfired; resentment spreads.";
+    case "raidersFortify": return `Fortified ${n} border cells.`;
+    case "raidersRaid": return `The punitive raid took ${n} cells from ${name}.`;
+    case "raidersNoTarget": return "The raiders found no worthy target.";
+    case "prosperityFeast": return "A great festival unites the realm.";
+    case "prosperityFrontier": return `Settlers strengthen ${n} frontier cells.`;
+    case "defectorAccept": return `The defecting fief joins you, angering ${name}.`;
+    case "defectorReturn": return `${name} pledges 10 years of peace.`;
+    default: return "";
+  }
+}
 // intro + end-screen lines that interpolate values
 export function playRuleIntro(lang: Lang, name: string): string {
   return lang === "ko" ? `0년 — 당신은 ${name}을(를) 다스립니다.` : `Year 0 — you rule ${name}.`;

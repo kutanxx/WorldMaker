@@ -10,7 +10,8 @@ import { renderWorld, politicalOpts } from "./svgWorldRenderer";
 import { reignChronicle } from "../engine/reign";
 import { downloadBlob } from "./export";
 import { politicalLayer } from "./politicalLayer";
-import { t, playT, playYear, playLog, playRuleIntro, playFell, playStats, playDelta, playDefeatCause, type Lang } from "./i18n";
+import { t, playT, playYear, playLog, playRuleIntro, playFell, playStats, playDelta, playDefeatCause, playDilemma, playDilemmaOutcome, type Lang } from "./i18n";
+import { offerDilemma, resolveDilemma, type Dilemma } from "../engine/dilemma";
 
 const STANCES: Stance[] = ["aggressive", "defensive", "internal"];
 const LOW_COHESION = 0.4; // civil-war risk cue threshold
@@ -62,17 +63,21 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
     root.innerHTML = "";
     const s = initPlaySim(world, seed, playerPolity, "internal");
     let pendingAction: Action | null = null;
+    let dilemma: Dilemma | null = null;
     let over = false;
 
     const panel = document.createElement("div");
     panel.className = "play-panel controls";
+    const dilemmaBox = document.createElement("div");
+    dilemmaBox.className = "dilemma controls";
+    dilemmaBox.style.display = "none";
     const stage = document.createElement("div");
     stage.className = "stage";
     const actions = document.createElement("div");
     actions.className = "play-actions controls";
     const log = document.createElement("div");
     log.className = "chronicle";
-    root.append(panel, stage, actions, log);
+    root.append(panel, dilemmaBox, stage, actions, log);
 
     const mapFrame = document.createElement("div");
     mapFrame.className = "map-frame";
@@ -316,6 +321,7 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
           const conq = r.events.find((e) => e.type === "conquer" && e.otherId === s.playerPolity);
           return end(r.defeated, conq ? s.polities[conq.polityId].name : "");
         }
+        dilemma = offerDilemma(s); // an unanswered card expires with the decade
         renderAll();
       });
       // restore the pending pick into its select (map clicks and re-renders keep the UI in sync)
@@ -342,7 +348,31 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
       return e.polityId === s.playerPolity || e.otherId === s.playerPolity;
     }
 
-    function renderAll(): void { renderMap(); renderPanel(); renderActions(); }
+    // Reigns-style card: a free two-choice event aimed at the player (separate from the action slot)
+    function renderDilemma(): void {
+      dilemmaBox.innerHTML = "";
+      if (!dilemma || over) { dilemmaBox.style.display = "none"; return; }
+      dilemmaBox.style.display = "";
+      const d = playDilemma(lang, dilemma.code, dilemma.data);
+      const title = document.createElement("span");
+      title.className = "dilemma-title";
+      title.textContent = `❔ ${d.title}`;
+      dilemmaBox.appendChild(title);
+      for (const [key, label] of [["a", d.a], ["b", d.b]] as const) {
+        const btn = document.createElement("button");
+        btn.className = `dilemma-${key}`;
+        btn.textContent = label;
+        btn.addEventListener("click", () => {
+          const out = resolveDilemma(s, dilemma!, key);
+          dilemma = null;
+          appendLog(`❔ ${playDilemmaOutcome(lang, out.code, out.data)}`, true);
+          renderAll();
+        });
+        dilemmaBox.appendChild(btn);
+      }
+    }
+
+    function renderAll(): void { renderMap(); renderPanel(); renderActions(); renderDilemma(); }
 
     // re-render the live screen in the current language (keeps the accumulated log)
     function rerender(): void {
@@ -377,11 +407,14 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
       over = true;
       defeatedFlag = defeated;
       defeatCause = conqueror;
+      dilemma = null;
       actions.innerHTML = "";
       renderPanel();
+      renderDilemma();
       renderBanner();
     }
 
+    dilemma = offerDilemma(s); // sometimes the reign opens with a question
     renderAll();
     appendLog(playRuleIntro(lang, s.polities[playerPolity].name));
   }

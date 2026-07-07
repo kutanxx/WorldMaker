@@ -146,6 +146,28 @@ describe("playApp", () => {
     expect(rows.some((t) => /Founded the city of/.test(t))).toBe(true);
   });
 
+  it("dilemma cards appear during a reign; answering one logs the outcome and clears the card", () => {
+    const root = document.createElement("div");
+    createPlayApp(root, 1);
+    (root.querySelector(".nation-choice") as HTMLButtonElement).click();
+    let answered = false;
+    for (let i = 0; i < 50 && !answered; i++) {
+      const choice = root.querySelector(".dilemma-a") as HTMLButtonElement | null;
+      if (choice) {
+        const rowsBefore = root.querySelectorAll(".chronicle-event").length;
+        choice.click();
+        expect(root.querySelectorAll(".chronicle-event").length).toBe(rowsBefore + 1);
+        expect(root.querySelector(".dilemma-a")).toBeNull(); // card cleared
+        answered = true;
+        break;
+      }
+      const adv = root.querySelector(".btn-advance") as HTMLButtonElement | null;
+      if (!adv) break;
+      adv.click();
+    }
+    expect(answered).toBe(true); // conditions + probabilities make one near-certain in 50 turns
+  });
+
   it("logs a per-decade gain/loss line on advance", () => {
     const root = document.createElement("div");
     createPlayApp(root, 1);

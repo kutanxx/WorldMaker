@@ -111,6 +111,10 @@ svg.world .legend { pointer-events: none; }
 .chronicle-event.headline { font-weight: 600; }
 .front line { pointer-events: none; }
 .sea-target { pointer-events: none; }
+/* dilemma card: a question aimed at the ruler */
+.dilemma { border-left: 3px solid #a8842c; }
+.dilemma .dilemma-title { font-weight: 600; margin-right: 8px; }
+
 /* map-click targeting: enemy border regions (attack/landing) + own gold sites (found city) are live */
 .target-cell, .site-cell { cursor: pointer; }
 .target-cell:hover, .site-cell:hover { stroke: #2a2118; stroke-width: 1.2; }
