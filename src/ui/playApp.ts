@@ -147,7 +147,7 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
       }
       // clickable attack targets — drawn as the REGION the attack would actually take (the
       // breakthrough cluster from predictCapture), since conquest happens in chunks, not cells;
-      // the dropdown stays as the synced twin
+      // the command-bar status line is the synced twin
       const tg = document.createElementNS(NS, "g");
       tg.setAttribute("class", "attack-targets");
       for (const target of borderTargets(s)) {
@@ -172,7 +172,7 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
         });
         tg.appendChild(p);
       }
-      // clickable found-city sites: the dropdown's top candidates, gold-tinted on the player's own
+      // clickable found-city sites: the best candidates, gold-tinted on the player's own
       // land — click your land to build, click enemy land to attack (no spatial overlap)
       for (const site of foundCityTargets(s).slice(0, 20)) {
         const p = document.createElementNS(NS, "path");
@@ -343,7 +343,7 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
       const sw = document.createElement("span");
       sw.className = "nation-swatch";
       sw.style.background = nationColor(s.playerPolity);
-      chip.append(sw, document.createTextNode(` ${playT(lang, "yourNation")}: ${name}`));
+      chip.append(sw, document.createTextNode(` ${playT(lang, "yourNation")}`)); // name is in the header; chip carries the colour
       panel.insertBefore(chip, panel.firstChild);
 
       // ① momentum headline — the real new signal
