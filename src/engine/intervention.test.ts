@@ -3,7 +3,7 @@ import { generateWorld } from "./world";
 import { DEFAULT_PARAMS } from "../types/world";
 import { initSim, stepSim, aggregate, contestStrength, CONQUEST_SOL, CITY_MIN_GAP, CITY_SOL_FLOOR, CITY_POWER_BONUS, PEACE_TICKS } from "./historySim";
 import { OCEAN } from "./terrain";
-import { borderTargets, applyIntervention, frontEdges, foundCityTargets, hostileNeighbors, INVEST_DELTA, ATTACK_FOLLOW_MAX } from "./intervention";
+import { borderTargets, applyIntervention, frontEdges, foundCityTargets, hostileNeighbors, predictCapture, INVEST_DELTA, ATTACK_FOLLOW_MAX } from "./intervention";
 
 const small = { ...DEFAULT_PARAMS, width: 300, height: 300, cellCount: 400, townCount: 6 };
 function playerState(seed: number) {
@@ -131,6 +131,39 @@ describe("attack breakthrough (follow-on capture)", () => {
         expect(s.solidarity[c]).toBeCloseTo(CONQUEST_SOL, 6);
       }
     }
+  });
+
+  it("predictCapture previews EXACTLY what the attack then captures, without mutating state", () => {
+    const s = biggestPlayerState(1);
+    for (let c = 0; c < s.n; c++) {
+      if (s.owner[c] === s.playerPolity) s.solidarity[c] = 1;
+      else if (s.owner[c] >= 0) s.solidarity[c] = 0;
+    }
+    const target = borderTargets(s).find((t) => t.capturable && !t.sea)!;
+    const ownerBefore = Int32Array.from(s.owner);
+    const solBefore = Float32Array.from(s.solidarity);
+    const predicted = predictCapture(s, target.cell);
+    expect(predicted.length).toBeGreaterThanOrEqual(1);
+    expect(predicted[0]).toBe(target.cell);
+    // prediction left the state byte-identical
+    expect(s.owner.every((v, i) => v === ownerBefore[i])).toBe(true);
+    expect(s.solidarity.every((v, i) => v === solBefore[i])).toBe(true);
+    // the real attack captures the same set
+    const r = applyIntervention(s, { type: "attack", cell: target.cell });
+    expect(r.ok).toBe(true);
+    const actual: number[] = [];
+    for (let c = 0; c < s.n; c++) if (s.owner[c] === s.playerPolity && ownerBefore[c] !== s.playerPolity) actual.push(c);
+    expect(new Set(actual)).toEqual(new Set(predicted));
+    expect(Number(r.data!.n)).toBe(predicted.length);
+  });
+
+  it("predictCapture is empty for a repulsed or invalid attack", () => {
+    const s = biggestPlayerState(1);
+    for (let c = 0; c < s.n; c++) if (s.owner[c] === s.playerPolity) s.solidarity[c] = 0; // weak player
+    const target = borderTargets(s).find((t) => !t.capturable);
+    if (target) expect(predictCapture(s, target.cell)).toEqual([]);
+    const own = s.owner.findIndex((o) => o === s.playerPolity);
+    expect(predictCapture(s, own)).toEqual([]);
   });
 
   it("reports the captured count in data.n (at least the picked cell)", () => {

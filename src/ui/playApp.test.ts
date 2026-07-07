@@ -105,6 +105,20 @@ describe("playApp", () => {
     expect(root.querySelector(".target-cell.selected")).not.toBeNull();
   });
 
+  it("capturable targets are drawn as the whole region the attack would take (data-gain), and the select advertises it", () => {
+    const root = document.createElement("div");
+    createPlayApp(root, 1);
+    (root.querySelector(".nation-choice") as HTMLButtonElement).click();
+    const caps = [...root.querySelectorAll(".target-cell.capturable")];
+    expect(caps.length).toBeGreaterThan(0);
+    for (const c of caps) expect(Number(c.getAttribute("data-gain"))).toBeGreaterThanOrEqual(1);
+    // a breakthrough region is one path made of several cell subpaths (multiple "M" commands)
+    const multi = caps.find((c) => Number(c.getAttribute("data-gain")) > 1);
+    if (multi) expect((multi.getAttribute("d")!.match(/M/g) || []).length).toBe(Number(multi.getAttribute("data-gain")));
+    const opts = [...root.querySelectorAll(".attack-select option")].map((o) => o.textContent || "");
+    expect(opts.some((t) => /×\d/.test(t))).toBe(true);
+  });
+
   it("logs a per-decade gain/loss line on advance", () => {
     const root = document.createElement("div");
     createPlayApp(root, 1);

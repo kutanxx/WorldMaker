@@ -1,6 +1,6 @@
 import { OCEAN } from "./terrain";
 import type { SimState } from "./historySim";
-import { aggregate, contestStrength, CONQUEST_SOL, AMPHIB_MULT, CONTEST_THRESH, CITY_MIN_GAP, PEACE_TICKS, YEARS_PER_TICK } from "./historySim";
+import { aggregate, contestStrength, CONQUEST_SOL, AMPHIB_MULT, CONTEST_THRESH, CITY_MIN_GAP, PEACE_TICKS, YEARS_PER_TICK, type Agg } from "./historySim";
 
 export type Action =
   | { type: "attack"; cell: number }
@@ -118,6 +118,50 @@ export function foundCityTargets(s: SimState): FoundTarget[] {
   return out.sort((a, b) => b.sol - a.sol);
 }
 
+// resolves a WON attack in place: flips the target, then the breakthrough — the assault carries
+// into adjacent cells of the SAME defender that also lose the same contest (honest low-agency:
+// only cells the player could take anyway), capped at 1+ATTACK_FOLLOW_MAX. Returns every captured
+// cell, target first. The ONLY writer of attack captures, so the UI's preview cannot drift from it.
+function resolveCapture(s: SimState, target: number, def: number, amphib: boolean, agg: Agg[]): number[] {
+  s.owner[target] = s.playerPolity;
+  s.solidarity[target] = CONQUEST_SOL;
+  const cells = [target];
+  for (const nb of s.grid.neighbors[target]) {
+    if (cells.length >= 1 + ATTACK_FOLLOW_MAX) break;
+    if (s.terrain[nb] === OCEAN || s.owner[nb] !== def) continue;
+    const fAtk = contestStrength(s, agg, s.playerPolity, nb, target) * (amphib ? AMPHIB_MULT : 1);
+    const fDef = contestStrength(s, agg, def, nb, nb);
+    if (fAtk * ATTACK_EDGE >= fDef) {
+      s.owner[nb] = s.playerPolity;
+      s.solidarity[nb] = CONQUEST_SOL;
+      cells.push(nb);
+    }
+  }
+  return cells;
+}
+
+// what an attack on `cell` would capture RIGHT NOW (empty when it would be repulsed/invalid) —
+// the UI's region highlight. Runs the REAL resolution on the live state, then restores every
+// touched cell, so the preview is exact by construction.
+export function predictCapture(s: SimState, cell: number): number[] {
+  if (s.playerPolity < 0) return [];
+  const def = s.owner[cell];
+  if (def < 0 || def === s.playerPolity) return [];
+  const landCell = launchCell(s, cell);
+  const amphib = landCell < 0;
+  const solCell = amphib ? seaLaunchCell(s, cell) : landCell;
+  if (solCell < 0) return [];
+  const agg = aggregate(s);
+  const atkStr = contestStrength(s, agg, s.playerPolity, cell, solCell) * (amphib ? AMPHIB_MULT : 1);
+  if (atkStr * ATTACK_EDGE < contestStrength(s, agg, def, cell, cell)) return [];
+  const touched = [cell, ...s.grid.neighbors[cell]];
+  const savedOwner = touched.map((c) => s.owner[c]);
+  const savedSol = touched.map((c) => s.solidarity[c]);
+  const cells = resolveCapture(s, cell, def, amphib, agg);
+  touched.forEach((c, i) => { s.owner[c] = savedOwner[i]; s.solidarity[c] = savedSol[i]; });
+  return cells;
+}
+
 export function applyIntervention(s: SimState, action: Action): InterventionResult {
   if (action.type === "attack") {
     const target = action.cell;
@@ -133,23 +177,7 @@ export function applyIntervention(s: SimState, action: Action): InterventionResu
     const defStr = contestStrength(s, agg, def, target, target);
     const name = s.polities[def].name;
     if (atkStr * ATTACK_EDGE >= defStr) {
-      s.owner[target] = s.playerPolity;
-      s.solidarity[target] = CONQUEST_SOL;
-      // breakthrough: the assault carries into adjacent cells of the SAME defender that also lose
-      // the same contest (honest low-agency: only cells the player could take anyway) — a
-      // well-picked attack reads as a real offensive instead of a single-cell nibble.
-      let captured = 1;
-      for (const nb of s.grid.neighbors[target]) {
-        if (captured >= 1 + ATTACK_FOLLOW_MAX) break;
-        if (s.terrain[nb] === OCEAN || s.owner[nb] !== def) continue;
-        const fAtk = contestStrength(s, agg, s.playerPolity, nb, target) * (amphib ? AMPHIB_MULT : 1);
-        const fDef = contestStrength(s, agg, def, nb, nb);
-        if (fAtk * ATTACK_EDGE >= fDef) {
-          s.owner[nb] = s.playerPolity;
-          s.solidarity[nb] = CONQUEST_SOL;
-          captured++;
-        }
-      }
+      const captured = resolveCapture(s, target, def, amphib, agg).length;
       const how = amphib ? "Landed on and captured" : "Captured";
       const what = captured > 1 ? `${captured} cells` : "a cell";
       return { ok: true, message: `${how} ${what} from ${name}.`, code: amphib ? "landed" : "captured", data: { name, n: captured } };

@@ -3,7 +3,7 @@ import { DEFAULT_PARAMS } from "../types/world";
 import { aggregate, YEARS_PER_TICK } from "../engine/historySim";
 import { initPlaySim, playTurn, setStance, scorecard, playerCells } from "../engine/playSim";
 import type { Stance } from "../engine/historySim";
-import { borderTargets, frontEdges, foundCityTargets, hostileNeighbors, type Action } from "../engine/intervention";
+import { borderTargets, frontEdges, foundCityTargets, hostileNeighbors, predictCapture, type Action } from "../engine/intervention";
 import { sharedEdge } from "../engine/borders";
 import { cellPath } from "./svgPaths";
 import { renderWorld, politicalOpts } from "./svgWorldRenderer";
@@ -106,20 +106,24 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
         tx.textContent = "⛵";
         g.appendChild(tx);
       }
-      // clickable attack targets: an invisible-ish overlay per enemy border cell (capturable ones
-      // tinted) — the intuitive "point at the map" way to aim; the dropdown stays as the synced twin
+      // clickable attack targets — drawn as the REGION the attack would actually take (the
+      // breakthrough cluster from predictCapture), since conquest happens in chunks, not cells;
+      // the dropdown stays as the synced twin
       const tg = document.createElementNS(NS, "g");
       tg.setAttribute("class", "attack-targets");
       for (const target of borderTargets(s)) {
+        const cluster = target.capturable ? predictCapture(s, target.cell) : [];
+        const cells = cluster.length ? cluster : [target.cell];
         const p = document.createElementNS(NS, "path");
-        p.setAttribute("d", cellPath(world.grid.polygons[target.cell]));
+        p.setAttribute("d", cells.map((c) => cellPath(world.grid.polygons[c])).join(""));
         const selected = pendingAction?.type === "attack" && pendingAction.cell === target.cell;
         p.setAttribute("class", `target-cell${target.capturable ? " capturable" : ""}${selected ? " selected" : ""}`);
         p.setAttribute("data-cell", String(target.cell));
+        p.setAttribute("data-gain", String(cluster.length));
         p.setAttribute("fill", target.capturable ? "rgba(63,158,87,0.16)" : "rgba(0,0,0,0)");
         if (selected) { p.setAttribute("stroke", "#2a2118"); p.setAttribute("stroke-width", "1.6"); }
         const tip = document.createElementNS(NS, "title");
-        tip.textContent = `${target.sea ? "⛵ " : ""}${target.ownerName} ${target.capturable ? "✓" : "✗"}`;
+        tip.textContent = `${target.sea ? "⛵ " : ""}${target.ownerName} ${target.capturable ? `✓ ×${cluster.length}` : "✗"}`;
         p.appendChild(tip);
         p.addEventListener("click", () => {
           pendingAction = { type: "attack", cell: target.cell };
@@ -199,7 +203,8 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
       for (const target of borderTargets(s)) {
         const opt = document.createElement("option");
         opt.value = String(target.cell);
-        opt.textContent = `${target.sea ? "⛵ " : ""}${target.ownerName} (cell ${target.cell})${target.capturable ? " ✓" : " ✗"}`;
+        const gain = target.capturable ? ` ✓ ×${predictCapture(s, target.cell).length}` : " ✗";
+        opt.textContent = `${target.sea ? "⛵ " : ""}${target.ownerName} (cell ${target.cell})${gain}`;
         sel.appendChild(opt);
       }
 
