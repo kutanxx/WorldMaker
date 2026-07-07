@@ -181,6 +181,7 @@ describe("playApp", () => {
     }
     expect(banner).not.toBeNull();
     expect(/Conquered by |endured/.test(banner!.textContent || "")).toBe(true);
+    expect(banner!.querySelector(".reign-export")).not.toBeNull(); // downloadable reign chronicle
   });
 
   it("offers an invest action that runs and logs on advance", () => {

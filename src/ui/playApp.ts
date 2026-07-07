@@ -7,6 +7,8 @@ import { borderTargets, frontEdges, foundCityTargets, hostileNeighbors, predictC
 import { sharedEdge } from "../engine/borders";
 import { cellPath } from "./svgPaths";
 import { renderWorld, politicalOpts } from "./svgWorldRenderer";
+import { reignChronicle } from "../engine/reign";
+import { downloadBlob } from "./export";
 import { politicalLayer } from "./politicalLayer";
 import { t, playT, playYear, playLog, playRuleIntro, playFell, playStats, playDelta, playDefeatCause, type Lang } from "./i18n";
 
@@ -358,6 +360,16 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
       const rankText = sc.rank > 0 ? `${sc.rank} / ${sc.nations}` : "—";
       const cause = defeatedFlag && defeatCause ? ` ${playDefeatCause(lang, defeatCause)}` : "";
       banner.innerHTML = `<h2>${head}${cause}</h2><p>${playStats(lang, sc.peakCells, sc.cells, rankText, sc.citiesFounded)}</p>`;
+      // the payoff artifact: download your reign as a readable chronicle (win or lose)
+      const exp = document.createElement("button");
+      exp.className = "reign-export";
+      exp.textContent = playT(lang, "reignExport");
+      exp.addEventListener("click", () => {
+        const md = reignChronicle(s, world.name, lang);
+        const nation = s.polities[s.playerPolity].name.replace(/[^\p{L}\p{N}]+/gu, "_");
+        downloadBlob(`${nation}_reign.md`, new Blob([md], { type: "text/markdown" }));
+      });
+      banner.appendChild(exp);
       root.insertBefore(banner, log);
     }
 

@@ -66,6 +66,7 @@ export const PLAY_UI: Record<Lang, Record<string, string>> = {
     foundPlaceholder: "— found a city —", peacePlaceholder: "— sue for peace —",
     investRealmOpt: "realm (all cells)", investFrontierOpt: "frontier (border cells)",
     advance: "Advance year ▶", endured: "You endured 500 years.",
+    reignExport: "📜 Reign chronicle",
   },
   ko: {
     chooseRealm: "국가를 선택하세요", cells: "셀", cohesion: "결속", threats: "위협",
@@ -79,6 +80,7 @@ export const PLAY_UI: Record<Lang, Record<string, string>> = {
     foundPlaceholder: "— 도시 건설 —", peacePlaceholder: "— 강화 요청 —",
     investRealmOpt: "전국 (모든 셀)", investFrontierOpt: "국경 (접경 셀)",
     advance: "다음 해로 ▶", endured: "당신은 500년을 버텼습니다.",
+    reignExport: "📜 치세 연대기",
   },
 };
 export function playT(lang: Lang, key: string): string {
