@@ -132,6 +132,19 @@ describe("victoryProgress", () => {
     expect(victoryProgress(s).conquest).toBe(true);
   });
 
+  it("conquest stays false in a player-only world (initialRivals === 0 guard)", () => {
+    const { world } = generateWorld({ ...small, seed: 1 });
+    const s = initPlaySim(world, 1, 0, "internal");
+    // make the player the only original nation: no other polity counts as an initial rival
+    for (let o = 0; o < s.polities.length; o++) {
+      if (o !== s.playerPolity) s.polities[o].origin = "fragment";
+    }
+    const vp = victoryProgress(s);
+    expect(vp.initialRivals).toBe(0);
+    expect(vp.rivalsLeft).toBe(0);
+    expect(vp.conquest).toBe(false); // guard: no rivals to conquer => not a conquest win
+  });
+
   it("prosperityGate needs >=PROSPER_CITIES held cities AND cohesion >= PROSPER_COH", () => {
     const { world } = generateWorld({ ...small, seed: 1 });
     const s = initPlaySim(world, 1, 0, "internal");
