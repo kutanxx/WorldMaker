@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { generateWorld } from "./world";
 import { DEFAULT_PARAMS } from "../types/world";
-import { initPlaySim, playTurn, playerCells, scorecard, setStance } from "./playSim";
+import { initPlaySim, playTurn, playerCells, scorecard, setStance, victoryProgress, PROSPER_CITIES, PROSPER_COH, PROSPER_STREAK } from "./playSim";
 import { applyIntervention, foundCityTargets } from "./intervention";
 
 const small = { ...DEFAULT_PARAMS, width: 300, height: 300, cellCount: 400, townCount: 6 };
@@ -103,5 +103,47 @@ describe("playSim", () => {
       expect(r.defeated).toBe(s.owner[s.capitals[s.playerPolity]] !== s.playerPolity);
       if (r.finished) break;
     }
+  });
+});
+
+describe("victoryProgress", () => {
+  const small = { ...DEFAULT_PARAMS, width: 300, height: 300, cellCount: 400, townCount: 6 };
+  function playerCellsList(s: ReturnType<typeof initPlaySim>): number[] {
+    const cells: number[] = [];
+    for (let c = 0; c < s.n; c++) if (s.owner[c] === s.playerPolity) cells.push(c);
+    return cells;
+  }
+
+  it("exports the measurement-seeded constants", () => {
+    expect(PROSPER_CITIES).toBe(6);
+    expect(PROSPER_COH).toBe(0.55);
+    expect(PROSPER_STREAK).toBe(3);
+  });
+
+  it("conquest is true only when every initial rival is dead (and there was >=1)", () => {
+    const { world } = generateWorld({ ...small, seed: 1 });
+    const s = initPlaySim(world, 1, 0, "internal");
+    expect(victoryProgress(s).conquest).toBe(false); // rivals alive at start
+    expect(victoryProgress(s).initialRivals).toBeGreaterThan(0);
+    for (let o = 0; o < s.polities.length; o++) {
+      if (o !== s.playerPolity && s.polities[o].origin === "initial") s.alive[o] = false;
+    }
+    expect(victoryProgress(s).rivalsLeft).toBe(0);
+    expect(victoryProgress(s).conquest).toBe(true);
+  });
+
+  it("prosperityGate needs >=PROSPER_CITIES held cities AND cohesion >= PROSPER_COH", () => {
+    const { world } = generateWorld({ ...small, seed: 1 });
+    const s = initPlaySim(world, 1, 0, "internal");
+    const mine = playerCellsList(s);
+    for (const c of mine) s.solidarity[c] = 0.7;              // cohesion high
+    for (let i = 0; i < PROSPER_CITIES; i++) s.foundedCities.add(mine[i]); // 6 held cities
+    expect(victoryProgress(s).prosperityGate).toBe(true);
+    s.foundedCities.delete(mine[0]);                          // now only 5
+    expect(victoryProgress(s).prosperityGate).toBe(false);
+    s.foundedCities.add(mine[0]);
+    for (const c of mine) s.solidarity[c] = 0.3;              // cohesion too low
+    expect(victoryProgress(s).cohesionOk).toBe(false);
+    expect(victoryProgress(s).prosperityGate).toBe(false);
   });
 });

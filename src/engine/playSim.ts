@@ -59,3 +59,37 @@ export function scorecard(s: SimState): Scorecard {
   // rank counts every living nation above its 0 cells and reports the impossible "N+1 of N".
   return { cells: mine, peakCells: s.peakCells, rank: alive ? rank : 0, nations, survivedYears: s.tick * YEARS_PER_TICK, alive, citiesFounded: s.foundedCities.size, citiesHeld };
 }
+
+// --- victory conditions (play layer; measurement-seeded, tunable) ---
+export const PROSPER_CITIES = 6;    // held founded cities for the prosperity path
+export const PROSPER_COH = 0.55;    // avg cohesion floor for prosperity
+export const PROSPER_STREAK = 3;    // consecutive turns the prosperity gate must hold
+
+export interface VictoryProgress {
+  rivalsLeft: number;      // living initial rivals (excludes the player)
+  initialRivals: number;   // count of initial polities other than the player
+  cities: number;          // player-held founded cities
+  cohesionOk: boolean;     // avg cohesion >= PROSPER_COH
+  year: number;            // s.tick * YEARS_PER_TICK
+  conquest: boolean;       // every initial rival eliminated (and there was >=1)
+  prosperityGate: boolean; // cities >= PROSPER_CITIES && cohesionOk (the per-turn gate)
+}
+
+export function victoryProgress(s: SimState): VictoryProgress {
+  const agg = aggregate(s);
+  let initialRivals = 0, rivalsLeft = 0;
+  for (let o = 0; o < s.polities.length; o++) {
+    if (o === s.playerPolity || s.polities[o].origin !== "initial") continue;
+    initialRivals++;
+    if (s.alive[o]) rivalsLeft++;
+  }
+  let cities = 0;
+  for (const fc of s.foundedCities) if (s.owner[fc] === s.playerPolity) cities++;
+  const cohesionOk = (agg[s.playerPolity]?.avg ?? 0) >= PROSPER_COH;
+  return {
+    rivalsLeft, initialRivals, cities, cohesionOk,
+    year: s.tick * YEARS_PER_TICK,
+    conquest: initialRivals >= 1 && rivalsLeft === 0,
+    prosperityGate: cities >= PROSPER_CITIES && cohesionOk,
+  };
+}
