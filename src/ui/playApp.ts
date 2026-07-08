@@ -15,6 +15,7 @@ import { t, playT, playYear, playLog, playRuleIntro, playFell, playStats, playDe
 import { offerDilemma, resolveDilemma, type Dilemma } from "../engine/dilemma";
 import { computeStanding, type Standing } from "../engine/standing";
 import { PLAYER_COLOR } from "./nationPalette";
+import { deconflictLabels } from "./deconflict";
 import { randomSeed } from "./urlState";
 
 const STANCES: Stance[] = ["aggressive", "defensive", "internal"];
@@ -256,6 +257,7 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
       }
       slot.parentNode!.insertBefore(g, slot.nextSibling); // above political fills, below markers
       mapFrame.appendChild(svg);
+      deconflictLabels(svg); // hide colliding lower-priority labels once the map is mounted
     }
 
     // the "what do I do?" fixes: an opening how-to card, a map legend, and a per-turn advice line
