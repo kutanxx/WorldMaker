@@ -94,6 +94,7 @@ describe("politicalLayer", () => {
     const label = g.querySelector(".nation-label.player") as SVGElement;
     expect(label).not.toBeNull();
     expect(label.textContent!.startsWith("♛")).toBe(true);
+    expect(label.getAttribute("fill")).toBe(PLAYER_COLOR); // player label text is the signature colour, not near-black
   });
 
   it("leaves fills/labels unchanged when no playerPolity is passed (Version A path)", () => {

@@ -97,8 +97,8 @@ export function politicalLayer(
         const isPlayer = id === opts.playerPolity;
         const t = svgEl("text", {
           class: isPlayer ? "nation-label player" : "nation-label", x: c.x, y: c.y, "text-anchor": "middle",
-          "font-size": 11, fill: "#2a2118", stroke: "#f3ead2", "stroke-width": 2.5,
-          "paint-order": "stroke", "stroke-linejoin": "round",
+          "font-size": 11, fill: isPlayer ? (opts.playerColor ?? "#2a2118") : "#2a2118",
+          stroke: "#f3ead2", "stroke-width": 2.5, "paint-order": "stroke", "stroke-linejoin": "round",
         });
         t.textContent = isPlayer ? `♛ ${name}` : name;
         labels.appendChild(t);
