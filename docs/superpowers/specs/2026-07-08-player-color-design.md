@@ -12,21 +12,22 @@ Even after the prior nation chip + capital crown + faint own-tint, the user stil
 
 - **Color-coded factions are a genre convention** — each side has a fixed, distinct color; the player's own side is reserved (often blue). ([Color-Coded Armies](https://tvtropes.org/pmwiki/pmwiki.php/Main/ColorCodedArmies)) So "the player's nation is always THE signature color" is standard and eliminates swatch-matching.
 - **Why reserved fill, not label-color-only or an outline** (self-critique of the alternatives): the prior attempt already failed *because* it relied on matching a swatch to a blob. Recoloring only the label doesn't make the territory *extent* pop; a bold territory outline would sit on the same edges as the existing green/red front-line overlay and add clutter. Only a **reserved fill color** removes matching entirely — "my realm is always this color."
-- **Color-clash constraint:** the play map already uses pale blue (ocean), red (`#c0473f` threat line), green (`#3f9e57` push), a blue tint (sea-landing), and gold (city sites), plus 12 muted AI hues. The signature must be a **high-saturation color clearly distinct from all of those** — a vivid royal violet works (much more saturated than the muted palette purple, unlike ocean-blue/threat-red/push-green/site-gold).
-- **Colorblind safety:** the signature color is backed by **redundant non-color cues** — the capital ♛ crown (kept) and a ♛-marked bold nation label — so identification never depends on hue alone.
+- **Color-clash constraint:** the play map already uses pale blue (ocean), red (`#c0473f` threat line), green (`#3f9e57` push), a blue tint (sea-landing), and gold (city sites), plus 12 muted earthy AI hues. The signature must be a **high-saturation color clearly distinct from all of those**.
+- **Colorblind research drove the hue choice.** Blue, orange, and magenta are the safest across color-vision deficiencies, but a key rule is **"avoid pairing blue with purple"** — and this map is full of blues (ocean, landing tint, two AI blues), so a violet/purple signature (my first instinct) risks blue-purple confusion. **Magenta / reddish-purple is the right pick**: it is the one hue family entirely absent from the map (no pinks anywhere), it is a colorblind-safe color in the Okabe-Ito standard (its reddish-purple), and it pops on parchment through saturation contrast. Sources: [Color-Coded Armies](https://tvtropes.org/pmwiki/pmwiki.php/Main/ColorCodedArmies), [Venngage colorblind palettes](https://venngage.com/blog/color-blind-friendly-palette/), [David Nichols — Coloring for Colorblindness](https://davidmathlogic.com/colorblind/).
+- **Redundant non-color cues** back the hue anyway — the capital ♛ crown (kept) and a ♛-marked bold nation label — so identification never depends on hue alone.
 
 ## Design
 
 In play mode only, the player's nation is rendered in a **reserved signature color** and its label is marked:
 
-- **Reserved fill:** `PLAYER_COLOR = "#6a2cc4"` (a vivid royal violet; the exact hex is the one thing to eyeball/tune). The player's territory fills with `PLAYER_COLOR` at a slightly stronger opacity (0.72 vs the 0.58 AI fill) so it reads as clearly "yours" regardless of which nation was picked. The nation chip's swatch uses the same `PLAYER_COLOR` (so chip ↔ map match trivially).
+- **Reserved fill:** `PLAYER_COLOR = "#c0247a"` (a deep magenta/fuchsia — the colorblind-safe reddish-purple family, chosen deeper than the muted Okabe-Ito reference so it reads assertively as a territory fill; the exact hex is the one thing to eyeball/tune). The player's territory fills with `PLAYER_COLOR` at a slightly stronger opacity (0.72 vs the 0.58 AI fill) so it reads as clearly "yours" regardless of which nation was picked. The nation chip's swatch uses the same `PLAYER_COLOR` (so chip ↔ map match trivially).
 - **Marked label:** the player's nation label renders bold with a `♛ ` prefix (`class="nation-label player"`), reinforcing identity when zoomed and for colorblind players.
 - **Capital ♛ crown:** kept as-is.
 - **Remove the faint own-tint** overlay (superseded by the reserved fill; it was too weak to matter).
 
 ## Architecture
 
-- `src/ui/nationPalette.ts`: `export const PLAYER_COLOR = "#6a2cc4";` (render-time cosmetic, like `NATION_PALETTE` — not seeded).
+- `src/ui/nationPalette.ts`: `export const PLAYER_COLOR = "#c0247a";` (render-time cosmetic, like `NATION_PALETTE` — not seeded).
 - `src/ui/politicalLayer.ts`: extend `PoliticalOpts` with optional `playerPolity?: number` and `playerColor?: string`. In the fills loop, when `id === opts.playerPolity` use `opts.playerColor ?? nationColor(id)` and fill-opacity `0.72`. In the labels loop, when `id === opts.playerPolity` add the `player` class and prefix the text with `♛ `. When `playerPolity` is undefined (Version A), behavior is byte-identical to today.
 - `src/ui/playApp.ts`:
   - `renderMap`: pass `playerPolity: s.playerPolity, playerColor: PLAYER_COLOR` in the `politicalLayer(...)` opts; delete the own-tint block (the `mine`/`.own-tint` path). Keep the capital-crown block.
