@@ -1,7 +1,7 @@
 import { generateWorld } from "../engine/world";
 import { DEFAULT_PARAMS } from "../types/world";
-import { aggregate, YEARS_PER_TICK } from "../engine/historySim";
-import { initPlaySim, playTurn, setStance, scorecard } from "../engine/playSim";
+import { aggregate, YEARS_PER_TICK, TICKS } from "../engine/historySim";
+import { initPlaySim, playTurn, setStance, scorecard, victoryProgress, PROSPER_STREAK } from "../engine/playSim";
 import type { Stance } from "../engine/historySim";
 import { borderTargets, frontEdges, foundCityTargets, hostileNeighbors, predictCapture, INVEST_DELTA, type Action } from "../engine/intervention";
 import { OCEAN } from "../engine/terrain";
@@ -18,6 +18,8 @@ import { nationColor } from "./nationPalette";
 import { randomSeed } from "./urlState";
 
 const STANCES: Stance[] = ["aggressive", "defensive", "internal"];
+
+type VictoryKind = "conquest" | "prosperity" | "endurance" | "defeat";
 
 export function createPlayApp(root: HTMLElement, seed: number): void {
   root.innerHTML = "";
@@ -70,6 +72,7 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
     let over = false;
     let showHelp = true; // the how-to-rule card opens the reign; dismissible, reopenable via "?"
     let momentum: { dCells: number; dCohesionDir: -1 | 0 | 1; lost: number } | null = null;
+    let prosperStreak = 0;
 
     const howtoBox = document.createElement("div");
     howtoBox.className = "howto-slot";
@@ -487,9 +490,17 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
           const hl = isPlayerEvent(e);
           appendLog(hl ? `${HEADLINE_ICON[e.type] ?? "•"} ${e.text}` : e.text, hl);
         }
-        if (r.finished) {
+        const vp = victoryProgress(s);
+        prosperStreak = vp.prosperityGate ? prosperStreak + 1 : 0;
+        const kind: VictoryKind | null =
+          !s.alive[s.playerPolity] ? "defeat"
+            : vp.conquest ? "conquest"
+              : prosperStreak >= PROSPER_STREAK ? "prosperity"
+                : s.tick >= TICKS ? "endurance"
+                  : null;
+        if (kind) {
           const conq = r.events.find((e) => e.type === "conquer" && e.otherId === s.playerPolity);
-          return end(r.defeated, conq ? s.polities[conq.polityId].name : "");
+          return end(kind, kind === "defeat" && conq ? s.polities[conq.polityId].name : "");
         }
         dilemma = offerDilemma(s); // an unanswered card expires with the decade
         renderAll();
@@ -546,16 +557,20 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
       if (over) { renderMap(); renderPanel(); renderBanner(); } else renderAll();
     }
 
-    let defeatedFlag = false;
+    let victoryKind: VictoryKind = "endurance";
     let defeatCause = "";
     function renderBanner(): void {
       root.querySelector(".stub")?.remove();
       const sc = scorecard(s);
       const banner = document.createElement("div");
       banner.className = "stub";
-      const head = defeatedFlag ? playFell(lang, sc.survivedYears) : playT(lang, "endured");
+      const head =
+        victoryKind === "defeat" ? playFell(lang, sc.survivedYears)
+          : victoryKind === "conquest" ? playT(lang, "winConquest")
+            : victoryKind === "prosperity" ? playT(lang, "winProsperity")
+              : playT(lang, "endured");
       const rankText = sc.rank > 0 ? `${sc.rank} / ${sc.nations}` : "—";
-      const cause = defeatedFlag && defeatCause ? ` ${playDefeatCause(lang, defeatCause)}` : "";
+      const cause = victoryKind === "defeat" && defeatCause ? ` ${playDefeatCause(lang, defeatCause)}` : "";
       banner.innerHTML = `<h2>${head}${cause}</h2><p>${playStats(lang, sc.peakCells, sc.cells, rankText, sc.citiesFounded)}</p>`;
       // the payoff artifact: download your reign as a readable chronicle (win or lose)
       const exp = document.createElement("button");
@@ -585,10 +600,10 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
       col.insertBefore(banner, log);
     }
 
-    function end(defeated: boolean, conqueror = ""): void {
+    function end(kind: VictoryKind, cause = ""): void {
       over = true;
-      defeatedFlag = defeated;
-      defeatCause = conqueror;
+      victoryKind = kind;
+      defeatCause = cause;
       dilemma = null;
       actions.innerHTML = "";
       renderPanel();

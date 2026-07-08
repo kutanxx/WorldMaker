@@ -382,4 +382,18 @@ describe("playApp", () => {
     (root.querySelector(".btn-advance") as HTMLButtonElement).click();
     expect(root.querySelector(".play-year")!.textContent).not.toBe(yearBefore);
   });
+
+  it("a reign that runs the full 500 years ends with the endurance victory banner", () => {
+    const root = document.createElement("div");
+    createPlayApp(root, 1);
+    (root.querySelector(".nation-choice") as HTMLButtonElement).click();
+    for (let i = 0; i < 60; i++) {
+      const adv = root.querySelector(".btn-advance") as HTMLButtonElement | null;
+      if (!adv) break;
+      adv.click();
+    }
+    const h2 = root.querySelector(".stub h2")!.textContent || "";
+    expect(h2).toMatch(/endured|500/i);   // endurance head, not a defeat/other head
+    expect(root.querySelector(".btn-play-again")).not.toBeNull(); // restart still present
+  });
 });
