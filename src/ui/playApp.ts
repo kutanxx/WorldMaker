@@ -306,10 +306,13 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
       return "adviceBuild";
     }
 
-    function meterRow(cls: string, label: string, value: string, state: string): HTMLElement {
+    function meterRow(cls: string, label: string, value: string, state: string, tooltip: string): HTMLElement {
       const row = document.createElement("div");
       row.className = `meter ${cls} ${state}`;
-      const l = document.createElement("span"); l.className = "meter-label"; l.textContent = label;
+      if (tooltip) row.title = tooltip;
+      const l = document.createElement("span");
+      l.className = tooltip ? "meter-label hint" : "meter-label";
+      l.textContent = label;
       const v = document.createElement("span"); v.className = "meter-value"; v.textContent = value;
       row.append(l, v);
       return row;
@@ -358,17 +361,22 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
       const strengthWord = playT(lang,
         st.strength === "strong" ? "strengthStrong" : st.strength === "weak" ? "strengthWeak" : "strengthEven");
       const strengthVal = `${strengthWord} (${st.cells} ${playT(lang, "vs")} ${Math.round(st.rivalAvgCells)})`;
-      meters.appendChild(meterRow("meter-strength", playT(lang, "strength"), strengthVal, st.strength));
+      meters.appendChild(meterRow("meter-strength", playT(lang, "strength"), strengthVal, st.strength, playT(lang, "tipStrength")));
       const cohWord = playT(lang,
         st.cohesionState === "stable" ? "solStable" : st.cohesionState === "shaky" ? "solShaky" : "solDanger");
       const warn = st.cohesionState === "danger" ? "⚠ " : "";
-      const cohVal = `${warn}${(st.cohesion * 100) | 0}% (${cohWord})`;
-      meters.appendChild(meterRow("meter-cohesion", playT(lang, "cohesion"), cohVal, st.cohesionState));
+      // only the danger state gets an inline consequence, and only the universally-true one
+      // (low cohesion = weaker in battle). The civil-war detail lives in the tooltip, since it is
+      // large-realm-only (>=220 cells & avg<0.42) and would be false for small realms.
+      const weakTag = st.cohesionState === "danger" ? ` · ${playT(lang, "cohWeak")}` : "";
+      const cohVal = `${warn}${(st.cohesion * 100) | 0}% (${cohWord}${weakTag})`;
+      meters.appendChild(meterRow("meter-cohesion", playT(lang, "cohesion"), cohVal, st.cohesionState, playT(lang, "tipCohesion")));
       panel.appendChild(meters);
 
       // ③ threat line
       const threat = document.createElement("div");
-      threat.className = "threat-line";
+      threat.className = "threat-line hint";
+      threat.title = playT(lang, "tipThreat");
       const truceStr = st.truceCount > 0 ? ` · ${playT(lang, "truce")} ${st.truceCount}` : "";
       threat.textContent = `${playT(lang, "border")} ${st.borderPolities}${truceStr}`;
       panel.appendChild(threat);

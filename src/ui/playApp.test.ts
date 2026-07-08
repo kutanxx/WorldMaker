@@ -287,6 +287,23 @@ describe("playApp", () => {
     expect(root.querySelector(".threat-line")).not.toBeNull();
   });
 
+  it("standing labels have explanatory tooltips + a hover hint, and no false danger tag when healthy", () => {
+    const root = document.createElement("div");
+    createPlayApp(root, 1);
+    (root.querySelector(".nation-choice") as HTMLButtonElement).click();
+    const coh = root.querySelector(".meter-cohesion") as HTMLElement;
+    const str = root.querySelector(".meter-strength") as HTMLElement;
+    const threat = root.querySelector(".threat-line") as HTMLElement;
+    // each standing row carries a non-empty explanatory tooltip
+    expect(coh.title.length).toBeGreaterThan(0);
+    expect(str.title.length).toBeGreaterThan(0);
+    expect(threat.title.length).toBeGreaterThan(0);
+    // the cohesion label invites hovering
+    expect(coh.querySelector(".meter-label")!.classList.contains("hint")).toBe(true);
+    // a fresh realm (cohesion ~50%, not danger) must NOT show the "weakened" consequence tag
+    expect(coh.querySelector(".meter-value")!.textContent).not.toMatch(/약해짐|weakened/);
+  });
+
   it("after a turn the momentum headline reports the change (not 'first turn')", () => {
     const root = document.createElement("div");
     createPlayApp(root, 1);
