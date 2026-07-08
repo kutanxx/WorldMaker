@@ -58,6 +58,7 @@ svg.world .compass,
 svg.world .map-frame,
 svg.world .legend { pointer-events: none; }
 .nation-label { font-family: 'Cinzel', serif; font-weight: 600; }
+.nation-label.player { font-weight: 700; }
 .city-label { font-family: 'EB Garamond', Georgia, serif; }
 .region-label { font-family: 'EB Garamond', Georgia, serif; opacity: .85; }
 .world-name-text { font-family: 'Cinzel', serif; font-weight: 600; letter-spacing: .08em; }

@@ -354,7 +354,8 @@ describe("playApp", () => {
     expect(chip!.textContent).toMatch(/\S/);                       // has the nation name
     expect(root.querySelector(".nation-chip .nation-swatch")).not.toBeNull();
     expect(root.querySelector(".capital-crown")).not.toBeNull();   // ♛ on the map
-    expect(root.querySelector(".own-tint")).not.toBeNull();        // own-territory wash
+    expect(root.querySelector("svg.world .nation-label.player")).not.toBeNull(); // player's realm labelled ♛
+    expect(root.querySelector(".own-tint")).toBeNull();            // faint tint removed (reserved colour replaces it)
     expect(root.querySelector("svg.world .nation-legend")).toBeNull(); // in-map legend suppressed
   });
 
