@@ -15,6 +15,7 @@ import { t, playT, playYear, playLog, playRuleIntro, playFell, playStats, playDe
 import { offerDilemma, resolveDilemma, type Dilemma } from "../engine/dilemma";
 import { computeStanding, type Standing } from "../engine/standing";
 import { nationColor } from "./nationPalette";
+import { randomSeed } from "./urlState";
 
 const STANCES: Stance[] = ["aggressive", "defensive", "internal"];
 
@@ -566,6 +567,21 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
         downloadBlob(`${nation}_reign.md`, new Blob([md], { type: "text/markdown" }));
       });
       banner.appendChild(exp);
+      const restart = document.createElement("div");
+      restart.className = "restart-row";
+      const again = document.createElement("button");
+      again.className = "btn-play-again";
+      again.textContent = playT(lang, "playAgain");
+      again.addEventListener("click", renderPicker); // same world, choose a nation again
+      const fresh = document.createElement("button");
+      fresh.className = "btn-new-world";
+      fresh.textContent = playT(lang, "newWorld");
+      fresh.addEventListener("click", () => {
+        location.hash = `seed=${randomSeed()}`; // a fresh seed, so the reload builds a new world
+        location.reload();
+      });
+      restart.append(again, fresh);
+      banner.appendChild(restart);
       col.insertBefore(banner, log);
     }
 

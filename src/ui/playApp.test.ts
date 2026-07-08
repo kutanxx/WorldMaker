@@ -304,6 +304,23 @@ describe("playApp", () => {
     expect(coh.querySelector(".meter-value")!.textContent).not.toMatch(/약해짐|weakened/);
   });
 
+  it("offers restart options when the reign ends, and Play again returns to the picker", () => {
+    const root = document.createElement("div");
+    createPlayApp(root, 1);
+    (root.querySelector(".nation-choice") as HTMLButtonElement).click();
+    // every reign ends by turn 50 (500 years); advance until the game-over banner appears
+    for (let i = 0; i < 60; i++) {
+      const adv = root.querySelector(".btn-advance") as HTMLButtonElement | null;
+      if (!adv) break; // end() clears the command bar
+      adv.click();
+    }
+    expect(root.querySelector(".stub")).not.toBeNull();          // banner shown
+    expect(root.querySelector(".btn-play-again")).not.toBeNull();
+    expect(root.querySelector(".btn-new-world")).not.toBeNull();
+    (root.querySelector(".btn-play-again") as HTMLButtonElement).click();
+    expect(root.querySelector(".nation-choice")).not.toBeNull(); // back to the picker
+  });
+
   it("after a turn the momentum headline reports the change (not 'first turn')", () => {
     const root = document.createElement("div");
     createPlayApp(root, 1);
