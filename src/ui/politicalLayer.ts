@@ -10,6 +10,8 @@ export interface PoliticalOpts {
   fills?: boolean;
   labels?: boolean;
   legend?: boolean;
+  playerPolity?: number; // play mode: render this polity in the reserved player colour + mark its label
+  playerColor?: string;
 }
 
 const MIN_LABEL_CELLS = 25;
@@ -36,9 +38,12 @@ export function politicalLayer(
     }
     for (const [id, d] of byPolity) {
       const free = freeSet.has(id);
+      const isPlayer = id === opts.playerPolity;
       g.appendChild(svgEl("path", {
-        class: free ? "territory free-city" : "territory", "data-polity": id, d,
-        fill: free ? FREE_COLOR : nationColor(id), "fill-opacity": free ? 0.72 : 0.58,
+        class: free ? "territory free-city" : isPlayer ? "territory player" : "territory",
+        "data-polity": id, d,
+        fill: free ? FREE_COLOR : isPlayer ? (opts.playerColor ?? nationColor(id)) : nationColor(id),
+        "fill-opacity": free ? 0.72 : isPlayer ? 0.72 : 0.58,
       }));
     }
   }
@@ -89,12 +94,13 @@ export function politicalLayer(
         if (c.cells < MIN_LABEL_CELLS) continue;
         const name = nameOf.get(id);
         if (!name) continue;
+        const isPlayer = id === opts.playerPolity;
         const t = svgEl("text", {
-          class: "nation-label", x: c.x, y: c.y, "text-anchor": "middle",
+          class: isPlayer ? "nation-label player" : "nation-label", x: c.x, y: c.y, "text-anchor": "middle",
           "font-size": 11, fill: "#2a2118", stroke: "#f3ead2", "stroke-width": 2.5,
           "paint-order": "stroke", "stroke-linejoin": "round",
         });
-        t.textContent = name;
+        t.textContent = isPlayer ? `♛ ${name}` : name;
         labels.appendChild(t);
       }
       g.appendChild(labels);
