@@ -1,7 +1,7 @@
 import { generateWorld } from "../engine/world";
 import { DEFAULT_PARAMS } from "../types/world";
 import { aggregate, YEARS_PER_TICK, TICKS } from "../engine/historySim";
-import { initPlaySim, playTurn, setStance, scorecard, victoryProgress, PROSPER_STREAK } from "../engine/playSim";
+import { initPlaySim, playTurn, setStance, scorecard, victoryProgress, PROSPER_CITIES, PROSPER_STREAK } from "../engine/playSim";
 import type { Stance } from "../engine/historySim";
 import { borderTargets, frontEdges, foundCityTargets, hostileNeighbors, predictCapture, INVEST_DELTA, type Action } from "../engine/intervention";
 import { OCEAN } from "../engine/terrain";
@@ -78,6 +78,8 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
     howtoBox.className = "howto-slot";
     const panel = document.createElement("div");
     panel.className = "play-panel controls";
+    const goals = document.createElement("div");
+    goals.className = "goals";
     const dilemmaBox = document.createElement("div");
     dilemmaBox.className = "dilemma controls";
     dilemmaBox.style.display = "none";
@@ -91,7 +93,7 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
     // command bar, and the log — so the map gets the full column width (user feedback: map too small)
     const col = document.createElement("div");
     col.className = "play-col";
-    col.append(panel, stage, dilemmaBox, actions, log);
+    col.append(panel, goals, stage, dilemmaBox, actions, log);
     root.append(howtoBox, col);
 
     const mapFrame = document.createElement("div");
@@ -409,6 +411,15 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
       panel.appendChild(advice);
     }
 
+    function renderGoals(): void {
+      if (over || !s.alive[s.playerPolity]) { goals.textContent = ""; return; }
+      const vp = victoryProgress(s);
+      goals.textContent =
+        `${playT(lang, "goals")}: ⚔ ${playT(lang, "goalRivals")} ${vp.rivalsLeft}` +
+        ` · 🏘 ${vp.cities}/${PROSPER_CITIES} ${vp.cohesionOk ? "✓" : "✗"} ${prosperStreak}/${PROSPER_STREAK}` +
+        ` · 👑 ${vp.year}/500`;
+    }
+
     function renderActions(): void {
       actions.innerHTML = "";
       if (over) return; // a fallen realm has no actions (the banner tells the story)
@@ -550,7 +561,7 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
       }
     }
 
-    function renderAll(): void { renderMap(); renderPanel(); renderActions(); renderDilemma(); renderHowto(); renderLegend(); }
+    function renderAll(): void { renderMap(); renderPanel(); renderGoals(); renderActions(); renderDilemma(); renderHowto(); renderLegend(); }
 
     // re-render the live screen in the current language (keeps the accumulated log)
     function rerender(): void {
@@ -607,6 +618,7 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
       dilemma = null;
       actions.innerHTML = "";
       renderPanel();
+      renderGoals();
       renderDilemma();
       renderHowto();
       renderBanner();

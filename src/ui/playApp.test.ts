@@ -396,4 +396,16 @@ describe("playApp", () => {
     expect(h2).toMatch(/endured|500/i);   // endurance head, not a defeat/other head
     expect(root.querySelector(".btn-play-again")).not.toBeNull(); // restart still present
   });
+
+  it("shows a compact goals line with the three victory paths", () => {
+    const root = document.createElement("div");
+    createPlayApp(root, 1);
+    (root.querySelector(".nation-choice") as HTMLButtonElement).click();
+    const goals = root.querySelector(".goals");
+    expect(goals).not.toBeNull();
+    const txt = goals!.textContent || "";
+    expect(txt).toMatch(/⚔/);          // conquest readout
+    expect(txt).toMatch(/🏘/);          // prosperity readout
+    expect(txt).toMatch(/500/);         // endurance readout (year target)
+  });
 });

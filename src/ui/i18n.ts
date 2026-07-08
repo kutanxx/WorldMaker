@@ -89,6 +89,7 @@ export const PLAY_UI: Record<Lang, Record<string, string>> = {
     yourNation: "You rule",
     thisTurn: "This turn", firstTurn: "First turn", cellsLost: " lost",
     border: "borders", truce: "truces", vs: "vs",
+    goals: "Goals", goalRivals: "rivals",
   },
   ko: {
     chooseRealm: "국가를 선택하세요", cells: "셀", cohesion: "결속", threats: "위협",
@@ -125,6 +126,7 @@ export const PLAY_UI: Record<Lang, Record<string, string>> = {
     yourNation: "당신의 국가",
     thisTurn: "이번 턴", firstTurn: "첫 턴", cellsLost: "셀 상실",
     border: "국경 접촉", truce: "휴전", vs: "vs",
+    goals: "목표", goalRivals: "라이벌",
   },
 };
 export function playT(lang: Lang, key: string): string {
