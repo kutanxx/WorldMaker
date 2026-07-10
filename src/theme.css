@@ -59,6 +59,14 @@ svg.world .map-frame,
 svg.world .legend { pointer-events: none; }
 .nation-label { font-family: 'Cinzel', serif; font-weight: 600; }
 .nation-label.player { font-weight: 700; }
+/* play map only: enlarge labels for readability (Version A keeps its tuned sizes). Bigger labels
+   overlap more, so deconflictLabels culls more — the important tiers (nation, player) win. */
+.play-col .nation-label { font-size: 14px; }
+.play-col .nation-label.player { font-size: 18px; }
+.play-col .city-capital { font-size: 13px; }
+.play-col .city-town { font-size: 10.5px; }
+.play-col .region-label { font-size: 13px; }
+.play-col .river-label { font-size: 11px; }
 .city-label { font-family: 'EB Garamond', Georgia, serif; }
 .region-label { font-family: 'EB Garamond', Georgia, serif; opacity: .85; }
 .world-name-text { font-family: 'Cinzel', serif; font-weight: 600; letter-spacing: .08em; }
