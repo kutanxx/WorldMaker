@@ -73,14 +73,55 @@ export function offerDilemma(s: SimState): Dilemma | null {
   return null;
 }
 
+// the border cells the concede choice would shed, worst cohesion first — shared by
+// resolveDilemma and previewDilemma so the preview cannot drift from the real effect
+function concedeCells(s: SimState): number[] {
+  const border: number[] = [];
+  for (let c = 0; c < s.n; c++) if (s.owner[c] === s.playerPolity && isBorder(s, c)) border.push(c);
+  border.sort((x, y) => s.solidarity[x] - s.solidarity[y]);
+  return border.slice(0, CONCEDE_MAX_CELLS);
+}
+
+// the punitive raid's target: the capturable border cell with the biggest breakthrough.
+// Exported: the play UI's advisor uses the same pick for "a good moment to expand".
+export function bestRaidTarget(s: SimState): { cell: number; gain: number } | null {
+  let best: { cell: number; gain: number } | null = null;
+  for (const t of borderTargets(s)) {
+    if (!t.capturable) continue;
+    const gain = predictCapture(s, t.cell).length;
+    if (!best || gain > best.gain) best = { cell: t.cell, gain };
+  }
+  return best;
+}
+
+// what a choice would do, as glyph-able data — read-only, and NEVER draws from s.rng
+// (gambles report `odds`; the roll happens only in resolveDilemma)
+export interface ChoicePreview {
+  cells?: number;               // signed projected cell delta
+  cohesion?: -2 | -1 | 1 | 2;   // direction weight (▼▼ ▼ ▲ ▲▲)
+  odds?: number;                // when set: `cohesion` with this probability, reversed otherwise
+  truce?: "break" | "gain";
+  note?: "fortify" | "noTarget";
+}
+export function previewDilemma(s: SimState, d: Dilemma, choice: "a" | "b"): ChoicePreview {
+  if (d.code === "unrest") {
+    return choice === "a" ? { cells: -concedeCells(s).length, cohesion: 1 }
+      : { cohesion: 1, odds: CRUSH_ODDS };
+  }
+  if (d.code === "raiders") {
+    if (choice === "a") return { note: "fortify" };
+    const best = bestRaidTarget(s);
+    return best ? { cells: best.gain } : { note: "noTarget" };
+  }
+  if (d.code === "prosperity") return choice === "a" ? { cohesion: 1 } : { cohesion: 2 };
+  return choice === "a" ? { cells: 1, truce: "break" } : { truce: "gain" }; // defector
+}
+
 export function resolveDilemma(s: SimState, d: Dilemma, choice: "a" | "b"): DilemmaOutcome {
   if (d.code === "unrest") {
     if (choice === "a") {
       // concede: shed the lowest-cohesion border cells to no-man's-land, realm breathes again
-      const border: number[] = [];
-      for (let c = 0; c < s.n; c++) if (s.owner[c] === s.playerPolity && isBorder(s, c)) border.push(c);
-      border.sort((x, y) => s.solidarity[x] - s.solidarity[y]);
-      const shed = border.slice(0, CONCEDE_MAX_CELLS);
+      const shed = concedeCells(s);
       for (const c of shed) { s.owner[c] = -1; s.solidarity[c] = 0; }
       nudgePlayerSol(s, CONCEDE_SOL, "nation");
       return { code: "unrestConcede", data: { n: shed.length } };
@@ -99,12 +140,7 @@ export function resolveDilemma(s: SimState, d: Dilemma, choice: "a" | "b"): Dile
       return { code: "raidersFortify", data: { n } };
     }
     // punitive raid: a free strike at the best capturable target (reuses the real attack rules)
-    let best: { cell: number; gain: number } | null = null;
-    for (const t of borderTargets(s)) {
-      if (!t.capturable) continue;
-      const gain = predictCapture(s, t.cell).length;
-      if (!best || gain > best.gain) best = { cell: t.cell, gain };
-    }
+    const best = bestRaidTarget(s);
     if (!best) return { code: "raidersNoTarget", data: {} };
     const r = applyIntervention(s, { type: "attack", cell: best.cell });
     if (!r.ok) return { code: "raidersNoTarget", data: {} };

@@ -3,7 +3,7 @@ import { generateWorld } from "./world";
 import { DEFAULT_PARAMS } from "../types/world";
 import { initSim, CONQUEST_SOL } from "./historySim";
 import { borderTargets } from "./intervention";
-import { offerDilemma, resolveDilemma, DILEMMA_COOLDOWN } from "./dilemma";
+import { offerDilemma, resolveDilemma, previewDilemma, bestRaidTarget, DILEMMA_COOLDOWN, type Dilemma } from "./dilemma";
 
 const small = { ...DEFAULT_PARAMS, width: 300, height: 300, cellCount: 400, townCount: 6 };
 const worlds = new Map<string, ReturnType<typeof generateWorld>["world"]>();
@@ -119,6 +119,61 @@ describe("resolveDilemma", () => {
     if (r.code === "raidersRaid") {
       expect(Number(r.data.n)).toBeGreaterThanOrEqual(1);
       void before;
+    }
+  });
+});
+
+describe("previewDilemma", () => {
+  it("is read-only: no rng draw, no state mutation", () => {
+    const s = biggestPlayerState(1, true);
+    for (let c = 0; c < s.n; c++) if (s.owner[c] === s.playerPolity) s.solidarity[c] = 0.2;
+    const d = forceOffer(s, "unrest")!;
+    const rng = s.rng; let calls = 0;
+    s.rng = () => { calls++; return rng(); };
+    const owner = [...s.owner], sol = [...s.solidarity];
+    previewDilemma(s, d, "a"); previewDilemma(s, d, "b");
+    expect(calls).toBe(0);
+    expect([...s.owner]).toEqual(owner);
+    expect([...s.solidarity]).toEqual(sol);
+    s.rng = rng;
+  });
+
+  it("unrest: concede preview matches the cells resolve actually sheds; crush reports odds, not a roll", () => {
+    const s = biggestPlayerState(1, true);
+    for (let c = 0; c < s.n; c++) if (s.owner[c] === s.playerPolity) s.solidarity[c] = 0.2;
+    const d = forceOffer(s, "unrest")!;
+    const pa = previewDilemma(s, d, "a");
+    const pb = previewDilemma(s, d, "b");
+    expect(pa.cohesion).toBe(1);
+    expect(pb.cohesion).toBe(1);
+    expect(pb.odds).toBeGreaterThan(0);
+    expect(pb.odds).toBeLessThan(1);
+    const out = resolveDilemma(s, d, "a"); // resolve AFTER previews
+    expect(out.code).toBe("unrestConcede");
+    expect(pa.cells).toBe(-Number(out.data.n));
+  });
+
+  it("raiders: raid preview equals the raid's real capture count (shared bestRaidTarget)", () => {
+    const s = biggestPlayerState(1, true);
+    for (let c = 0; c < s.n; c++) s.solidarity[c] = s.owner[c] === s.playerPolity ? 0.9 : 0.1;
+    const d: Dilemma = { code: "raiders", data: { threats: 6 } }; // effects don't read the offer draw
+    const bt = bestRaidTarget(s);            // BEFORE resolve — resolve mutates the state
+    const pv = previewDilemma(s, d, "b");
+    if (bt) expect(pv.cells).toBe(bt.gain); else expect(pv.note).toBe("noTarget");
+    const out = resolveDilemma(s, d, "b");
+    if (out.code === "raidersRaid") expect(Number(out.data.n)).toBe(pv.cells);
+    else expect(pv.note).toBe("noTarget");
+    expect(previewDilemma(s, d, "a")).toEqual({ note: "fortify" });
+  });
+
+  it("prosperity: frontier reads as the stronger boost; defector previews flip + truce", () => {
+    const s = biggestPlayerState(1, true);
+    expect(previewDilemma(s, { code: "prosperity", data: {} }, "a")).toEqual({ cohesion: 1 });
+    expect(previewDilemma(s, { code: "prosperity", data: {} }, "b")).toEqual({ cohesion: 2 });
+    const d = forceOffer(s, "defector");
+    if (d) {
+      expect(previewDilemma(s, d, "a")).toEqual({ cells: 1, truce: "break" });
+      expect(previewDilemma(s, d, "b")).toEqual({ truce: "gain" });
     }
   });
 });
