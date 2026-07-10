@@ -440,4 +440,25 @@ describe("playApp", () => {
     (root.querySelector(".btn-pass") as HTMLButtonElement).click();
     expect(root.querySelector(".fx-badge")).toBeNull();
   });
+
+  it("each dilemma choice shows a non-empty effect preview line", () => {
+    const root = document.createElement("div");
+    createPlayApp(root, 1);
+    (root.querySelector(".nation-choice") as HTMLButtonElement).click();
+    let seen = false;
+    for (let i = 0; i < 50 && !seen; i++) {
+      if (root.querySelector(".dilemma-a")) {
+        const fx = [...root.querySelectorAll(".choice-fx")].map((e) => e.textContent || "");
+        expect(fx.length).toBe(2);
+        expect(fx[0].length).toBeGreaterThan(2);
+        expect(fx[1].length).toBeGreaterThan(2);
+        seen = true;
+        break;
+      }
+      const adv = root.querySelector(".btn-advance") as HTMLButtonElement | null;
+      if (!adv) break;
+      adv.click();
+    }
+    expect(seen).toBe(true);
+  });
 });

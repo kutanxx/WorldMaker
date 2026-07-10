@@ -11,8 +11,8 @@ import { renderWorld } from "./svgWorldRenderer";
 import { reignChronicle } from "../engine/reign";
 import { downloadBlob } from "./export";
 import { politicalLayer } from "./politicalLayer";
-import { t, playT, playYear, playLog, playRuleIntro, playFell, playStats, playDelta, playDefeatCause, playDilemma, playDilemmaOutcome, type Lang } from "./i18n";
-import { offerDilemma, resolveDilemma, type Dilemma } from "../engine/dilemma";
+import { t, playT, playYear, playLog, playRuleIntro, playFell, playStats, playDelta, playDefeatCause, playDilemma, playDilemmaOutcome, playDilemmaFx, type Lang } from "./i18n";
+import { offerDilemma, resolveDilemma, previewDilemma, type Dilemma } from "../engine/dilemma";
 import { computeStanding, type Standing } from "../engine/standing";
 import { PLAYER_COLOR } from "./nationPalette";
 import { deconflictLabels } from "./deconflict";
@@ -587,6 +587,10 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
         const btn = document.createElement("button");
         btn.className = `dilemma-${key}`;
         btn.textContent = label;
+        const fx = document.createElement("span");
+        fx.className = "choice-fx";
+        fx.textContent = playDilemmaFx(lang, previewDilemma(s, dilemma, key));
+        btn.appendChild(fx); // inside the button: the whole card stays one big click target
         btn.addEventListener("click", () => {
           const out = resolveDilemma(s, dilemma!, key);
           dilemma = null;
