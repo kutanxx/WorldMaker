@@ -409,4 +409,35 @@ describe("playApp", () => {
     expect(txt).toMatch(/🏘/);          // prosperity readout
     expect(txt).toMatch(/500/);         // endurance readout (year target)
   });
+
+  it("selecting an attack previews its own effect on both meters (▲ cells, direction-correct cohesion)", () => {
+    const root = document.createElement("div");
+    createPlayApp(root, 1);
+    (root.querySelector(".nation-choice") as HTMLButtonElement).click();
+    expect(root.querySelector(".fx-badge")).toBeNull(); // no pending action → no badges
+    // mirror the click mechanism the existing attack test (~playApp.test.ts:100-106) uses
+    const target = root.querySelector(".target-cell.capturable") as SVGPathElement;
+    target.dispatchEvent(new MouseEvent("click"));
+    const sBadge = root.querySelector(".meter-strength .fx-badge");
+    const cBadge = root.querySelector(".meter-cohesion .fx-badge");
+    expect(sBadge?.textContent).toContain("▲");
+    // At turn 0 every realm's cells sit at SOL_INIT (0.5), below CONQUEST_SOL (0.7), so a fresh
+    // conquest is MORE loyal than the young realm's baseline and the average ticks up (▲), not
+    // down — the "overexpansion" ▼ case only appears once a realm's own cohesion climbs above
+    // CONQUEST_SOL in later turns. This assertion verifies the badge exists with the direction
+    // that matches that math, not a hardcoded arrow.
+    expect(cBadge?.textContent).toContain("▲");
+    expect(root.querySelector(".fx-label")).not.toBeNull(); // "your action" scoping label
+  });
+
+  it("invest previews cohesion only; pass clears all badges", () => {
+    const root = document.createElement("div");
+    createPlayApp(root, 1);
+    (root.querySelector(".nation-choice") as HTMLButtonElement).click();
+    (root.querySelector(".invest-seg button") as HTMLButtonElement).click();
+    expect(root.querySelector(".meter-cohesion .fx-badge")?.textContent).toContain("▲");
+    expect(root.querySelector(".meter-strength .fx-badge")).toBeNull();
+    (root.querySelector(".btn-pass") as HTMLButtonElement).click();
+    expect(root.querySelector(".fx-badge")).toBeNull();
+  });
 });

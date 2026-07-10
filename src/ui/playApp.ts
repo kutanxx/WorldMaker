@@ -1,6 +1,6 @@
 import { generateWorld } from "../engine/world";
 import { DEFAULT_PARAMS } from "../types/world";
-import { aggregate, YEARS_PER_TICK, TICKS } from "../engine/historySim";
+import { aggregate, YEARS_PER_TICK, TICKS, CONQUEST_SOL } from "../engine/historySim";
 import { initPlaySim, playTurn, setStance, scorecard, victoryProgress, PROSPER_CITIES, PROSPER_STREAK } from "../engine/playSim";
 import type { Stance } from "../engine/historySim";
 import { borderTargets, frontEdges, foundCityTargets, hostileNeighbors, predictCapture, INVEST_DELTA, type Action } from "../engine/intervention";
@@ -119,6 +119,30 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
       return { n, gain: n ? Math.round((sum / n) * 100) : 0 };
     }
 
+    // projected effect of the player's OWN pending action on the meters — read-only.
+    // Deliberately excludes the world's response (bots move in the same advance); the
+    // .fx-label "your action" scopes the claim so the preview never reads as a lie.
+    function actionFx(): { cells?: number; coh?: number; threat?: "up" | "down" } | null {
+      if (!pendingAction) return null;
+      if (pendingAction.type === "attack") {
+        const k = predictCapture(s, pendingAction.cell).length || 1;
+        let n = 0, sum = 0;
+        for (let c = 0; c < s.n; c++) if (s.owner[c] === s.playerPolity) { n++; sum += s.solidarity[c]; }
+        const dCoh = n ? ((sum + k * CONQUEST_SOL) / (n + k) - sum / n) * 100 : 0; // raw %p, rounded at display
+        const breaks = (s.truces.get(s.owner[pendingAction.cell]) ?? 0) > s.tick;
+        return { cells: k, coh: dCoh, ...(breaks ? { threat: "up" as const } : {}) };
+      }
+      if (pendingAction.type === "invest") return { coh: investEffect(pendingAction.scope).gain };
+      if (pendingAction.type === "peace") return { threat: "down" };
+      return null; // foundCity — the goals line carries its hint (renderGoals)
+    }
+    function fxBadge(text: string, good: boolean): HTMLElement {
+      const b = document.createElement("span");
+      b.className = `fx-badge ${good ? "good" : "bad"}`;
+      b.textContent = text;
+      return b;
+    }
+
     function renderMap(): void {
       mapFrame.innerHTML = "";
       const svg = renderWorld(world, "political", s.economicZones.map((z) => z.cell), lang);
@@ -174,8 +198,7 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
         p.appendChild(tip);
         p.addEventListener("click", () => {
           pendingAction = { type: "attack", cell: target.cell };
-          renderMap();
-          renderActions();
+          renderPending();
         });
         tg.appendChild(p);
       }
@@ -194,8 +217,7 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
         p.appendChild(tip);
         p.addEventListener("click", () => {
           pendingAction = { type: "foundCity", cell: site.cell };
-          renderMap();
-          renderActions();
+          renderPending();
         });
         tg.appendChild(p);
       }
@@ -358,7 +380,8 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
       const strengthWord = playT(lang,
         st.strength === "strong" ? "strengthStrong" : st.strength === "weak" ? "strengthWeak" : "strengthEven");
       const strengthVal = `${strengthWord} (${st.cells} ${playT(lang, "vs")} ${Math.round(st.rivalAvgCells)})`;
-      meters.appendChild(meterRow("meter-strength", playT(lang, "strength"), strengthVal, st.strength, playT(lang, "tipStrength")));
+      const strengthRow = meterRow("meter-strength", playT(lang, "strength"), strengthVal, st.strength, playT(lang, "tipStrength"));
+      meters.appendChild(strengthRow);
       const cohWord = playT(lang,
         st.cohesionState === "stable" ? "solStable" : st.cohesionState === "shaky" ? "solShaky" : "solDanger");
       const warn = st.cohesionState === "danger" ? "⚠ " : "";
@@ -367,8 +390,25 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
       // large-realm-only (>=220 cells & avg<0.42) and would be false for small realms.
       const weakTag = st.cohesionState === "danger" ? ` · ${playT(lang, "cohWeak")}` : "";
       const cohVal = `${warn}${(st.cohesion * 100) | 0}% (${cohWord}${weakTag})`;
-      meters.appendChild(meterRow("meter-cohesion", playT(lang, "cohesion"), cohVal, st.cohesionState, playT(lang, "tipCohesion")));
+      const cohRow = meterRow("meter-cohesion", playT(lang, "cohesion"), cohVal, st.cohesionState, playT(lang, "tipCohesion"));
+      meters.appendChild(cohRow);
       panel.appendChild(meters);
+
+      const fx = actionFx();
+      if (fx) {
+        if (fx.cells) strengthRow.appendChild(fxBadge(`▲+${fx.cells}${playT(lang, "cells")}`, true));
+        if (fx.coh) {
+          // direction always shows; the magnitude only when it wouldn't round to 0 (tiny attacks on a
+          // large realm shift the average by <0.1%p — "▼" alone is honest, "▼−0%p" is nonsense)
+          const up = fx.coh > 0;
+          const mag = Math.round(Math.abs(fx.coh) * 10) / 10;
+          cohRow.appendChild(fxBadge(`${up ? "▲" : "▼"}${mag >= 0.1 ? `${up ? "+" : "−"}${mag}%p` : ""}`, up));
+        }
+        const label = document.createElement("span");
+        label.className = "fx-label";
+        label.textContent = playT(lang, "fxOwn");
+        meters.appendChild(label);
+      }
 
       // ③ threat line
       const threat = document.createElement("div");
@@ -376,6 +416,8 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
       threat.title = playT(lang, "tipThreat");
       const truceStr = st.truceCount > 0 ? ` · ${playT(lang, "truce")} ${st.truceCount}` : "";
       threat.textContent = `${playT(lang, "border")} ${st.borderPolities}${truceStr}`;
+      if (fx?.threat === "up") threat.appendChild(fxBadge(`▲ ${playT(lang, "fxTruceBreak")}`, false));
+      if (fx?.threat === "down") threat.appendChild(fxBadge(`▼ ${playT(lang, "truce")} +1`, true)); // spec: 위협 ▼ 휴전 +1
       panel.appendChild(threat);
 
       // stance levers + help + language (unchanged behaviour)
@@ -409,6 +451,9 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
         `${playT(lang, "goals")}: ⚔ ${playT(lang, "goalRivals")} ${vp.rivalsLeft}` +
         ` · 🏘 ${vp.cities}/${PROSPER_CITIES} ${vp.cohesionOk ? "✓" : "✗"} ${prosperStreak}/${PROSPER_STREAK}` +
         ` · 👑 ${vp.year}/500`;
+      if (pendingAction?.type === "foundCity") {
+        goals.textContent += ` · 🏘 ${playT(lang, "fxCityNext").replace("{n}", String(vp.cities + 1))}`;
+      }
     }
 
     function renderActions(): void {
@@ -438,7 +483,7 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
         b.className = pendingAction?.type === "invest" && pendingAction.scope === scope ? "active" : "";
         b.addEventListener("click", () => {
           pendingAction = { type: "invest", scope };
-          renderMap(); renderActions();
+          renderPending();
         });
         investSeg.appendChild(b);
       }
@@ -459,14 +504,14 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
       if (pendingAction?.type === "peace") pce.value = String(pendingAction.polity);
       pce.addEventListener("change", () => {
         pendingAction = pce.value ? { type: "peace", polity: Number(pce.value) } : null;
-        renderMap(); renderActions();
+        renderPending();
       });
 
       // pass clears any pending action
       const pass = document.createElement("button");
       pass.className = "btn-pass";
       pass.textContent = playT(lang, "pass");
-      pass.addEventListener("click", () => { pendingAction = null; renderMap(); renderActions(); });
+      pass.addEventListener("click", () => { pendingAction = null; renderPending(); });
 
       const advance = document.createElement("button");
       advance.className = "btn-advance";
@@ -553,6 +598,9 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
     }
 
     function renderAll(): void { renderMap(); renderPanel(); renderGoals(); renderActions(); renderDilemma(); renderHowto(); renderLegend(); }
+
+    // a picked-but-uncommitted action must repaint the meters/goals too, not just map+bar
+    function renderPending(): void { renderMap(); renderPanel(); renderGoals(); renderActions(); }
 
     // re-render the live screen in the current language (keeps the accumulated log)
     function rerender(): void {
