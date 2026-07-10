@@ -128,8 +128,13 @@ svg.world .legend { pointer-events: none; }
 
 /* play-screen layout: single centred column, so the map gets the full width (user feedback: map too small) */
 #play { max-width: 1440px; margin: 0 auto; padding: 0 16px 32px; }
-/* single centred column: the map takes the full width, capped for readability on large screens */
+/* single centred column: kept wide so the horizontal standing strip stays compact (narrowing it
+   makes the strip wrap taller and pushes the map DOWN). The MAP itself is capped below, so the
+   map + command bar fit on screen together without a full-height map shoving "Advance" off-screen. */
 .play-col { max-width: 1100px; margin: 0 auto; display: flex; flex-direction: column; gap: 10px; }
+/* cap the play map so it isn't so tall it pushes the controls below the fold; big labels + the
+   reserved player colour keep it readable at this size. Centred within the wider column. */
+.play-col .stage svg.world { max-width: 720px; margin: 0 auto; }
 /* standing strip: horizontal, wraps on narrow screens */
 .play-panel { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; }
 .play-panel .standing { flex-direction: row; flex-wrap: wrap; gap: 4px 10px; }
