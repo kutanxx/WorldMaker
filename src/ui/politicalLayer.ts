@@ -2,7 +2,7 @@ import type { World } from "../types/world";
 import { svgEl } from "./renderer";
 import { cellPath, segPath } from "./svgPaths";
 import { politicalBorders } from "../engine/borders";
-import { nationColor, nationCentroids } from "./nationPalette";
+import { nationColor, nationCentroids, PLAYER_LABEL_COLOR } from "./nationPalette";
 
 type GridLike = Pick<World["grid"], "count" | "polygons" | "neighbors" | "points" | "width" | "height">;
 
@@ -97,8 +97,12 @@ export function politicalLayer(
         const isPlayer = id === opts.playerPolity;
         const t = svgEl("text", {
           class: isPlayer ? "nation-label player" : "nation-label", x: c.x, y: c.y, "text-anchor": "middle",
-          "font-size": 11, fill: isPlayer ? (opts.playerColor ?? "#2a2118") : "#2a2118",
-          stroke: "#f3ead2", "stroke-width": 2.5, "paint-order": "stroke", "stroke-linejoin": "round",
+          "font-size": 11,
+          // player label: gold text + dark halo, so it stays legible ON the magenta player realm
+          // (matching-hue magenta text blended in); AI labels keep near-black text + cream halo
+          fill: isPlayer ? PLAYER_LABEL_COLOR : "#2a2118",
+          stroke: isPlayer ? "#2a1420" : "#f3ead2", "stroke-width": 2.5,
+          "paint-order": "stroke", "stroke-linejoin": "round",
         });
         t.textContent = isPlayer ? `♛ ${name}` : name;
         labels.appendChild(t);

@@ -4,7 +4,7 @@ import { generateWorld } from "../engine/world";
 import { DEFAULT_PARAMS } from "../types/world";
 import { simulateHistory } from "../engine/history";
 import { politicalLayer } from "./politicalLayer";
-import { nationColor, PLAYER_COLOR } from "./nationPalette";
+import { nationColor, PLAYER_COLOR, PLAYER_LABEL_COLOR } from "./nationPalette";
 
 const small = { ...DEFAULT_PARAMS, width: 300, height: 300, cellCount: 400, townCount: 6 };
 const { world } = generateWorld({ ...small, seed: 1 });
@@ -94,7 +94,7 @@ describe("politicalLayer", () => {
     const label = g.querySelector(".nation-label.player") as SVGElement;
     expect(label).not.toBeNull();
     expect(label.textContent!.startsWith("♛")).toBe(true);
-    expect(label.getAttribute("fill")).toBe(PLAYER_COLOR); // player label text is the signature colour, not near-black
+    expect(label.getAttribute("fill")).toBe(PLAYER_LABEL_COLOR); // player label text is gold — legible on the magenta realm
   });
 
   it("leaves fills/labels unchanged when no playerPolity is passed (Version A path)", () => {
