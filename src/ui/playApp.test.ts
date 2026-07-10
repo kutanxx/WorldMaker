@@ -20,7 +20,7 @@ describe("playApp", () => {
     (choices[0] as HTMLButtonElement).click();
     expect(root.querySelector("svg.world")).not.toBeNull();     // live map
     expect(root.querySelector(".play-panel")).not.toBeNull();   // nation panel
-    expect(root.querySelector(".action-status")).not.toBeNull();   // action status line
+    expect(root.querySelector(".action-status")).toBeNull(); // folded into the advance button
     expect(root.querySelector(".btn-advance")).not.toBeNull();  // advance year
   });
 
@@ -65,10 +65,10 @@ describe("playApp", () => {
     // picking a found-city site on the map, then invest, replaces the pending pick (one action per turn)
     const site = root.querySelector(".site-cell") as SVGPathElement;
     site.dispatchEvent(new Event("click", { bubbles: true }));
-    expect(root.querySelector(".action-status")!.textContent).toContain("Found");
+    expect((root.querySelector(".btn-advance") as HTMLElement).textContent).toContain("🏘");
     const investBtn = root.querySelector(".invest-seg button") as HTMLButtonElement;
     investBtn.click();
-    expect(root.querySelector(".action-status")!.textContent).toContain("Invest");
+    expect((root.querySelector(".btn-advance") as HTMLElement).textContent).toContain("💰");
     expect(root.querySelector(".site-cell.selected")).toBeNull(); // the found pick is gone
   });
 
@@ -103,7 +103,7 @@ describe("playApp", () => {
     const targets = root.querySelectorAll(".target-cell");
     expect(targets.length).toBeGreaterThan(0);
     (targets[0] as SVGPathElement).dispatchEvent(new Event("click", { bubbles: true }));
-    expect((root.querySelector(".action-status") as HTMLElement).textContent).toContain("Attack");
+    expect((root.querySelector(".btn-advance") as HTMLElement).textContent).toContain("⚔");
     // the picked cell is marked selected on the map
     expect(root.querySelector(".target-cell.selected")).not.toBeNull();
   });
@@ -132,7 +132,7 @@ describe("playApp", () => {
     expect(sites.length).toBeGreaterThan(0);
     expect(sites.length).toBeLessThanOrEqual(20);
     (sites[0] as SVGPathElement).dispatchEvent(new Event("click", { bubbles: true }));
-    expect((root.querySelector(".action-status") as HTMLElement).textContent).toContain("Found");
+    expect((root.querySelector(".btn-advance") as HTMLElement).textContent).toContain("🏘");
     expect(root.querySelector(".site-cell.selected")).not.toBeNull();
     // advancing founds the city there
     (root.querySelector(".btn-advance") as HTMLButtonElement).click();
@@ -368,7 +368,7 @@ describe("playApp", () => {
     expect(root.querySelector(".peace-select")).not.toBeNull();
     expect(root.querySelector(".btn-advance")).not.toBeNull();
     expect(root.querySelector(".btn-pass")).not.toBeNull();
-    expect(root.querySelector(".action-status")).not.toBeNull();
+    expect(root.querySelector(".action-status")).toBeNull(); // folded into the advance button
     // the old four stacked dropdowns are gone
     expect(root.querySelector(".attack-select")).toBeNull();
     expect(root.querySelector(".found-select")).toBeNull();
@@ -460,5 +460,40 @@ describe("playApp", () => {
       adv.click();
     }
     expect(seen).toBe(true);
+  });
+
+  it("the advance button states the pending turn (icon + magnitude), and only then", () => {
+    const root = document.createElement("div");
+    createPlayApp(root, 1);
+    (root.querySelector(".nation-choice") as HTMLButtonElement).click();
+    const adv = () => (root.querySelector(".btn-advance") as HTMLButtonElement).textContent || "";
+    expect(adv()).not.toContain("⚔");
+    expect(adv()).not.toContain("💰");
+    const target = root.querySelector(".target-cell.capturable") as SVGPathElement;
+    target.dispatchEvent(new MouseEvent("click"));
+    expect(adv()).toContain("⚔");
+    expect(adv()).toMatch(/\+\d/); // magnitude, e.g. +3
+    (root.querySelector(".btn-pass") as HTMLButtonElement).click();
+    expect(adv()).not.toContain("⚔");
+  });
+
+  it("an unanswered dilemma puts a subtle alert dot on the advance button (never a dialog)", () => {
+    const root = document.createElement("div");
+    createPlayApp(root, 1);
+    (root.querySelector(".nation-choice") as HTMLButtonElement).click();
+    let checked = false;
+    for (let i = 0; i < 50 && !checked; i++) {
+      if (root.querySelector(".dilemma-a")) {
+        expect(root.querySelector(".btn-advance .advance-alert")).not.toBeNull();
+        (root.querySelector(".dilemma-a") as HTMLButtonElement).click();
+        expect(root.querySelector(".btn-advance .advance-alert")).toBeNull(); // answered → dot gone
+        checked = true;
+        break;
+      }
+      const adv = root.querySelector(".btn-advance") as HTMLButtonElement | null;
+      if (!adv) break;
+      adv.click();
+    }
+    expect(checked).toBe(true);
   });
 });

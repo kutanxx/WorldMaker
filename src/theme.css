@@ -191,3 +191,5 @@ svg.world .legend { pointer-events: none; }
 /* map-click targeting: enemy border regions (attack/landing) + own gold sites (found city) are live */
 .target-cell, .site-cell { cursor: pointer; }
 .target-cell:hover, .site-cell:hover { stroke: #2a2118; stroke-width: 1.2; }
+
+.btn-advance .advance-alert { color: #a63d36; font-size: 12px; }

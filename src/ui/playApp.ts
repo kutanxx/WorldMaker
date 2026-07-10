@@ -460,18 +460,6 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
       actions.innerHTML = "";
       if (over) return; // a fallen realm has no actions (the banner tells the story)
 
-      // the current pending action, in words — the bar always states what "Advance" will do,
-      // so map-clicks (attack / found-city) have a visible confirmation
-      const status = document.createElement("span");
-      status.className = "action-status";
-      const label = () =>
-        !pendingAction ? playT(lang, "noAction")
-          : pendingAction.type === "attack" ? playT(lang, "attackChosen")
-            : pendingAction.type === "foundCity" ? playT(lang, "foundChosen")
-              : pendingAction.type === "peace" ? playT(lang, "peaceChosen")
-                : playT(lang, pendingAction.scope === "border" ? "investFrontierChosen" : "investRealmChosen");
-      status.textContent = label();
-
       // invest = a 2-segment control (전국 | 국경), each showing its numeric effect — not a dropdown
       const investSeg = document.createElement("span");
       investSeg.className = "view-toggle invest-seg";
@@ -515,7 +503,21 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
 
       const advance = document.createElement("button");
       advance.className = "btn-advance";
-      advance.textContent = playT(lang, "advance");
+      // the button states the turn — Civ's Next Turn as the single anchor (replaces .action-status)
+      const summary = () =>
+        !pendingAction ? ""
+          : pendingAction.type === "attack" ? ` — ⚔ +${predictCapture(s, pendingAction.cell).length || 1}${playT(lang, "cells")}`
+            : pendingAction.type === "foundCity" ? ` — ${playT(lang, "advFound")}`
+              : pendingAction.type === "peace" ? ` — ${playT(lang, "advPeace")}`
+                : ` — 💰 ${playT(lang, pendingAction.scope === "border" ? "investFrontierOpt" : "investRealmOpt")} +${investEffect(pendingAction.scope).gain}%p`;
+      advance.textContent = playT(lang, "advance") + summary();
+      if (dilemma) {
+        const dot = document.createElement("span");
+        dot.className = "advance-alert";
+        dot.textContent = " ❗";
+        dot.title = playT(lang, "advanceAlertTip");
+        advance.appendChild(dot);
+      }
       // --- BEGIN verbatim advance handler (do not modify) ---
       advance.addEventListener("click", () => {
         const before = Int32Array.from(s.owner);
@@ -554,7 +556,7 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
       });
       // --- END verbatim advance handler ---
 
-      actions.append(status, investSeg, pce, pass, advance);
+      actions.append(investSeg, pce, pass, advance);
     }
 
     function appendLog(text: string, headline = false): void {
