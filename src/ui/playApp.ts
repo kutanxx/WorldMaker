@@ -12,7 +12,7 @@ import { reignChronicle } from "../engine/reign";
 import { downloadBlob } from "./export";
 import { politicalLayer } from "./politicalLayer";
 import { t, playT, playYear, playLog, playRuleIntro, playFell, playStats, playDelta, playDefeatCause, playDilemma, playDilemmaOutcome, playDilemmaFx, type Lang } from "./i18n";
-import { offerDilemma, resolveDilemma, previewDilemma, type Dilemma } from "../engine/dilemma";
+import { offerDilemma, resolveDilemma, previewDilemma, bestRaidTarget, type Dilemma } from "../engine/dilemma";
 import { computeStanding, type Standing } from "../engine/standing";
 import { PLAYER_COLOR } from "./nationPalette";
 import { deconflictLabels } from "./deconflict";
@@ -325,6 +325,21 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
       return "adviceBuild";
     }
 
+    // the advisor's one consistent semantic: SELECT (pendingAction + map preview), never execute.
+    // adviceDefend is the labeled exception — stance is an instant free toggle, not an action.
+    function adviceAction(key: string): { stance?: boolean; run: () => void } | null {
+      if (key === "adviceLowSol")
+        return { run: () => { pendingAction = { type: "invest", scope: "nation" }; renderPending(); } };
+      if (key === "adviceDefend")
+        return { stance: true, run: () => { setStance(s, "defensive"); renderAll(); } };
+      if (key === "adviceExpand") {
+        const t = bestRaidTarget(s); // same pick the raiders raid uses
+        return t ? { run: () => { pendingAction = { type: "attack", cell: t.cell }; renderPending(); } } : null;
+      }
+      const site = foundCityTargets(s)[0]; // sorted best-first by cohesion
+      return site ? { run: () => { pendingAction = { type: "foundCity", cell: site.cell }; renderPending(); } } : null;
+    }
+
     function meterRow(cls: string, label: string, value: string, state: string, tooltip: string): HTMLElement {
       const row = document.createElement("div");
       row.className = `meter ${cls} ${state}`;
@@ -440,7 +455,16 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
       // per-turn advice line (kept)
       const advice = document.createElement("div");
       advice.className = "advice";
-      advice.textContent = playT(lang, adviceKey());
+      const key = adviceKey();
+      advice.textContent = playT(lang, key);
+      const act = adviceAction(key);
+      if (act) {
+        const b = document.createElement("button");
+        b.className = "advise-act";
+        b.textContent = playT(lang, act.stance ? "adviseStance" : "adviseAct");
+        b.addEventListener("click", act.run);
+        advice.appendChild(b);
+      }
       panel.appendChild(advice);
     }
 

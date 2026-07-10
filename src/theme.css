@@ -193,3 +193,5 @@ svg.world .legend { pointer-events: none; }
 .target-cell:hover, .site-cell:hover { stroke: #2a2118; stroke-width: 1.2; }
 
 .btn-advance .advance-alert { color: #a63d36; font-size: 12px; }
+
+.advice .advise-act { margin-left: 8px; font-size: 11px; padding: 1px 8px; font-style: normal; }

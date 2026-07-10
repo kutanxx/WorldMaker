@@ -167,6 +167,22 @@ describe("playApp", () => {
     expect(root.querySelector(".advice")).not.toBeNull(); // refreshed each turn
   });
 
+  it("the advice line's button selects a pending action or stance — it never advances the turn", () => {
+    const root = document.createElement("div");
+    createPlayApp(root, 1);
+    (root.querySelector(".nation-choice") as HTMLButtonElement).click();
+    const year = root.querySelector(".play-year")!.textContent;
+    const act = root.querySelector(".advise-act") as HTMLButtonElement | null;
+    expect(act).not.toBeNull(); // seed-1 turn-0 advice is actionable (per probe)
+    const advBefore = (root.querySelector(".btn-advance") as HTMLElement).textContent;
+    const stanceBefore = (root.querySelector(".view-toggle button.active") as HTMLElement)?.textContent;
+    act!.click();
+    expect(root.querySelector(".play-year")!.textContent).toBe(year); // did NOT advance
+    const advAfter = (root.querySelector(".btn-advance") as HTMLElement).textContent;
+    const stanceAfter = (root.querySelector(".view-toggle button.active") as HTMLElement)?.textContent;
+    expect(advAfter !== advBefore || stanceAfter !== stanceBefore).toBe(true); // something got selected
+  });
+
   it("stance buttons carry explanatory tooltips and the panel names the cohesion state", () => {
     const root = document.createElement("div");
     createPlayApp(root, 1);
