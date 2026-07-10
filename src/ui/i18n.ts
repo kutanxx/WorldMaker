@@ -4,6 +4,7 @@ import type { WardType } from "../engine/city/zoning";
 import {
   TUNDRA, TAIGA, TEMPERATE_FOREST, GRASSLAND, DESERT, TROPICAL, WETLAND, ALPINE, BIOME_NAMES,
 } from "../engine/biome";
+import type { ChoicePreview } from "../engine/dilemma";
 
 export type Lang = "en" | "ko";
 
@@ -90,6 +91,13 @@ export const PLAY_UI: Record<Lang, Record<string, string>> = {
     thisTurn: "This turn", firstTurn: "First turn", cellsLost: " lost",
     border: "borders", truce: "truces", vs: "vs",
     goals: "Goals", goalRivals: "rivals",
+    fxFortify: "frontier cohesion ▲ · interior ▼", fxNoTarget: "no target to strike",
+    fxOdds: "{p}% success", fxFail: "fail",
+    fxTruceBreak: "breaks the truce", fxTruceGain: "truce +1 (10y)",
+    fxOwn: "your action", fxCityNext: "city #{n} planned",
+    advFound: "🏘 found city", advPeace: "🕊 peace",
+    advanceAlertTip: "An unanswered card expires with the decade.",
+    adviseAct: "Do it", adviseStance: "Go defensive",
   },
   ko: {
     chooseRealm: "국가를 선택하세요", cells: "셀", cohesion: "결속", threats: "위협",
@@ -127,10 +135,37 @@ export const PLAY_UI: Record<Lang, Record<string, string>> = {
     thisTurn: "이번 턴", firstTurn: "첫 턴", cellsLost: "셀 상실",
     border: "국경 접촉", truce: "휴전", vs: "vs",
     goals: "목표", goalRivals: "라이벌",
+    fxFortify: "국경 결속 ▲ · 내지 ▼", fxNoTarget: "칠 곳 없음",
+    fxOdds: "성공 {p}%", fxFail: "실패",
+    fxTruceBreak: "휴전 파기", fxTruceGain: "휴전 +1 (10년)",
+    fxOwn: "내 행동 효과", fxCityNext: "{n}번째 도시 예정",
+    advFound: "🏘 도시 건설", advPeace: "🕊 강화",
+    advanceAlertTip: "답하지 않은 카드는 이 턴이 끝나면 사라집니다.",
+    adviseAct: "실행", adviseStance: "방어 태세로",
   },
 };
 export function playT(lang: Lang, key: string): string {
   return PLAY_UI[lang][key] ?? PLAY_UI.en[key] ?? key;
+}
+// the localized effect line under a dilemma choice, composed from its read-only preview
+export function playDilemmaFx(lang: Lang, pv: ChoicePreview): string {
+  if (pv.note === "fortify") return playT(lang, "fxFortify");
+  if (pv.note === "noTarget") return playT(lang, "fxNoTarget");
+  const parts: string[] = [];
+  if (pv.cells) {
+    const glyph = pv.cells > 0 ? `▲+${pv.cells}` : `▼${-pv.cells}`;
+    parts.push(`${playT(lang, "strength")} ${glyph}${playT(lang, "cells")}`);
+  }
+  if (pv.cohesion) {
+    const up = pv.cohesion > 0;
+    const glyph = up ? "▲".repeat(pv.cohesion) : "▼".repeat(-pv.cohesion);
+    const line = `${playT(lang, "cohesion")} ${glyph}`;
+    parts.push(pv.odds === undefined ? line
+      : `${playT(lang, "fxOdds").replace("{p}", String(Math.round(pv.odds * 100)))}: ${line} / ${playT(lang, "fxFail")}: ${up ? "▼" : "▲"}`);
+  }
+  if (pv.truce === "break") parts.push(playT(lang, "fxTruceBreak"));
+  if (pv.truce === "gain") parts.push(playT(lang, "fxTruceGain"));
+  return parts.join(" · ");
 }
 export function playYear(lang: Lang, year: number): string {
   return lang === "ko" ? `${year}년` : `Year ${year}`;
