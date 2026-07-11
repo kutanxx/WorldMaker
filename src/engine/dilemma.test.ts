@@ -3,7 +3,7 @@ import { generateWorld } from "./world";
 import { DEFAULT_PARAMS } from "../types/world";
 import { initSim, CONQUEST_SOL } from "./historySim";
 import { borderTargets } from "./intervention";
-import { offerDilemma, resolveDilemma, previewDilemma, bestRaidTarget, borderCellsBetween, DILEMMA_COOLDOWN, WARWEARY_TRUCE_TICKS, HEGEMON_SPOILS, HEGEMON_RATIO, HEGEMON_MIN_TICK, type Dilemma } from "./dilemma";
+import { offerDilemma, resolveDilemma, previewDilemma, bestRaidTarget, borderCellsBetween, DILEMMA_COOLDOWN, WARWEARY_TRUCE_TICKS, HEGEMON_SPOILS, HEGEMON_MIN_TICK, type Dilemma } from "./dilemma";
 
 const small = { ...DEFAULT_PARAMS, width: 300, height: 300, cellCount: 400, townCount: 6 };
 const worlds = new Map<string, ReturnType<typeof generateWorld>["world"]>();
