@@ -179,6 +179,7 @@ export function applyIntervention(s: SimState, action: Action): InterventionResu
     const name = s.polities[def].name;
     if (atkStr * ATTACK_EDGE >= defStr) {
       const captured = resolveCapture(s, target, def, amphib, agg).length;
+      s.attacksByPlayer.set(def, s.tick); // grudge ledger: the player struck this polity
       const how = amphib ? "Landed on and captured" : "Captured";
       const what = captured > 1 ? `${captured} cells` : "a cell";
       return { ok: true, message: `${how} ${what} from ${name}.`, code: amphib ? "landed" : "captured", data: { name, n: captured } };

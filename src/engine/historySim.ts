@@ -89,6 +89,8 @@ export interface SimState {
   foundedCities: Set<number>;   // player-founded anchor cells (inert while not owned); default empty
   lastDilemma: number;          // tick of the last dilemma offer (cooldown); only the play UI reads it
   dilemmaFlags: Set<string>;    // dilemma chain/crisis markers (prophecy, hegemon); play UI only
+  attacksOnPlayer: Map<number, number>; // polityId -> last tick it took player cells; play only
+  attacksByPlayer: Map<number, number>; // polityId -> last tick the player took its cells; play only
   straitLinks?: number[][]; // per-cell coastal cells reachable across a narrow strait; only set in a game
 }
 
@@ -199,7 +201,7 @@ export function initSim(world: World, worldSeed: number): SimState {
   const snapshots: HistorySnapshot[] = [{ year: 0, owner: owner.slice() }];
   const cityCells = world.cities.map((c) => ({ cell: c.cell, name: c.name }));
 
-  return { grid, terrain, n, owner, solidarity, polities, capitals, alive, golden, rng, nameGen, events, snapshots, economicZones, zoneCells, cityCells, playerPolity: -1, stance: "internal", peakCells: 0, truces: new Map(), foundedCities: new Set(), lastDilemma: -99, dilemmaFlags: new Set(), tick: 0 };
+  return { grid, terrain, n, owner, solidarity, polities, capitals, alive, golden, rng, nameGen, events, snapshots, economicZones, zoneCells, cityCells, playerPolity: -1, stance: "internal", peakCells: 0, truces: new Map(), foundedCities: new Set(), lastDilemma: -99, dilemmaFlags: new Set(), attacksOnPlayer: new Map(), attacksByPlayer: new Map(), tick: 0 };
 }
 
 export function stepSim(s: SimState): void {
@@ -245,7 +247,15 @@ export function stepSim(s: SimState): void {
       if (best === s.playerPolity) atk *= STANCE_ATK_MULT[s.stance];   // player attacking
       if (o === s.playerPolity) def *= STANCE_DEF_MULT[s.stance];       // player defending
     }
-    if (atk > def * CONTEST_THRESH) nextOwner[c] = best;
+    if (atk > def * CONTEST_THRESH) {
+      nextOwner[c] = best;
+      // grudge ledger (play only). The explicit gate is LOAD-BEARING: on the pure path
+      // playerPolity is -1 and unclaimed cells have o === -1, so o === playerPolity is true.
+      if (s.playerPolity >= 0) {
+        if (o === s.playerPolity) s.attacksOnPlayer.set(best, s.tick);
+        else if (best === s.playerPolity && o >= 0) s.attacksByPlayer.set(o, s.tick);
+      }
+    }
   }
   // amphibious strait contests (only in a game; the pure path has no straitLinks so this is skipped).
   // Land contests take priority: only cells NOT already changing hands can be taken from the sea.
@@ -268,7 +278,11 @@ export function stepSim(s: SimState): void {
       let def = o < 0 ? 0 : contestStrength(s, agg, o, c, c);
       if (best === s.playerPolity) atk *= STANCE_ATK_MULT[s.stance];
       if (o === s.playerPolity) def *= STANCE_DEF_MULT[s.stance];
-      if (atk > def * CONTEST_THRESH) nextOwner[c] = best;
+      if (atk > def * CONTEST_THRESH) {
+        nextOwner[c] = best;
+        if (o === s.playerPolity) s.attacksOnPlayer.set(best, s.tick);
+        else if (best === s.playerPolity && o >= 0) s.attacksByPlayer.set(o, s.tick);
+      }
     }
   }
   owner.set(nextOwner);

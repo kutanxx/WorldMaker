@@ -364,11 +364,13 @@ export function resolveDilemma(s: SimState, d: Dilemma, choice: "a" | "b"): Dile
     if (s.rng() < battleOdds(s)) {
       const spoils = borderCellsBetween(s, foe, HEGEMON_SPOILS, "other");
       for (const c of spoils) { s.owner[c] = s.playerPolity; s.solidarity[c] = CONQUEST_SOL; }
+      s.attacksByPlayer.set(foe, s.tick);
       nudgePlayerSol(s, HEGEMON_WIN_SOL, "nation");
       return { code: "hegemonVictory", data: { n: spoils.length, name } };
     }
     const lost = borderCellsBetween(s, foe, HEGEMON_SPOILS, "player");
     for (const c of lost) { s.owner[c] = foe; s.solidarity[c] = CONQUEST_SOL; }
+    s.attacksOnPlayer.set(foe, s.tick);
     nudgePlayerSol(s, -HEGEMON_LOSE_SOL, "nation");
     return { code: "hegemonRout", data: { n: lost.length, name } };
   }

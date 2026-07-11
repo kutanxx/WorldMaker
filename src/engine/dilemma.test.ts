@@ -363,4 +363,22 @@ describe("hegemon crisis arc", () => {
     expect(s.dilemmaFlags.has("hegemonDone")).toBe(true);
     expect(s.dilemmaFlags.has("hegemon2")).toBe(false);
   });
+
+  it("the reckoning writes the grudge ledger in the right direction", () => {
+    const s = hegemonState(4);
+    s.lastDilemma = -99;
+    const d1 = offerDilemma(s);
+    if (d1?.code !== "hegemon1") return; // this seed didn't open the arc — soft-skip, same style as the defector guard above
+    const foe = Number(d1.data.polity);
+    resolveDilemma(s, d1, "b");
+    const d2 = offerDilemma(s)!;
+    resolveDilemma(s, d2, "b");
+    const d3 = offerDilemma(s)!;
+    const rng = s.rng;
+    s.rng = () => 0; // force victory
+    resolveDilemma(s, d3, "a");
+    s.rng = rng;
+    expect(s.attacksByPlayer.get(foe)).toBe(s.tick);
+    expect(s.attacksOnPlayer.has(foe)).toBe(false);
+  });
 });

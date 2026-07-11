@@ -344,6 +344,39 @@ describe("peace", () => {
   });
 });
 
+describe("grudge ledger", () => {
+  it("stays EMPTY on the pure-history path (the o === -1 === playerPolity trap)", () => {
+    const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 5 });
+    const s = initSim(world, 5); // playerPolity -1
+    for (let i = 0; i < 10; i++) stepSim(s);
+    expect(s.attacksOnPlayer.size).toBe(0);
+    expect(s.attacksByPlayer.size).toBe(0);
+  });
+
+  it("records rivals taking player cells, and player attacks, with the current tick", () => {
+    const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 5 });
+    const s = initSim(world, 5);
+    const counts = new Map<number, number>();
+    for (const o of s.owner) if (o >= 0) counts.set(o, (counts.get(o) ?? 0) + 1);
+    s.playerPolity = [...counts.entries()].sort((a, b) => b[1] - a[1])[0][0];
+    // weaken the player so borders bleed: rivals will take cells within a few ticks
+    for (let c = 0; c < s.n; c++) s.solidarity[c] = s.owner[c] === s.playerPolity ? 0.15 : 0.9;
+    for (let i = 0; i < 10 && s.attacksOnPlayer.size === 0; i++) stepSim(s);
+    expect(s.attacksOnPlayer.size).toBeGreaterThan(0);
+    for (const [p, t] of s.attacksOnPlayer) {
+      expect(p).not.toBe(s.playerPolity);
+      expect(t).toBeGreaterThanOrEqual(0);
+      expect(t).toBeLessThanOrEqual(s.tick);
+    }
+    // player attack records the defender
+    const target = borderTargets(s).find((x) => x.capturable);
+    if (target) {
+      const r = applyIntervention(s, { type: "attack", cell: target.cell });
+      if (r.ok) expect(s.attacksByPlayer.get(target.owner)).toBe(s.tick);
+    }
+  });
+});
+
 describe("frontEdges", () => {
   it("an overwhelming player yields only push edges at capturable enemy cells", () => {
     const s = biggestPlayerState(1);
