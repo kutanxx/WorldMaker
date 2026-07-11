@@ -55,13 +55,11 @@ describe("playApp", () => {
     expect((root.querySelector(".btn-advance") as HTMLButtonElement).textContent).toContain("다음 해");
   });
 
-  it("offers a peace select; picking found-city on the map then invest shares one pending action", () => {
+  it("neighbor chips are the peace surface; picking found-city then invest shares one pending action", () => {
     const root = document.createElement("div");
     createPlayApp(root, 1);
     (root.querySelector(".nation-choice") as HTMLButtonElement).click();
-    const peace = root.querySelector(".peace-select") as HTMLSelectElement;
-    expect(peace).not.toBeNull();
-    expect(peace.options.length).toBeGreaterThan(1);
+    expect(root.querySelectorAll(".neighbor-chip").length).toBeGreaterThan(0);
     // picking a found-city site on the map, then invest, replaces the pending pick (one action per turn)
     const site = root.querySelector(".site-cell") as SVGPathElement;
     site.dispatchEvent(new Event("click", { bubbles: true }));
@@ -88,9 +86,7 @@ describe("playApp", () => {
     const root = document.createElement("div");
     createPlayApp(root, 1);
     (root.querySelector(".nation-choice") as HTMLButtonElement).click();
-    const peace = root.querySelector(".peace-select") as HTMLSelectElement;
-    peace.value = peace.options[1].value;
-    peace.dispatchEvent(new Event("change"));
+    (root.querySelector(".neighbor-chip") as HTMLElement).click();
     (root.querySelector(".btn-advance") as HTMLButtonElement).click();
     const rows = [...root.querySelectorAll(".chronicle-event")].map((e) => e.textContent || "");
     expect(rows.some((t) => /Made peace with/.test(t))).toBe(true);
@@ -202,7 +198,7 @@ describe("playApp", () => {
     const labels = btns.map((b) => b.textContent || "");
     expect(labels.some((t) => /\+\d+%p/.test(t))).toBe(true); // numeric preview
     for (const b of btns) expect((b.getAttribute("title") || "").length).toBeGreaterThan(8);
-    expect(((root.querySelector(".peace-select") as HTMLSelectElement).title || "").length).toBeGreaterThan(8);
+    expect((((root.querySelector(".neighbor-chip") as HTMLElement) || { title: "" }).title || "").length).toBeGreaterThan(8);
   });
 
   it("picking invest or peace paints the affected area on the map (action preview)", () => {
@@ -212,9 +208,7 @@ describe("playApp", () => {
     const investBtns = root.querySelectorAll(".invest-seg button");
     (investBtns[1] as HTMLButtonElement).click(); // border scope (2nd segment)
     expect(root.querySelector(".preview-invest")).not.toBeNull();
-    const peace = root.querySelector(".peace-select") as HTMLSelectElement;
-    peace.value = peace.options[1].value;
-    peace.dispatchEvent(new Event("change"));
+    (root.querySelector(".neighbor-chip") as HTMLElement).click();
     expect(root.querySelector(".preview-invest")).toBeNull(); // previews are exclusive
     expect(root.querySelector(".preview-peace")).not.toBeNull();
   });
@@ -375,13 +369,13 @@ describe("playApp", () => {
     expect(root.querySelector("svg.world .nation-legend")).toBeNull(); // in-map legend suppressed
   });
 
-  it("command bar has invest segments + labelled peace + advance, and no dropdown clutter", () => {
+  it("command bar has invest segments + advance, and no dropdown at all", () => {
     const root = document.createElement("div");
     createPlayApp(root, 1);
     (root.querySelector(".nation-choice") as HTMLButtonElement).click();
     expect(root.querySelector(".invest-seg")).not.toBeNull();
     expect(root.querySelectorAll(".invest-seg button").length).toBe(2); // 전국 | 국경
-    expect(root.querySelector(".peace-select")).not.toBeNull();
+    expect(root.querySelector(".peace-select")).toBeNull(); // peace moved to the neighbor chips
     expect(root.querySelector(".btn-advance")).not.toBeNull();
     expect(root.querySelector(".btn-pass")).not.toBeNull();
     expect(root.querySelector(".action-status")).toBeNull(); // folded into the advance button
@@ -574,20 +568,38 @@ describe("playApp", () => {
     expect(tip.split("\n").length).toBeGreaterThanOrEqual(3); // itemized factors
   });
 
-  it("peace options carry the attitude icon, and making peace flips the chip to friendly", () => {
+  it("clicking a chip selects peace (named on the advance button); advancing flips it to friendly", () => {
     localStorage.clear();
     const root = document.createElement("div");
     createPlayApp(root, 1);
     (root.querySelector(".nation-choice") as HTMLButtonElement).click();
-    const pce = root.querySelector(".peace-select") as HTMLSelectElement;
-    const opt = pce.options[1]; // 0 is the placeholder
-    expect(opt.textContent).toMatch(/^[⚔👁🤝]/);
-    pce.value = opt.value;
-    pce.dispatchEvent(new Event("change"));
+    const chip = root.querySelector(".neighbor-chip") as HTMLElement;
+    const name = (chip.textContent || "").replace(/^[⚔👁🤝]\s*/u, "");
+    chip.click();
+    const adv = () => (root.querySelector(".btn-advance") as HTMLButtonElement).textContent || "";
+    expect(adv()).toContain("🕊");
+    expect(adv()).toContain(name); // the button confirms WHO, since the dropdown is gone
+    expect(root.querySelector(".neighbor-chip.selected")).not.toBeNull();
+    expect(root.querySelector(".preview-peace")).not.toBeNull();
     (root.querySelector(".btn-advance") as HTMLButtonElement).click();
-    const name = (opt.textContent || "").replace(/^[⚔👁🤝]\s*/, "").replace(/\s*✓$/, "");
-    const chip = [...root.querySelectorAll(".neighbor-chip")].find((c) => (c.textContent || "").includes(name));
-    if (chip) expect(chip.className).toContain("friendly"); // still bordering after the tick ⇒ truced ⇒ 🤝
+    const after = [...root.querySelectorAll(".neighbor-chip")].find((c) => (c.textContent || "").includes(name));
+    if (after) {
+      expect(after.className).toContain("friendly");
+      (after as HTMLElement).click(); // truced chips stay clickable — renewal is allowed
+      expect(adv()).toContain("🕊");
+    }
+  });
+
+  it("clicking the selected chip again cancels the peace pick", () => {
+    localStorage.clear();
+    const root = document.createElement("div");
+    createPlayApp(root, 1);
+    (root.querySelector(".nation-choice") as HTMLButtonElement).click();
+    (root.querySelector(".neighbor-chip") as HTMLElement).click();
+    expect(root.querySelector(".neighbor-chip.selected")).not.toBeNull();
+    (root.querySelector(".neighbor-chip.selected") as HTMLElement).click();
+    expect(root.querySelector(".neighbor-chip.selected")).toBeNull();
+    expect((root.querySelector(".btn-advance") as HTMLButtonElement).textContent).not.toContain("🕊");
   });
 
   it("attacking a neighbor leaves a grudge line in its tooltip next turn", () => {

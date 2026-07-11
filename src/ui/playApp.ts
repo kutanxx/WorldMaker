@@ -474,7 +474,8 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
         row.className = "neighbors";
         for (const a of atts.slice(0, NEIGHBOR_SHOW)) {
           const chip = document.createElement("span");
-          chip.className = `neighbor-chip ${a.att}`;
+          const selected = pendingAction?.type === "peace" && pendingAction.polity === a.id;
+          chip.className = `neighbor-chip ${a.att}${selected ? " selected" : ""}`;
           chip.textContent = `${ATT_ICON[a.att]} ${a.name}`;
           const r = Math.round(a.ratio * 10) / 10;
           const word = playT(lang, a.ratio >= ATT_HOSTILE_RATIO ? "factStronger" : a.ratio <= 0.85 ? "factWeaker" : "factEven");
@@ -492,6 +493,12 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
             : playT(lang, "factIAttacked").replace("{n}", String(a.iAttackedAgo)));
           if (a.hegemon) lines.push(playT(lang, "factHegemon"));
           chip.title = lines.join("\n");
+          // direct-manipulation diplomacy (Total War): click the realm to propose peace —
+          // select-only (the advance button executes); clicking again cancels; truced = renewal
+          chip.addEventListener("click", () => {
+            pendingAction = selected ? null : { type: "peace", polity: a.id };
+            renderPending();
+          });
           row.appendChild(chip);
         }
         if (atts.length > NEIGHBOR_SHOW) {
@@ -568,25 +575,6 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
         investSeg.appendChild(b);
       }
 
-      // peace = the one remaining select, clearly labelled (not one of four tiny ones)
-      const pce = document.createElement("select");
-      pce.className = "peace-select";
-      pce.title = playT(lang, "tipPeace");
-      const pceNone = document.createElement("option");
-      pceNone.value = ""; pceNone.textContent = playT(lang, "peacePlaceholder");
-      pce.appendChild(pceNone);
-      for (const a of neighborAttitudes(s)) { // same polities, sorted by border pressure, icon-prefixed
-        const opt = document.createElement("option");
-        opt.value = String(a.id);
-        opt.textContent = `${ATT_ICON[a.att]} ${a.name}${a.truceLeft > 0 ? " ✓" : ""}`;
-        pce.appendChild(opt);
-      }
-      if (pendingAction?.type === "peace") pce.value = String(pendingAction.polity);
-      pce.addEventListener("change", () => {
-        pendingAction = pce.value ? { type: "peace", polity: Number(pce.value) } : null;
-        renderPending();
-      });
-
       // pass clears any pending action
       const pass = document.createElement("button");
       pass.className = "btn-pass";
@@ -600,7 +588,7 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
         !pendingAction ? ""
           : pendingAction.type === "attack" ? ` — ⚔ +${predictCapture(s, pendingAction.cell).length || 1}${playT(lang, "cells")}`
             : pendingAction.type === "foundCity" ? ` — ${playT(lang, "advFound")}`
-              : pendingAction.type === "peace" ? ` — ${playT(lang, "advPeace")}`
+              : pendingAction.type === "peace" ? ` — 🕊 ${s.polities[pendingAction.polity].name}`
                 : ` — 💰 ${playT(lang, pendingAction.scope === "border" ? "investFrontierOpt" : "investRealmOpt")} +${investEffect(pendingAction.scope).gain}%p`;
       advance.textContent = playT(lang, "advance") + summary();
       if (dilemma) {
@@ -648,7 +636,7 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
       });
       // --- END verbatim advance handler ---
 
-      actions.append(investSeg, pce, pass, advance);
+      actions.append(investSeg, pass, advance);
     }
 
     function appendLog(text: string, headline = false): void {
