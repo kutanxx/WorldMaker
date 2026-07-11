@@ -341,15 +341,15 @@ describe("playApp", () => {
     expect(mo).toMatch(/This turn/);
   });
 
-  it("lays the play screen out as a single centred column (map gets full width)", () => {
+  it("lays the play screen out as the HUD shell (old play-col/play-grid layouts gone)", () => {
     const root = document.createElement("div");
     createPlayApp(root, 1);
     (root.querySelector(".nation-choice") as HTMLButtonElement).click();
-    expect(root.querySelector(".play-col")).not.toBeNull();
-    expect(root.querySelector(".play-side")).toBeNull();   // old 2-col sidebar gone
-    expect(root.querySelector(".play-grid")).toBeNull();
-    // map, standing strip, and command bar all live inside the column
-    const col = root.querySelector(".play-col")!;
+    expect(root.querySelector(".play-shell")).not.toBeNull();
+    expect(root.querySelector(".play-col")).toBeNull();    // 07c single-column layout retired
+    expect(root.querySelector(".play-grid")).toBeNull();   // pre-07c 2-col layout long gone
+    // map, standing strip, and command bar all live inside the shell
+    const col = root.querySelector(".play-shell")!;
     expect(col.querySelector("svg.world")).not.toBeNull();
     expect(col.querySelector(".play-panel")).not.toBeNull();
     expect(col.querySelector(".play-actions")).not.toBeNull();
@@ -613,5 +613,39 @@ describe("playApp", () => {
     (root.querySelector(".btn-advance") as HTMLButtonElement).click();
     const chip = [...root.querySelectorAll(".neighbor-chip")].find((c) => (c.textContent || "").includes(targetName)) as HTMLElement | undefined;
     if (chip) expect(chip.title).toMatch(/attacked them|내가 침공/); // still bordering ⇒ the grudge line shows
+  });
+
+  it("mounts the HUD shell: info rail left of the map, commands under it", () => {
+    localStorage.clear();
+    const root = document.createElement("div");
+    createPlayApp(root, 1);
+    (root.querySelector(".nation-choice") as HTMLButtonElement).click();
+    const side = root.querySelector(".play-shell > .play-side");
+    const main = root.querySelector(".play-shell > .play-main");
+    expect(side).not.toBeNull();
+    expect(main).not.toBeNull();
+    expect(side!.querySelector(".play-panel")).not.toBeNull();
+    expect(side!.querySelector(".goals")).not.toBeNull();
+    expect(side!.querySelector(".dilemma")).not.toBeNull();
+    expect(side!.querySelector(".chronicle")).not.toBeNull();
+    expect(main!.querySelector(".stage svg.world")).not.toBeNull();
+    expect(main!.querySelector(".play-actions")).not.toBeNull();
+  });
+
+  it("the game-over banner lands in the side rail before the chronicle", () => {
+    localStorage.clear();
+    const root = document.createElement("div");
+    createPlayApp(root, 1);
+    (root.querySelector(".nation-choice") as HTMLButtonElement).click();
+    for (let i = 0; i < 60; i++) {
+      const adv = root.querySelector(".btn-advance") as HTMLButtonElement | null;
+      if (!adv) break;
+      adv.click();
+    }
+    const side = root.querySelector(".play-side")!;
+    const banner = side.querySelector(".stub");
+    expect(banner).not.toBeNull();
+    const kids = [...side.children];
+    expect(kids.indexOf(banner as Element)).toBeLessThan(kids.indexOf(side.querySelector(".chronicle")!));
   });
 });

@@ -61,12 +61,12 @@ svg.world .legend { pointer-events: none; }
 .nation-label.player { font-weight: 700; }
 /* play map only: enlarge labels for readability (Version A keeps its tuned sizes). Bigger labels
    overlap more, so deconflictLabels culls more — the important tiers (nation, player) win. */
-.play-col .nation-label { font-size: 14px; }
-.play-col .nation-label.player { font-size: 18px; }
-.play-col .city-capital { font-size: 13px; }
-.play-col .city-town { font-size: 10.5px; }
-.play-col .region-label { font-size: 13px; }
-.play-col .river-label { font-size: 11px; }
+.play-shell .nation-label { font-size: 14px; }
+.play-shell .nation-label.player { font-size: 18px; }
+.play-shell .city-capital { font-size: 13px; }
+.play-shell .city-town { font-size: 10.5px; }
+.play-shell .region-label { font-size: 13px; }
+.play-shell .river-label { font-size: 11px; }
 .city-label { font-family: 'EB Garamond', Georgia, serif; }
 .region-label { font-family: 'EB Garamond', Georgia, serif; opacity: .85; }
 .world-name-text { font-family: 'Cinzel', serif; font-weight: 600; letter-spacing: .08em; }
@@ -126,15 +126,28 @@ svg.world .legend { pointer-events: none; }
 .dilemma { border-left: 3px solid #a8842c; }
 .dilemma .dilemma-title { font-weight: 600; margin-right: 8px; }
 
-/* play-screen layout: single centred column, so the map gets the full width (user feedback: map too small) */
+/* play-screen layout */
 #play { max-width: 1440px; margin: 0 auto; padding: 0 16px 32px; }
-/* single centred column: kept wide so the horizontal standing strip stays compact (narrowing it
-   makes the strip wrap taller and pushes the map DOWN). The MAP itself is capped below, so the
-   map + command bar fit on screen together without a full-height map shoving "Advance" off-screen. */
-.play-col { max-width: 1100px; margin: 0 auto; display: flex; flex-direction: column; gap: 10px; }
-/* cap the play map so it isn't so tall it pushes the controls below the fold; big labels + the
-   reserved player colour keep it readable at this size. Centred within the wider column. */
-.play-col .stage svg.world { max-width: 900px; margin: 0 auto; }
+/* viewport-fit HUD shell (≥1100px): no page scroll — info rail on the LEFT (the frequent-info
+   edge, per HUD research), the map filling the remaining space, commands pinned at the BOTTOM
+   (the RTS command-card convention). User feedback: the top-of-document status UI forced the eye
+   to ping-pong between the page extremes every turn. */
+@media (min-width: 1100px) {
+  body:has(.play-shell) { overflow: hidden; }
+  body:has(.play-shell) #play { max-width: none; margin: 0; padding: 0; }
+  .play-shell { display: grid; grid-template-columns: 340px 1fr; gap: 10px; height: 100svh; padding: 10px; box-sizing: border-box; }
+  .play-side { display: flex; flex-direction: column; gap: 10px; min-height: 0; overflow: hidden; }
+  .play-side .chronicle { flex: 1; min-height: 0; max-height: none; overflow: auto; }
+  .play-main { display: flex; flex-direction: column; gap: 10px; min-width: 0; min-height: 0; }
+  .play-main .stage { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+  .play-main .map-frame { flex: 1; min-height: 0; }
+  .play-main .stage svg.world { width: 100%; height: 100%; max-width: none; }
+}
+/* narrow fallback (<1100px): the previous centred vertical stack, unchanged behavior */
+@media (max-width: 1099.98px) {
+  .play-shell { max-width: 1100px; margin: 0 auto; display: flex; flex-direction: column; gap: 10px; }
+  .play-shell .stage svg.world { max-width: 900px; margin: 0 auto; }
+}
 /* standing strip: horizontal, wraps on narrow screens */
 .play-panel { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; }
 .play-panel .standing { flex-direction: row; flex-wrap: wrap; gap: 4px 10px; }

@@ -121,11 +121,18 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
     actions.className = "play-actions controls";
     const log = document.createElement("div");
     log.className = "chronicle";
-    // vertical stack: a thin standing strip on top, then the big map, the dilemma card, the slim
-    // command bar, and the log — so the map gets the full column width (user feedback: map too small)
+    // viewport-fit HUD shell (wide screens): info rail on the LEFT (the frequent-info edge, per
+    // HUD research), the map filling the remaining space, the command bar pinned under it (the
+    // RTS bottom-commands convention). Narrow screens fall back to the old vertical stack in CSS.
     const col = document.createElement("div");
-    col.className = "play-col";
-    col.append(panel, goals, stage, dilemmaBox, actions, log);
+    col.className = "play-shell";
+    const side = document.createElement("div");
+    side.className = "play-side";
+    const main = document.createElement("div");
+    main.className = "play-main";
+    side.append(panel, goals, dilemmaBox, log);
+    main.append(stage, actions);
+    col.append(side, main);
     root.append(howtoBox, col);
 
     const mapFrame = document.createElement("div");
@@ -734,7 +741,7 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
       });
       restart.append(again, fresh);
       banner.appendChild(restart);
-      col.insertBefore(banner, log);
+      side.insertBefore(banner, log);
     }
 
     function end(kind: VictoryKind, cause = ""): void {
