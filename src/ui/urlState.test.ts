@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { DEFAULT_PARAMS } from "../types/world";
-import { encodeParams, decodeParams, initialParams, randomSeed } from "./urlState";
+import { encodeParams, decodeParams, initialParams, randomSeed, parseSeedValue } from "./urlState";
+import { hashStringToSeed } from "../engine/rng";
 
 describe("urlState", () => {
   it("round-trips params", () => {
@@ -24,5 +25,27 @@ describe("urlState", () => {
     const p = initialParams("");
     expect(Number.isInteger(p.seed)).toBe(true);
     expect({ ...p, seed: 0 }).toEqual({ ...DEFAULT_PARAMS, seed: 0 });
+  });
+});
+
+describe("parseSeedValue", () => {
+  it("keeps positive integers as-is (back-compat with every existing share URL)", () => {
+    expect(parseSeedValue("731")).toBe(731);
+    expect(parseSeedValue(" 42 ")).toBe(42);
+  });
+  it("hashes any other non-empty text, deterministically — same name, same world", () => {
+    expect(parseSeedValue("Narnia")).toBe(hashStringToSeed("Narnia"));
+    expect(parseSeedValue("Narnia")).toBe(parseSeedValue("Narnia"));
+    expect(parseSeedValue("나니아")).toBe(hashStringToSeed("나니아")); // UTF-16 names work
+    expect(parseSeedValue("Narnia")).not.toBe(parseSeedValue("narnia")); // case-sensitive, like Minecraft
+  });
+  it("treats '0' and '-3' as text (only positive integers take the numeric path)", () => {
+    expect(parseSeedValue("0")).toBe(hashStringToSeed("0"));
+    expect(parseSeedValue("-3")).toBe(hashStringToSeed("-3"));
+  });
+  it("null/empty/whitespace → null (caller falls back to a random seed)", () => {
+    expect(parseSeedValue(null)).toBeNull();
+    expect(parseSeedValue("")).toBeNull();
+    expect(parseSeedValue("   ")).toBeNull();
   });
 });
