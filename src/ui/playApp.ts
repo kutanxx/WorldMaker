@@ -484,6 +484,12 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
             `${playT(lang, "factRatio").replace("{r}", String(r))} (${word})`,
             a.truceLeft > 0 ? playT(lang, "factTruce").replace("{n}", String(a.truceLeft)) : playT(lang, "factNoTruce"),
           ];
+          if (a.attackedMeAgo !== null) lines.push(a.attackedMeAgo === 0
+            ? playT(lang, "factAttackedMeNow")
+            : playT(lang, "factAttackedMe").replace("{n}", String(a.attackedMeAgo)));
+          if (a.iAttackedAgo !== null) lines.push(a.iAttackedAgo === 0
+            ? playT(lang, "factIAttackedNow")
+            : playT(lang, "factIAttacked").replace("{n}", String(a.iAttackedAgo)));
           if (a.hegemon) lines.push(playT(lang, "factHegemon"));
           chip.title = lines.join("\n");
           row.appendChild(chip);

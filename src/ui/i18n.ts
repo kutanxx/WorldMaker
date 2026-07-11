@@ -104,6 +104,8 @@ export const PLAY_UI: Record<Lang, Record<string, string>> = {
     factStronger: "stronger", factWeaker: "weaker", factEven: "even",
     factTruce: "truce — {n} turns left", factNoTruce: "no truce",
     factHegemon: "⚠ the hegemon — your crisis foe", moreNeighbors: "+{n}",
+    factAttackedMe: "⚔ attacked you {n} turns ago", factAttackedMeNow: "⚔ attacked you this turn",
+    factIAttacked: "you attacked them {n} turns ago · grudge", factIAttackedNow: "you attacked them this turn · grudge",
   },
   ko: {
     chooseRealm: "국가를 선택하세요", cells: "셀", cohesion: "결속", threats: "위협",
@@ -154,6 +156,8 @@ export const PLAY_UI: Record<Lang, Record<string, string>> = {
     factStronger: "우세", factWeaker: "열세", factEven: "비등",
     factTruce: "휴전 {n}턴 남음", factNoTruce: "휴전 없음",
     factHegemon: "⚠ 패권국 — 위기의 상대", moreNeighbors: "+{n}",
+    factAttackedMe: "⚔ 최근 나를 침공 ({n}턴 전)", factAttackedMeNow: "⚔ 이번 턴에 나를 침공",
+    factIAttacked: "내가 침공했음 ({n}턴 전) · 원한", factIAttackedNow: "이번 턴에 내가 침공 · 원한",
   },
 };
 export function playT(lang: Lang, key: string): string {

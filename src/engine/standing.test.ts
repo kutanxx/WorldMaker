@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { generateWorld } from "./world";
 import { DEFAULT_PARAMS } from "../types/world";
 import { initPlaySim } from "./playSim";
-import { computeStanding, neighborAttitudes, ATT_HOSTILE_RATIO } from "./standing";
+import { computeStanding, neighborAttitudes, ATT_HOSTILE_RATIO, GRUDGE_TICKS } from "./standing";
 import { frontEdges } from "./intervention";
 import { aggregate, initSim } from "./historySim";
 
@@ -149,5 +149,33 @@ describe("neighborAttitudes", () => {
     expect(atts.find((a) => a.id === target.id)!.hegemon).toBe(true);
     for (let i = 1; i < atts.length; i++) expect(atts[i - 1].borderEdges).toBeGreaterThanOrEqual(atts[i].borderEdges);
     expect([...s.owner]).toEqual(owner); // no mutation
+  });
+
+  it("a fresh attack makes even a weaker neighbor hostile; the grudge decays; truce still wins", () => {
+    const s = playerState(1);
+    const weaker = neighborAttitudes(s).find((a) => a.att === "wary");
+    expect(weaker).toBeDefined();
+    if (!weaker) return;
+    s.attacksOnPlayer.set(weaker.id, s.tick);
+    let a = neighborAttitudes(s).find((x) => x.id === weaker.id)!;
+    expect(a.attackedMeAgo).toBe(0);
+    expect(a.att).toBe("hostile"); // proven contest superiority beats a small ratio
+    // decay: GRUDGE_TICKS later it is forgotten
+    s.tick += GRUDGE_TICKS;
+    a = neighborAttitudes(s).find((x) => x.id === weaker.id)!;
+    expect(a.attackedMeAgo).toBeNull();
+    expect(a.att).toBe("wary");
+    // truce overrides a fresh grudge (the engine literally blocks their attacks)
+    s.attacksOnPlayer.set(weaker.id, s.tick);
+    s.truces.set(weaker.id, s.tick + 2);
+    a = neighborAttitudes(s).find((x) => x.id === weaker.id)!;
+    expect(a.att).toBe("friendly");
+    // my own attacks display but never flip attitude
+    s.truces.delete(weaker.id);
+    s.attacksOnPlayer.delete(weaker.id);
+    s.attacksByPlayer.set(weaker.id, s.tick);
+    a = neighborAttitudes(s).find((x) => x.id === weaker.id)!;
+    expect(a.iAttackedAgo).toBe(0);
+    expect(a.att).toBe("wary");
   });
 });

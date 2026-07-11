@@ -57,6 +57,7 @@ export function computeStanding(s: SimState, opts: { neighborsOnly?: boolean } =
 // wary = everything else. The Civ-agendas lesson: never display what the sim doesn't back.
 export type Attitude = "friendly" | "wary" | "hostile";
 export const ATT_HOSTILE_RATIO = 1.15; // their cells / ours at/above this ⇒ hostile
+export const GRUDGE_TICKS = 5; // 50y — grudges decay (the Civ VI grievances lesson)
 
 export interface NeighborAttitude {
   id: number; name: string;
@@ -65,6 +66,8 @@ export interface NeighborAttitude {
   borderEdges: number;  // shared front edges (threat + push)
   truceLeft: number;    // ticks remaining, 0 if none
   hegemon: boolean;     // the crisis arc's flagged foe
+  attackedMeAgo: number | null; // ticks since it last took player cells, null if never/expired
+  iAttackedAgo: number | null;  // ticks since the player last took its cells (display-only)
 }
 
 export function neighborAttitudes(s: SimState): NeighborAttitude[] {
@@ -83,8 +86,15 @@ export function neighborAttitudes(s: SimState): NeighborAttitude[] {
     const ratio = mine > 0 ? (agg[h.id]?.cells ?? 0) / mine : 0;
     const truceLeft = Math.max(0, h.trucedUntil - s.tick);
     const hegemon = h.id === hegemonId;
-    const att: Attitude = truceLeft > 0 ? "friendly" : ratio >= ATT_HOSTILE_RATIO || hegemon ? "hostile" : "wary";
-    out.push({ id: h.id, name: h.name, att, ratio, borderEdges: edgeCount.get(h.id) ?? 0, truceLeft, hegemon });
+    const ago = (m: Map<number, number>): number | null => {
+      const t = m.get(h.id);
+      return t !== undefined && s.tick - t < GRUDGE_TICKS ? s.tick - t : null;
+    };
+    const attackedMeAgo = ago(s.attacksOnPlayer);
+    const iAttackedAgo = ago(s.attacksByPlayer);
+    const att: Attitude = truceLeft > 0 ? "friendly"
+      : ratio >= ATT_HOSTILE_RATIO || hegemon || attackedMeAgo !== null ? "hostile" : "wary";
+    out.push({ id: h.id, name: h.name, att, ratio, borderEdges: edgeCount.get(h.id) ?? 0, truceLeft, hegemon, attackedMeAgo, iAttackedAgo });
   }
   return out.sort((a, b) => b.borderEdges - a.borderEdges);
 }

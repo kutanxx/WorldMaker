@@ -589,4 +589,17 @@ describe("playApp", () => {
     const chip = [...root.querySelectorAll(".neighbor-chip")].find((c) => (c.textContent || "").includes(name));
     if (chip) expect(chip.className).toContain("friendly"); // still bordering after the tick ⇒ truced ⇒ 🤝
   });
+
+  it("attacking a neighbor leaves a grudge line in its tooltip next turn", () => {
+    localStorage.clear();
+    const root = document.createElement("div");
+    createPlayApp(root, 1);
+    (root.querySelector(".nation-choice") as HTMLButtonElement).click();
+    const target = root.querySelector(".target-cell.capturable") as SVGPathElement;
+    const targetName = (target.querySelector("title")?.textContent || "").replace(/^⛵ /, "").replace(/ [✓✗].*$/, "");
+    target.dispatchEvent(new MouseEvent("click"));
+    (root.querySelector(".btn-advance") as HTMLButtonElement).click();
+    const chip = [...root.querySelectorAll(".neighbor-chip")].find((c) => (c.textContent || "").includes(targetName)) as HTMLElement | undefined;
+    if (chip) expect(chip.title).toMatch(/attacked them|내가 침공/); // still bordering ⇒ the grudge line shows
+  });
 });
