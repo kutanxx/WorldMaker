@@ -22,8 +22,9 @@ const RETURN_TRUCE_TICKS = 1; // returning a defector buys a 10-year non-aggress
 export const WARWEARY_MIN_THREATS = 4, WARWEARY_MAX_ASA = 0.5, WARWEARY_PROB = 0.4;
 export const WARWEARY_LEVY_SOL = 0.1, WARWEARY_LEVY_INTERIOR_SOL = 0.03, WARWEARY_TERMS_SOL = 0.03, WARWEARY_TRUCE_TICKS = 2;
 export const BOOMTOWN_PROB = 0.25, BOOMTOWN_CHARTER_SOL = 0.04, BOOMTOWN_WALL_SOL = 0.15;
+export const PROPHECY_PROB = 0.15, PROPHECY_ASA = 0.5, PROPHECY_COST_SOL = 0.03, PROPHECY_BOON_SOL = 0.08, PROPHECY_BUST_SOL = 0.05;
 
-export type DilemmaCode = "unrest" | "raiders" | "warweary" | "boomtown" | "prosperity" | "defector";
+export type DilemmaCode = "unrest" | "raiders" | "warweary" | "boomtown" | "prosperity" | "defector" | "prophecy1" | "prophecy2";
 export interface Dilemma { code: DilemmaCode; data: Record<string, string | number> }
 export interface DilemmaOutcome { code: string; data: Record<string, string | number> }
 
@@ -71,6 +72,12 @@ export function offerDilemma(s: SimState): Dilemma | null {
   const mine = agg[s.playerPolity];
   if (!mine || mine.cells === 0) return null;
 
+  // chain follow-up: a sponsored prophecy is judged at the next window, guaranteed
+  if (s.dilemmaFlags.has("prophecySponsored")) {
+    s.lastDilemma = s.tick;
+    return { code: "prophecy2", data: {} };
+  }
+
   if (mine.cells >= UNREST_MIN_CELLS && mine.avg < UNREST_MAX_ASA && s.rng() < UNREST_PROB) {
     s.lastDilemma = s.tick;
     return { code: "unrest", data: {} };
@@ -101,6 +108,10 @@ export function offerDilemma(s: SimState): Dilemma | null {
     for (const t of targets) if (s.solidarity[t.cell] > s.solidarity[best.cell]) best = t;
     s.lastDilemma = s.tick;
     return { code: "defector", data: { cell: best.cell, polity: best.owner, name: best.ownerName } };
+  }
+  if (!s.dilemmaFlags.has("prophecyDone") && s.rng() < PROPHECY_PROB) {
+    s.lastDilemma = s.tick;
+    return { code: "prophecy1", data: {} };
   }
   if (mine.avg >= PROSPERITY_MIN_ASA && s.rng() < PROSPERITY_PROB) {
     s.lastDilemma = s.tick;
@@ -156,6 +167,12 @@ export function previewDilemma(s: SimState, d: Dilemma, choice: "a" | "b"): Choi
   }
   if (d.code === "boomtown") return choice === "a" ? { cohesion: 1 } : { note: "citywall" };
   if (d.code === "prosperity") return choice === "a" ? { cohesion: 1 } : { cohesion: 2 };
+  if (d.code === "prophecy1") return choice === "a" ? { cohesion: -1, note: "prophecyDeal" } : { note: "noEffect" };
+  if (d.code === "prophecy2") {
+    if (choice === "b") return { note: "noEffect" };
+    const pct = Math.round((aggregate(s)[s.playerPolity]?.avg ?? 0) * 100);
+    return { note: "prophecyCond", pct };
+  }
   return choice === "a" ? { cells: 1, truce: "break" } : { truce: "gain" }; // defector
 }
 
@@ -213,6 +230,27 @@ export function resolveDilemma(s: SimState, d: Dilemma, choice: "a" | "b"): Dile
     if (choice === "a") { nudgePlayerSol(s, FEAST_SOL, "nation"); return { code: "prosperityFeast", data: {} }; }
     const n = nudgePlayerSol(s, FRONTIER_SOL, "border");
     return { code: "prosperityFrontier", data: { n } };
+  }
+  if (d.code === "prophecy1") {
+    if (choice === "a") {
+      nudgePlayerSol(s, -PROPHECY_COST_SOL, "nation");
+      s.dilemmaFlags.add("prophecySponsored");
+      return { code: "prophecySponsor", data: {} };
+    }
+    s.dilemmaFlags.add("prophecyDone");
+    return { code: "prophecyIgnore", data: {} };
+  }
+  if (d.code === "prophecy2") {
+    s.dilemmaFlags.delete("prophecySponsored");
+    s.dilemmaFlags.add("prophecyDone");
+    if (choice === "b") return { code: "prophecyBuried", data: {} };
+    const avg = aggregate(s)[s.playerPolity]?.avg ?? 0;
+    if (avg >= PROPHECY_ASA) {
+      nudgePlayerSol(s, PROPHECY_BOON_SOL, "nation");
+      return { code: "prophecyFulfilled", data: {} };
+    }
+    nudgePlayerSol(s, -PROPHECY_BUST_SOL, "nation");
+    return { code: "prophecyDebunked", data: {} };
   }
   // defector
   const cell = Number(d.data.cell), polity = Number(d.data.polity), name = String(d.data.name ?? "");

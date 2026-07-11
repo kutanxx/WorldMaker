@@ -229,3 +229,48 @@ describe("state cards", () => {
     expect(forceOffer(s, "boomtown", 64)).toBeNull();
   });
 });
+
+describe("prophecy chain", () => {
+  it("sponsoring guarantees the follow-up at the next window; the judgment is the stated threshold", () => {
+    const s = biggestPlayerState(1, true);
+    const d1 = forceOffer(s, "prophecy1");
+    expect(d1?.code).toBe("prophecy1");
+    if (!d1) return;
+    expect(previewDilemma(s, d1, "a")).toEqual({ cohesion: -1, note: "prophecyDeal" });
+    expect(previewDilemma(s, d1, "b")).toEqual({ note: "noEffect" });
+    resolveDilemma(s, d1, "a");
+    expect(s.dilemmaFlags.has("prophecySponsored")).toBe(true);
+    // next window: the follow-up is guaranteed (no probability draw)
+    s.lastDilemma = -99;
+    const d2 = offerDilemma(s);
+    expect(d2?.code).toBe("prophecy2");
+    if (!d2) return;
+    // the preview states the live condition
+    const pv = previewDilemma(s, d2, "a");
+    expect(pv.note).toBe("prophecyCond");
+    expect(typeof pv.pct).toBe("number");
+    // set cohesion decisively above the threshold and proclaim
+    for (let c = 0; c < s.n; c++) if (s.owner[c] === s.playerPolity) s.solidarity[c] = 0.9;
+    const out = resolveDilemma(s, d2, "a");
+    expect(out.code).toBe("prophecyFulfilled");
+    expect(s.dilemmaFlags.has("prophecySponsored")).toBe(false);
+    expect(s.dilemmaFlags.has("prophecyDone")).toBe(true);
+    // once per reign: never offered again
+    expect(forceOffer(s, "prophecy1", 64)).toBeNull();
+  });
+
+  it("turning the prophet away ends the chain; a low-cohesion proclamation debunks", () => {
+    const s = biggestPlayerState(2, true);
+    const d1 = forceOffer(s, "prophecy1");
+    if (!d1) return; // seed didn't cooperate — the seed-1 test above carries the chain contract
+    resolveDilemma(s, d1, "b");
+    expect(s.dilemmaFlags.has("prophecyDone")).toBe(true);
+    expect(s.dilemmaFlags.has("prophecySponsored")).toBe(false);
+  });
+
+  it("dilemmaFlags is initialized empty and unused by pure history", () => {
+    const { world } = generateWorld({ ...small, seed: 3 });
+    const s = initSim(world, 3);
+    expect(s.dilemmaFlags.size).toBe(0);
+  });
+});

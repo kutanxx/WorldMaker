@@ -88,6 +88,7 @@ export interface SimState {
   truces: Map<number, number>;  // polityId -> tick until which they won't attack the player; default empty
   foundedCities: Set<number>;   // player-founded anchor cells (inert while not owned); default empty
   lastDilemma: number;          // tick of the last dilemma offer (cooldown); only the play UI reads it
+  dilemmaFlags: Set<string>;    // dilemma chain/crisis markers (prophecy, hegemon); play UI only
   straitLinks?: number[][]; // per-cell coastal cells reachable across a narrow strait; only set in a game
 }
 
@@ -198,7 +199,7 @@ export function initSim(world: World, worldSeed: number): SimState {
   const snapshots: HistorySnapshot[] = [{ year: 0, owner: owner.slice() }];
   const cityCells = world.cities.map((c) => ({ cell: c.cell, name: c.name }));
 
-  return { grid, terrain, n, owner, solidarity, polities, capitals, alive, golden, rng, nameGen, events, snapshots, economicZones, zoneCells, cityCells, playerPolity: -1, stance: "internal", peakCells: 0, truces: new Map(), foundedCities: new Set(), lastDilemma: -99, tick: 0 };
+  return { grid, terrain, n, owner, solidarity, polities, capitals, alive, golden, rng, nameGen, events, snapshots, economicZones, zoneCells, cityCells, playerPolity: -1, stance: "internal", peakCells: 0, truces: new Map(), foundedCities: new Set(), lastDilemma: -99, dilemmaFlags: new Set(), tick: 0 };
 }
 
 export function stepSim(s: SimState): void {

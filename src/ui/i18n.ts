@@ -221,6 +221,8 @@ export function playDilemma(lang: Lang, code: string, data: Record<string, strin
       case "boomtown": return { title: "건설한 도시가 크게 성장했습니다.", a: "시장 특허를 내린다 (전국 결속 ▲)", b: "성벽을 증축한다 (도시 주변 ▲▲)" };
       case "prosperity": return { title: "나라에 풍년이 들었습니다.", a: "대축제를 연다 (전국 결속 +)", b: "변경 개척에 투자한다 (국경 결속 +)" };
       case "defector": return { title: `${name}의 제후가 망명을 청합니다.`, a: "받아들인다 (영지 획득, 관계 악화)", b: "돌려보낸다 (10년 불가침)" };
+      case "prophecy1": return { title: "떠돌이 예언자가 왕국의 영광을 예언합니다.", a: "예언자를 후원한다 (지금 ▼, 다음 십년에 심판)", b: "내친다 (변화 없음)" };
+      case "prophecy2": return { title: "예언의 시간이 왔습니다 — 나라의 결속이 심판대에 오릅니다.", a: "성취를 선포한다 (결속 ≥50%: ▲▲ / 미만: ▼)", b: "조용히 묻는다 (변화 없음)" };
     }
   }
   switch (code) {
@@ -230,6 +232,8 @@ export function playDilemma(lang: Lang, code: string, data: Record<string, strin
     case "boomtown": return { title: "Your founded city booms.", a: "Charter the market (realm cohesion ▲)", b: "Raise the walls (▲▲ around the city)" };
     case "prosperity": return { title: "The realm prospers.", a: "Hold a great festival (realm cohesion +)", b: "Fund the frontier (border cohesion +)" };
     case "defector": return { title: `A lord of ${name} begs asylum.`, a: "Take them in (gain their fief, sour relations)", b: "Send them back (10-year non-aggression)" };
+    case "prophecy1": return { title: "A wandering prophet foretells your realm's glory.", a: "Sponsor the prophet (▼ now, judged next decade)", b: "Turn them away (no effect)" };
+    case "prophecy2": return { title: "The prophecy's hour has come — the realm's cohesion is judged.", a: "Proclaim the fulfilment (cohesion ≥50%: ▲▲ / below: ▼)", b: "Bury it quietly (no effect)" };
   }
   return { title: code, a: "A", b: "B" };
 }
@@ -253,6 +257,11 @@ export function playDilemmaOutcome(lang: Lang, code: string, data: Record<string
       case "prosperityFrontier": return `변경 ${n}개 셀에 개척민이 들어섰다.`;
       case "defectorAccept": return `${name}의 영지가 귀부했다.`;
       case "defectorReturn": return `${name}이(가) 10년 불가침을 약속했다.`;
+      case "prophecySponsor": return "예언자가 왕실의 이름으로 순회를 시작했다.";
+      case "prophecyIgnore": return "예언자는 다른 나라로 떠났다.";
+      case "prophecyFulfilled": return "예언이 이루어졌다! 백성이 왕조를 칭송한다.";
+      case "prophecyDebunked": return "예언은 빈말이 되었고, 왕실의 체면이 깎였다.";
+      case "prophecyBuried": return "예언은 조용히 잊혔다.";
       default: return "";
     }
   }
@@ -272,6 +281,11 @@ export function playDilemmaOutcome(lang: Lang, code: string, data: Record<string
     case "prosperityFrontier": return `Settlers strengthen ${n} frontier cells.`;
     case "defectorAccept": return `The defecting fief joins you, angering ${name}.`;
     case "defectorReturn": return `${name} pledges 10 years of peace.`;
+    case "prophecySponsor": return "The prophet tours in the crown's name.";
+    case "prophecyIgnore": return "The prophet moves on to other lands.";
+    case "prophecyFulfilled": return "The prophecy is fulfilled! The realm exults.";
+    case "prophecyDebunked": return "The prophecy rings hollow; the crown is embarrassed.";
+    case "prophecyBuried": return "The prophecy is quietly forgotten.";
     default: return "";
   }
 }
