@@ -141,7 +141,6 @@ svg.world .legend { pointer-events: none; }
 /* command bar: a slim horizontal row under the map */
 .play-actions.controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .play-actions .invest-seg button { font-size: 13px; }
-.play-actions .peace-select { max-width: 200px; }
 .play-actions .btn-advance { margin-left: auto; font-weight: 700; }
 .chronicle { max-height: 240px; }
 
