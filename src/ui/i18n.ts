@@ -223,6 +223,9 @@ export function playDilemma(lang: Lang, code: string, data: Record<string, strin
       case "defector": return { title: `${name}의 제후가 망명을 청합니다.`, a: "받아들인다 (영지 획득, 관계 악화)", b: "돌려보낸다 (10년 불가침)" };
       case "prophecy1": return { title: "떠돌이 예언자가 왕국의 영광을 예언합니다.", a: "예언자를 후원한다 (지금 ▼, 다음 십년에 심판)", b: "내친다 (변화 없음)" };
       case "prophecy2": return { title: "예언의 시간이 왔습니다 — 나라의 결속이 심판대에 오릅니다.", a: "성취를 선포한다 (결속 ≥50%: ▲▲ / 미만: ▼)", b: "조용히 묻는다 (변화 없음)" };
+      case "hegemon1": return { title: `${name}이(가) 패권국으로 부상했습니다. 그 그림자가 국경에 드리웁니다.`, a: "측면을 규합한다 (이웃과 휴전)", b: "군비를 증강한다 (국경 ▲▲, 내지 ▼)" };
+      case "hegemon2": return { title: `${name}의 최후통첩 — 조공이냐, 전쟁이냐.`, a: "조공을 바친다 (결속 ▼▼, 30년 휴전)", b: "항전을 결의한다 (결속 ▲, 결전으로)" };
+      case "hegemon3": return { title: `결전의 날 — ${name}의 대군이 국경에 집결했습니다.`, a: "결전에 나선다 (도박 — 승률은 결속이 정한다)", b: "무릎 꿇는다 (결속 ▼▼, 30년 휴전)" };
     }
   }
   switch (code) {
@@ -234,6 +237,9 @@ export function playDilemma(lang: Lang, code: string, data: Record<string, strin
     case "defector": return { title: `A lord of ${name} begs asylum.`, a: "Take them in (gain their fief, sour relations)", b: "Send them back (10-year non-aggression)" };
     case "prophecy1": return { title: "A wandering prophet foretells your realm's glory.", a: "Sponsor the prophet (▼ now, judged next decade)", b: "Turn them away (no effect)" };
     case "prophecy2": return { title: "The prophecy's hour has come — the realm's cohesion is judged.", a: "Proclaim the fulfilment (cohesion ≥50%: ▲▲ / below: ▼)", b: "Bury it quietly (no effect)" };
+    case "hegemon1": return { title: `${name} rises as a hegemon; its shadow falls on your border.`, a: "Rally the flanks (truces with neighbors)", b: "Arm the border (border ▲▲, interior ▼)" };
+    case "hegemon2": return { title: `${name}'s ultimatum — tribute, or war.`, a: "Pay tribute (cohesion ▼▼, 30y truce)", b: "Defy them (cohesion ▲, to the reckoning)" };
+    case "hegemon3": return { title: `The reckoning — ${name}'s host masses on your border.`, a: "Give battle (a gamble — cohesion sets the odds)", b: "Kneel (cohesion ▼▼, 30y truce)" };
   }
   return { title: code, a: "A", b: "B" };
 }
@@ -262,6 +268,13 @@ export function playDilemmaOutcome(lang: Lang, code: string, data: Record<string
       case "prophecyFulfilled": return "예언이 이루어졌다! 백성이 왕조를 칭송한다.";
       case "prophecyDebunked": return "예언은 빈말이 되었고, 왕실의 체면이 깎였다.";
       case "prophecyBuried": return "예언은 조용히 잊혔다.";
+      case "hegemonRally": return `${n}개 이웃과 휴전을 맺어 측면을 지켰다.`;
+      case "hegemonArm": return `국경 ${n}개 셀에 방비를 세웠다.`;
+      case "hegemonTribute": return `${name}에 조공을 바쳤다. 굴욕이지만 나라는 산다.`;
+      case "hegemonDefy": return "항전의 깃발이 올랐다.";
+      case "hegemonVictory": return `결전에서 승리했다! ${name}에게서 ${n}개 셀을 빼앗았다.`;
+      case "hegemonRout": return `결전에서 패했다. ${name}에게 ${n}개 셀을 내주었다.`;
+      case "hegemonKneel": return `${name} 앞에 무릎 꿇었다. 나라는 살아남았다.`;
       default: return "";
     }
   }
@@ -286,6 +299,13 @@ export function playDilemmaOutcome(lang: Lang, code: string, data: Record<string
     case "prophecyFulfilled": return "The prophecy is fulfilled! The realm exults.";
     case "prophecyDebunked": return "The prophecy rings hollow; the crown is embarrassed.";
     case "prophecyBuried": return "The prophecy is quietly forgotten.";
+    case "hegemonRally": return `Truces with ${n} neighbors secure the flanks.`;
+    case "hegemonArm": return `The border arms: ${n} cells fortified.`;
+    case "hegemonTribute": return `Tribute paid to ${name}; humiliating, but the realm lives.`;
+    case "hegemonDefy": return "The banner of defiance is raised.";
+    case "hegemonVictory": return `Victory! ${n} cells taken from ${name}.`;
+    case "hegemonRout": return `Routed — ${n} cells lost to ${name}.`;
+    case "hegemonKneel": return `You kneel before ${name}; the realm survives.`;
     default: return "";
   }
 }

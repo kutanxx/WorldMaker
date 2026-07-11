@@ -7,7 +7,7 @@
 import { OCEAN } from "./terrain";
 import type { SimState } from "./historySim";
 import { aggregate, CONQUEST_SOL } from "./historySim";
-import { borderTargets, frontEdges, predictCapture, applyIntervention } from "./intervention";
+import { borderTargets, frontEdges, predictCapture, applyIntervention, hostileNeighbors } from "./intervention";
 
 export const DILEMMA_COOLDOWN = 3; // min ticks between offers (ignoring one also cools down)
 const UNREST_MAX_ASA = 0.42, UNREST_MIN_CELLS = 60, UNREST_PROB = 0.5;
@@ -23,8 +23,12 @@ export const WARWEARY_MIN_THREATS = 4, WARWEARY_MAX_ASA = 0.5, WARWEARY_PROB = 0
 export const WARWEARY_LEVY_SOL = 0.1, WARWEARY_LEVY_INTERIOR_SOL = 0.03, WARWEARY_TERMS_SOL = 0.03, WARWEARY_TRUCE_TICKS = 2;
 export const BOOMTOWN_PROB = 0.25, BOOMTOWN_CHARTER_SOL = 0.04, BOOMTOWN_WALL_SOL = 0.15;
 export const PROPHECY_PROB = 0.15, PROPHECY_ASA = 0.5, PROPHECY_COST_SOL = 0.03, PROPHECY_BOON_SOL = 0.08, PROPHECY_BUST_SOL = 0.05;
+export const HEGEMON_MIN_TICK = 20, HEGEMON_RATIO = 1.6, HEGEMON_SPOILS = 8;
+export const HEGEMON_RALLY_TICKS = 2, HEGEMON_ARM_BORDER_SOL = 0.08, HEGEMON_ARM_INTERIOR_SOL = 0.02;
+export const HEGEMON_TRIBUTE_SOL = 0.08, HEGEMON_TRIBUTE_TICKS = 3, HEGEMON_DEFY_SOL = 0.04;
+export const HEGEMON_WIN_SOL = 0.06, HEGEMON_LOSE_SOL = 0.06, HEGEMON_KNEEL_SOL = 0.12;
 
-export type DilemmaCode = "unrest" | "raiders" | "warweary" | "boomtown" | "prosperity" | "defector" | "prophecy1" | "prophecy2";
+export type DilemmaCode = "unrest" | "raiders" | "warweary" | "boomtown" | "prosperity" | "defector" | "prophecy1" | "prophecy2" | "hegemon1" | "hegemon2" | "hegemon3";
 export interface Dilemma { code: DilemmaCode; data: Record<string, string | number> }
 export interface DilemmaOutcome { code: string; data: Record<string, string | number> }
 
@@ -63,19 +67,76 @@ function cityWallCells(s: SimState, city: number): number[] {
   for (const nb of s.grid.neighbors[city]) if (s.owner[nb] === s.playerPolity) cells.push(nb);
   return cells;
 }
+function hegemonFoe(s: SimState): number {
+  for (const f of s.dilemmaFlags) if (f.startsWith("hegemonFoe:")) return Number(f.slice(11));
+  return -1;
+}
+function endHegemon(s: SimState): void {
+  for (const f of [...s.dilemmaFlags]) if (f.startsWith("hegemon")) s.dilemmaFlags.delete(f);
+  s.dilemmaFlags.add("hegemonDone");
+}
+// cohesion IS battle-readiness under this game's rules; clamped so neither side is a lock
+function battleOdds(s: SimState): number {
+  const avg = aggregate(s)[s.playerPolity]?.avg ?? 0;
+  return Math.min(0.8, Math.max(0.2, avg));
+}
+// up to k cells of the LOSING side on the shared player<->other land front, lowest solidarity
+// first — deterministic, exported and shared by resolve and preview so counts cannot drift
+export function borderCellsBetween(s: SimState, other: number, k: number, losing: "player" | "other"): number[] {
+  const losePol = losing === "player" ? s.playerPolity : other;
+  const winPol = losing === "player" ? other : s.playerPolity;
+  const out: number[] = [];
+  for (let c = 0; c < s.n; c++) {
+    if (s.owner[c] !== losePol) continue;
+    for (const nb of s.grid.neighbors[c]) {
+      if (s.terrain[nb] !== OCEAN && s.owner[nb] === winPol) { out.push(c); break; }
+    }
+  }
+  out.sort((x, y) => s.solidarity[x] - s.solidarity[y]);
+  return out.slice(0, k);
+}
 
 // at most one dilemma per call; sets the cooldown when one fires. Priority: crisis first.
 export function offerDilemma(s: SimState): Dilemma | null {
   if (s.playerPolity < 0) return null;
-  if (s.tick - s.lastDilemma < DILEMMA_COOLDOWN) return null;
   const agg = aggregate(s);
   const mine = agg[s.playerPolity];
   if (!mine || mine.cells === 0) return null;
+
+  // ① crisis-arc continuation: an act per offer window, bypassing the cooldown (Frostpunk
+  // pacing — 30-year gaps between acts would kill the arc). Dissolves if the hegemon died.
+  const stage = s.dilemmaFlags.has("hegemon3") ? "hegemon3" : s.dilemmaFlags.has("hegemon2") ? "hegemon2" : null;
+  if (stage) {
+    const foe = hegemonFoe(s);
+    if (foe >= 0 && s.alive[foe]) {
+      s.lastDilemma = s.tick;
+      return { code: stage, data: { polity: foe, name: s.polities[foe].name } };
+    }
+    endHegemon(s); // dissolve silently; normal flow resumes below
+  }
+
+  if (s.tick - s.lastDilemma < DILEMMA_COOLDOWN) return null;
 
   // chain follow-up: a sponsored prophecy is judged at the next window, guaranteed
   if (s.dilemmaFlags.has("prophecySponsored")) {
     s.lastDilemma = s.tick;
     return { code: "prophecy2", data: {} };
+  }
+
+  // ④ crisis opening: a rival has grown into a hegemon — fires when first true, once per reign
+  if (s.tick >= HEGEMON_MIN_TICK && !s.dilemmaFlags.has("hegemonDone")) {
+    let big = -1, bigCells = 0;
+    for (let p = 0; p < s.polities.length; p++) {
+      if (p === s.playerPolity || !s.alive[p] || s.polities[p].free) continue;
+      const cells = agg[p]?.cells ?? 0;
+      if (cells > bigCells) { big = p; bigCells = cells; }
+    }
+    if (big >= 0 && bigCells >= HEGEMON_RATIO * mine.cells) {
+      for (const f of [...s.dilemmaFlags]) if (f.startsWith("hegemonFoe:")) s.dilemmaFlags.delete(f);
+      s.dilemmaFlags.add(`hegemonFoe:${big}`);
+      s.lastDilemma = s.tick;
+      return { code: "hegemon1", data: { polity: big, name: s.polities[big].name } };
+    }
   }
 
   if (mine.cells >= UNREST_MIN_CELLS && mine.avg < UNREST_MAX_ASA && s.rng() < UNREST_PROB) {
@@ -173,6 +234,16 @@ export function previewDilemma(s: SimState, d: Dilemma, choice: "a" | "b"): Choi
     const pct = Math.round((aggregate(s)[s.playerPolity]?.avg ?? 0) * 100);
     return { note: "prophecyCond", pct };
   }
+  if (d.code === "hegemon1") return choice === "a" ? { truce: "gain" } : { note: "fortify" };
+  if (d.code === "hegemon2") return choice === "a" ? { cohesion: -2, truce: "gain" } : { cohesion: 1 };
+  if (d.code === "hegemon3") {
+    if (choice === "b") return { cohesion: -2, truce: "gain" };
+    return {
+      cells: borderCellsBetween(s, Number(d.data.polity), HEGEMON_SPOILS, "other").length,
+      cohesion: 1,
+      odds: battleOdds(s),
+    };
+  }
   return choice === "a" ? { cells: 1, truce: "break" } : { truce: "gain" }; // defector
 }
 
@@ -251,6 +322,55 @@ export function resolveDilemma(s: SimState, d: Dilemma, choice: "a" | "b"): Dile
     }
     nudgePlayerSol(s, -PROPHECY_BUST_SOL, "nation");
     return { code: "prophecyDebunked", data: {} };
+  }
+  if (d.code === "hegemon1") {
+    const foe = Number(d.data.polity);
+    s.dilemmaFlags.add("hegemon2");
+    if (choice === "a") {
+      // rally the flanks: truces with up to 2 weakest hostile neighbors — never the hegemon
+      const agg = aggregate(s);
+      const others = hostileNeighbors(s)
+        .filter((h) => h.id !== foe && (h.trucedUntil ?? 0) <= s.tick)
+        .sort((x, y) => (agg[x.id]?.cells ?? 0) - (agg[y.id]?.cells ?? 0))
+        .slice(0, 2);
+      for (const h of others) s.truces.set(h.id, s.tick + HEGEMON_RALLY_TICKS);
+      return { code: "hegemonRally", data: { n: others.length } };
+    }
+    const n = nudgePlayerSol(s, HEGEMON_ARM_BORDER_SOL, "border");
+    nudgePlayerSol(s, -HEGEMON_ARM_INTERIOR_SOL, "interior");
+    return { code: "hegemonArm", data: { n } };
+  }
+  if (d.code === "hegemon2") {
+    const foe = Number(d.data.polity), name = String(d.data.name ?? "");
+    s.dilemmaFlags.delete("hegemon2");
+    if (choice === "a") {
+      s.truces.set(foe, s.tick + HEGEMON_TRIBUTE_TICKS);
+      nudgePlayerSol(s, -HEGEMON_TRIBUTE_SOL, "nation");
+      endHegemon(s);
+      return { code: "hegemonTribute", data: { name } };
+    }
+    nudgePlayerSol(s, HEGEMON_DEFY_SOL, "nation");
+    s.dilemmaFlags.add("hegemon3");
+    return { code: "hegemonDefy", data: {} };
+  }
+  if (d.code === "hegemon3") {
+    const foe = Number(d.data.polity), name = String(d.data.name ?? "");
+    endHegemon(s);
+    if (choice === "b") {
+      s.truces.set(foe, s.tick + HEGEMON_TRIBUTE_TICKS);
+      nudgePlayerSol(s, -HEGEMON_KNEEL_SOL, "nation");
+      return { code: "hegemonKneel", data: { name } };
+    }
+    if (s.rng() < battleOdds(s)) {
+      const spoils = borderCellsBetween(s, foe, HEGEMON_SPOILS, "other");
+      for (const c of spoils) { s.owner[c] = s.playerPolity; s.solidarity[c] = CONQUEST_SOL; }
+      nudgePlayerSol(s, HEGEMON_WIN_SOL, "nation");
+      return { code: "hegemonVictory", data: { n: spoils.length, name } };
+    }
+    const lost = borderCellsBetween(s, foe, HEGEMON_SPOILS, "player");
+    for (const c of lost) { s.owner[c] = foe; s.solidarity[c] = CONQUEST_SOL; }
+    nudgePlayerSol(s, -HEGEMON_LOSE_SOL, "nation");
+    return { code: "hegemonRout", data: { n: lost.length, name } };
   }
   // defector
   const cell = Number(d.data.cell), polity = Number(d.data.polity), name = String(d.data.name ?? "");

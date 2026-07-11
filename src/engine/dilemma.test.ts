@@ -3,7 +3,7 @@ import { generateWorld } from "./world";
 import { DEFAULT_PARAMS } from "../types/world";
 import { initSim, CONQUEST_SOL } from "./historySim";
 import { borderTargets } from "./intervention";
-import { offerDilemma, resolveDilemma, previewDilemma, bestRaidTarget, DILEMMA_COOLDOWN, WARWEARY_TRUCE_TICKS, type Dilemma } from "./dilemma";
+import { offerDilemma, resolveDilemma, previewDilemma, bestRaidTarget, borderCellsBetween, DILEMMA_COOLDOWN, WARWEARY_TRUCE_TICKS, HEGEMON_SPOILS, HEGEMON_RATIO, HEGEMON_MIN_TICK, type Dilemma } from "./dilemma";
 
 const small = { ...DEFAULT_PARAMS, width: 300, height: 300, cellCount: 400, townCount: 6 };
 const worlds = new Map<string, ReturnType<typeof generateWorld>["world"]>();
@@ -272,5 +272,95 @@ describe("prophecy chain", () => {
     const { world } = generateWorld({ ...small, seed: 3 });
     const s = initSim(world, 3);
     expect(s.dilemmaFlags.size).toBe(0);
+  });
+});
+
+describe("hegemon crisis arc", () => {
+  // a state where the arc's opening condition holds: play the SMALLEST nation late-game
+  function hegemonState(seed: number) {
+    const s = biggestPlayerState(seed, true);
+    const counts = new Map<number, number>();
+    for (const o of s.owner) if (o >= 0) counts.set(o, (counts.get(o) ?? 0) + 1);
+    const sorted = [...counts.entries()].sort((a, b) => a[1] - b[1]);
+    s.playerPolity = sorted[0][0]; // smallest → the biggest rival easily clears 1.6×
+    s.tick = HEGEMON_MIN_TICK + 1;
+    return s;
+  }
+
+  it("opens once past mid-game against a 1.6× rival, then runs act-per-window bypassing the cooldown", () => {
+    const s = hegemonState(1);
+    s.lastDilemma = -99;
+    const d1 = offerDilemma(s);
+    expect(d1?.code).toBe("hegemon1");
+    if (!d1) return;
+    const foe = Number(d1.data.polity);
+    expect(s.alive[foe]).toBe(true);
+    expect(previewDilemma(s, d1, "a")).toEqual({ truce: "gain" });
+    expect(previewDilemma(s, d1, "b")).toEqual({ note: "fortify" });
+    resolveDilemma(s, d1, "b");
+    expect(s.dilemmaFlags.has("hegemon2")).toBe(true);
+    // act 2 fires on the very next offer call — no cooldown wait
+    const d2 = offerDilemma(s);
+    expect(d2?.code).toBe("hegemon2");
+    if (!d2) return;
+    expect(previewDilemma(s, d2, "a")).toEqual({ cohesion: -2, truce: "gain" });
+    resolveDilemma(s, d2, "b"); // defy
+    expect(s.dilemmaFlags.has("hegemon3")).toBe(true);
+    const d3 = offerDilemma(s);
+    expect(d3?.code).toBe("hegemon3");
+    if (!d3) return;
+    // the battle preview reports real odds and the real spoils count, no rng draw
+    const pv = previewDilemma(s, d3, "a");
+    expect(pv.odds).toBeGreaterThanOrEqual(0.2);
+    expect(pv.odds).toBeLessThanOrEqual(0.8);
+    expect(pv.cells).toBe(borderCellsBetween(s, foe, HEGEMON_SPOILS, "other").length);
+    // stub the roll: win
+    const rng = s.rng;
+    s.rng = () => 0;
+    const before = borderCellsBetween(s, foe, HEGEMON_SPOILS, "other");
+    const out = resolveDilemma(s, d3, "a");
+    s.rng = rng;
+    expect(out.code).toBe("hegemonVictory");
+    expect(Number(out.data.n)).toBe(before.length);
+    for (const c of before) expect(s.owner[c]).toBe(s.playerPolity);
+    expect(s.dilemmaFlags.has("hegemonDone")).toBe(true);
+    // once per reign
+    s.lastDilemma = -99;
+    for (let i = 0; i < 32; i++) { s.lastDilemma = -99; expect(offerDilemma(s)?.code ?? "x").not.toMatch(/^hegemon/); }
+  });
+
+  it("a lost battle cedes player border cells to the hegemon; tribute ends the arc peacefully", () => {
+    const s = hegemonState(2);
+    s.lastDilemma = -99;
+    const d1 = offerDilemma(s);
+    expect(d1?.code).toBe("hegemon1");
+    if (!d1) return;
+    const foe = Number(d1.data.polity);
+    resolveDilemma(s, d1, "a"); // rally: truces with some neighbors, never the hegemon
+    expect((s.truces.get(foe) ?? 0) <= s.tick).toBe(true);
+    const d2 = offerDilemma(s)!;
+    resolveDilemma(s, d2, "b");
+    const d3 = offerDilemma(s)!;
+    const rng = s.rng;
+    s.rng = () => 0.999; // force the rout
+    const lost = borderCellsBetween(s, foe, HEGEMON_SPOILS, "player");
+    const out = resolveDilemma(s, d3, "a");
+    s.rng = rng;
+    expect(out.code).toBe("hegemonRout");
+    for (const c of lost) expect(s.owner[c]).toBe(foe);
+  });
+
+  it("the arc dissolves silently if the hegemon dies between acts", () => {
+    const s = hegemonState(3);
+    s.lastDilemma = -99;
+    const d1 = offerDilemma(s);
+    expect(d1?.code).toBe("hegemon1");
+    if (!d1) return;
+    resolveDilemma(s, d1, "b");
+    s.alive[Number(d1.data.polity)] = false;
+    const next = offerDilemma(s);
+    expect(next?.code ?? "none").not.toMatch(/^hegemon/);
+    expect(s.dilemmaFlags.has("hegemonDone")).toBe(true);
+    expect(s.dilemmaFlags.has("hegemon2")).toBe(false);
   });
 });
