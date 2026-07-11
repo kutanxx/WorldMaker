@@ -1,4 +1,7 @@
 import "./theme.css";
+import { hashStringToSeed } from "./engine/rng";
+import { encodeParams } from "./ui/urlState";
+import { DEFAULT_PARAMS } from "./types/world";
 
 // A share URL is a hash whose base64 payload is JSON carrying a finite numeric `seed`
 // (the shape `urlState.encodeParams` produces). Anything else (empty, non-base64, or JSON
@@ -15,6 +18,17 @@ export function redirectTarget(hash: string): string | null {
   } catch {
     return null;
   }
+}
+
+// "Narnia" → shareable targets: play keeps the NAME in the URL; map converts to the numeric
+// params blob Version A already understands (same hashStringToSeed world either way).
+export function nameTargets(name: string): { play: string; map: string } | null {
+  const t = name.trim();
+  if (t.length === 0) return null;
+  return {
+    play: "play.html#seed=" + encodeURIComponent(t),
+    map: "map.html" + encodeParams({ ...DEFAULT_PARAMS, seed: hashStringToSeed(t) }),
+  };
 }
 
 export function renderChooser(root: HTMLElement): void {
@@ -36,7 +50,21 @@ export function renderChooser(root: HTMLElement): void {
         <p class="choice-desc">Rule a nation, advance the years, and shape the fate of your realm.</p>
         <div class="choice-sub">제국 플레이</div>
       </a>
+    </div>
+    <div class="landing-name">
+      <input class="name-seed" maxlength="40" placeholder="세계의 이름으로 시작 · start from a name (e.g. Narnia)" />
+      <button class="name-play">▶ Play</button>
+      <button class="name-map">🗺 Map</button>
     </div>`;
+
+  const input = root.querySelector(".name-seed") as HTMLInputElement;
+  const go = (kind: "play" | "map") => {
+    const t = nameTargets(input.value);
+    if (t) location.assign(t[kind]);
+  };
+  (root.querySelector(".name-play") as HTMLButtonElement).addEventListener("click", () => go("play"));
+  (root.querySelector(".name-map") as HTMLButtonElement).addEventListener("click", () => go("map"));
+  input.addEventListener("keydown", (e) => { if (e.key === "Enter") go("play"); });
 }
 
 const root = document.getElementById("landing");

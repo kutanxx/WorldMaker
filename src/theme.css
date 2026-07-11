@@ -208,3 +208,7 @@ svg.world .legend { pointer-events: none; }
 .neighbor-chip.wary { border-color: #b08a2e; }
 .neighbor-chip.hostile { border-color: #a63d36; color: #7c2f28; }
 .neighbor-more { font-size: 11px; color: #8a7a5e; align-self: center; }
+
+/* landing: start-from-a-name row */
+.landing-name { display: flex; gap: 8px; justify-content: center; margin: 18px auto 0; max-width: 560px; }
+.landing-name .name-seed { flex: 1; padding: 7px 12px; border: 1px solid #c9bb96; border-radius: 6px; background: #f7f1e1; font-size: 14px; }

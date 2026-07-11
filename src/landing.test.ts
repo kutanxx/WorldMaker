@@ -28,3 +28,31 @@ describe("renderChooser", () => {
     expect(hrefs).toContain("play.html");
   });
 });
+
+import { nameTargets } from "./landing";
+import { hashStringToSeed } from "./engine/rng";
+import { decodeParams } from "./ui/urlState";
+
+describe("nameTargets", () => {
+  it("routes a name to play (string hash, URL-encoded) and map (numeric blob, same world)", () => {
+    const t = nameTargets("Narnia")!;
+    expect(t.play).toBe("play.html#seed=Narnia");
+    expect(decodeParams(t.map.replace(/^map\.html/, "")).seed).toBe(hashStringToSeed("Narnia"));
+    const ko = nameTargets("나니아")!;
+    expect(ko.play).toBe("play.html#seed=" + encodeURIComponent("나니아"));
+  });
+  it("empty/whitespace names route nowhere", () => {
+    expect(nameTargets("")).toBeNull();
+    expect(nameTargets("   ")).toBeNull();
+  });
+});
+
+describe("renderChooser name input", () => {
+  it("renders the name input and both start buttons", () => {
+    const root = document.createElement("div");
+    renderChooser(root);
+    expect(root.querySelector(".name-seed")).not.toBeNull();
+    expect(root.querySelector(".name-play")).not.toBeNull();
+    expect(root.querySelector(".name-map")).not.toBeNull();
+  });
+});
