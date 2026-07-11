@@ -1,6 +1,6 @@
 import type { SimState } from "./historySim";
 import { aggregate } from "./historySim";
-import { frontEdges } from "./intervention";
+import { frontEdges, hostileNeighbors } from "./intervention";
 
 // tuning knobs for the "how am I doing" readout (UI layer — NOT engine goldens)
 export const STRENGTH_STRONG = 1.15; // cells / rivalAvg at/above this => "우세"
@@ -48,4 +48,43 @@ export function computeStanding(s: SimState, opts: { neighborsOnly?: boolean } =
   for (const until of s.truces.values()) if (until > s.tick) truceCount++;
 
   return { cells, rivalAvgCells, strength, cohesion, cohesionState, borderPolities: borderSet.size, truceCount };
+}
+
+// --- neighbor attitudes -----------------------------------------------------------------
+// Honest 3-state diplomacy readability (TW/Paradox: attitude + itemized reasons). Each state
+// maps to a REAL behavioral guarantee — friendly = truce active (stepSim skips their attacks
+// on the player), hostile = they win border contests (bigger) or are the flagged crisis foe,
+// wary = everything else. The Civ-agendas lesson: never display what the sim doesn't back.
+export type Attitude = "friendly" | "wary" | "hostile";
+export const ATT_HOSTILE_RATIO = 1.15; // their cells / ours at/above this ⇒ hostile
+
+export interface NeighborAttitude {
+  id: number; name: string;
+  att: Attitude;
+  ratio: number;        // their cells / player cells
+  borderEdges: number;  // shared front edges (threat + push)
+  truceLeft: number;    // ticks remaining, 0 if none
+  hegemon: boolean;     // the crisis arc's flagged foe
+}
+
+export function neighborAttitudes(s: SimState): NeighborAttitude[] {
+  if (s.playerPolity < 0) return [];
+  const agg = aggregate(s);
+  const mine = agg[s.playerPolity]?.cells ?? 0;
+  const edgeCount = new Map<number, number>();
+  for (const e of frontEdges(s)) {
+    const p = s.owner[e.enemy]; // FrontEdge.enemy is a CELL index — owner[] maps it
+    if (p >= 0) edgeCount.set(p, (edgeCount.get(p) ?? 0) + 1);
+  }
+  let hegemonId = -1;
+  for (const f of s.dilemmaFlags) if (f.startsWith("hegemonFoe:")) hegemonId = Number(f.slice(11));
+  const out: NeighborAttitude[] = [];
+  for (const h of hostileNeighbors(s)) {
+    const ratio = mine > 0 ? (agg[h.id]?.cells ?? 0) / mine : 0;
+    const truceLeft = Math.max(0, h.trucedUntil - s.tick);
+    const hegemon = h.id === hegemonId;
+    const att: Attitude = truceLeft > 0 ? "friendly" : ratio >= ATT_HOSTILE_RATIO || hegemon ? "hostile" : "wary";
+    out.push({ id: h.id, name: h.name, att, ratio, borderEdges: edgeCount.get(h.id) ?? 0, truceLeft, hegemon });
+  }
+  return out.sort((a, b) => b.borderEdges - a.borderEdges);
 }

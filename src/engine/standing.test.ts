@@ -2,9 +2,9 @@ import { describe, it, expect } from "vitest";
 import { generateWorld } from "./world";
 import { DEFAULT_PARAMS } from "../types/world";
 import { initPlaySim } from "./playSim";
-import { computeStanding } from "./standing";
+import { computeStanding, neighborAttitudes, ATT_HOSTILE_RATIO } from "./standing";
 import { frontEdges } from "./intervention";
-import { aggregate } from "./historySim";
+import { aggregate, initSim } from "./historySim";
 
 const small = { ...DEFAULT_PARAMS, width: 300, height: 300, cellCount: 400, townCount: 6 };
 
@@ -109,5 +109,45 @@ describe("computeStanding", () => {
     // whole-field default includes non-bordering living rivals (polities 2-7 also survive in this
     // world), so it must differ from the neighbors-only figure.
     expect(stDefault.rivalAvgCells).not.toBe(stNeighbors.rivalAvgCells);
+  });
+});
+
+describe("neighborAttitudes", () => {
+  function playerState(seed: number) {
+    const { world } = generateWorld({ ...DEFAULT_PARAMS, seed });
+    const s = initSim(world, seed);
+    const counts = new Map<number, number>();
+    for (const o of s.owner) if (o >= 0) counts.set(o, (counts.get(o) ?? 0) + 1);
+    s.playerPolity = [...counts.entries()].sort((a, b) => b[1] - a[1])[0][0];
+    return s;
+  }
+
+  it("truce ⇒ friendly (the engine literally skips their attacks); strength ⇒ hostile; else wary", () => {
+    const s = playerState(1);
+    const atts = neighborAttitudes(s);
+    expect(atts.length).toBeGreaterThan(0);
+    for (const a of atts) {
+      if (a.truceLeft > 0) expect(a.att).toBe("friendly");
+      else if (a.ratio >= ATT_HOSTILE_RATIO || a.hegemon) expect(a.att).toBe("hostile");
+      else expect(a.att).toBe("wary");
+    }
+    // force a truce with the most-bordering rival and re-derive
+    s.truces.set(atts[0].id, s.tick + 3);
+    const after = neighborAttitudes(s).find((a) => a.id === atts[0].id)!;
+    expect(after.att).toBe("friendly");
+    expect(after.truceLeft).toBe(3);
+  });
+
+  it("the flagged crisis hegemon is hostile regardless of ratio; sorted by border pressure; read-only", () => {
+    const s = playerState(1);
+    const base = neighborAttitudes(s);
+    const target = base.find((a) => a.truceLeft === 0)!;
+    s.dilemmaFlags.add(`hegemonFoe:${target.id}`);
+    const owner = [...s.owner];
+    const atts = neighborAttitudes(s);
+    expect(atts.find((a) => a.id === target.id)!.att).toBe("hostile");
+    expect(atts.find((a) => a.id === target.id)!.hegemon).toBe(true);
+    for (let i = 1; i < atts.length; i++) expect(atts[i - 1].borderEdges).toBeGreaterThanOrEqual(atts[i].borderEdges);
+    expect([...s.owner]).toEqual(owner); // no mutation
   });
 });
