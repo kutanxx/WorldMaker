@@ -19,8 +19,11 @@ const CRUSH_OK_SOL = 0.06, CRUSH_FAIL_SOL = 0.06, CRUSH_ODDS = 0.5;
 const FORTIFY_BORDER_SOL = 0.1, FORTIFY_INTERIOR_SOL = 0.02;
 const FEAST_SOL = 0.04, FRONTIER_SOL = 0.09;
 const RETURN_TRUCE_TICKS = 1; // returning a defector buys a 10-year non-aggression
+export const WARWEARY_MIN_THREATS = 4, WARWEARY_MAX_ASA = 0.5, WARWEARY_PROB = 0.4;
+export const WARWEARY_LEVY_SOL = 0.1, WARWEARY_LEVY_INTERIOR_SOL = 0.03, WARWEARY_TERMS_SOL = 0.03, WARWEARY_TRUCE_TICKS = 2;
+export const BOOMTOWN_PROB = 0.25, BOOMTOWN_CHARTER_SOL = 0.04, BOOMTOWN_WALL_SOL = 0.15;
 
-export type DilemmaCode = "unrest" | "raiders" | "prosperity" | "defector";
+export type DilemmaCode = "unrest" | "raiders" | "warweary" | "boomtown" | "prosperity" | "defector";
 export interface Dilemma { code: DilemmaCode; data: Record<string, string | number> }
 export interface DilemmaOutcome { code: string; data: Record<string, string | number> }
 
@@ -40,6 +43,25 @@ function nudgePlayerSol(s: SimState, delta: number, where: "nation" | "border" |
   }
   return n;
 }
+// the polity throwing the most threat edges at the player. NOTE: FrontEdge.enemy is a CELL
+// index, not a polity id — s.owner[] maps it. Shared by resolve and preview (anti-drift).
+function biggestThreatFoe(s: SimState): number {
+  const counts = new Map<number, number>();
+  for (const e of frontEdges(s)) {
+    if (e.kind !== "threat") continue;
+    const p = s.owner[e.enemy];
+    if (p >= 0) counts.set(p, (counts.get(p) ?? 0) + 1);
+  }
+  let best = -1, bestN = 0;
+  for (const [p, n] of counts) if (n > bestN) { best = p; bestN = n; }
+  return best;
+}
+// the founded city cell + its player-owned neighbors (the wall's reach) — shared with preview
+function cityWallCells(s: SimState, city: number): number[] {
+  const cells = s.owner[city] === s.playerPolity ? [city] : [];
+  for (const nb of s.grid.neighbors[city]) if (s.owner[nb] === s.playerPolity) cells.push(nb);
+  return cells;
+}
 
 // at most one dilemma per call; sets the cooldown when one fires. Priority: crisis first.
 export function offerDilemma(s: SimState): Dilemma | null {
@@ -57,6 +79,20 @@ export function offerDilemma(s: SimState): Dilemma | null {
   if (threats >= RAIDERS_MIN_THREATS && s.rng() < RAIDERS_PROB) {
     s.lastDilemma = s.tick;
     return { code: "raiders", data: { threats } };
+  }
+  if (threats >= WARWEARY_MIN_THREATS && mine.avg < WARWEARY_MAX_ASA && s.rng() < WARWEARY_PROB) {
+    s.lastDilemma = s.tick;
+    return { code: "warweary", data: { threats } };
+  }
+  // boomtown: the strongest founded city still in the player's hands
+  let bestCity = -1;
+  for (const fc of s.foundedCities) {
+    if (s.owner[fc] !== s.playerPolity) continue;
+    if (bestCity < 0 || s.solidarity[fc] > s.solidarity[bestCity]) bestCity = fc;
+  }
+  if (bestCity >= 0 && s.rng() < BOOMTOWN_PROB) {
+    s.lastDilemma = s.tick;
+    return { code: "boomtown", data: { cell: bestCity } };
   }
   // defector: the most cohesive enemy border cell asks to change sides
   const targets = borderTargets(s).filter((t) => !t.sea && !s.polities[t.owner].free);
@@ -114,6 +150,11 @@ export function previewDilemma(s: SimState, d: Dilemma, choice: "a" | "b"): Choi
     const best = bestRaidTarget(s);
     return best ? { cells: best.gain } : { note: "noTarget" };
   }
+  if (d.code === "warweary") {
+    if (choice === "a") return { note: "fortify" };
+    return biggestThreatFoe(s) >= 0 ? { cohesion: -1, truce: "gain" } : { note: "noTarget" };
+  }
+  if (d.code === "boomtown") return choice === "a" ? { cohesion: 1 } : { note: "citywall" };
   if (d.code === "prosperity") return choice === "a" ? { cohesion: 1 } : { cohesion: 2 };
   return choice === "a" ? { cells: 1, truce: "break" } : { truce: "gain" }; // defector
 }
@@ -146,6 +187,27 @@ export function resolveDilemma(s: SimState, d: Dilemma, choice: "a" | "b"): Dile
     const r = applyIntervention(s, { type: "attack", cell: best.cell });
     if (!r.ok) return { code: "raidersNoTarget", data: {} };
     return { code: "raidersRaid", data: { name: String(r.data?.name ?? ""), n: Number(r.data?.n ?? 1) } };
+  }
+  if (d.code === "warweary") {
+    if (choice === "a") {
+      const n = nudgePlayerSol(s, WARWEARY_LEVY_SOL, "border");
+      nudgePlayerSol(s, -WARWEARY_LEVY_INTERIOR_SOL, "interior");
+      return { code: "warwearyLevy", data: { n } };
+    }
+    const foe = biggestThreatFoe(s);
+    if (foe < 0) return { code: "warwearyNoFoe", data: {} };
+    s.truces.set(foe, s.tick + WARWEARY_TRUCE_TICKS);
+    nudgePlayerSol(s, -WARWEARY_TERMS_SOL, "nation");
+    return { code: "warwearyTerms", data: { name: s.polities[foe].name } };
+  }
+  if (d.code === "boomtown") {
+    if (choice === "a") {
+      nudgePlayerSol(s, BOOMTOWN_CHARTER_SOL, "nation");
+      return { code: "boomtownCharter", data: {} };
+    }
+    const cells = cityWallCells(s, Number(d.data.cell));
+    for (const c of cells) s.solidarity[c] = Math.min(1, s.solidarity[c] + BOOMTOWN_WALL_SOL);
+    return { code: "boomtownWall", data: { n: cells.length } };
   }
   if (d.code === "prosperity") {
     if (choice === "a") { nudgePlayerSol(s, FEAST_SOL, "nation"); return { code: "prosperityFeast", data: {} }; }

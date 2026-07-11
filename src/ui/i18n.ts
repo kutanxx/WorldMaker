@@ -217,6 +217,8 @@ export function playDilemma(lang: Lang, code: string, data: Record<string, strin
     switch (code) {
       case "unrest": return { title: "제후들의 불만이 끓어오릅니다.", a: "변경 영지를 양보한다 (영토 −, 결속 +)", b: "강경 진압한다 (도박)" };
       case "raiders": return { title: "국경에 습격이 잇따릅니다.", a: "국경을 요새화한다 (국경 결속 +)", b: "보복 원정을 보낸다 (무료 공격)" };
+      case "warweary": return { title: "잇단 전쟁에 백성이 지쳐갑니다.", a: "징집을 강화한다 (국경 ▲▲, 내지 ▼)", b: "최대 위협국과 화의를 모색한다 (20년 휴전, 결속 소폭 ▼)" };
+      case "boomtown": return { title: "건설한 도시가 크게 성장했습니다.", a: "시장 특허를 내린다 (전국 결속 ▲)", b: "성벽을 증축한다 (도시 주변 ▲▲)" };
       case "prosperity": return { title: "나라에 풍년이 들었습니다.", a: "대축제를 연다 (전국 결속 +)", b: "변경 개척에 투자한다 (국경 결속 +)" };
       case "defector": return { title: `${name}의 제후가 망명을 청합니다.`, a: "받아들인다 (영지 획득, 관계 악화)", b: "돌려보낸다 (10년 불가침)" };
     }
@@ -224,6 +226,8 @@ export function playDilemma(lang: Lang, code: string, data: Record<string, strin
   switch (code) {
     case "unrest": return { title: "The lords seethe with discontent.", a: "Concede border fiefs (lose land, regain cohesion)", b: "Crush them (a gamble)" };
     case "raiders": return { title: "Raiders harry the frontier.", a: "Fortify the border (frontier cohesion +)", b: "Send a punitive raid (free strike)" };
+    case "warweary": return { title: "The realm wearies of endless war.", a: "Raise the levies (border ▲▲, interior ▼)", b: "Sue for terms with the greatest threat (20y truce, cohesion slightly ▼)" };
+    case "boomtown": return { title: "Your founded city booms.", a: "Charter the market (realm cohesion ▲)", b: "Raise the walls (▲▲ around the city)" };
     case "prosperity": return { title: "The realm prospers.", a: "Hold a great festival (realm cohesion +)", b: "Fund the frontier (border cohesion +)" };
     case "defector": return { title: `A lord of ${name} begs asylum.`, a: "Take them in (gain their fief, sour relations)", b: "Send them back (10-year non-aggression)" };
   }
@@ -240,6 +244,11 @@ export function playDilemmaOutcome(lang: Lang, code: string, data: Record<string
       case "raidersFortify": return `국경 ${n}개 셀을 요새화했다.`;
       case "raidersRaid": return `보복 원정이 ${name}에게서 셀 ${n}개를 빼앗았다.`;
       case "raidersNoTarget": return "원정대가 마땅한 목표를 찾지 못했다.";
+      case "warwearyLevy": return `국경 ${n}개 셀에 병력을 증강했다.`;
+      case "warwearyTerms": return `${name}와(과) 20년 화의를 맺었다. 제후들은 못마땅해한다.`;
+      case "warwearyNoFoe": return "화의를 청할 상대가 없었다.";
+      case "boomtownCharter": return "시장 특허가 온 나라의 상인을 불러모은다.";
+      case "boomtownWall": return `성벽이 올라가 주변 ${n}개 셀이 든든해졌다.`;
       case "prosperityFeast": return "대축제가 열렸다. 온 나라가 하나가 된다.";
       case "prosperityFrontier": return `변경 ${n}개 셀에 개척민이 들어섰다.`;
       case "defectorAccept": return `${name}의 영지가 귀부했다.`;
@@ -254,6 +263,11 @@ export function playDilemmaOutcome(lang: Lang, code: string, data: Record<string
     case "raidersFortify": return `Fortified ${n} border cells.`;
     case "raidersRaid": return `The punitive raid took ${n} cells from ${name}.`;
     case "raidersNoTarget": return "The raiders found no worthy target.";
+    case "warwearyLevy": return `Levies strengthen ${n} border cells.`;
+    case "warwearyTerms": return `Terms agreed with ${name} for 20 years; the lords grumble.`;
+    case "warwearyNoFoe": return "There was no foe to treat with.";
+    case "boomtownCharter": return "The market charter draws traders from all the realm.";
+    case "boomtownWall": return `New walls hearten ${n} cells around the city.`;
     case "prosperityFeast": return "A great festival unites the realm.";
     case "prosperityFrontier": return `Settlers strengthen ${n} frontier cells.`;
     case "defectorAccept": return `The defecting fief joins you, angering ${name}.`;

@@ -3,7 +3,7 @@ import { generateWorld } from "./world";
 import { DEFAULT_PARAMS } from "../types/world";
 import { initSim, CONQUEST_SOL } from "./historySim";
 import { borderTargets } from "./intervention";
-import { offerDilemma, resolveDilemma, previewDilemma, bestRaidTarget, DILEMMA_COOLDOWN, type Dilemma } from "./dilemma";
+import { offerDilemma, resolveDilemma, previewDilemma, bestRaidTarget, DILEMMA_COOLDOWN, WARWEARY_TRUCE_TICKS, type Dilemma } from "./dilemma";
 
 const small = { ...DEFAULT_PARAMS, width: 300, height: 300, cellCount: 400, townCount: 6 };
 const worlds = new Map<string, ReturnType<typeof generateWorld>["world"]>();
@@ -175,5 +175,57 @@ describe("previewDilemma", () => {
       expect(previewDilemma(s, d, "a")).toEqual({ cells: 1, truce: "break" });
       expect(previewDilemma(s, d, "b")).toEqual({ truce: "gain" });
     }
+  });
+});
+
+describe("state cards", () => {
+  it("warweary: fires under threat with sagging cohesion; terms buys a truce with the top threat", () => {
+    const s = biggestPlayerState(1, true);
+    // player sagging (0.45 < WARWEARY_MAX_ASA, but above unrest's 0.42) and OUTMATCHED at the
+    // border (threat edges need the ENEMY side to be the stronger one — hence enemies at 0.9)
+    for (let c = 0; c < s.n; c++) s.solidarity[c] = s.owner[c] === s.playerPolity ? 0.45 : 0.9;
+    const d = forceOffer(s, "warweary");
+    expect(d?.code).toBe("warweary");
+    if (!d) return;
+    expect(previewDilemma(s, d, "a")).toEqual({ note: "fortify" });
+    const pb = previewDilemma(s, d, "b");
+    const out = resolveDilemma(s, d, "b");
+    if (out.code === "warwearyTerms") {
+      expect(pb).toEqual({ cohesion: -1, truce: "gain" });
+      // the truce really exists, with the named polity, for 2 ticks
+      const foe = s.polities.findIndex((p) => p.name === out.data.name);
+      expect((s.truces.get(foe) ?? 0)).toBe(s.tick + WARWEARY_TRUCE_TICKS);
+    } else {
+      expect(out.code).toBe("warwearyNoFoe");
+      expect(pb).toEqual({ note: "noTarget" });
+    }
+  });
+
+  it("boomtown: needs a held founded city; walls lift the city and its owned neighbors", () => {
+    const s = biggestPlayerState(1, true);
+    // plant a founded city on a player cell with player-owned neighbors
+    let city = -1;
+    for (let c = 0; c < s.n && city < 0; c++) {
+      if (s.owner[c] !== s.playerPolity) continue;
+      if (s.grid.neighbors[c].every((nb) => s.owner[nb] === s.playerPolity)) city = c;
+    }
+    expect(city).toBeGreaterThanOrEqual(0);
+    s.foundedCities.add(city);
+    const d = forceOffer(s, "boomtown");
+    expect(d?.code).toBe("boomtown");
+    if (!d) return;
+    expect(Number(d.data.cell)).toBe(city);
+    expect(previewDilemma(s, d, "a")).toEqual({ cohesion: 1 });
+    expect(previewDilemma(s, d, "b")).toEqual({ note: "citywall" });
+    const before = s.solidarity[city];
+    const out = resolveDilemma(s, d, "b");
+    expect(out.code).toBe("boomtownWall");
+    expect(Number(out.data.n)).toBe(1 + s.grid.neighbors[city].length); // city + all neighbors owned
+    expect(s.solidarity[city]).toBeGreaterThan(before);
+  });
+
+  it("boomtown never fires without a held founded city", () => {
+    const s = biggestPlayerState(1, true);
+    expect(forceOffer(s, "boomtown", 64)).toBeNull();
   });
 });
