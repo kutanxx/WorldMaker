@@ -3,7 +3,7 @@ import { DEFAULT_PARAMS } from "../types/world";
 import { aggregate, YEARS_PER_TICK, TICKS, CONQUEST_SOL } from "../engine/historySim";
 import { initPlaySim, playTurn, setStance, scorecard, victoryProgress, PROSPER_CITIES, PROSPER_STREAK } from "../engine/playSim";
 import type { Stance } from "../engine/historySim";
-import { borderTargets, frontEdges, foundCityTargets, hostileNeighbors, predictCapture, INVEST_DELTA, type Action } from "../engine/intervention";
+import { borderTargets, frontEdges, foundCityTargets, predictCapture, INVEST_DELTA, type Action } from "../engine/intervention";
 import { OCEAN } from "../engine/terrain";
 import { sharedEdge } from "../engine/borders";
 import { cellPath } from "./svgPaths";
@@ -13,13 +13,15 @@ import { downloadBlob } from "./export";
 import { politicalLayer } from "./politicalLayer";
 import { t, playT, playYear, playLog, playRuleIntro, playFell, playStats, playDelta, playDefeatCause, playDilemma, playDilemmaOutcome, playDilemmaFx, playLegacyEpitaph, type Lang } from "./i18n";
 import { offerDilemma, resolveDilemma, previewDilemma, bestRaidTarget, type Dilemma, type DilemmaOutcome } from "../engine/dilemma";
-import { computeStanding, type Standing } from "../engine/standing";
+import { computeStanding, neighborAttitudes, ATT_HOSTILE_RATIO, type Standing } from "../engine/standing";
 import { PLAYER_COLOR } from "./nationPalette";
 import { deconflictLabels } from "./deconflict";
 import { randomSeed } from "./urlState";
 import { loadLegacy, recordReign, seedBestPeak, composeEpitaph, LEGACY_SHOW } from "./legacy";
 
 const STANCES: Stance[] = ["aggressive", "defensive", "internal"];
+const NEIGHBOR_SHOW = 6;
+const ATT_ICON: Record<string, string> = { friendly: "🤝", wary: "👁", hostile: "⚔" };
 
 type VictoryKind = "conquest" | "prosperity" | "endurance" | "defeat";
 
@@ -464,6 +466,37 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
       if (fx?.threat === "down") threat.appendChild(fxBadge(`▼ ${playT(lang, "truce")} +1`, true)); // spec: 위협 ▼ 휴전 +1
       panel.appendChild(threat);
 
+      // neighbor attitude chips — TW/Paradox pattern: state icon + a tooltip that itemizes the
+      // REAL derived factors (never a personality the sim doesn't back)
+      const atts = neighborAttitudes(s);
+      if (atts.length) {
+        const row = document.createElement("div");
+        row.className = "neighbors";
+        for (const a of atts.slice(0, NEIGHBOR_SHOW)) {
+          const chip = document.createElement("span");
+          chip.className = `neighbor-chip ${a.att}`;
+          chip.textContent = `${ATT_ICON[a.att]} ${a.name}`;
+          const r = Math.round(a.ratio * 10) / 10;
+          const word = playT(lang, a.ratio >= ATT_HOSTILE_RATIO ? "factStronger" : a.ratio <= 0.85 ? "factWeaker" : "factEven");
+          const lines = [
+            playT(lang, a.att === "friendly" ? "attFriendly" : a.att === "hostile" ? "attHostile" : "attWary"),
+            playT(lang, "factBorder").replace("{n}", String(a.borderEdges)),
+            `${playT(lang, "factRatio").replace("{r}", String(r))} (${word})`,
+            a.truceLeft > 0 ? playT(lang, "factTruce").replace("{n}", String(a.truceLeft)) : playT(lang, "factNoTruce"),
+          ];
+          if (a.hegemon) lines.push(playT(lang, "factHegemon"));
+          chip.title = lines.join("\n");
+          row.appendChild(chip);
+        }
+        if (atts.length > NEIGHBOR_SHOW) {
+          const more = document.createElement("span");
+          more.className = "neighbor-more";
+          more.textContent = playT(lang, "moreNeighbors").replace("{n}", String(atts.length - NEIGHBOR_SHOW));
+          row.appendChild(more);
+        }
+        panel.appendChild(row);
+      }
+
       // stance levers + help + language (unchanged behaviour)
       const stanceRow = document.createElement("span");
       stanceRow.className = "view-toggle";
@@ -536,10 +569,10 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
       const pceNone = document.createElement("option");
       pceNone.value = ""; pceNone.textContent = playT(lang, "peacePlaceholder");
       pce.appendChild(pceNone);
-      for (const h of hostileNeighbors(s)) {
+      for (const a of neighborAttitudes(s)) { // same polities, sorted by border pressure, icon-prefixed
         const opt = document.createElement("option");
-        opt.value = String(h.id);
-        opt.textContent = h.trucedUntil > s.tick ? `${h.name} ✓` : h.name;
+        opt.value = String(a.id);
+        opt.textContent = `${ATT_ICON[a.att]} ${a.name}${a.truceLeft > 0 ? " ✓" : ""}`;
         pce.appendChild(opt);
       }
       if (pendingAction?.type === "peace") pce.value = String(pendingAction.polity);

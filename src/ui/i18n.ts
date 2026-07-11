@@ -99,6 +99,11 @@ export const PLAY_UI: Record<Lang, Record<string, string>> = {
     advanceAlertTip: "An unanswered card expires with the decade.",
     adviseAct: "Do it", adviseStance: "Go defensive",
     legacyTitle: "Annals of this world", legacyReignN: "Reign {n}", revenge: "☠ Vengeance",
+    attFriendly: "friendly", attWary: "wary", attHostile: "hostile",
+    factBorder: "borders you on {n} edges", factRatio: "strength x{r}",
+    factStronger: "stronger", factWeaker: "weaker", factEven: "even",
+    factTruce: "truce — {n} turns left", factNoTruce: "no truce",
+    factHegemon: "⚠ the hegemon — your crisis foe", moreNeighbors: "+{n}",
   },
   ko: {
     chooseRealm: "국가를 선택하세요", cells: "셀", cohesion: "결속", threats: "위협",
@@ -144,6 +149,11 @@ export const PLAY_UI: Record<Lang, Record<string, string>> = {
     advanceAlertTip: "답하지 않은 카드는 이 턴이 끝나면 사라집니다.",
     adviseAct: "실행", adviseStance: "방어 태세로",
     legacyTitle: "이 세계의 연대기", legacyReignN: "제{n}대", revenge: "☠ 복수전",
+    attFriendly: "우호", attWary: "경계", attHostile: "적대",
+    factBorder: "국경 {n}칸 접촉", factRatio: "국력 x{r}",
+    factStronger: "우세", factWeaker: "열세", factEven: "비등",
+    factTruce: "휴전 {n}턴 남음", factNoTruce: "휴전 없음",
+    factHegemon: "⚠ 패권국 — 위기의 상대", moreNeighbors: "+{n}",
   },
 };
 export function playT(lang: Lang, key: string): string {

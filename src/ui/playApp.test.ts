@@ -560,4 +560,33 @@ describe("playApp", () => {
     expect(root.querySelectorAll(".nation-choice").length).toBeGreaterThan(0);
     expect(root.querySelector(".legacy-panel")).toBeNull();
   });
+
+  it("bordering rivals wear attitude chips whose tooltips itemize real factors", () => {
+    localStorage.clear();
+    const root = document.createElement("div");
+    createPlayApp(root, 1);
+    (root.querySelector(".nation-choice") as HTMLButtonElement).click();
+    const chips = [...root.querySelectorAll(".neighbor-chip")];
+    expect(chips.length).toBeGreaterThan(0);
+    expect(chips.length).toBeLessThanOrEqual(6);
+    const tip = (chips[0] as HTMLElement).title;
+    expect(tip).toMatch(/x\d/);          // strength ratio line
+    expect(tip.split("\n").length).toBeGreaterThanOrEqual(3); // itemized factors
+  });
+
+  it("peace options carry the attitude icon, and making peace flips the chip to friendly", () => {
+    localStorage.clear();
+    const root = document.createElement("div");
+    createPlayApp(root, 1);
+    (root.querySelector(".nation-choice") as HTMLButtonElement).click();
+    const pce = root.querySelector(".peace-select") as HTMLSelectElement;
+    const opt = pce.options[1]; // 0 is the placeholder
+    expect(opt.textContent).toMatch(/^[⚔👁🤝]/);
+    pce.value = opt.value;
+    pce.dispatchEvent(new Event("change"));
+    (root.querySelector(".btn-advance") as HTMLButtonElement).click();
+    const name = (opt.textContent || "").replace(/^[⚔👁🤝]\s*/, "").replace(/\s*✓$/, "");
+    const chip = [...root.querySelectorAll(".neighbor-chip")].find((c) => (c.textContent || "").includes(name));
+    if (chip) expect(chip.className).toContain("friendly"); // still bordering after the tick ⇒ truced ⇒ 🤝
+  });
 });

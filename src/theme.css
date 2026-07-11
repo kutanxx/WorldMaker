@@ -200,3 +200,11 @@ svg.world .legend { pointer-events: none; }
 .legacy-title { font-weight: 700; color: #5a4a34; margin-bottom: 4px; }
 .legacy-row { color: #4a3d2c; padding: 1px 0; }
 .nation-choice .revenge-badge { display: inline-block; margin-left: 6px; font-size: 11px; color: #a63d36; font-weight: 700; }
+
+/* neighbor attitude chips */
+.neighbors { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.neighbor-chip { font-size: 11.5px; padding: 1px 7px; border-radius: 9px; border: 1px solid #c9bb96; background: #f2ead6; cursor: default; }
+.neighbor-chip.friendly { border-color: #4a8c5a; }
+.neighbor-chip.wary { border-color: #b08a2e; }
+.neighbor-chip.hostile { border-color: #a63d36; color: #7c2f28; }
+.neighbor-more { font-size: 11px; color: #8a7a5e; align-self: center; }
