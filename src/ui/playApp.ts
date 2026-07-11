@@ -11,12 +11,13 @@ import { renderWorld } from "./svgWorldRenderer";
 import { reignChronicle } from "../engine/reign";
 import { downloadBlob } from "./export";
 import { politicalLayer } from "./politicalLayer";
-import { t, playT, playYear, playLog, playRuleIntro, playFell, playStats, playDelta, playDefeatCause, playDilemma, playDilemmaOutcome, playDilemmaFx, type Lang } from "./i18n";
-import { offerDilemma, resolveDilemma, previewDilemma, bestRaidTarget, type Dilemma } from "../engine/dilemma";
+import { t, playT, playYear, playLog, playRuleIntro, playFell, playStats, playDelta, playDefeatCause, playDilemma, playDilemmaOutcome, playDilemmaFx, playLegacyEpitaph, type Lang } from "./i18n";
+import { offerDilemma, resolveDilemma, previewDilemma, bestRaidTarget, type Dilemma, type DilemmaOutcome } from "../engine/dilemma";
 import { computeStanding, type Standing } from "../engine/standing";
 import { PLAYER_COLOR } from "./nationPalette";
 import { deconflictLabels } from "./deconflict";
 import { randomSeed } from "./urlState";
+import { loadLegacy, recordReign, seedBestPeak, composeEpitaph, LEGACY_SHOW } from "./legacy";
 
 const STANCES: Stance[] = ["aggressive", "defensive", "internal"];
 
@@ -54,14 +55,41 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
     picker.className = "landing";
     root.append(title, langButton(renderPicker), picker);
     const maxCells = nationsByCells[0]?.cells || 1;
+    const legacy = loadLegacy(seed);
     for (const { p, cells } of nationsByCells) {
       const b = document.createElement("button");
       b.className = "nation-choice choice-card";
       // picking a realm IS picking a difficulty — say so (big = safe start, small = hard mode)
       const diff = cells >= maxCells * 0.66 ? "diffEasy" : cells >= maxCells * 0.33 ? "diffNormal" : "diffHard";
       b.innerHTML = `<span class="choice-title" style="color:${p.color}">${p.name}</span><span class="choice-sub">${cells} ${playT(lang, "cells")} · ${playT(lang, diff)}</span>`;
+      if (legacy[0]?.kind === "defeat" && legacy[0].cause === p.name) {
+        const badge = document.createElement("span");
+        badge.className = "revenge-badge";
+        badge.textContent = playT(lang, "revenge");
+        b.appendChild(badge);
+      }
       b.addEventListener("click", () => startGame(p.id));
       picker.appendChild(b);
+    }
+    if (legacy.length) {
+      const panel = document.createElement("div");
+      panel.className = "legacy-panel";
+      const h = document.createElement("div");
+      h.className = "legacy-title";
+      h.textContent = playT(lang, "legacyTitle");
+      panel.appendChild(h);
+      const best = seedBestPeak(legacy);
+      const ICON: Record<string, string> = { conquest: "⚔", prosperity: "🏘", endurance: "👑", defeat: "☠" };
+      for (const e of legacy.slice(0, LEGACY_SHOW)) {
+        const row = document.createElement("div");
+        row.className = "legacy-row";
+        const star = best > 0 && e.peakCells === best ? " ★" : "";
+        row.textContent =
+          `${playT(lang, "legacyReignN").replace("{n}", String(e.n))} · ${e.nation} · ` +
+          `${ICON[e.kind] ?? "•"} ${playYear(lang, e.year)} — “${playLegacyEpitaph(lang, e.epitaph.code, e.epitaph.data)}”${star}`;
+        panel.appendChild(row);
+      }
+      root.appendChild(panel);
     }
   }
 
@@ -74,6 +102,7 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
     let showHelp = true; // the how-to-rule card opens the reign; dismissible, reopenable via "?"
     let momentum: { dCells: number; dCohesionDir: -1 | 0 | 1; lost: number } | null = null;
     let prosperStreak = 0;
+    const highlights: DilemmaOutcome[] = [];
 
     const howtoBox = document.createElement("div");
     howtoBox.className = "howto-slot";
@@ -619,6 +648,7 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
         btn.appendChild(fx); // inside the button: the whole card stays one big click target
         btn.addEventListener("click", () => {
           const out = resolveDilemma(s, dilemma!, key);
+          if (/^(hegemon|prophecy)/.test(out.code)) highlights.push(out); // legacy epitaph material
           dilemma = null;
           appendLog(`❔ ${playDilemmaOutcome(lang, out.code, out.data)}`, true);
           renderAll();
@@ -685,6 +715,15 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
       victoryKind = kind;
       defeatCause = cause;
       dilemma = null;
+      const sc = scorecard(s);
+      recordReign(seed, {
+        nation: s.polities[s.playerPolity].name,
+        kind, cause,
+        year: s.tick * YEARS_PER_TICK,
+        peakCells: sc.peakCells,
+        citiesFounded: sc.citiesFounded,
+        epitaph: composeEpitaph(kind, cause, highlights),
+      });
       actions.innerHTML = "";
       renderPanel();
       renderGoals();

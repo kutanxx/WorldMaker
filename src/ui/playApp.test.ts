@@ -512,4 +512,52 @@ describe("playApp", () => {
     }
     expect(checked).toBe(true);
   });
+
+  it("a finished reign is recorded in the world's annals, shown when picking again", () => {
+    localStorage.clear();
+    const root = document.createElement("div");
+    createPlayApp(root, 1);
+    (root.querySelector(".nation-choice") as HTMLButtonElement).click();
+    for (let i = 0; i < 60; i++) {
+      const adv = root.querySelector(".btn-advance") as HTMLButtonElement | null;
+      if (!adv) break;
+      adv.click();
+    }
+    expect(root.querySelector(".btn-play-again")).not.toBeNull(); // reached the banner
+    (root.querySelector(".btn-play-again") as HTMLButtonElement).click();
+    const panel = root.querySelector(".legacy-panel");
+    expect(panel).not.toBeNull();
+    const rows = root.querySelectorAll(".legacy-row");
+    expect(rows.length).toBe(1);
+    expect(rows[0].textContent).toContain("1"); // 제1대 / Reign 1
+    expect((rows[0].textContent || "").length).toBeGreaterThan(15); // epitaph present
+  });
+
+  it("the conqueror's nation card wears the revenge badge after a defeat", () => {
+    localStorage.clear();
+    const probe = document.createElement("div");
+    createPlayApp(probe, 1);
+    const names = [...probe.querySelectorAll(".nation-choice .choice-title")].map((e) => e.textContent || "");
+    expect(names.length).toBeGreaterThan(1);
+    localStorage.setItem("wm:legacy:1", JSON.stringify([{
+      v: 1, n: 3, nation: names[1], kind: "defeat", cause: names[0], year: 240,
+      peakCells: 120, citiesFounded: 0, epitaph: { code: "epiFallen", data: { name: names[0] } },
+    }]));
+    const root = document.createElement("div");
+    createPlayApp(root, 1);
+    const cards = [...root.querySelectorAll(".nation-choice")];
+    const conqueror = cards.find((c) => c.querySelector(".choice-title")?.textContent === names[0])!;
+    expect(conqueror.querySelector(".revenge-badge")).not.toBeNull();
+    const other = cards.find((c) => c.querySelector(".choice-title")?.textContent === names[1])!;
+    expect(other.querySelector(".revenge-badge")).toBeNull();
+  });
+
+  it("corrupt legacy storage never breaks the picker", () => {
+    localStorage.clear();
+    localStorage.setItem("wm:legacy:1", "{broken");
+    const root = document.createElement("div");
+    createPlayApp(root, 1);
+    expect(root.querySelectorAll(".nation-choice").length).toBeGreaterThan(0);
+    expect(root.querySelector(".legacy-panel")).toBeNull();
+  });
 });

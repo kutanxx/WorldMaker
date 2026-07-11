@@ -98,6 +98,7 @@ export const PLAY_UI: Record<Lang, Record<string, string>> = {
     advFound: "🏘 found city", advPeace: "🕊 peace",
     advanceAlertTip: "An unanswered card expires with the decade.",
     adviseAct: "Do it", adviseStance: "Go defensive",
+    legacyTitle: "Annals of this world", legacyReignN: "Reign {n}", revenge: "☠ Vengeance",
   },
   ko: {
     chooseRealm: "국가를 선택하세요", cells: "셀", cohesion: "결속", threats: "위협",
@@ -142,6 +143,7 @@ export const PLAY_UI: Record<Lang, Record<string, string>> = {
     advFound: "🏘 도시 건설", advPeace: "🕊 강화",
     advanceAlertTip: "답하지 않은 카드는 이 턴이 끝나면 사라집니다.",
     adviseAct: "실행", adviseStance: "방어 태세로",
+    legacyTitle: "이 세계의 연대기", legacyReignN: "제{n}대", revenge: "☠ 복수전",
   },
 };
 export function playT(lang: Lang, key: string): string {
@@ -307,6 +309,30 @@ export function playDilemmaOutcome(lang: Lang, code: string, data: Record<string
     case "hegemonRout": return `Routed — ${n} cells lost to ${name}.`;
     case "hegemonKneel": return `You kneel before ${name}; the realm survives.`;
     default: return "";
+  }
+}
+// legacy epitaphs are stored language-neutral ({code,data}) and localized here at render time
+export function playLegacyEpitaph(lang: Lang, code: string, data: Record<string, string | number> = {}): string {
+  const name = String(data.name ?? "");
+  if (lang === "ko") {
+    switch (code) {
+      case "epiFallen": return `${name}의 손에 무너졌다`;
+      case "epiUnified": return "천하를 통일했다";
+      case "epiSlewHegemon": return `패권국 ${name}을(를) 결전에서 꺾었다`;
+      case "epiSurvivedShadow": return `${name}의 그림자 아래에서 살아남았다`;
+      case "epiProphecy": return "예언을 이루었다";
+      case "epiGoldenAge": return "황금기를 이루었다";
+      default: return "500년을 버텼다";
+    }
+  }
+  switch (code) {
+    case "epiFallen": return `Fell to ${name}`;
+    case "epiUnified": return "Unified the known world";
+    case "epiSlewHegemon": return `Broke the hegemon ${name} in battle`;
+    case "epiSurvivedShadow": return `Endured beneath the shadow of ${name}`;
+    case "epiProphecy": return "Fulfilled the prophecy";
+    case "epiGoldenAge": return "Reigned into a golden age";
+    default: return "Endured 500 years";
   }
 }
 // intro + end-screen lines that interpolate values

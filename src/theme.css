@@ -194,3 +194,9 @@ svg.world .legend { pointer-events: none; }
 .btn-advance .advance-alert { color: #a63d36; font-size: 12px; }
 
 .advice .advise-act { margin-left: 8px; font-size: 11px; padding: 1px 8px; font-style: normal; }
+
+/* per-seed reign annals on the nation picker */
+.legacy-panel { max-width: 640px; margin: 14px auto 0; padding: 8px 14px; font-size: 12.5px; }
+.legacy-title { font-weight: 700; color: #5a4a34; margin-bottom: 4px; }
+.legacy-row { color: #4a3d2c; padding: 1px 0; }
+.nation-choice .revenge-badge { display: inline-block; margin-left: 6px; font-size: 11px; color: #a63d36; font-weight: 700; }
