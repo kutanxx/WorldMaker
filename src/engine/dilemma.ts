@@ -99,9 +99,10 @@ export function bestRaidTarget(s: SimState): { cell: number; gain: number } | nu
 export interface ChoicePreview {
   cells?: number;               // signed projected cell delta
   cohesion?: -2 | -1 | 1 | 2;   // direction weight (▼▼ ▼ ▲ ▲▲)
-  odds?: number;                // when set: `cohesion` with this probability, reversed otherwise
+  odds?: number;                // when set: the whole effect with this probability, reversed otherwise
   truce?: "break" | "gain";
-  note?: "fortify" | "noTarget";
+  note?: "fortify" | "noTarget" | "noEffect" | "citywall" | "prophecyDeal" | "prophecyCond";
+  pct?: number;                 // live value for prophecyCond (current cohesion %)
 }
 export function previewDilemma(s: SimState, d: Dilemma, choice: "a" | "b"): ChoicePreview {
   if (d.code === "unrest") {

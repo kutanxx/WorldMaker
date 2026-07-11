@@ -19,4 +19,20 @@ describe("playDilemmaFx", () => {
     expect(playDilemmaFx("ko", { note: "fortify" })).toBe(playT("ko", "fxFortify"));
     expect(playDilemmaFx("en", { note: "noTarget" })).toBe(playT("en", "fxNoTarget"));
   });
+  it("a gamble with cells AND cohesion wraps the whole effect, failure fully negated", () => {
+    const line = playDilemmaFx("ko", { cells: 8, cohesion: 1, odds: 0.62 });
+    expect(line).toBe("성공 62%: 국력 ▲+8셀 · 결속 ▲ / 실패: 국력 ▼8셀 · 결속 ▼");
+  });
+  it("renders the new note codes, including the live prophecy condition percent", () => {
+    expect(playDilemmaFx("en", { note: "noEffect" })).toBe(playT("en", "fxNoEffect"));
+    expect(playDilemmaFx("ko", { note: "citywall" })).toBe(playT("ko", "fxCitywall"));
+    expect(playDilemmaFx("en", { note: "prophecyDeal" })).toBe(playT("en", "fxProphecyDeal"));
+    const cond = playDilemmaFx("ko", { note: "prophecyCond", pct: 47 });
+    expect(cond).toContain("47%");
+    expect(cond).toContain("50%"); // the threshold is stated
+  });
+  it("fxTruceGain no longer states a duration (durations live in choice labels)", () => {
+    expect(playT("en", "fxTruceGain")).not.toMatch(/10|y\)/);
+    expect(playT("ko", "fxTruceGain")).not.toContain("10년");
+  });
 });

@@ -90,7 +90,10 @@ export const PLAY_UI: Record<Lang, Record<string, string>> = {
     goals: "Goals", goalRivals: "rivals",
     fxFortify: "frontier cohesion ▲ · interior ▼", fxNoTarget: "no target to strike",
     fxOdds: "{p}% success", fxFail: "fail",
-    fxTruceBreak: "breaks the truce", fxTruceGain: "truce +1 (10y)",
+    fxTruceBreak: "breaks the truce", fxTruceGain: "truce secured",
+    fxNoEffect: "no effect", fxCitywall: "cohesion ▲▲ around the city",
+    fxProphecyDeal: "cohesion ▼ now · judged next decade",
+    fxProphecyCond: "▲▲ if cohesion ≥50%, ▼ if below · now {p}%",
     fxOwn: "your action", fxCityNext: "city #{n} planned",
     advFound: "🏘 found city", advPeace: "🕊 peace",
     advanceAlertTip: "An unanswered card expires with the decade.",
@@ -131,7 +134,10 @@ export const PLAY_UI: Record<Lang, Record<string, string>> = {
     goals: "목표", goalRivals: "라이벌",
     fxFortify: "국경 결속 ▲ · 내지 ▼", fxNoTarget: "칠 곳 없음",
     fxOdds: "성공 {p}%", fxFail: "실패",
-    fxTruceBreak: "휴전 파기", fxTruceGain: "휴전 +1 (10년)",
+    fxTruceBreak: "휴전 파기", fxTruceGain: "휴전 확보",
+    fxNoEffect: "변화 없음", fxCitywall: "도시 주변 결속 ▲▲",
+    fxProphecyDeal: "지금 결속 ▼ · 다음 십년에 심판",
+    fxProphecyCond: "결속 50% 이상이면 ▲▲, 미만이면 ▼ · 지금 {p}%",
     fxOwn: "내 행동 효과", fxCityNext: "{n}번째 도시 예정",
     advFound: "🏘 도시 건설", advPeace: "🕊 강화",
     advanceAlertTip: "답하지 않은 카드는 이 턴이 끝나면 사라집니다.",
@@ -145,21 +151,24 @@ export function playT(lang: Lang, key: string): string {
 export function playDilemmaFx(lang: Lang, pv: ChoicePreview): string {
   if (pv.note === "fortify") return playT(lang, "fxFortify");
   if (pv.note === "noTarget") return playT(lang, "fxNoTarget");
-  const parts: string[] = [];
-  if (pv.cells) {
-    const glyph = pv.cells > 0 ? `▲+${pv.cells}` : `▼${-pv.cells}`;
-    parts.push(`${playT(lang, "strength")} ${glyph}${playT(lang, "cells")}`);
-  }
-  if (pv.cohesion) {
-    const up = pv.cohesion > 0;
-    const glyph = up ? "▲".repeat(pv.cohesion) : "▼".repeat(-pv.cohesion);
-    const line = `${playT(lang, "cohesion")} ${glyph}`;
-    parts.push(pv.odds === undefined ? line
-      : `${playT(lang, "fxOdds").replace("{p}", String(Math.round(pv.odds * 100)))}: ${line} / ${playT(lang, "fxFail")}: ${up ? "▼" : "▲"}`);
-  }
+  if (pv.note === "noEffect") return playT(lang, "fxNoEffect");
+  if (pv.note === "citywall") return playT(lang, "fxCitywall");
+  if (pv.note === "prophecyDeal") return playT(lang, "fxProphecyDeal");
+  if (pv.note === "prophecyCond") return playT(lang, "fxProphecyCond").replace("{p}", String(pv.pct ?? 0));
+  // compose the effect parts once; a gamble shows them twice (success, then fully negated failure)
+  const part = (cells?: number, cohesion?: number): string[] => {
+    const out: string[] = [];
+    if (cells) out.push(`${playT(lang, "strength")} ${cells > 0 ? `▲+${cells}` : `▼${-cells}`}${playT(lang, "cells")}`);
+    if (cohesion) out.push(`${playT(lang, "cohesion")} ${cohesion > 0 ? "▲".repeat(cohesion) : "▼".repeat(-cohesion)}`);
+    return out;
+  };
+  const parts = part(pv.cells, pv.cohesion);
   if (pv.truce === "break") parts.push(playT(lang, "fxTruceBreak"));
   if (pv.truce === "gain") parts.push(playT(lang, "fxTruceGain"));
-  return parts.join(" · ");
+  if (pv.odds === undefined) return parts.join(" · ");
+  const fail = part(pv.cells === undefined ? undefined : -pv.cells,
+    pv.cohesion === undefined ? undefined : -pv.cohesion).join(" · ");
+  return `${playT(lang, "fxOdds").replace("{p}", String(Math.round(pv.odds * 100)))}: ${parts.join(" · ")} / ${playT(lang, "fxFail")}: ${fail}`;
 }
 export function playYear(lang: Lang, year: number): string {
   return lang === "ko" ? `${year}년` : `Year ${year}`;
