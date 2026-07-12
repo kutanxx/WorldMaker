@@ -61,6 +61,7 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
       const tag = document.createElement("span");
       tag.className = "daily-badge";
       tag.textContent = playT(lang, "dailyBadge");
+      tag.title = playT(lang, "dailyTip");
       title.appendChild(tag);
     }
     const picker = document.createElement("div");

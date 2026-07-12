@@ -811,6 +811,7 @@ describe("playApp", () => {
     const root = document.createElement("div");
     createPlayApp(root, hashStringToSeed(dailyName(new Date())));
     expect(root.querySelector(".app-title .daily-badge")).not.toBeNull();
+    expect((root.querySelector(".daily-badge") as HTMLElement).title.length).toBeGreaterThan(0);
     const other = document.createElement("div");
     createPlayApp(other, 1);
     expect(other.querySelector(".daily-badge")).toBeNull();

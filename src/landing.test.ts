@@ -66,3 +66,13 @@ describe("renderChooser daily button", () => {
     expect(btn.textContent).toContain(new Date().toISOString().slice(0, 10));
   });
 });
+
+describe("daily framing copy", () => {
+  it("explains the shared-world promise under the daily button", () => {
+    const root = document.createElement("div");
+    renderChooser(root);
+    const sub = root.querySelector(".landing-daily-sub");
+    expect(sub).not.toBeNull();
+    expect(sub!.textContent).toContain("UTC");
+  });
+});

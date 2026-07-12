@@ -59,6 +59,7 @@ export function renderChooser(root: HTMLElement): void {
     </div>
     <div class="landing-daily">
       <button class="name-daily">🗓 오늘의 세계 · Daily World — ${dailyName(new Date()).slice(6)}</button>
+      <p class="landing-daily-sub">매일 자정(UTC) 새로운 세계 — 모두가 오늘 같은 세계에 도전합니다 · One shared world each day</p>
     </div>`;
 
   const input = root.querySelector(".name-seed") as HTMLInputElement;
