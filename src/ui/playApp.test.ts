@@ -705,6 +705,7 @@ describe("playApp", () => {
     const slider = bar!.querySelector("input.timeline-slider") as HTMLInputElement;
     const max = Number(slider.max);
     expect(max).toBeGreaterThan(0); // one snapshot per tick, so a real reign has many frames
+    expect(slider.value).toBe(String(max)); // the bar opens at the present, not year 0
     slider.value = "0";
     slider.dispatchEvent(new Event("input"));
     expect(slot()).not.toBe(live); // territory moved over the reign

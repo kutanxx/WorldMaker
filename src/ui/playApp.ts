@@ -761,7 +761,9 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
       bar.element.prepend(label);
       actions.appendChild(bar.element);
       replayBar = bar;
-      if (replayIndex !== null) bar.setIndex(replayIndex); // language toggle keeps the frame
+      // first mount starts at the present (the map already shows it); ▶ then replays from the
+      // dawn (createTimeline rewinds when played at the end). Language toggle keeps the frame.
+      bar.setIndex(replayIndex ?? s.snapshots.length - 1);
     }
 
     let victoryKind: VictoryKind = "endurance";
