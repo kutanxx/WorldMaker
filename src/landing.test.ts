@@ -56,3 +56,13 @@ describe("renderChooser name input", () => {
     expect(root.querySelector(".name-map")).not.toBeNull();
   });
 });
+
+describe("renderChooser daily button", () => {
+  it("renders the daily button carrying today's UTC date", () => {
+    const root = document.createElement("div");
+    renderChooser(root);
+    const btn = root.querySelector(".name-daily") as HTMLButtonElement;
+    expect(btn).not.toBeNull();
+    expect(btn.textContent).toContain(new Date().toISOString().slice(0, 10));
+  });
+});

@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi } from "vitest";
 import { createPlayApp } from "./playApp";
+import { hashStringToSeed } from "../engine/rng";
+import { dailyName } from "./daily";
 
 describe("playApp", () => {
   it("nation picker labels each realm with a difficulty (biggest=easy, smallest=hard)", () => {
@@ -737,5 +739,14 @@ describe("playApp", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it("the picker shows the daily badge exactly when the seed is today's daily", () => {
+    const root = document.createElement("div");
+    createPlayApp(root, hashStringToSeed(dailyName(new Date())));
+    expect(root.querySelector(".app-title .daily-badge")).not.toBeNull();
+    const other = document.createElement("div");
+    createPlayApp(other, 1);
+    expect(other.querySelector(".daily-badge")).toBeNull();
   });
 });

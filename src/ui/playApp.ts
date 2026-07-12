@@ -19,6 +19,8 @@ import { deconflictLabels } from "./deconflict";
 import { randomSeed } from "./urlState";
 import { loadLegacy, recordReign, seedBestPeak, composeEpitaph, LEGACY_SHOW } from "./legacy";
 import { createTimeline, type Timeline } from "./timeline";
+import { hashStringToSeed } from "../engine/rng";
+import { dailyName } from "./daily";
 
 const STANCES: Stance[] = ["aggressive", "defensive", "internal"];
 const NEIGHBOR_SHOW = 6;
@@ -54,6 +56,12 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
     const title = document.createElement("h1");
     title.className = "app-title";
     title.textContent = playT(lang, "chooseRealm");
+    if (seed === hashStringToSeed(dailyName(new Date()))) {
+      const tag = document.createElement("span");
+      tag.className = "daily-badge";
+      tag.textContent = playT(lang, "dailyBadge");
+      title.appendChild(tag);
+    }
     const picker = document.createElement("div");
     picker.className = "landing";
     root.append(title, langButton(renderPicker), picker);

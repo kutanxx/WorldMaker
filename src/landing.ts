@@ -2,6 +2,7 @@ import "./theme.css";
 import { hashStringToSeed } from "./engine/rng";
 import { encodeParams } from "./ui/urlState";
 import { DEFAULT_PARAMS } from "./types/world";
+import { dailyName, dailyTarget } from "./ui/daily";
 
 // A share URL is a hash whose base64 payload is JSON carrying a finite numeric `seed`
 // (the shape `urlState.encodeParams` produces). Anything else (empty, non-base64, or JSON
@@ -55,6 +56,9 @@ export function renderChooser(root: HTMLElement): void {
       <input class="name-seed" maxlength="40" placeholder="세계의 이름으로 시작 · start from a name (e.g. Narnia)" />
       <button class="name-play">▶ Play</button>
       <button class="name-map">🗺 Map</button>
+    </div>
+    <div class="landing-daily">
+      <button class="name-daily">🗓 오늘의 세계 · Daily World — ${dailyName(new Date()).slice(6)}</button>
     </div>`;
 
   const input = root.querySelector(".name-seed") as HTMLInputElement;
@@ -64,6 +68,7 @@ export function renderChooser(root: HTMLElement): void {
   };
   (root.querySelector(".name-play") as HTMLButtonElement).addEventListener("click", () => go("play"));
   (root.querySelector(".name-map") as HTMLButtonElement).addEventListener("click", () => go("map"));
+  (root.querySelector(".name-daily") as HTMLButtonElement).addEventListener("click", () => location.assign(dailyTarget(new Date())));
   input.addEventListener("keydown", (e) => { if (e.key === "Enter") go("play"); });
 }
 
