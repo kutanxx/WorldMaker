@@ -1,7 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { generateWorld } from "./world";
 import { DEFAULT_PARAMS } from "../types/world";
-import { initSim, stepSim, TICKS, aggregate, contestStrength, W_CONSTS_FOR_TEST, CONQUEST_SOL, CONTEST_THRESH, buildStraitLinks, type Stance } from "./historySim";
+import { initSim, stepSim, TICKS, aggregate, contestStrength, W_CONSTS_FOR_TEST, CONQUEST_SOL, CONTEST_THRESH, buildStraitLinks, buildSeaLanes, STRAIT_HOPS, type Stance } from "./historySim";
+import { initPlaySim, playTurn } from "./playSim";
 import { OCEAN, LAND } from "./terrain";
 
 describe("historySim", () => {
@@ -191,5 +192,77 @@ describe("historySim", () => {
       const { STANCE_ATK_MULT } = W_CONSTS_FOR_TEST as any; // see Step 3 (added to the export)
       expect(base * STANCE_ATK_MULT.aggressive).toBeGreaterThan(base * STANCE_ATK_MULT.defensive);
     });
+  });
+});
+
+describe("sea lanes", () => {
+  function lanesFor(seed: number) {
+    const { world } = generateWorld({ ...DEFAULT_PARAMS, seed });
+    const links = buildStraitLinks(world.grid, world.terrain, STRAIT_HOPS);
+    const capitals = world.polities.map((p) => p.capital);
+    return { world, links, lanes: buildSeaLanes(world.grid, world.terrain, links, capitals) };
+  }
+
+  it("bridges a blocked world (capitals in split components) and leaves a connected one alone", () => {
+    const blocked = lanesFor(2);
+    expect(blocked.lanes.length).toBeGreaterThan(0);
+    const connected = lanesFor(1);
+    expect(connected.lanes.length).toBe(0);
+  });
+
+  it("lanes are deterministic, coastal-anchored, and unite the capitals' reach graph", () => {
+    const { world, links, lanes } = lanesFor(2);
+    expect(buildSeaLanes(world.grid, world.terrain, links, world.polities.map((p) => p.capital))).toEqual(lanes);
+    const { grid, terrain } = world;
+    for (const { a, b } of lanes) {
+      for (const e of [a, b]) {
+        expect(terrain[e]).not.toBe(OCEAN);
+        expect(grid.neighbors[e].some((nb) => terrain[nb] === OCEAN)).toBe(true); // coastal
+      }
+    }
+    // union reach: land adjacency + straits + lanes joins every capital into one component
+    const n = grid.count;
+    const comp = new Int32Array(n).fill(-1);
+    const laneOf = new Map<number, number[]>();
+    for (const { a, b } of lanes) {
+      laneOf.set(a, [...(laneOf.get(a) ?? []), b]);
+      laneOf.set(b, [...(laneOf.get(b) ?? []), a]);
+    }
+    let nc = 0;
+    for (let c = 0; c < n; c++) {
+      if (terrain[c] === OCEAN || comp[c] >= 0) continue;
+      const stack = [c]; comp[c] = nc;
+      while (stack.length) {
+        const x = stack.pop()!;
+        for (const nb of grid.neighbors[x]) if (terrain[nb] !== OCEAN && comp[nb] < 0) { comp[nb] = nc; stack.push(nb); }
+        for (const nb of links[x]) if (comp[nb] < 0) { comp[nb] = nc; stack.push(nb); }
+        for (const nb of laneOf.get(x) ?? []) if (comp[nb] < 0) { comp[nb] = nc; stack.push(nb); }
+      }
+      nc++;
+    }
+    expect(new Set(world.polities.map((p) => comp[p.capital])).size).toBe(1);
+  });
+
+  it("pure path carries no lanes; play init populates them; a lane conquest records the grudge", () => {
+    const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 2 });
+    expect(initSim(world, 2).seaLanes).toEqual([]);
+    const s = initPlaySim(world, 2, 0, "aggressive");
+    expect(s.seaLanes.length).toBeGreaterThan(0);
+    // ROBUST staging (contest margins are seed-sensitive: the distance penalty and stance mults
+    // can sink a marginal setup): the player owns EVERYTHING except the foe's single cell b,
+    // which is also the foe's capital; b's land neighbours are carved to unclaimed so only the
+    // lane can strike it this tick.
+    const { a, b } = s.seaLanes[0];
+    const player = 0, foe = 1;
+    s.playerPolity = player;
+    for (let c = 0; c < s.n; c++) if (s.owner[c] >= 0) s.owner[c] = player;
+    s.owner[b] = foe;
+    s.capitals[foe] = b; // annexation cannot pre-empt the lane flip
+    for (const nb of s.grid.neighbors[b]) if (s.terrain[nb] !== OCEAN) s.owner[nb] = -1;
+    s.owner[a] = player;
+    for (let c = 0; c < s.n; c++) s.solidarity[c] = s.owner[c] === player ? 0.9 : 0.1;
+    playTurn(s, null);
+    expect(s.owner[b]).toBe(player);                       // the expedition landed
+    expect(s.attacksByPlayer.get(foe)).toBe(s.tick - 1);   // recorded during the tick (tick has advanced)
   });
 });

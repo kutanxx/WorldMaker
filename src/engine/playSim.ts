@@ -1,5 +1,5 @@
 import type { World } from "../types/world";
-import { initSim, stepSim, aggregate, buildStraitLinks, STRAIT_HOPS, TICKS, YEARS_PER_TICK, type SimState, type Stance, type HistoryEvent } from "./historySim";
+import { initSim, stepSim, aggregate, buildStraitLinks, buildSeaLanes, STRAIT_HOPS, TICKS, YEARS_PER_TICK, type SimState, type Stance, type HistoryEvent } from "./historySim";
 import { applyIntervention, type Action } from "./intervention";
 
 export interface TurnResult { year: number; defeated: boolean; finished: boolean; events: HistoryEvent[]; message: string; actionCode?: string; actionData?: Record<string, string | number> }
@@ -16,6 +16,7 @@ export function initPlaySim(world: World, seed: number, playerPolity: number, st
   s.playerPolity = playerPolity;
   s.stance = stance;
   s.straitLinks = buildStraitLinks(world.grid, world.terrain, STRAIT_HOPS); // enable amphibious warfare (all nations)
+  s.seaLanes = buildSeaLanes(world.grid, world.terrain, s.straitLinks, world.polities.map((p) => p.capital)); // bridge island rivals (Risk lanes)
   s.peakCells = playerCells(s);
   return s;
 }

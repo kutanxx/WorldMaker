@@ -41,6 +41,7 @@ export const PEACE_TICKS = 3;         // a truce lasts 3 ticks = 30 years
 const STRAIT_SEA_HOPS = 2;          // a "narrow strait" = at most this many ocean cells to cross
 export const STRAIT_HOPS = STRAIT_SEA_HOPS;
 export const AMPHIB_MULT = 0.85;    // attacker strength penalty for crossing water
+export const EXPEDITION_MULT = 0.6;  // attacker penalty for crossing a SEA LANE (a costly naval expedition)
 
 export interface Agg { cells: number; power: number; avg: number; }
 
@@ -93,6 +94,7 @@ export interface SimState {
   attacksOnPlayer: Map<number, number>; // polityId -> last tick it took player cells; play only
   attacksByPlayer: Map<number, number>; // polityId -> last tick the player took its cells; play only
   straitLinks?: number[][]; // per-cell coastal cells reachable across a narrow strait; only set in a game
+  seaLanes: { a: number; b: number }[]; // expedition routes bridging disconnected landmasses; [] on the pure path
 }
 
 const px = (s: SimState, i: number) => s.grid.points[i * 2];
@@ -154,6 +156,63 @@ export function buildStraitLinks(grid: World["grid"], terrain: number[], hops: n
   }
   return links;
 }
+// Sea lanes (Risk-style expedition routes): the FEW dashed crossings that make every rival
+// conquerable. Connects only reach-components that hold an initial capital, with a minimum
+// spanning set of nearest-coast pairs. Pure geometry, rng-free, play-only (never on the pure path).
+export function buildSeaLanes(
+  grid: World["grid"], terrain: number[], straitLinks: number[][], capitals: number[],
+): { a: number; b: number }[] {
+  const n = grid.count;
+  const comp = new Int32Array(n).fill(-1);
+  let nc = 0;
+  for (let c = 0; c < n; c++) {
+    if (terrain[c] === OCEAN || comp[c] >= 0) continue;
+    const stack = [c];
+    comp[c] = nc;
+    while (stack.length) {
+      const x = stack.pop()!;
+      for (const nb of grid.neighbors[x]) if (terrain[nb] !== OCEAN && comp[nb] < 0) { comp[nb] = nc; stack.push(nb); }
+      for (const nb of straitLinks[x]) if (comp[nb] < 0) { comp[nb] = nc; stack.push(nb); }
+    }
+    nc++;
+  }
+  const wanted = [...new Set(capitals.map((c) => comp[c]))];
+  if (wanted.length <= 1) return [];
+  // coastal cells per wanted component
+  const coast = new Map<number, number[]>();
+  for (const k of wanted) coast.set(k, []);
+  for (let c = 0; c < n; c++) {
+    if (terrain[c] === OCEAN) continue;
+    const k = comp[c];
+    if (!coast.has(k)) continue;
+    if (grid.neighbors[c].some((nb) => terrain[nb] === OCEAN)) coast.get(k)!.push(c);
+  }
+  // greedy MST: repeatedly join the two closest groups by their nearest coastal pair
+  const px = (i: number) => grid.points[i * 2], py = (i: number) => grid.points[i * 2 + 1];
+  const groups: number[][] = wanted.map((k) => coast.get(k)!);
+  const lanes: { a: number; b: number }[] = [];
+  while (groups.length > 1) {
+    let best: { d: number; a: number; b: number; gi: number; gj: number } | null = null;
+    for (let x = 0; x < groups.length; x++) {
+      for (let y = x + 1; y < groups.length; y++) {
+        for (const ca of groups[x]) {
+          for (const cb of groups[y]) {
+            const d = Math.hypot(px(ca) - px(cb), py(ca) - py(cb));
+            const lo = Math.min(ca, cb), hi = Math.max(ca, cb);
+            if (!best || d < best.d || (d === best.d && (lo < Math.min(best.a, best.b) || (lo === Math.min(best.a, best.b) && hi < Math.max(best.a, best.b))))) {
+              best = { d, a: lo, b: hi, gi: x, gj: y };
+            }
+          }
+        }
+      }
+    }
+    if (!best) break; // a wanted component had no coast (theoretical) — leave the rest unbridged
+    lanes.push({ a: best.a, b: best.b });
+    groups[best.gi] = groups[best.gi].concat(groups[best.gj]);
+    groups.splice(best.gj, 1);
+  }
+  return lanes;
+}
 // greedy farthest-point: pick `count` cells maximising min-distance to the chosen set
 function farthest(s: SimState, cells: number[], seed: number, count: number): number[] {
   const chosen = [seed]; const out: number[] = [];
@@ -202,7 +261,7 @@ export function initSim(world: World, worldSeed: number): SimState {
   const snapshots: HistorySnapshot[] = [{ year: 0, owner: owner.slice() }];
   const cityCells = world.cities.map((c) => ({ cell: c.cell, name: c.name }));
 
-  return { grid, terrain, n, owner, solidarity, polities, capitals, alive, golden, rng, nameGen, events, snapshots, economicZones, zoneCells, cityCells, playerPolity: -1, stance: "internal", peakCells: 0, truces: new Map(), foundedCities: new Set(), lastDilemma: -99, dilemmaFlags: new Set(), attacksOnPlayer: new Map(), attacksByPlayer: new Map(), tick: 0 };
+  return { grid, terrain, n, owner, solidarity, polities, capitals, alive, golden, rng, nameGen, events, snapshots, economicZones, zoneCells, cityCells, playerPolity: -1, stance: "internal", peakCells: 0, truces: new Map(), foundedCities: new Set(), lastDilemma: -99, dilemmaFlags: new Set(), attacksOnPlayer: new Map(), attacksByPlayer: new Map(), tick: 0, seaLanes: [] };
 }
 
 export function stepSim(s: SimState): void {
@@ -283,6 +342,27 @@ export function stepSim(s: SimState): void {
         nextOwner[c] = best;
         if (o === s.playerPolity) s.attacksOnPlayer.set(best, s.tick);
         else if (best === s.playerPolity && o >= 0) s.attacksByPlayer.set(o, s.tick);
+      }
+    }
+  }
+  // sea-lane expedition contests (play only): a lane's endpoints can strike each other, at the
+  // expedition penalty. Symmetric — bots cross too, so island worlds stay politically alive.
+  if (s.playerPolity >= 0 && s.seaLanes.length) {
+    for (const { a, b } of s.seaLanes) {
+      for (const [from, to] of [[a, b], [b, a]] as const) {
+        if (nextOwner[to] !== owner[to]) continue; // a land/strait contest already took it this tick
+        const p = owner[from], o = owner[to];
+        if (p < 0 || p === o || s.polities[p].free) continue;
+        if (o === s.playerPolity && s.truces.size > 0 && (s.truces.get(p) ?? 0) > s.tick) continue; // truce holds
+        let atk = contestStrength(s, agg, p, to, from) * EXPEDITION_MULT;
+        let def = o < 0 ? 0 : contestStrength(s, agg, o, to, to);
+        if (p === s.playerPolity) atk *= STANCE_ATK_MULT[s.stance];
+        if (o === s.playerPolity) def *= STANCE_DEF_MULT[s.stance];
+        if (atk > def * CONTEST_THRESH) {
+          nextOwner[to] = p;
+          if (o === s.playerPolity) s.attacksOnPlayer.set(p, s.tick);
+          else if (p === s.playerPolity && o >= 0) s.attacksByPlayer.set(o, s.tick);
+        }
       }
     }
   }
