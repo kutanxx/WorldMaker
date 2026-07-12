@@ -615,6 +615,32 @@ describe("playApp", () => {
     if (chip) expect(chip.title).toMatch(/attacked them|내가 침공/); // still bordering ⇒ the grudge line shows
   });
 
+  it("the momentum line splits the turn into border gains/losses and names the action share", () => {
+    localStorage.clear();
+    const root = document.createElement("div");
+    createPlayApp(root, 1);
+    (root.querySelector(".nation-choice") as HTMLButtonElement).click();
+    const target = root.querySelector(".target-cell.capturable") as SVGPathElement;
+    target.dispatchEvent(new MouseEvent("click"));
+    (root.querySelector(".btn-advance") as HTMLButtonElement).click();
+    const mo = root.querySelector(".momentum")!.textContent || "";
+    expect(mo).toMatch(/\+\d+ \/ −\d+/);      // border split
+    expect(mo).toMatch(/행동|action/);        // the attack's share is attributed
+    const br = root.querySelector(".border-report");
+    expect(br).not.toBeNull();
+    expect((br!.textContent || "").match(/%/g)!.length).toBeGreaterThanOrEqual(2); // both sides
+  });
+
+  it("stance tooltips carry the real multipliers, derived from the const tables", () => {
+    localStorage.clear();
+    const root = document.createElement("div");
+    createPlayApp(root, 1);
+    (root.querySelector(".nation-choice") as HTMLButtonElement).click();
+    const stanceBtns = [...root.querySelectorAll(".view-toggle button")].filter((b) => !b.className.includes("invest"));
+    const withNums = stanceBtns.filter((b) => /×[\d.]+/.test(b.getAttribute("title") || ""));
+    expect(withNums.length).toBeGreaterThanOrEqual(3);
+  });
+
   it("mounts the HUD shell: info rail left of the map, commands under it", () => {
     localStorage.clear();
     const root = document.createElement("div");

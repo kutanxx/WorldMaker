@@ -1,6 +1,6 @@
 import { generateWorld } from "../engine/world";
 import { DEFAULT_PARAMS } from "../types/world";
-import { aggregate, YEARS_PER_TICK, TICKS, CONQUEST_SOL } from "../engine/historySim";
+import { aggregate, YEARS_PER_TICK, TICKS, CONQUEST_SOL, STANCE_ATK_MULT, STANCE_DEF_MULT, STANCE_SOL_DELTA } from "../engine/historySim";
 import { initPlaySim, playTurn, setStance, scorecard, victoryProgress, PROSPER_CITIES, PROSPER_STREAK } from "../engine/playSim";
 import type { Stance } from "../engine/historySim";
 import { borderTargets, frontEdges, foundCityTargets, predictCapture, INVEST_DELTA, type Action } from "../engine/intervention";
@@ -13,7 +13,7 @@ import { downloadBlob } from "./export";
 import { politicalLayer } from "./politicalLayer";
 import { t, playT, playYear, playLog, playRuleIntro, playFell, playStats, playDelta, playDefeatCause, playDilemma, playDilemmaOutcome, playDilemmaFx, playLegacyEpitaph, type Lang } from "./i18n";
 import { offerDilemma, resolveDilemma, previewDilemma, bestRaidTarget, type Dilemma, type DilemmaOutcome } from "../engine/dilemma";
-import { computeStanding, neighborAttitudes, ATT_HOSTILE_RATIO, type Standing } from "../engine/standing";
+import { computeStanding, neighborAttitudes, borderReport, ATT_HOSTILE_RATIO, type Standing } from "../engine/standing";
 import { PLAYER_COLOR } from "./nationPalette";
 import { deconflictLabels } from "./deconflict";
 import { randomSeed } from "./urlState";
@@ -102,7 +102,7 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
     let dilemma: Dilemma | null = null;
     let over = false;
     let showHelp = true; // the how-to-rule card opens the reign; dismissible, reopenable via "?"
-    let momentum: { dCells: number; dCohesionDir: -1 | 0 | 1; lost: number } | null = null;
+    let momentum: { gained: number; lost: number; dCohesionDir: -1 | 0 | 1; actionGain: number } | null = null;
     let prosperStreak = 0;
     const highlights: DilemmaOutcome[] = [];
 
@@ -392,13 +392,13 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
 
     function momentumText(): string {
       if (!momentum) return playT(lang, "firstTurn");
-      const d = momentum.dCells;
-      const cellArrow = d > 0 ? `▲+${d}` : d < 0 ? `▼${-d}` : "–";
-      const dir = momentum.dCohesionDir;
-      const cohArrow = dir > 0 ? "▲" : dir < 0 ? "▼" : "–";
-      const lostClause = momentum.lost > 0 ? ` · ${momentum.lost}${playT(lang, "cellsLost")}` : "";
-      return `${playT(lang, "thisTurn")} · ${playT(lang, "strength")} ${cellArrow}${playT(lang, "cells")}` +
-        ` · ${playT(lang, "cohesion")} ${cohArrow}${lostClause}`;
+      const net = momentum.gained - momentum.lost;
+      const netGlyph = net > 0 ? `▲+${net}` : net < 0 ? `▼${-net}` : "–";
+      const cohArrow = momentum.dCohesionDir > 0 ? "▲" : momentum.dCohesionDir < 0 ? "▼" : "–";
+      const act = momentum.actionGain > 0 ? ` (${playT(lang, "reportAction").replace("{n}", String(momentum.actionGain))})` : "";
+      return `${playT(lang, "thisTurn")} ${netGlyph} · ` +
+        `${playT(lang, "reportBorder").replace("{g}", String(momentum.gained)).replace("{l}", String(momentum.lost))}${act}` +
+        ` · ${playT(lang, "cohesion")} ${cohArrow}`;
     }
 
     function renderPanel(): void {
@@ -426,6 +426,18 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
       mo.className = "momentum";
       mo.textContent = momentumText();
       panel.appendChild(mo);
+
+      // where the front stands — the visible link in the invest → border wins → land chain
+      const br = borderReport(s);
+      if (br) {
+        const line = document.createElement("div");
+        line.className = "border-report hint";
+        const m = Math.round(br.mine * 100), t = Math.round(br.theirs * 100);
+        const word = playT(lang, m - t >= 5 ? "brAhead" : t - m >= 5 ? "brBehind" : "brEven");
+        line.textContent = `${playT(lang, "brLine").replace("{m}", String(m)).replace("{t}", String(t))} — ${word}`;
+        line.title = playT(lang, "brTip");
+        panel.appendChild(line);
+      }
 
       // ② two health meters (context the momentum moves within)
       const meters = document.createElement("div");
@@ -523,7 +535,13 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
       for (const st2 of STANCES) {
         const btn = document.createElement("button");
         btn.textContent = playT(lang, st2);
-        btn.title = playT(lang, `tip${st2[0].toUpperCase()}${st2.slice(1)}`);
+        // quantified: rendered from the engine's const tables so a retune can never desync the copy
+        const solPct = (STANCE_SOL_DELTA[st2] * 100).toFixed(1).replace(/\.0$/, "");
+        btn.title = `${playT(lang, `tip${st2[0].toUpperCase()}${st2.slice(1)}`)} — ` +
+          playT(lang, "stanceNums")
+            .replace("{a}", String(STANCE_ATK_MULT[st2]))
+            .replace("{d}", String(STANCE_DEF_MULT[st2]))
+            .replace("{s}", `${STANCE_SOL_DELTA[st2] > 0 ? "+" : ""}${solPct}`);
         btn.className = s.stance === st2 ? "active" : "";
         btn.addEventListener("click", () => { setStance(s, st2); renderAll(); });
         stanceRow.appendChild(btn);
@@ -605,7 +623,7 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
         dot.title = playT(lang, "advanceAlertTip");
         advance.appendChild(dot);
       }
-      // --- BEGIN verbatim advance handler (do not modify) ---
+      // --- BEGIN verbatim advance handler (do not modify; sole amendment: the momentum capture, battle report 07-12) ---
       advance.addEventListener("click", () => {
         const before = Int32Array.from(s.owner);
         const cohBefore = aggregate(s)[s.playerPolity]?.avg ?? 0;
@@ -618,7 +636,9 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
         }
         const cohAfter = aggregate(s)[s.playerPolity]?.avg ?? 0;
         const dir: -1 | 0 | 1 = cohAfter > cohBefore + 0.005 ? 1 : cohAfter < cohBefore - 0.005 ? -1 : 0;
-        momentum = { dCells: gained - lost, dCohesionDir: dir, lost };
+        // battle report (07-12): keep the action's share so the momentum line can attribute it
+        const actionGain = r.actionCode === "captured" || r.actionCode === "landed" ? Math.max(1, Number(r.actionData?.n ?? 1)) : 0;
+        momentum = { gained, lost, dCohesionDir: dir, actionGain };
         appendLog(playDelta(lang, r.year, gained, lost));
         const msg = playLog(lang, r.actionCode, r.actionData);
         if (msg) appendLog(`— ${msg}`);

@@ -237,3 +237,5 @@ svg.world .legend { pointer-events: none; }
 /* landing: start-from-a-name row */
 .landing-name { display: flex; gap: 8px; justify-content: center; margin: 18px auto 0; max-width: 560px; }
 .landing-name .name-seed { flex: 1; padding: 7px 12px; border: 1px solid #c9bb96; border-radius: 6px; background: #f7f1e1; font-size: 14px; }
+/* per-turn front standing line under the momentum headline */
+.border-report { font-size: 12px; color: #5a4a34; margin-top: 2px; }

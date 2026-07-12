@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { generateWorld } from "./world";
 import { DEFAULT_PARAMS } from "../types/world";
 import { initPlaySim } from "./playSim";
-import { computeStanding, neighborAttitudes, ATT_HOSTILE_RATIO, GRUDGE_TICKS } from "./standing";
+import { computeStanding, neighborAttitudes, borderReport, ATT_HOSTILE_RATIO, GRUDGE_TICKS } from "./standing";
 import { frontEdges } from "./intervention";
 import { aggregate, initSim } from "./historySim";
 
@@ -177,5 +177,18 @@ describe("neighborAttitudes", () => {
     a = neighborAttitudes(s).find((x) => x.id === weaker.id)!;
     expect(a.iAttackedAgo).toBe(0);
     expect(a.att).toBe("wary");
+  });
+
+  it("borderReport averages each side of the front, read-only, null off the play path", () => {
+    const s = playerState(1);
+    const owner = [...s.owner];
+    const br = borderReport(s)!;
+    expect(br).not.toBeNull();
+    expect(br.mine).toBeGreaterThan(0);
+    expect(br.mine).toBeLessThanOrEqual(1);
+    expect(br.theirs).toBeGreaterThan(0);
+    expect([...s.owner]).toEqual(owner);
+    s.playerPolity = -1;
+    expect(borderReport(s)).toBeNull();
   });
 });

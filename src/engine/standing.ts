@@ -98,3 +98,19 @@ export function neighborAttitudes(s: SimState): NeighborAttitude[] {
   }
   return out.sort((a, b) => b.borderEdges - a.borderEdges);
 }
+
+// average solidarity on each side of the player's front — the dominant LOCAL term of the
+// contest math, surfaced so "invest → win borders → gain land" is visible every turn. An honest
+// approximation: avg-asabiyya and size also weigh in (the UI labels it as such).
+export interface BorderReport { mine: number; theirs: number }
+export function borderReport(s: SimState): BorderReport | null {
+  if (s.playerPolity < 0) return null;
+  const seenMine = new Set<number>(), seenTheirs = new Set<number>();
+  let mySum = 0, foeSum = 0;
+  for (const e of frontEdges(s)) {
+    if (!seenMine.has(e.cell)) { seenMine.add(e.cell); mySum += s.solidarity[e.cell]; }
+    if (!seenTheirs.has(e.enemy)) { seenTheirs.add(e.enemy); foeSum += s.solidarity[e.enemy]; }
+  }
+  if (seenMine.size === 0 || seenTheirs.size === 0) return null;
+  return { mine: mySum / seenMine.size, theirs: foeSum / seenTheirs.size };
+}
