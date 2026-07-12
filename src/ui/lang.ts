@@ -15,7 +15,8 @@ export function detectLang(navLang?: string, storage: StorageLike | null = defau
     if (saved === "ko" || saved === "en") return saved;
   } catch { /* fall through to detection */ }
   const nav = navLang ?? (typeof navigator !== "undefined" ? navigator.language : "");
-  return nav.toLowerCase().startsWith("ko") ? "ko" : "en";
+  const n = nav.toLowerCase();
+  return n === "ko" || n.startsWith("ko-") ? "ko" : "en";
 }
 
 export function saveLang(lang: Lang, storage: StorageLike | null = defaultStorage()): void {

@@ -644,7 +644,7 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
       const chip = (icon: string, text: string, tip: string) => {
         const el = document.createElement("span");
         el.className = "goal-chip";
-        el.title = tip;
+        if (tip) el.title = tip; else el.style.cursor = "default";
         el.textContent = `${icon} ${text}`;
         goals.appendChild(el);
       };

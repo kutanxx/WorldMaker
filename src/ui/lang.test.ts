@@ -17,6 +17,7 @@ describe("detectLang", () => {
     expect(detectLang("ko", mem())).toBe("ko");
     expect(detectLang("en-US", mem())).toBe("en");
     expect(detectLang("de-DE", mem())).toBe("en");
+    expect(detectLang("kok-IN", mem())).toBe("en");
     expect(detectLang(undefined, mem())).toBe("en"); // jsdom navigator.language is en-US
   });
   it("ignores a corrupt saved value", () => {
