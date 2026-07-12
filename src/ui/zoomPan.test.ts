@@ -108,6 +108,7 @@ describe("attachZoomPan", () => {
   it("viewBox() reports the current box and restore round-trips across re-attach", () => {
     const zp = attachZoomPan(svg, container);
     (container.querySelectorAll(".map-zoom-controls button")[0] as HTMLButtonElement).click(); // +
+    (container.querySelectorAll(".map-zoom-controls button")[0] as HTMLButtonElement).click(); // + again (scale 1.96 — the case where re-deriving h drifted one ulp)
     const saved = zp.viewBox();
     expect(saved).not.toBe("0 0 100 100");
     expect(svg.getAttribute("viewBox")).toBe(saved);

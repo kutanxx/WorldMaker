@@ -82,8 +82,11 @@ export function attachZoomPan(svg: SVGSVGElement, container: HTMLElement, opts?:
   const r = opts?.restore ? parse(opts.restore) : null;
   if (r && [r.x, r.y, r.w, r.h].every(Number.isFinite) && r.w > 0 && r.h > 0) {
     const scale = base.w / r.w;
-    if (scale >= MIN_SCALE && scale <= MAX_SCALE) cur = { x: r.x, y: r.y, w: r.w, h: base.h * r.w / base.w };
-    else {
+    if (scale >= MIN_SCALE && scale <= MAX_SCALE) {
+      const expectH = r.w * (base.h / base.w);
+      // legit saves keep their exact bytes (round-trip guarantee); distorted heights are re-derived
+      cur = { x: r.x, y: r.y, w: r.w, h: Math.abs(r.h - expectH) <= expectH * 1e-6 ? r.h : expectH };
+    } else {
       const s = Math.max(MIN_SCALE, Math.min(MAX_SCALE, scale));
       cur = { x: r.x, y: r.y, w: base.w / s, h: base.h / s };
     }
