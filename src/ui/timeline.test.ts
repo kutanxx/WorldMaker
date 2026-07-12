@@ -47,4 +47,17 @@ describe("createTimeline", () => {
     vi.advanceTimersByTime(3000);
     expect(seen.length).toBe(after);
   });
+
+  it("formats the year through the injected formatter", () => {
+    const t = createTimeline(fakeHistory(3), () => {}, (y) => `Year ${y}`);
+    const slider = t.element.querySelector("input") as HTMLInputElement;
+    slider.value = "2";
+    slider.dispatchEvent(new Event("input"));
+    expect((t.element.querySelector(".timeline-year") as HTMLElement).textContent).toBe("Year 20");
+  });
+
+  it("accepts a bare snapshots object (the SimState shape)", () => {
+    const t = createTimeline({ snapshots: [{ year: 0 }, { year: 10 }] }, () => {});
+    expect((t.element.querySelector(".timeline-year") as HTMLElement).textContent).toBe("0년");
+  });
 });

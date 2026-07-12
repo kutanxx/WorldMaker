@@ -1,4 +1,7 @@
-import type { History } from "../engine/history";
+// Structural source type: Version A's History and play mode's SimState both satisfy it.
+export interface TimelineSource {
+  snapshots: { year: number }[];
+}
 
 export interface Timeline {
   element: HTMLElement;
@@ -8,7 +11,11 @@ export interface Timeline {
 
 const STEP_MS = 300;
 
-export function createTimeline(history: History, onIndex: (i: number) => void): Timeline {
+export function createTimeline(
+  history: TimelineSource,
+  onIndex: (i: number) => void,
+  formatYear: (y: number) => string = (y) => `${y}년`,
+): Timeline {
   const max = history.snapshots.length - 1;
 
   const element = document.createElement("div");
@@ -34,7 +41,7 @@ export function createTimeline(history: History, onIndex: (i: number) => void): 
   let timer: ReturnType<typeof setInterval> | null = null;
   let index = 0;
 
-  const readout = (i: number) => { year.textContent = `${history.snapshots[i].year}년`; };
+  const readout = (i: number) => { year.textContent = formatYear(history.snapshots[i].year); };
 
   function apply(i: number, fromSlider = false): void {
     index = Math.max(0, Math.min(max, i));
