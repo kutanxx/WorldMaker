@@ -45,16 +45,22 @@ describe("playApp", () => {
   });
 
   it("toggles the play screen to Korean", () => {
-    const root = document.createElement("div");
-    createPlayApp(root, 1);
-    (root.querySelector(".nation-choice") as HTMLButtonElement).click();
-    const toggle = root.querySelector(".lang-toggle") as HTMLButtonElement;
-    expect(toggle).not.toBeNull();
-    toggle.click();
-    const panel = root.querySelector(".play-panel")!.textContent!;
-    expect(panel).toContain("년");        // Korean year
-    expect(panel).toContain("결속");      // Korean "cohesion"
-    expect((root.querySelector(".btn-advance") as HTMLButtonElement).textContent).toContain("다음 해");
+    const saved = localStorage.getItem("wm:lang");
+    try {
+      const root = document.createElement("div");
+      createPlayApp(root, 1);
+      (root.querySelector(".nation-choice") as HTMLButtonElement).click();
+      const toggle = root.querySelector(".lang-toggle") as HTMLButtonElement;
+      expect(toggle).not.toBeNull();
+      toggle.click();
+      const panel = root.querySelector(".play-panel")!.textContent!;
+      expect(panel).toContain("년");        // Korean year
+      expect(panel).toContain("결속");      // Korean "cohesion"
+      expect((root.querySelector(".btn-advance") as HTMLButtonElement).textContent).toContain("다음 해");
+    } finally {
+      if (saved === null) localStorage.removeItem("wm:lang");
+      else localStorage.setItem("wm:lang", saved);
+    }
   });
 
   it("neighbor chips are the peace surface; picking found-city then invest shares one pending action", () => {
@@ -776,5 +782,18 @@ describe("playApp", () => {
     const other = document.createElement("div");
     createPlayApp(other, 1);
     expect(other.querySelector(".daily-badge")).toBeNull();
+  });
+
+  it("the language toggle persists the choice for the next visit", () => {
+    const saved = localStorage.getItem("wm:lang");
+    try {
+      const root = document.createElement("div");
+      createPlayApp(root, 1);
+      (root.querySelector(".lang-toggle") as HTMLButtonElement).click(); // en → ko
+      expect(localStorage.getItem("wm:lang")).toBe("ko");
+    } finally {
+      if (saved === null) localStorage.removeItem("wm:lang"); // a leaked "ko" would flip later EN assertions
+      else localStorage.setItem("wm:lang", saved);
+    }
   });
 });

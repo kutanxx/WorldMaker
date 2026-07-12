@@ -15,6 +15,7 @@ import { politicalLayer } from "./politicalLayer";
 import { cultureLayer } from "./cultureLayer";
 import { deconflictLabels } from "./deconflict";
 import { type Lang, t } from "./i18n";
+import { detectLang, saveLang } from "./lang";
 
 export interface App {
   regenerate(p: WorldParams): void;
@@ -40,7 +41,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
   let cityZoom: ZoomPan | null = null;
   let currentYearIndex = 0;
   let currentView: MapView = "terrain";
-  let lang: Lang = "en";
+  let lang: Lang = detectLang();
   let openCityId: number | null = null; // which screen is showing (null = world)
 
   const seedInput = document.createElement("input");
@@ -80,6 +81,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
   applyLang();
   langBtn.addEventListener("click", () => {
     lang = lang === "en" ? "ko" : "en";
+    saveLang(lang);
     applyLang();
     if (openCityId !== null) openCity(openCityId); else showWorld(); // re-render the live screen
   });

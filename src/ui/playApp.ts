@@ -12,6 +12,7 @@ import { reignChronicle } from "../engine/reign";
 import { downloadBlob } from "./export";
 import { politicalLayer } from "./politicalLayer";
 import { t, playT, playYear, playLog, playRuleIntro, playFell, playStats, playDelta, playDefeatCause, playDilemma, playDilemmaOutcome, playDilemmaFx, playLegacyEpitaph, type Lang } from "./i18n";
+import { detectLang, saveLang } from "./lang";
 import { offerDilemma, resolveDilemma, previewDilemma, bestRaidTarget, type Dilemma, type DilemmaOutcome } from "../engine/dilemma";
 import { computeStanding, neighborAttitudes, borderReport, ATT_HOSTILE_RATIO, type Standing } from "../engine/standing";
 import { PLAYER_COLOR } from "./nationPalette";
@@ -31,7 +32,7 @@ type VictoryKind = "conquest" | "prosperity" | "endurance" | "defeat";
 export function createPlayApp(root: HTMLElement, seed: number): void {
   root.innerHTML = "";
   const { world } = generateWorld({ ...DEFAULT_PARAMS, seed });
-  let lang: Lang = "en";
+  let lang: Lang = detectLang();
 
   const agg0 = (() => {
     const s = initPlaySim(world, seed, 0, "internal");
@@ -46,7 +47,7 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
     const b = document.createElement("button");
     b.className = "lang-toggle";
     b.textContent = t(lang, "langToggle");
-    b.addEventListener("click", () => { lang = lang === "en" ? "ko" : "en"; onToggle(); });
+    b.addEventListener("click", () => { lang = lang === "en" ? "ko" : "en"; saveLang(lang); onToggle(); });
     return b;
   }
 
