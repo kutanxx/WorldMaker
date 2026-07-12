@@ -1,6 +1,6 @@
 import { OCEAN } from "./terrain";
 import type { SimState } from "./historySim";
-import { aggregate, contestStrength, CONQUEST_SOL, AMPHIB_MULT, CONTEST_THRESH, CITY_MIN_GAP, PEACE_TICKS, YEARS_PER_TICK, type Agg } from "./historySim";
+import { aggregate, contestStrength, CONQUEST_SOL, AMPHIB_MULT, EXPEDITION_MULT, CONTEST_THRESH, CITY_MIN_GAP, PEACE_TICKS, YEARS_PER_TICK, type Agg } from "./historySim";
 
 export type Action =
   | { type: "attack"; cell: number }
@@ -9,7 +9,7 @@ export type Action =
   | { type: "peace"; polity: number };
 // `message` is the EN fallback; `code` + `data` let the UI render a localised (KO/EN) log line.
 export interface InterventionResult { ok: boolean; message: string; code?: string; data?: Record<string, string | number> }
-export interface BorderTarget { cell: number; owner: number; ownerName: string; capturable: boolean; sea?: boolean }
+export interface BorderTarget { cell: number; owner: number; ownerName: string; capturable: boolean; sea?: boolean; lane?: boolean }
 
 export const ATTACK_EDGE = 1.0; // even fight goes to the player (their edge is picking the cell)
 export const ATTACK_FOLLOW_MAX = 3; // max extra cells a breakthrough carries beyond the picked cell
@@ -47,6 +47,16 @@ function seaLaunchCell(s: SimState, cell: number): number {
   return best;
 }
 
+// the strongest player-owned lane counterpart that can launch an expedition AT `cell`, or -1
+function laneLaunchCell(s: SimState, cell: number): number {
+  let best = -1, bestSol = -Infinity;
+  for (const { a, b } of s.seaLanes) {
+    const other = a === cell ? b : b === cell ? a : -1;
+    if (other >= 0 && s.owner[other] === s.playerPolity && s.solidarity[other] > bestSol) { bestSol = s.solidarity[other]; best = other; }
+  }
+  return best;
+}
+
 // enemy land cells adjacent to the player's territory (the attack list)
 export function borderTargets(s: SimState): BorderTarget[] {
   if (s.playerPolity < 0) return [];
@@ -78,6 +88,18 @@ export function borderTargets(s: SimState): BorderTarget[] {
         const def = contestStrength(s, agg, o, nb, nb);
         out.push({ cell: nb, owner: o, ownerName: s.polities[o].name, capturable: atk * ATTACK_EDGE >= def, sea: true });
       }
+    }
+  }
+  // expedition targets: the far endpoints of sea lanes, weakened by the long crossing
+  for (const { a, b } of s.seaLanes) {
+    for (const [mine, far] of [[a, b], [b, a]] as const) {
+      if (s.owner[mine] !== s.playerPolity) continue;
+      const o = s.owner[far];
+      if (o < 0 || o === s.playerPolity || seen.has(far)) continue;
+      seen.add(far);
+      const atk = contestStrength(s, agg, s.playerPolity, far, mine) * EXPEDITION_MULT;
+      const def = contestStrength(s, agg, o, far, far);
+      out.push({ cell: far, owner: o, ownerName: s.polities[o].name, capturable: atk * ATTACK_EDGE >= def, sea: true, lane: true });
     }
   }
   return out;
@@ -170,11 +192,13 @@ export function applyIntervention(s: SimState, action: Action): InterventionResu
     if (def < 0 || def === s.playerPolity) return { ok: false, message: "Not an enemy cell.", code: "notEnemy" };
     if (s.truces.has(def)) s.truces.delete(def); // aggression voids the truce
     const landCell = launchCell(s, target);
+    let solCell = landCell, mult = 1;
+    if (solCell < 0) { solCell = seaLaunchCell(s, target); if (solCell >= 0) mult = AMPHIB_MULT; }
+    if (solCell < 0) { solCell = laneLaunchCell(s, target); if (solCell >= 0) mult = EXPEDITION_MULT; } // the long way around
     const amphib = landCell < 0;
-    const solCell = amphib ? seaLaunchCell(s, target) : landCell; // fall back to a sea crossing
     if (solCell < 0) return { ok: false, message: "Not reachable from your territory.", code: "unreachable" };
     const agg = aggregate(s);
-    const atkStr = contestStrength(s, agg, s.playerPolity, target, solCell) * (amphib ? AMPHIB_MULT : 1);
+    const atkStr = contestStrength(s, agg, s.playerPolity, target, solCell) * mult;
     const defStr = contestStrength(s, agg, def, target, target);
     const name = s.polities[def].name;
     if (atkStr * ATTACK_EDGE >= defStr) {

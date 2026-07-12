@@ -4,6 +4,7 @@ import { DEFAULT_PARAMS } from "../types/world";
 import { initSim, stepSim, aggregate, contestStrength, CONQUEST_SOL, CITY_MIN_GAP, CITY_SOL_FLOOR, CITY_POWER_BONUS, PEACE_TICKS } from "./historySim";
 import { OCEAN } from "./terrain";
 import { borderTargets, applyIntervention, frontEdges, foundCityTargets, hostileNeighbors, predictCapture, INVEST_DELTA, ATTACK_FOLLOW_MAX } from "./intervention";
+import { initPlaySim } from "./playSim";
 
 const small = { ...DEFAULT_PARAMS, width: 300, height: 300, cellCount: 400, townCount: 6 };
 function playerState(seed: number) {
@@ -402,5 +403,56 @@ describe("frontEdges", () => {
     const threats = edges.filter((e) => e.kind === "threat");
     expect(threats.length).toBeGreaterThan(0);
     for (const e of threats) expect(s.owner[e.cell]).toBe(s.playerPolity);
+  });
+});
+
+describe("lane expeditions", () => {
+  function lanedState() {
+    const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 2 });
+    const s = initPlaySim(world, 2, 0, "internal");
+    expect(s.seaLanes.length).toBeGreaterThan(0);
+    // ROBUST staging: player owns everything except the foe's single lane endpoint b, whose land
+    // neighbours are carved to unclaimed — so land/strait cannot reach b and ONLY the lane can.
+    // (also carve b's own straitLinks: at seed 2 they reach a distant land cell 2 hops out that,
+    // under blanket player ownership below, would otherwise satisfy the strait rule before the
+    // lane loop runs and steal `seen`, masking the very path this test exists to exercise.)
+    const { a, b } = s.seaLanes[0];
+    const player = 0, foe = 1;
+    s.playerPolity = player;
+    for (let c = 0; c < s.n; c++) if (s.owner[c] >= 0) s.owner[c] = player;
+    s.owner[b] = foe;
+    for (const nb of s.grid.neighbors[b]) if (s.terrain[nb] !== OCEAN) s.owner[nb] = -1;
+    for (const nb of s.straitLinks?.[b] ?? []) s.owner[nb] = -1;
+    s.owner[a] = player;
+    for (let c = 0; c < s.n; c++) s.solidarity[c] = s.owner[c] === player ? 0.9 : 0.1;
+    return { s, a, b, foe };
+  }
+
+  it("the far lane endpoint is an attack target flagged lane+sea, capturable at the expedition penalty", () => {
+    const { s, b } = lanedState();
+    const t = borderTargets(s).find((x) => x.cell === b);
+    expect(t).toBeDefined();
+    expect(t!.lane).toBe(true);
+    expect(t!.sea).toBe(true);
+    expect(t!.capturable).toBe(true); // 0.95 vs 0.2 clears even the 0.6 multiplier
+  });
+
+  it("applyIntervention lands an expedition across the lane and voids nothing it shouldn't", () => {
+    const { s, b, foe } = lanedState();
+    const r = applyIntervention(s, { type: "attack", cell: b });
+    expect(r.ok).toBe(true);
+    expect(r.code).toBe("landed");
+    expect(s.owner[b]).toBe(0);
+    expect(s.attacksByPlayer.get(foe)).toBe(s.tick);
+  });
+
+  it("strait reach outranks lane reach (milder penalty wins) — a lane flag only appears when the strait cannot reach", () => {
+    const { s } = lanedState();
+    for (const t of borderTargets(s)) {
+      if (t.lane) expect(t.sea).toBe(true); // every lane target is a sea target
+    }
+    // and no duplicate cells in the list (the seen-set guarantees strait-first exclusivity)
+    const cells = borderTargets(s).map((t) => t.cell);
+    expect(new Set(cells).size).toBe(cells.length);
   });
 });
