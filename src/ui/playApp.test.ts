@@ -723,6 +723,34 @@ describe("playApp", () => {
     expect(root.querySelector(".front")).toBeNull();
   });
 
+  it("a post-win panel click (stance button) doesn't delete the replay bar", () => {
+    // seed 1 / first nation runs a full 60-turn (500-year) reign and survives — an endurance WIN,
+    // so renderPanel() takes its full alive-player path: stance buttons, neighbor chips, and the
+    // advice button all still render (renderPanel has no `over` guard at all). Their handlers
+    // route through renderAll()/renderPending(), whose first call is renderActions() — verified
+    // empirically (src/ui/playApp.ts renderPanel/renderActions) that all three controls survive
+    // game over on this exact deterministic run.
+    vi.useFakeTimers();
+    try {
+      const root = document.createElement("div");
+      runToGameOver(root);
+      expect(root.querySelector(".play-actions .replay-bar")).not.toBeNull();
+      const stanceBtns = [...root.querySelectorAll(".play-panel .view-toggle button")];
+      expect(stanceBtns.length).toBeGreaterThan(0); // confirms the alive/WIN panel path was taken
+      // start the replayer (▶) so a stray renderActions() would also orphan its running interval
+      (root.querySelector(".replay-bar .timeline-play") as HTMLButtonElement).click();
+      const runningTimers = vi.getTimerCount();
+      expect(runningTimers).toBeGreaterThan(0);
+      (stanceBtns[0] as HTMLButtonElement).click(); // routes through setStance() -> renderAll()
+      // the click must NOT wipe .play-actions out from under the replay bar
+      expect(root.querySelector(".play-actions .replay-bar")).not.toBeNull();
+      // and it must not orphan the old bar's ▶ interval — renderReplayBar() destroys + rebuilds
+      expect(vi.getTimerCount()).toBeGreaterThan(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("play-again mid-replay stops the replay timer", () => {
     vi.useFakeTimers();
     try {

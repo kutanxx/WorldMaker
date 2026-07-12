@@ -612,8 +612,12 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
     }
 
     function renderActions(): void {
+      // game over: the command bar belongs to the replay scrubber now. renderReplayBar() clears
+      // `actions` and preserves the current frame itself — bail before the innerHTML wipe below,
+      // otherwise a post-win panel click (stance/neighbor/advice all still render live) would
+      // silently delete the replay bar out from under a running ▶.
+      if (over) { renderReplayBar(); return; }
       actions.innerHTML = "";
-      if (over) return; // a fallen realm has no actions (the banner tells the story)
 
       // invest = a 2-segment control (전국 | 국경), each showing its numeric effect — not a dropdown
       const investSeg = document.createElement("span");
@@ -749,7 +753,7 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
 
     // re-render the live screen in the current language (keeps the accumulated log)
     function rerender(): void {
-      if (over) { renderMap(); renderPanel(); renderBanner(); renderReplayBar(); } else renderAll();
+      if (over) { renderPanel(); renderBanner(); renderReplayBar(); } else renderAll();
     }
 
     // DF-legends payoff: scrub the reign's territorial history on the big map. Lives in the
@@ -832,8 +836,7 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
         citiesFounded: sc.citiesFounded,
         epitaph: composeEpitaph(kind, cause, highlights),
       });
-      renderMap(); // drop the live overlays: the war is over, the atlas remains
-      renderReplayBar();
+      renderReplayBar(); // drop the live overlays: the war is over, the atlas remains (setIndex repaints the map)
       renderPanel();
       renderGoals();
       renderDilemma();

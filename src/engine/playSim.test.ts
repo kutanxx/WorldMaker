@@ -37,6 +37,16 @@ describe("playSim", () => {
     expect(r.defeated).toBe(true);
   });
 
+  it("the last snapshot mirrors the live owner array after playTurn (replay's 'present' frame is real)", () => {
+    // full-size world, per this file's convention for tests that lean on realistic sim behaviour
+    // (see "scorecard counts founded cities" below) — stepSim pushes a snapshot every tick, and
+    // the play UI's replay bar treats the final snapshot as standing in for the live map.
+    const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });
+    const s = initPlaySim(world, 1, 0, "internal");
+    for (let i = 0; i < 5; i++) playTurn(s, null);
+    expect(Array.from(s.snapshots[s.snapshots.length - 1].owner)).toEqual(Array.from(s.owner));
+  });
+
   it("setStance changes the stance for free", () => {
     const { world } = generateWorld({ ...small, seed: 1 });
     const s = initPlaySim(world, 1, 0, "internal");
