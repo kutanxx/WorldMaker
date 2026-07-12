@@ -152,10 +152,30 @@ describe("playApp", () => {
     const howto = root.querySelector(".howto");
     expect(howto).not.toBeNull();
     expect(howto!.textContent).toMatch(/500/); // the goal is stated
+    for (let step = 0; step < 3; step++) (root.querySelector(".howto-next") as HTMLButtonElement).click();
     (root.querySelector(".howto-start") as HTMLButtonElement).click();
     expect(root.querySelector(".howto")).toBeNull();
     (root.querySelector(".help-btn") as HTMLButtonElement).click(); // reopen
     expect(root.querySelector(".howto")).not.toBeNull();
+  });
+
+  it("the how-to opens as a stepper: one line per step, Start on the last, '?' shows the full card", () => {
+    const root = document.createElement("div");
+    createPlayApp(root, 1);
+    (root.querySelector(".nation-choice") as HTMLButtonElement).click();
+    const lines = () => root.querySelectorAll(".howto-line").length;
+    expect(lines()).toBe(1); // step 1 of 4, not the wall of text
+    for (let step = 0; step < 3; step++) {
+      const next = root.querySelector(".howto-next") as HTMLButtonElement;
+      expect(next).not.toBeNull();
+      next.click();
+      expect(lines()).toBe(1);
+    }
+    expect(root.querySelector(".howto-next")).toBeNull(); // last step: Start replaces Next
+    (root.querySelector(".howto-start") as HTMLButtonElement).click();
+    expect(root.querySelector(".howto")).toBeNull();
+    (root.querySelector(".help-btn") as HTMLButtonElement).click(); // reopen = reference mode
+    expect(lines()).toBe(4);
   });
 
   it("shows a map legend and a contextual advice line every turn", () => {

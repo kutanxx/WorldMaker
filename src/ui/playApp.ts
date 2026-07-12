@@ -134,6 +134,8 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
     let replayIndex: number | null = null; // non-null: the map shows s.snapshots[replayIndex]
     let replayBar: Timeline | null = null;
     let showHelp = true; // the how-to-rule card opens the reign; dismissible, reopenable via "?"
+    let howtoMode: "steps" | "full" = "steps"; // first open walks one line at a time; "?" shows all
+    let howtoStep = 0;
     let momentum: { gained: number; lost: number; dCohesionDir: -1 | 0 | 1; actionGain: number } | null = null;
     let prosperStreak = 0;
     const highlights: DilemmaOutcome[] = [];
@@ -377,14 +379,24 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
       if (!showHelp || over) return;
       const card = document.createElement("div");
       card.className = "howto controls";
-      const lines = ["howto1", "howto2", "howto3", "howto4"]
-        .map((k) => `<div class="howto-line">${playT(lang, k)}</div>`).join("");
+      const keys = ["howto1", "howto2", "howto3", "howto4"];
+      const shown = howtoMode === "full" ? keys : [keys[howtoStep]];
+      const lines = shown.map((k) => `<div class="howto-line">${playT(lang, k)}</div>`).join("");
       card.innerHTML = `<b>${playT(lang, "howtoTitle")}</b>${lines}`;
-      const start = document.createElement("button");
-      start.className = "howto-start";
-      start.textContent = playT(lang, "howtoStart");
-      start.addEventListener("click", () => { showHelp = false; renderHowto(); });
-      card.appendChild(start);
+      if (howtoMode === "steps" && howtoStep < keys.length - 1) {
+        const next = document.createElement("button");
+        next.className = "howto-next";
+        next.textContent = playT(lang, "howtoNext")
+          .replace("{i}", String(howtoStep + 1)).replace("{n}", String(keys.length));
+        next.addEventListener("click", () => { howtoStep++; renderHowto(); });
+        card.appendChild(next);
+      } else {
+        const start = document.createElement("button");
+        start.className = "howto-start";
+        start.textContent = playT(lang, "howtoStart");
+        start.addEventListener("click", () => { showHelp = false; renderHowto(); });
+        card.appendChild(start);
+      }
       howtoBox.appendChild(card);
     }
 
@@ -601,7 +613,7 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
       const helpBtn = document.createElement("button");
       helpBtn.className = "help-btn";
       helpBtn.textContent = playT(lang, "help");
-      helpBtn.addEventListener("click", () => { showHelp = true; renderHowto(); });
+      helpBtn.addEventListener("click", () => { showHelp = true; howtoMode = "full"; renderHowto(); });
       panel.append(stanceRow, helpBtn, langButton(rerender));
 
       // per-turn advice line (kept)
