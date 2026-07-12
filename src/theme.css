@@ -257,15 +257,17 @@ svg.world .legend { pointer-events: none; }
 /* per-turn front standing line under the momentum headline */
 .border-report { font-size: 12px; color: #5a4a34; margin-top: 2px; }
 
-/* touch ergonomics: devices whose PRIMARY pointer is coarse (phones/tablets) get 44px-class
-   targets and no double-tap-zoom delay. Fine-pointer desktops — including touch-screen
-   laptops with a trackpad — are untouched. Measured pre-fix: advance 32px, chip 19px tall. */
+/* touch ergonomics: devices whose PRIMARY pointer is coarse (phones/tablets) get comfortable
+   (not merely minimum) targets and no double-tap-zoom delay. Fine-pointer desktops — including
+   touch-screen laptops with a trackpad — are untouched. Measured pre-fix: advance 32px, chip
+   19px tall; user feel-pass on a real phone asked for bigger than the 44px first cut, and the
+   13px button copy read as "tall but tiny" — so text scales up with the box. */
 @media (pointer: coarse) {
-  #play button, #landing button { min-height: 44px; touch-action: manipulation; }
-  .neighbor-chip { min-height: 40px; display: inline-flex; align-items: center; padding: 6px 10px; touch-action: manipulation; }
-  .goal-chip { padding: 6px 10px; }
-  .play-actions .timeline-play { min-width: 44px; }
-  .play-actions .timeline-slider { height: 32px; }
+  #play button, #landing button { min-height: 48px; padding: 10px 14px; font-size: 15px; touch-action: manipulation; }
+  .neighbor-chip { min-height: 44px; display: inline-flex; align-items: center; padding: 8px 12px; font-size: 14px; touch-action: manipulation; }
+  .goal-chip { padding: 8px 12px; }
+  .play-actions .timeline-play { min-width: 48px; }
+  .play-actions .timeline-slider { height: 36px; }
 }
 /* tap-strip: the touch replacement for hover tooltips; installed only on coarse pointers */
 .tip-strip { position: fixed; left: 8px; right: 8px; bottom: 8px; z-index: 60; background: rgba(42, 33, 24, 0.92); color: #f2e8d5; padding: 10px 14px; border-radius: 10px; font-size: 14px; pointer-events: none; opacity: 0; transition: opacity 0.15s; white-space: pre-line; }
