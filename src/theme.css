@@ -167,6 +167,9 @@ svg.world .legend { pointer-events: none; }
 .play-actions.controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .play-actions .invest-seg button { font-size: 13px; }
 .play-actions .btn-advance { margin-left: auto; font-weight: 700; }
+.play-actions .replay-bar { display: flex; align-items: center; gap: 10px; width: 100%; }
+.play-actions .replay-bar .timeline-slider { flex: 1; min-width: 0; }
+.replay-title { font-weight: 600; white-space: nowrap; }
 .chronicle { max-height: 240px; }
 
 /* onboarding + guidance: how-to card (a floating overlay, not another stacked box), legend, advice */

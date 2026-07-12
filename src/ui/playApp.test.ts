@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { createPlayApp } from "./playApp";
 
 describe("playApp", () => {
@@ -683,5 +683,58 @@ describe("playApp", () => {
     expect(root.querySelector(".sea-lane")).not.toBeNull();
     const legend = root.querySelector(".play-legend")!.textContent || "";
     expect(legend).toMatch(/원정|expedition/i);
+  });
+
+  function runToGameOver(root: HTMLElement): void {
+    createPlayApp(root, 1);
+    (root.querySelector(".nation-choice") as HTMLButtonElement).click();
+    for (let i = 0; i < 60; i++) {
+      const adv = root.querySelector(".btn-advance") as HTMLButtonElement | null;
+      if (!adv) break; // end() replaced the command bar
+      adv.click();
+    }
+  }
+
+  it("game over mounts a replay bar; frame 0 differs from the present, the last frame IS the present", () => {
+    const root = document.createElement("div");
+    runToGameOver(root);
+    const bar = root.querySelector(".play-actions .replay-bar");
+    expect(bar).not.toBeNull();
+    const slot = () => (root.querySelector(".political-slot") as SVGGElement).innerHTML;
+    const live = slot();
+    const slider = bar!.querySelector("input.timeline-slider") as HTMLInputElement;
+    const max = Number(slider.max);
+    expect(max).toBeGreaterThan(0); // one snapshot per tick, so a real reign has many frames
+    slider.value = "0";
+    slider.dispatchEvent(new Event("input"));
+    expect(slot()).not.toBe(live); // territory moved over the reign
+    slider.value = String(max);
+    slider.dispatchEvent(new Event("input"));
+    expect(slot()).toBe(live); // scrubbing to the end lands on the present
+  });
+
+  it("the game-over map is a clean atlas: live overlays are gone", () => {
+    const root = document.createElement("div");
+    runToGameOver(root);
+    expect(root.querySelector(".attack-targets")).toBeNull();
+    expect(root.querySelector(".front")).toBeNull();
+  });
+
+  it("play-again mid-replay stops the replay timer", () => {
+    vi.useFakeTimers();
+    try {
+      const root = document.createElement("div");
+      runToGameOver(root);
+      // baseline, not necessarily 0: jsdom's localStorage.setItem (recordReign, in end())
+      // schedules its own internal setTimeout for cross-tab storage events — unrelated to replay
+      const baseline = vi.getTimerCount();
+      (root.querySelector(".replay-bar .timeline-play") as HTMLButtonElement).click(); // ▶
+      expect(vi.getTimerCount()).toBeGreaterThan(baseline);
+      (root.querySelector(".btn-play-again") as HTMLButtonElement).click();
+      expect(vi.getTimerCount()).toBe(baseline); // destroy() ran; nothing paints the dead DOM
+      expect(root.querySelector(".nation-choice")).not.toBeNull(); // picker is back
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

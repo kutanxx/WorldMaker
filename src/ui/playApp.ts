@@ -18,6 +18,7 @@ import { PLAYER_COLOR } from "./nationPalette";
 import { deconflictLabels } from "./deconflict";
 import { randomSeed } from "./urlState";
 import { loadLegacy, recordReign, seedBestPeak, composeEpitaph, LEGACY_SHOW } from "./legacy";
+import { createTimeline, type Timeline } from "./timeline";
 
 const STANCES: Stance[] = ["aggressive", "defensive", "internal"];
 const NEIGHBOR_SHOW = 6;
@@ -101,6 +102,8 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
     let pendingAction: Action | null = null;
     let dilemma: Dilemma | null = null;
     let over = false;
+    let replayIndex: number | null = null; // non-null: the map shows s.snapshots[replayIndex]
+    let replayBar: Timeline | null = null;
     let showHelp = true; // the how-to-rule card opens the reign; dismissible, reopenable via "?"
     let momentum: { gained: number; lost: number; dCohesionDir: -1 | 0 | 1; actionGain: number } | null = null;
     let prosperStreak = 0;
@@ -185,7 +188,10 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
       mapFrame.innerHTML = "";
       const svg = renderWorld(world, "political", s.economicZones.map((z) => z.cell), lang);
       const slot = svg.querySelector(".political-slot") as SVGGElement;
-      slot.replaceChildren(politicalLayer(world.grid, s.owner, s.polities, { fills: true, labels: true, legend: false, playerPolity: s.playerPolity, playerColor: PLAYER_COLOR }));
+      const owner = replayIndex !== null ? s.snapshots[replayIndex].owner : s.owner;
+      slot.replaceChildren(politicalLayer(world.grid, owner, s.polities, { fills: true, labels: true, legend: false, playerPolity: s.playerPolity, playerColor: PLAYER_COLOR }));
+      // Old snapshots may name since-dead polities; s.polities never shrinks, so color/name lookups stay valid.
+      if (!over) {
       // front-line overlay: green = can push here, red = my cell is vulnerable here
       const NS = "http://www.w3.org/2000/svg";
       const g = document.createElementNS(NS, "g");
@@ -331,6 +337,7 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
         g.appendChild(crown);
       }
       slot.parentNode!.insertBefore(g, slot.nextSibling); // above political fills, below markers
+      }
       mapFrame.appendChild(svg);
       deconflictLabels(svg); // hide colliding lower-priority labels once the map is mounted
     }
@@ -734,7 +741,27 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
 
     // re-render the live screen in the current language (keeps the accumulated log)
     function rerender(): void {
-      if (over) { renderMap(); renderPanel(); renderBanner(); } else renderAll();
+      if (over) { renderMap(); renderPanel(); renderBanner(); renderReplayBar(); } else renderAll();
+    }
+
+    // DF-legends payoff: scrub the reign's territorial history on the big map. Lives in the
+    // command bar that end() vacates; rebuilt (not patched) on language toggle.
+    function renderReplayBar(): void {
+      replayBar?.destroy();
+      actions.innerHTML = "";
+      const bar = createTimeline(
+        { snapshots: s.snapshots },
+        (i) => { replayIndex = i; renderMap(); },
+        (y) => playYear(lang, y),
+      );
+      bar.element.classList.add("replay-bar");
+      const label = document.createElement("span");
+      label.className = "replay-title";
+      label.textContent = playT(lang, "replayTitle");
+      bar.element.prepend(label);
+      actions.appendChild(bar.element);
+      replayBar = bar;
+      if (replayIndex !== null) bar.setIndex(replayIndex); // language toggle keeps the frame
     }
 
     let victoryKind: VictoryKind = "endurance";
@@ -767,11 +794,12 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
       const again = document.createElement("button");
       again.className = "btn-play-again";
       again.textContent = playT(lang, "playAgain");
-      again.addEventListener("click", renderPicker); // same world, choose a nation again
+      again.addEventListener("click", () => { replayBar?.destroy(); renderPicker(); });
       const fresh = document.createElement("button");
       fresh.className = "btn-new-world";
       fresh.textContent = playT(lang, "newWorld");
       fresh.addEventListener("click", () => {
+        replayBar?.destroy();
         location.hash = `seed=${randomSeed()}`; // a fresh seed, so the reload builds a new world
         location.reload();
       });
@@ -794,7 +822,8 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
         citiesFounded: sc.citiesFounded,
         epitaph: composeEpitaph(kind, cause, highlights),
       });
-      actions.innerHTML = "";
+      renderMap(); // drop the live overlays: the war is over, the atlas remains
+      renderReplayBar();
       renderPanel();
       renderGoals();
       renderDilemma();
