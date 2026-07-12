@@ -256,3 +256,14 @@ svg.world .legend { pointer-events: none; }
 .daily-badge { font-size: 0.5em; vertical-align: middle; margin-left: 10px; padding: 3px 8px; border-radius: 10px; background: rgba(168, 132, 44, 0.18); white-space: nowrap; }
 /* per-turn front standing line under the momentum headline */
 .border-report { font-size: 12px; color: #5a4a34; margin-top: 2px; }
+
+/* touch ergonomics: devices whose PRIMARY pointer is coarse (phones/tablets) get 44px-class
+   targets and no double-tap-zoom delay. Fine-pointer desktops — including touch-screen
+   laptops with a trackpad — are untouched. Measured pre-fix: advance 32px, chip 19px tall. */
+@media (pointer: coarse) {
+  #play button, #landing button { min-height: 44px; touch-action: manipulation; }
+  .neighbor-chip { min-height: 40px; display: inline-flex; align-items: center; padding: 6px 10px; touch-action: manipulation; }
+  .goal-chip { padding: 6px 10px; }
+  .play-actions .timeline-play { min-width: 44px; }
+  .play-actions .timeline-slider { height: 32px; }
+}

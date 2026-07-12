@@ -12,3 +12,11 @@ describe("mobile viewport meta", () => {
     });
   }
 });
+
+describe("coarse-pointer ergonomics", () => {
+  it("theme.css carries the touch-target block", () => {
+    const css = read("src/theme.css");
+    expect(css).toContain("@media (pointer: coarse)");
+    expect(css).toContain(".neighbor-chip"); // the worst offender (19px tall) is covered
+  });
+});
