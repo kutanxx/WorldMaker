@@ -22,9 +22,9 @@ const FREE_COLOR = "#b7b1a4";
 // than passing (0.6 self-nerf starved it), aggressive self-destructed (decay too harsh) — the
 // triangle is retuned so every stance has a real job while staying honest (no protagonist buff).
 // exported so the UI's stance tooltips render THESE numbers (a retune can never desync the copy)
-export const STANCE_ATK_MULT = { aggressive: 1.2, defensive: 0.85, internal: 0.75 } as const; // player-as-attacker multiplier
-export const STANCE_DEF_MULT = { aggressive: 1.0, defensive: 1.35, internal: 1.05 } as const;  // player-as-defender multiplier
-export const STANCE_SOL_DELTA = { aggressive: -0.005, defensive: 0.005, internal: 0.02 } as const; // per-tick solidarity nudge on player cells
+export const STANCE_ATK_MULT = { aggressive: 1.35, defensive: 0.8, internal: 0.55 } as const; // player-as-attacker multiplier
+export const STANCE_DEF_MULT = { aggressive: 1.0, defensive: 1.5, internal: 1.05 } as const;  // player-as-defender multiplier
+export const STANCE_SOL_DELTA = { aggressive: -0.01, defensive: 0.005, internal: 0.02 } as const; // per-tick solidarity nudge on player cells
 export const CONQUEST_SOL = CIVILWAR_BIRTH_SOL; // reuse the sim's fresh-conquest cohesion value
 export type Stance = "aggressive" | "defensive" | "internal";
 
