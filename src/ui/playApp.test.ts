@@ -3,6 +3,7 @@ import { describe, it, expect, vi } from "vitest";
 import { createPlayApp } from "./playApp";
 import { hashStringToSeed } from "../engine/rng";
 import { dailyName } from "./daily";
+import { PLAYER_COLOR } from "./nationPalette";
 
 describe("playApp", () => {
   it("nation picker labels each realm with a difficulty (biggest=easy, smallest=hard)", () => {
@@ -795,5 +796,21 @@ describe("playApp", () => {
       if (saved === null) localStorage.removeItem("wm:lang"); // a leaked "ko" would flip later EN assertions
       else localStorage.setItem("wm:lang", saved);
     }
+  });
+
+  it("the nation picker shows a minimap; hovering a card highlights that nation", () => {
+    const root = document.createElement("div");
+    createPlayApp(root, 1);
+    const mapBox = root.querySelector(".picker-map");
+    expect(mapBox).not.toBeNull();
+    const slot = mapBox!.querySelector(".political-slot")!;
+    expect(slot.children.length).toBeGreaterThan(0); // fills painted
+    const magenta = () => mapBox!.querySelectorAll(`[fill="${PLAYER_COLOR}"]`).length;
+    const before = magenta();
+    const card = root.querySelector(".nation-choice") as HTMLButtonElement;
+    card.dispatchEvent(new Event("mouseenter"));
+    expect(magenta()).toBeGreaterThan(before);
+    card.dispatchEvent(new Event("mouseleave"));
+    expect(magenta()).toBe(before);
   });
 });

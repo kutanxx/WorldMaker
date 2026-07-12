@@ -34,9 +34,9 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
   const { world } = generateWorld({ ...DEFAULT_PARAMS, seed });
   let lang: Lang = detectLang();
 
-  const agg0 = (() => {
+  const { agg0, owner0, polities0 } = (() => {
     const s = initPlaySim(world, seed, 0, "internal");
-    return aggregate(s);
+    return { agg0: aggregate(s), owner0: s.owner, polities0: s.polities };
   })();
   const nationsByCells = world.polities
     .map((p) => ({ p, cells: agg0[p.id]?.cells ?? 0 }))
@@ -65,7 +65,23 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
     }
     const picker = document.createElement("div");
     picker.className = "landing";
-    root.append(title, langButton(renderPicker), picker);
+    const mapBox = document.createElement("div");
+    mapBox.className = "picker-map";
+    const mapSvg = renderWorld(world, "political", [], lang);
+    const mapSlot = mapSvg.querySelector(".political-slot") as SVGGElement;
+    // hover highlight = the political layer's existing player override, nothing new
+    const paintMini = (hoverId: number) => {
+      mapSlot.replaceChildren(politicalLayer(world.grid, owner0, polities0, {
+        fills: true, labels: false, legend: false,
+        ...(hoverId >= 0 ? { playerPolity: hoverId, playerColor: PLAYER_COLOR } : {}),
+      }));
+    };
+    paintMini(-1);
+    mapBox.appendChild(mapSvg);
+    const row = document.createElement("div");
+    row.className = "picker-row";
+    row.append(picker, mapBox);
+    root.append(title, langButton(renderPicker), row);
     const maxCells = nationsByCells[0]?.cells || 1;
     const legacy = loadLegacy(seed);
     for (const { p, cells } of nationsByCells) {
@@ -81,6 +97,10 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
         b.appendChild(badge);
       }
       b.addEventListener("click", () => startGame(p.id));
+      b.addEventListener("mouseenter", () => paintMini(p.id));
+      b.addEventListener("mouseleave", () => paintMini(-1));
+      b.addEventListener("focus", () => paintMini(p.id));
+      b.addEventListener("blur", () => paintMini(-1));
       picker.appendChild(b);
     }
     if (legacy.length) {
