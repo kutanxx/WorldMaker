@@ -196,7 +196,8 @@ svg.world .legend { pointer-events: none; }
 .help-btn { font-weight: 700; min-width: 26px; }
 
 /* standing panel: momentum headline + two health meters + threat line */
-.goals { font-size: 12px; color: #5a4a34; margin: 2px 0 4px; }
+.goals { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 12px; color: #5a4a34; margin: 2px 0 4px; }
+.goal-chip { border: 1px solid rgba(42, 33, 24, 0.25); border-radius: 10px; padding: 2px 8px; white-space: nowrap; cursor: help; }
 .momentum { margin: 4px 0; font-weight: 600; color: #3a2f22; }
 .standing { display: flex; flex-direction: column; gap: 3px; margin: 4px 0; }
 .meter { display: flex; justify-content: space-between; gap: 8px; padding: 2px 8px;

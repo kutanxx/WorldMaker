@@ -621,14 +621,29 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
     }
 
     function renderGoals(): void {
-      if (over || !s.alive[s.playerPolity]) { goals.textContent = ""; return; }
+      goals.innerHTML = "";
+      if (over || !s.alive[s.playerPolity]) return;
       const vp = victoryProgress(s);
-      goals.textContent =
-        `${playT(lang, "goals")}: ⚔ ${playT(lang, "goalRivals")} ${vp.rivalsLeft}` +
-        ` · 🏘 ${vp.cities}/${PROSPER_CITIES} ${vp.cohesionOk ? "✓" : "✗"} ${prosperStreak}/${PROSPER_STREAK}` +
-        ` · 👑 ${vp.year}/500`;
+      const label = document.createElement("span");
+      label.className = "goals-label";
+      label.textContent = `${playT(lang, "goals")}:`;
+      goals.appendChild(label);
+      const chip = (icon: string, text: string, tip: string) => {
+        const el = document.createElement("span");
+        el.className = "goal-chip";
+        el.title = tip;
+        el.textContent = `${icon} ${text}`;
+        goals.appendChild(el);
+      };
+      chip("⚔", playT(lang, "goalConquest").replace("{n}", String(vp.rivalsLeft)), playT(lang, "tipGoalConquest"));
+      chip("🏘", playT(lang, "goalProsper")
+        .replace("{c}", String(vp.cities)).replace("{max}", String(PROSPER_CITIES))
+        .replace("{ok}", vp.cohesionOk ? "✓" : "✗")
+        .replace("{s}", String(prosperStreak)).replace("{need}", String(PROSPER_STREAK)),
+        playT(lang, "tipGoalProsper"));
+      chip("👑", playT(lang, "goalEndure").replace("{y}", String(vp.year)), playT(lang, "tipGoalEndure"));
       if (pendingAction?.type === "foundCity") {
-        goals.textContent += ` · 🏘 ${playT(lang, "fxCityNext").replace("{n}", String(vp.cities + 1))}`;
+        chip("🏘", playT(lang, "fxCityNext").replace("{n}", String(vp.cities + 1)), "");
       }
     }
 

@@ -429,6 +429,17 @@ describe("playApp", () => {
     expect(txt).toMatch(/500/);         // endurance readout (year target)
   });
 
+  it("goals render as three labeled chips with explanatory tooltips", () => {
+    const root = document.createElement("div");
+    createPlayApp(root, 1);
+    (root.querySelector(".nation-choice") as HTMLButtonElement).click();
+    const chips = [...root.querySelectorAll(".goal-chip")] as HTMLElement[];
+    expect(chips.length).toBe(3);
+    for (const c of chips) expect(c.title.length).toBeGreaterThan(0);
+    const txt = (root.querySelector(".goals") as HTMLElement).textContent || "";
+    expect(txt).toMatch(/⚔/); expect(txt).toMatch(/🏘/); expect(txt).toMatch(/500/);
+  });
+
   it("selecting an attack previews its own effect on both meters (▲ cells, direction-correct cohesion)", () => {
     const root = document.createElement("div");
     createPlayApp(root, 1);
