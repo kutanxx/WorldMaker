@@ -22,6 +22,7 @@ import { loadLegacy, recordReign, seedBestPeak, composeEpitaph, LEGACY_SHOW } fr
 import { createTimeline, type Timeline } from "./timeline";
 import { hashStringToSeed } from "../engine/rng";
 import { dailyName } from "./daily";
+import { installTipStrip } from "./tipStrip";
 
 const STANCES: Stance[] = ["aggressive", "defensive", "internal"];
 const NEIGHBOR_SHOW = 6;
@@ -33,6 +34,7 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
   root.innerHTML = "";
   const { world } = generateWorld({ ...DEFAULT_PARAMS, seed });
   let lang: Lang = detectLang();
+  installTipStrip(root); // no-op on fine-pointer devices; covers picker AND game screens
 
   const { agg0, owner0, polities0 } = (() => {
     const s = initPlaySim(world, seed, 0, "internal");
