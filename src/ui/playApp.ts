@@ -23,6 +23,7 @@ import { createTimeline, type Timeline } from "./timeline";
 import { hashStringToSeed } from "../engine/rng";
 import { dailyName } from "./daily";
 import { installTipStrip } from "./tipStrip";
+import { attachZoomPan, type ZoomPan } from "./zoomPan";
 
 const STANCES: Stance[] = ["aggressive", "defensive", "internal"];
 const NEIGHBOR_SHOW = 6;
@@ -136,6 +137,7 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
     let over = false;
     let replayIndex: number | null = null; // non-null: the map shows s.snapshots[replayIndex]
     let replayBar: Timeline | null = null;
+    let mapZoom: ZoomPan | null = null; // the map is rebuilt every render; zoom must survive it
     let showHelp = true; // the how-to-rule card opens the reign; dismissible, reopenable via "?"
     let howtoMode: "steps" | "full" = "steps"; // first open walks one line at a time; "?" shows all
     let howtoStep = 0;
@@ -219,6 +221,9 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
     }
 
     function renderMap(): void {
+      const savedView = mapZoom ? mapZoom.viewBox() : null;
+      mapZoom?.destroy(); // tears down svg listeners + any in-flight drag's window listeners
+      mapZoom = null;
       mapFrame.innerHTML = "";
       const svg = renderWorld(world, "political", s.economicZones.map((z) => z.cell), lang);
       const slot = svg.querySelector(".political-slot") as SVGGElement;
@@ -374,6 +379,7 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
       }
       mapFrame.appendChild(svg);
       deconflictLabels(svg); // hide colliding lower-priority labels once the map is mounted
+      mapZoom = attachZoomPan(svg, mapFrame, { restore: savedView });
     }
 
     // the "what do I do?" fixes: an opening how-to card, a map legend, and a per-turn advice line

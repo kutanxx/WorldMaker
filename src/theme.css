@@ -268,6 +268,7 @@ svg.world .legend { pointer-events: none; }
   .goal-chip { padding: 8px 12px; }
   .play-actions .timeline-play { min-width: 48px; }
   .play-actions .timeline-slider { height: 36px; }
+  .map-zoom-controls button { min-width: 48px; }
 }
 /* tap-strip: the touch replacement for hover tooltips; installed only on coarse pointers */
 .tip-strip { position: fixed; left: 8px; right: 8px; bottom: 8px; z-index: 60; background: rgba(42, 33, 24, 0.92); color: #f2e8d5; padding: 10px 14px; border-radius: 10px; font-size: 14px; pointer-events: none; opacity: 0; transition: opacity 0.15s; white-space: pre-line; }

@@ -845,4 +845,21 @@ describe("playApp", () => {
     card.dispatchEvent(new Event("mouseleave"));
     expect(magenta()).toBe(before);
   });
+
+  it("the play map zooms via controls; zoom survives a turn; reset restores", () => {
+    const root = document.createElement("div");
+    createPlayApp(root, 1);
+    (root.querySelector(".nation-choice") as HTMLButtonElement).click();
+    const buttons = () => [...root.querySelectorAll(".map-frame .map-zoom-controls button")] as HTMLButtonElement[];
+    expect(buttons().length).toBe(3); // + / − / ⤡
+    const svgVb = () => (root.querySelector(".map-frame svg") as SVGSVGElement).getAttribute("viewBox");
+    const base = svgVb();
+    buttons()[0].click(); // +
+    const zoomed = svgVb();
+    expect(zoomed).not.toBe(base);
+    (root.querySelector(".btn-advance") as HTMLButtonElement).click(); // full map rebuild
+    expect(svgVb()).toBe(zoomed); // restore carried the zoom across the re-render
+    buttons()[2].click(); // ⤡ (fresh controls on the rebuilt map)
+    expect(svgVb()).toBe(base);
+  });
 });
