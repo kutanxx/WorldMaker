@@ -1,7 +1,7 @@
 // viewBox-based zoom/pan for an SVG map (world or city). Simple visual zoom — markers/labels
 // scale with the map. No dependencies. Read/write the viewBox as an attribute string (jsdom
 // does not implement svg.viewBox.baseVal).
-export interface ZoomPan { reset(): void; destroy(): void; }
+export interface ZoomPan { reset(): void; destroy(): void; viewBox(): string; }
 
 const MIN_SCALE = 1, MAX_SCALE = 8;
 // straight-line px from the press point beyond which a pointer sequence is a drag (pan), not a
@@ -9,11 +9,14 @@ const MIN_SCALE = 1, MAX_SCALE = 8;
 // click — otherwise the map swallows the click and the city never opens.
 const DRAG_PX = 8;
 
-export function attachZoomPan(svg: SVGSVGElement, container: HTMLElement): ZoomPan {
+export function attachZoomPan(svg: SVGSVGElement, container: HTMLElement, opts?: { restore?: string | null }): ZoomPan {
   const parse = (s: string | null) => { const a = (s || "0 0 100 100").split(/[\s,]+/).map(Number); return { x: a[0], y: a[1], w: a[2], h: a[3] }; };
   const base = parse(svg.getAttribute("viewBox"));
   let cur = { ...base };
-  const apply = () => svg.setAttribute("viewBox", `${cur.x} ${cur.y} ${cur.w} ${cur.h}`);
+  // at base scale the map yields the touch surface to the page (scroll passes through, taps
+  // still land); zoomed in, the map owns it (one-finger pan, and pinch arrives as pointers)
+  const syncTouchAction = () => { svg.style.touchAction = cur.w < base.w - 1e-9 ? "none" : "pan-y"; };
+  const apply = () => { svg.setAttribute("viewBox", `${cur.x} ${cur.y} ${cur.w} ${cur.h}`); syncTouchAction(); };
   const rectOf = () => { const r = svg.getBoundingClientRect(); return r && r.width ? r : ({ left: 0, top: 0, width: base.w, height: base.h } as DOMRect); };
 
   const clampPan = () => {
@@ -73,7 +76,20 @@ export function attachZoomPan(svg: SVGSVGElement, container: HTMLElement): ZoomP
   svg.addEventListener("pointerdown", onDown);
   svg.addEventListener("click", onClickCapture, true);
   svg.style.cursor = "grab";
-  svg.style.touchAction = "none";
+
+  // restore a saved box (the play map is rebuilt every render): in-range boxes are copied
+  // verbatim so a save/restore round-trip is exact; out-of-range scales clamp; garbage is ignored
+  const r = opts?.restore ? parse(opts.restore) : null;
+  if (r && [r.x, r.y, r.w, r.h].every(Number.isFinite) && r.w > 0 && r.h > 0) {
+    const scale = base.w / r.w;
+    if (scale >= MIN_SCALE && scale <= MAX_SCALE) cur = { ...r };
+    else {
+      const s = Math.max(MIN_SCALE, Math.min(MAX_SCALE, scale));
+      cur = { x: r.x, y: r.y, w: base.w / s, h: base.h / s };
+    }
+    clampPan();
+  }
+  apply(); // normalizes the attribute and sets the initial touch-action either way
 
   const ctrls = document.createElement("div");
   ctrls.className = "map-zoom-controls";
@@ -85,6 +101,7 @@ export function attachZoomPan(svg: SVGSVGElement, container: HTMLElement): ZoomP
 
   return {
     reset,
+    viewBox() { return `${cur.x} ${cur.y} ${cur.w} ${cur.h}`; },
     destroy() {
       endDrag(); // tear down any in-progress drag's window listeners
       svg.removeEventListener("wheel", onWheel);

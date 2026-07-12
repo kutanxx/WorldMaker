@@ -104,4 +104,38 @@ describe("attachZoomPan", () => {
     svg.dispatchEvent(new WheelEvent("wheel", { deltaY: -100, clientX: 50, clientY: 50, cancelable: true }));
     expect(vb(svg)).toEqual([0, 0, 100, 100]); // no longer responds
   });
+
+  it("viewBox() reports the current box and restore round-trips across re-attach", () => {
+    const zp = attachZoomPan(svg, container);
+    (container.querySelectorAll(".map-zoom-controls button")[0] as HTMLButtonElement).click(); // +
+    const saved = zp.viewBox();
+    expect(saved).not.toBe("0 0 100 100");
+    expect(svg.getAttribute("viewBox")).toBe(saved);
+    zp.destroy();
+    const fresh = makeSvg();
+    const zp2 = attachZoomPan(fresh.svg, fresh.container, { restore: saved });
+    expect(zp2.viewBox()).toBe(saved); // exact — an in-range restore copies the numbers verbatim
+    expect(fresh.svg.getAttribute("viewBox")).toBe(saved);
+    zp2.destroy();
+  });
+
+  it("garbage restore starts at base; over-zoomed restore clamps to MAX_SCALE", () => {
+    const a = attachZoomPan(svg, container, { restore: "not a box" });
+    expect(a.viewBox()).toBe("0 0 100 100");
+    a.destroy();
+    const fresh = makeSvg();
+    const b = attachZoomPan(fresh.svg, fresh.container, { restore: "0 0 1 1" }); // scale 100 → clamp 8
+    expect(vb(fresh.svg)[2]).toBeCloseTo(100 / 8, 5);
+    b.destroy();
+  });
+
+  it("touch-action follows scale: pan-y at base, none when zoomed, pan-y after reset", () => {
+    const zp = attachZoomPan(svg, container);
+    expect(svg.style.touchAction).toBe("pan-y");
+    (container.querySelectorAll(".map-zoom-controls button")[0] as HTMLButtonElement).click(); // +
+    expect(svg.style.touchAction).toBe("none");
+    zp.reset();
+    expect(svg.style.touchAction).toBe("pan-y");
+    zp.destroy();
+  });
 });
