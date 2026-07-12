@@ -674,4 +674,14 @@ describe("playApp", () => {
     const kids = [...side.children];
     expect(kids.indexOf(banner as Element)).toBeLessThan(kids.indexOf(side.querySelector(".chronicle")!));
   });
+
+  it("island worlds draw dashed expedition lanes and the legend explains them", () => {
+    localStorage.clear();
+    const root = document.createElement("div");
+    createPlayApp(root, 2); // seed 2: capitals span disconnected components
+    (root.querySelector(".nation-choice") as HTMLButtonElement).click();
+    expect(root.querySelector(".sea-lane")).not.toBeNull();
+    const legend = root.querySelector(".play-legend")!.textContent || "";
+    expect(legend).toMatch(/원정|expedition/i);
+  });
 });

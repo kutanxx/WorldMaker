@@ -122,6 +122,7 @@ svg.world .legend { pointer-events: none; }
 .chronicle-event.headline { font-weight: 600; }
 .front line { pointer-events: none; }
 .sea-target { pointer-events: none; }
+.sea-lane { pointer-events: none; }
 /* dilemma card: a question aimed at the ruler */
 .dilemma { border-left: 3px solid #a8842c; }
 .dilemma .dilemma-title { font-weight: 600; margin-right: 8px; }

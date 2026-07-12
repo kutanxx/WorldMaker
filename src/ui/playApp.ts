@@ -202,6 +202,21 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
         line.setAttribute("stroke-linecap", "round");
         g.appendChild(line);
       }
+      // Risk-style expedition lanes: the dashed routes where invasion across open sea is possible
+      for (const { a, b } of s.seaLanes) {
+        const lane = document.createElementNS(NS, "line");
+        lane.setAttribute("x1", String(world.grid.points[a * 2]));
+        lane.setAttribute("y1", String(world.grid.points[a * 2 + 1]));
+        lane.setAttribute("x2", String(world.grid.points[b * 2]));
+        lane.setAttribute("y2", String(world.grid.points[b * 2 + 1]));
+        lane.setAttribute("class", "sea-lane");
+        lane.setAttribute("stroke", "#3f5d78");
+        lane.setAttribute("stroke-width", "1.6");
+        lane.setAttribute("stroke-dasharray", "6 5");
+        lane.setAttribute("opacity", "0.55");
+        lane.setAttribute("pointer-events", "none");
+        g.appendChild(lane);
+      }
       // amphibious opportunities: a small ⛵ at each capturable sea target
       for (const target of borderTargets(s)) {
         if (!target.sea || !target.capturable) continue;
@@ -225,14 +240,14 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
         const p = document.createElementNS(NS, "path");
         p.setAttribute("d", cells.map((c) => cellPath(world.grid.polygons[c])).join(""));
         const selected = pendingAction?.type === "attack" && pendingAction.cell === target.cell;
-        p.setAttribute("class", `target-cell${target.capturable ? " capturable" : ""}${target.sea ? " sea" : ""}${selected ? " selected" : ""}`);
+        p.setAttribute("class", `target-cell${target.capturable ? " capturable" : ""}${target.sea ? " sea" : ""}${target.lane ? " lane" : ""}${selected ? " selected" : ""}`);
         p.setAttribute("data-cell", String(target.cell));
         p.setAttribute("data-gain", String(cluster.length));
         // landing zones (across a strait) tinted blue so they read differently from land pushes
-        p.setAttribute("fill", !target.capturable ? "rgba(0,0,0,0)" : target.sea ? "rgba(59,116,166,0.24)" : "rgba(63,158,87,0.16)");
+        p.setAttribute("fill", !target.capturable ? "rgba(0,0,0,0)" : target.lane ? "rgba(43,80,120,0.3)" : target.sea ? "rgba(59,116,166,0.24)" : "rgba(63,158,87,0.16)");
         if (selected) { p.setAttribute("stroke", "#2a2118"); p.setAttribute("stroke-width", "1.6"); }
         const tip = document.createElementNS(NS, "title");
-        tip.textContent = `${target.sea ? "⛵ " : ""}${target.ownerName} ${target.capturable ? `✓ ×${cluster.length}` : "✗"}`;
+        tip.textContent = `${target.lane ? "⚓ " : target.sea ? "⛵ " : ""}${target.ownerName} ${target.capturable ? `✓ ×${cluster.length}` : "✗"}`;
         p.appendChild(tip);
         p.addEventListener("click", () => {
           pendingAction = { type: "attack", cell: target.cell };
@@ -341,6 +356,7 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
       const chips: [string, string][] = [
         ["rgba(63,158,87,0.5)", "legendPush"],
         ["rgba(59,116,166,0.55)", "legendSea"],
+        ["rgba(43,80,120,0.6)", "legendLane"],
         ["rgba(168,132,44,0.5)", "legendSite"],
         ["#c0473f", "legendThreat"],
         ["#a8842c", "legendCity"],
