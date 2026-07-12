@@ -129,6 +129,12 @@ describe("attachZoomPan", () => {
     b.destroy();
   });
 
+  it("restore rejects an aspect-distorted height (derives h from w)", () => {
+    const zp = attachZoomPan(svg, container, { restore: "0 0 50 300" }); // w in range, h nonsense
+    expect(vb(svg)).toEqual([0, 0, 50, 50]); // h re-derived from base aspect (100:100)
+    zp.destroy();
+  });
+
   it("touch-action follows scale: pan-y at base, none when zoomed, pan-y after reset", () => {
     const zp = attachZoomPan(svg, container);
     expect(svg.style.touchAction).toBe("pan-y");

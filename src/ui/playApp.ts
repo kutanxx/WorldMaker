@@ -865,7 +865,7 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
       const again = document.createElement("button");
       again.className = "btn-play-again";
       again.textContent = playT(lang, "playAgain");
-      again.addEventListener("click", () => { replayBar?.destroy(); renderPicker(); });
+      again.addEventListener("click", () => { replayBar?.destroy(); mapZoom?.destroy(); renderPicker(); });
       const fresh = document.createElement("button");
       fresh.className = "btn-new-world";
       fresh.textContent = playT(lang, "newWorld");
