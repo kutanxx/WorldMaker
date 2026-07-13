@@ -46,6 +46,9 @@ export const EXPEDITION_MULT = 0.6;  // attacker penalty for crossing a SEA LANE
 export const GRUDGE_TICKS = 5;  // 50y — grudges decay (Civ VI grievances); moved from standing.ts (import direction)
 export const REVENGE_MULT = 1.2; // a grudge-holding polity strikes PLAYER cells this much harder while fresh
 
+export const ASCENSION_CAP = 5;          // ladder ceiling — the annals ★ stays comparable
+export const ASCENSION_SOL_DELTA = 0.005; // per level per tick: every rival regenerates this much faster
+
 export interface Agg { cells: number; power: number; avg: number; }
 
 export interface HistoryPolity {
@@ -88,6 +91,7 @@ export interface SimState {
   cityCells: { cell: number; name: string }[];
   tick: number;
   playerPolity: number; // -1 = pure history (default); else the player's polity id
+  ascension: number;    // 0 = off (always 0 on the pure path); play sets 1..ASCENSION_CAP
   stance: Stance;       // inert when playerPolity < 0
   peakCells: number;    // max cells the player has held (scorecard); default 0
   truces: Map<number, number>;  // polityId -> tick until which they won't attack the player; default empty
@@ -264,7 +268,7 @@ export function initSim(world: World, worldSeed: number): SimState {
   const snapshots: HistorySnapshot[] = [{ year: 0, owner: owner.slice() }];
   const cityCells = world.cities.map((c) => ({ cell: c.cell, name: c.name }));
 
-  return { grid, terrain, n, owner, solidarity, polities, capitals, alive, golden, rng, nameGen, events, snapshots, economicZones, zoneCells, cityCells, playerPolity: -1, stance: "internal", peakCells: 0, truces: new Map(), foundedCities: new Set(), lastDilemma: -99, dilemmaFlags: new Set(), attacksOnPlayer: new Map(), attacksByPlayer: new Map(), tick: 0, seaLanes: [] };
+  return { grid, terrain, n, owner, solidarity, polities, capitals, alive, golden, rng, nameGen, events, snapshots, economicZones, zoneCells, cityCells, playerPolity: -1, ascension: 0, stance: "internal", peakCells: 0, truces: new Map(), foundedCities: new Set(), lastDilemma: -99, dilemmaFlags: new Set(), attacksOnPlayer: new Map(), attacksByPlayer: new Map(), tick: 0, seaLanes: [] };
 }
 
 // revenge (play only): a polity the player struck within the grudge window hits back harder
@@ -290,6 +294,10 @@ export function stepSim(s: SimState): void {
     for (const nb of neighbors[c]) { if (terrain[nb] !== OCEAN && owner[nb] !== o) { frontier = true; break; } }
     let sv = s.solidarity[c] + (frontier ? SOL_RISE : -SOL_DECAY);
     if (s.playerPolity >= 0 && o === s.playerPolity) sv += STANCE_SOL_DELTA[s.stance]; // gated stance nudge
+    // ascension (play only): every rival regenerates faster — the ONE difficulty dial. Real
+    // stored solidarity, so the border report and meters stay honest. Free polities returned
+    // above; the playerPolity gate keeps the pure path byte-identical.
+    if (s.playerPolity >= 0 && s.ascension > 0 && o !== s.playerPolity) sv += ASCENSION_SOL_DELTA * s.ascension;
     if (s.playerPolity >= 0 && o === s.playerPolity && s.foundedCities.has(c) && sv < CITY_SOL_FLOOR) sv = CITY_SOL_FLOOR; // owned anchor
     if (s.zoneCells.has(c) && sv < ECON_SOL_FLOOR) sv = ECON_SOL_FLOOR;
     nextSol[c] = sv < 0 ? 0 : sv > 1 ? 1 : sv;

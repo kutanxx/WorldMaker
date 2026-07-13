@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { generateWorld } from "./world";
 import { DEFAULT_PARAMS } from "../types/world";
-import { initSim, stepSim, TICKS, aggregate, contestStrength, W_CONSTS_FOR_TEST, CONQUEST_SOL, CONTEST_THRESH, buildStraitLinks, buildSeaLanes, STRAIT_HOPS, GRUDGE_TICKS, REVENGE_MULT, type Stance } from "./historySim";
+import { initSim, stepSim, TICKS, aggregate, contestStrength, W_CONSTS_FOR_TEST, CONQUEST_SOL, CONTEST_THRESH, buildStraitLinks, buildSeaLanes, STRAIT_HOPS, GRUDGE_TICKS, REVENGE_MULT, ASCENSION_SOL_DELTA, type Stance } from "./historySim";
 import { initPlaySim, playTurn } from "./playSim";
 import { OCEAN, LAND } from "./terrain";
 
@@ -319,5 +319,32 @@ describe("sea lanes", () => {
     stale.s.attacksByPlayer.set(stale.foe, 0);
     playTurn(stale.s, null);
     expect(stale.s.owner[stale.t]).toBe(stale.player);
+  });
+
+  it("ascension: rivals regenerate faster, the player does not; pure init stays at 0", () => {
+    const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 4 });
+    expect(initSim(world, 4).ascension).toBe(0);
+
+    const a0 = initPlaySim(world, 4, 0, "internal");
+    const a5 = initPlaySim(world, 4, 0, "internal", 5);
+    expect(a0.ascension).toBe(0);
+    expect(a5.ascension).toBe(5);
+    playTurn(a0, null);
+    playTurn(a5, null);
+    // pick one rival cell and one player cell present in both runs (same seed ⇒ same initial map)
+    let rival = -1, mine = -1;
+    for (let c = 0; c < a0.n; c++) {
+      if (rival < 0 && a0.owner[c] > 0 && !a0.polities[a0.owner[c]].free) rival = c;
+      if (mine < 0 && a0.owner[c] === 0) mine = c;
+      if (rival >= 0 && mine >= 0) break;
+    }
+    expect(a5.solidarity[rival]).toBeCloseTo(a0.solidarity[rival] + 5 * ASCENSION_SOL_DELTA, 5);
+    expect(a5.solidarity[mine]).toBeCloseTo(a0.solidarity[mine], 5);
+  });
+
+  it("initPlaySim clamps ascension into [0, cap]", () => {
+    const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 4 });
+    expect(initPlaySim(world, 4, 0, "internal", 99).ascension).toBe(5);
+    expect(initPlaySim(world, 4, 0, "internal", -3).ascension).toBe(0);
   });
 });
