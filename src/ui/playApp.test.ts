@@ -872,7 +872,7 @@ describe("playApp", () => {
       createPlayApp(fresh, SEED);
       expect(fresh.querySelector(".asc-badge")).toBeNull(); // A0: no badge
 
-      recordReign(SEED, { nation: "X", kind: "endurance", cause: "", year: 500, peakCells: 10, citiesFounded: 0, epitaph: { code: "epiEndured", data: {} }, asc: 0 });
+      recordReign(SEED, { nation: "X", kind: "endurance", cause: "", year: 500, peakCells: 10, citiesFounded: 0, epitaph: { code: "epiEndured", data: {} } }); // A0 run: production omits asc entirely
       recordReign(SEED, { nation: "X", kind: "conquest", cause: "", year: 300, peakCells: 90, citiesFounded: 2, epitaph: { code: "epiUnified", data: {} }, asc: 1 });
       const root = document.createElement("div");
       createPlayApp(root, SEED);

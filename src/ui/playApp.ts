@@ -73,7 +73,7 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
       const tag = document.createElement("span");
       tag.className = "asc-badge";
       tag.textContent = playT(lang, "ascBadge").replace("{n}", String(asc));
-      tag.title = playT(lang, "ascTip").replace(/{n}/g, String(asc));
+      tag.title = playT(lang, "ascTip").replace(/\{n\}/g, String(asc));
       title.appendChild(tag);
     }
     const picker = document.createElement("div");
