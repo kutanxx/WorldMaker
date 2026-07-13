@@ -4,6 +4,7 @@ import { createPlayApp } from "./playApp";
 import { hashStringToSeed } from "../engine/rng";
 import { dailyName } from "./daily";
 import { PLAYER_COLOR } from "./nationPalette";
+import { recordReign } from "./legacy";
 
 describe("playApp", () => {
   it("nation picker labels each realm with a difficulty (biggest=easy, smallest=hard)", () => {
@@ -861,5 +862,28 @@ describe("playApp", () => {
     expect(svgVb()).toBe(zoomed); // restore carried the zoom across the re-render
     buttons()[2].click(); // ⤡ (fresh controls on the rebuilt map)
     expect(svgVb()).toBe(base);
+  });
+
+  it("the picker shows the ascension badge after a win on this seed, and the annals mark the level", () => {
+    const SEED = 424242; // unlikely to collide with other tests' legacy keys
+    localStorage.removeItem(`wm:legacy:${SEED}`);
+    try {
+      const fresh = document.createElement("div");
+      createPlayApp(fresh, SEED);
+      expect(fresh.querySelector(".asc-badge")).toBeNull(); // A0: no badge
+
+      recordReign(SEED, { nation: "X", kind: "endurance", cause: "", year: 500, peakCells: 10, citiesFounded: 0, epitaph: { code: "epiEndured", data: {} }, asc: 0 });
+      recordReign(SEED, { nation: "X", kind: "conquest", cause: "", year: 300, peakCells: 90, citiesFounded: 2, epitaph: { code: "epiUnified", data: {} }, asc: 1 });
+      const root = document.createElement("div");
+      createPlayApp(root, SEED);
+      const badge = root.querySelector(".asc-badge") as HTMLElement;
+      expect(badge).not.toBeNull();
+      expect(badge.textContent).toContain("2");         // two wins ⇒ A2 next
+      expect(badge.title.length).toBeGreaterThan(0);
+      const rows = [...root.querySelectorAll(".legacy-row")].map((r) => r.textContent || "");
+      expect(rows.some((t) => t.includes("⬆1"))).toBe(true); // the A1 win is marked
+    } finally {
+      localStorage.removeItem(`wm:legacy:${SEED}`);
+    }
   });
 });

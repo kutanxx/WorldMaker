@@ -18,7 +18,7 @@ import { computeStanding, neighborAttitudes, borderReport, ATT_HOSTILE_RATIO, ty
 import { PLAYER_COLOR } from "./nationPalette";
 import { deconflictLabels } from "./deconflict";
 import { randomSeed } from "./urlState";
-import { loadLegacy, recordReign, seedBestPeak, composeEpitaph, LEGACY_SHOW } from "./legacy";
+import { loadLegacy, recordReign, seedBestPeak, composeEpitaph, ascensionLevel, LEGACY_SHOW } from "./legacy";
 import { createTimeline, type Timeline } from "./timeline";
 import { hashStringToSeed } from "../engine/rng";
 import { dailyName } from "./daily";
@@ -67,6 +67,15 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
       tag.title = playT(lang, "dailyTip");
       title.appendChild(tag);
     }
+    const legacy = loadLegacy(seed);
+    const asc = ascensionLevel(legacy);
+    if (asc > 0) {
+      const tag = document.createElement("span");
+      tag.className = "asc-badge";
+      tag.textContent = playT(lang, "ascBadge").replace("{n}", String(asc));
+      tag.title = playT(lang, "ascTip").replace(/{n}/g, String(asc));
+      title.appendChild(tag);
+    }
     const picker = document.createElement("div");
     picker.className = "landing";
     const mapBox = document.createElement("div");
@@ -87,7 +96,6 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
     row.append(picker, mapBox);
     root.append(title, langButton(renderPicker), row);
     const maxCells = nationsByCells[0]?.cells || 1;
-    const legacy = loadLegacy(seed);
     for (const { p, cells } of nationsByCells) {
       const b = document.createElement("button");
       b.className = "nation-choice choice-card";
@@ -122,7 +130,9 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
         const star = best > 0 && e.peakCells === best ? " ★" : "";
         row.textContent =
           `${playT(lang, "legacyReignN").replace("{n}", String(e.n))} · ${e.nation} · ` +
-          `${ICON[e.kind] ?? "•"} ${playYear(lang, e.year)} — “${playLegacyEpitaph(lang, e.epitaph.code, e.epitaph.data)}”${star}`;
+          `${ICON[e.kind] ?? "•"} ${playYear(lang, e.year)} — "${playLegacyEpitaph(lang, e.epitaph.code, e.epitaph.data)}"` +
+          (e.asc ? ` ⬆${e.asc}` : "") +
+          star;
         panel.appendChild(row);
       }
       root.appendChild(panel);
@@ -131,7 +141,7 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
 
   function startGame(playerPolity: number): void {
     root.innerHTML = "";
-    const s = initPlaySim(world, seed, playerPolity, "internal");
+    const s = initPlaySim(world, seed, playerPolity, "internal", ascensionLevel(loadLegacy(seed)));
     let pendingAction: Action | null = null;
     let dilemma: Dilemma | null = null;
     let over = false;
@@ -892,6 +902,7 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
         peakCells: sc.peakCells,
         citiesFounded: sc.citiesFounded,
         epitaph: composeEpitaph(kind, cause, highlights),
+        ...(s.ascension > 0 ? { asc: s.ascension } : {}),
       });
       renderReplayBar(); // drop the live overlays: the war is over, the atlas remains (setIndex repaints the map)
       renderPanel();
