@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { loadLegacy, recordReign, seedBestPeak, composeEpitaph, LEGACY_CAP, type LegacyEntry } from "./legacy";
+import { loadLegacy, recordReign, seedBestPeak, composeEpitaph, ascensionLevel, LEGACY_CAP, type LegacyEntry } from "./legacy";
 
 function memStorage(): Pick<Storage, "getItem" | "setItem"> & { map: Map<string, string> } {
   const map = new Map<string, string>();
@@ -48,5 +48,23 @@ describe("composeEpitaph priority", () => {
     expect(composeEpitaph("endurance", "", [{ code: "prophecyFulfilled", data: {} }]).code).toBe("epiProphecy");
     expect(composeEpitaph("prosperity", "", []).code).toBe("epiGoldenAge");
     expect(composeEpitaph("endurance", "", []).code).toBe("epiEndured");
+  });
+});
+
+describe("ascensionLevel", () => {
+  const win = (n: number): LegacyEntry => ({ v: 1, n, nation: "X", kind: "endurance", cause: "", year: 500, peakCells: 10, citiesFounded: 0, epitaph: { code: "epiEndured", data: {} } });
+  const loss = (n: number): LegacyEntry => ({ ...win(n), kind: "defeat", cause: "Y", epitaph: { code: "epiFallen", data: { name: "Y" } } });
+
+  it("counts wins only, capped at 5; empty annals mean level 0", () => {
+    expect(ascensionLevel([])).toBe(0);
+    expect(ascensionLevel([loss(1), loss(2)])).toBe(0);
+    expect(ascensionLevel([win(1), loss(2), win(3)])).toBe(2);
+    expect(ascensionLevel([1, 2, 3, 4, 5, 6, 7].map(win))).toBe(5);
+  });
+
+  it("recordReign round-trips the optional asc field", () => {
+    const store = memStorage();
+    recordReign(7, { nation: "X", kind: "endurance", cause: "", year: 500, peakCells: 10, citiesFounded: 0, epitaph: { code: "epiEndured", data: {} }, asc: 3 }, store);
+    expect(loadLegacy(7, store)[0].asc).toBe(3);
   });
 });

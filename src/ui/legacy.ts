@@ -2,6 +2,7 @@
 // morgue-file lesson: a run record should read like a story). A fixed 7-field schema recorded
 // only when a reign ENDS — deliberately NOT save/load, so there is no SimState migration tax.
 import type { DilemmaOutcome } from "../engine/dilemma";
+import { ASCENSION_CAP } from "../engine/historySim";
 
 export const LEGACY_CAP = 20; // rows kept per seed (the reign counter keeps counting past it)
 export const LEGACY_SHOW = 5; // rows the picker panel shows
@@ -20,6 +21,7 @@ export interface LegacyEntry {
   year: number;
   peakCells: number;
   citiesFounded: number;
+  asc?: number;                 // ascension level the run was played at (absent for A0 / legacy rows)
   epitaph: { code: EpitaphCode; data: Record<string, string | number> };
 }
 
@@ -68,4 +70,9 @@ export function composeEpitaph(kind: LegacyKind, cause: string, highlights: Dile
   if (highlights.some((h) => h.code === "prophecyFulfilled")) return { code: "epiProphecy", data: {} };
   if (kind === "prosperity") return { code: "epiGoldenAge", data: {} };
   return { code: "epiEndured", data: {} };
+}
+
+// StS ladder, derived — wins on this seed raise its difficulty; defeats never punish a retry.
+export function ascensionLevel(entries: LegacyEntry[]): number {
+  return Math.min(ASCENSION_CAP, entries.filter((e) => e.kind !== "defeat").length);
 }
