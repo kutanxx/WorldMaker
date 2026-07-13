@@ -53,8 +53,8 @@ export function computeStanding(s: SimState, opts: { neighborsOnly?: boolean } =
 // --- neighbor attitudes -----------------------------------------------------------------
 // Honest 3-state diplomacy readability (TW/Paradox: attitude + itemized reasons). Each state
 // maps to a REAL behavioral guarantee — friendly = truce active (stepSim skips their attacks
-// on the player), hostile = they win border contests (bigger) or are the flagged crisis foe or hold a fresh grudge the player caused (stepSim retaliates at REVENGE_MULT),
-// wary = everything else. The Civ-agendas lesson: never display what the sim doesn't back.
+// on the player), hostile = bigger cells, flagged crisis foe, attacked you recently (attackedMe),
+// or hold a fresh grudge you caused (iAttacked), wary = everything else. Never display what the sim doesn't back.
 export type Attitude = "friendly" | "wary" | "hostile";
 export const ATT_HOSTILE_RATIO = 1.15; // their cells / ours at/above this ⇒ hostile
 export { GRUDGE_TICKS }; // single source with the sim (imported above) — the chip stops saying 원한 exactly when the sim stops acting on it

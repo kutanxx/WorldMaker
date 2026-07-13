@@ -20,7 +20,7 @@ function revengeMult(s: SimState, attacker: number): number {
 }
 ```
 
-- `GRUDGE_TICKS` is imported from `./standing` (single source of truth with the UI's decay — the chip stops saying 원한 exactly when the sim stops acting on it).
+- `GRUDGE_TICKS` is defined in `historySim.ts` and re-exported from `standing.ts` (single source with the engine — the chip stops saying 원한 exactly when the sim stops acting on it).
 - Application, at ALL THREE contest sites, only on the player-defending branch:
   - Land (~line 306-309): inside the existing `if (s.playerPolity >= 0)` block, `if (o === s.playerPolity) { def *= STANCE_DEF_MULT[s.stance]; atk *= revengeMult(s, best); }`
   - Strait (~line 339-340): same pairing on the `o === s.playerPolity` branch (`atk *= revengeMult(s, best)`).

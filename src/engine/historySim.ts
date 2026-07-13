@@ -322,6 +322,9 @@ export function stepSim(s: SimState): void {
       nextOwner[c] = best;
       // grudge ledger (play only). The explicit gate is LOAD-BEARING: on the pure path
       // playerPolity is -1 and unclaimed cells have o === -1, so o === playerPolity is true.
+      // The ledger is read live mid-loop (revengeMult): a grudge set at cell c multiplies
+      // contests at later indices the SAME tick — deterministic, and intervention-driven
+      // revenge lands the same turn; buffering would delay it a turn for no gain.
       if (s.playerPolity >= 0) {
         if (o === s.playerPolity) s.attacksOnPlayer.set(best, s.tick);
         else if (best === s.playerPolity && o >= 0) s.attacksByPlayer.set(o, s.tick);
