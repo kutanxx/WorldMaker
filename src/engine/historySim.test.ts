@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { generateWorld } from "./world";
 import { DEFAULT_PARAMS } from "../types/world";
-import { initSim, stepSim, TICKS, aggregate, contestStrength, W_CONSTS_FOR_TEST, CONQUEST_SOL, CONTEST_THRESH, buildStraitLinks, buildSeaLanes, STRAIT_HOPS, GRUDGE_TICKS, REVENGE_MULT, ASCENSION_SOL_DELTA, type Stance } from "./historySim";
+import { initSim, stepSim, TICKS, aggregate, contestStrength, W_CONSTS_FOR_TEST, CONQUEST_SOL, CONTEST_THRESH, buildStraitLinks, buildSeaLanes, STRAIT_HOPS, GRUDGE_TICKS, REVENGE_MULT, ASCENSION_SOL_DELTA, ASCENSION_CAP, type Stance } from "./historySim";
 import { initPlaySim, playTurn } from "./playSim";
 import { OCEAN, LAND } from "./terrain";
 
@@ -320,8 +320,10 @@ describe("sea lanes", () => {
     playTurn(stale.s, null);
     expect(stale.s.owner[stale.t]).toBe(stale.player);
   });
+});
 
-  it("ascension: rivals regenerate faster, the player does not; pure init stays at 0", () => {
+describe("ascension", () => {
+  it("rivals regenerate faster, the player does not; pure init stays at 0", () => {
     const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 4 });
     expect(initSim(world, 4).ascension).toBe(0);
 
@@ -331,20 +333,29 @@ describe("sea lanes", () => {
     expect(a5.ascension).toBe(5);
     playTurn(a0, null);
     playTurn(a5, null);
-    // pick one rival cell and one player cell present in both runs (same seed ⇒ same initial map)
+    // robust cell pick: the owner must MATCH across both runs (contests read the post-nudge
+    // solidarity the same tick, so ownership CAN diverge within tick 1) and still be the
+    // INITIAL owner (a fresh conquest overwrites solidarity with CONQUEST_SOL); the cell must
+    // sit off the econ-zone floor and be mid-range in BOTH runs so no floor/clamp eats the delta.
+    const midRange = (sol: Float32Array, c: number) => sol[c] >= 0.2 && sol[c] <= 0.8;
+    const stable = (c: number) =>
+      a0.owner[c] === a5.owner[c] && a0.owner[c] === world.polityOf[c] &&
+      !a0.zoneCells.has(c) && midRange(a0.solidarity, c) && midRange(a5.solidarity, c);
     let rival = -1, mine = -1;
-    for (let c = 0; c < a0.n; c++) {
+    for (let c = 0; c < a0.n && (rival < 0 || mine < 0); c++) {
+      if (!stable(c)) continue;
       if (rival < 0 && a0.owner[c] > 0 && !a0.polities[a0.owner[c]].free) rival = c;
       if (mine < 0 && a0.owner[c] === 0) mine = c;
-      if (rival >= 0 && mine >= 0) break;
     }
+    expect(rival).toBeGreaterThanOrEqual(0);
+    expect(mine).toBeGreaterThanOrEqual(0);
     expect(a5.solidarity[rival]).toBeCloseTo(a0.solidarity[rival] + 5 * ASCENSION_SOL_DELTA, 5);
     expect(a5.solidarity[mine]).toBeCloseTo(a0.solidarity[mine], 5);
   });
 
   it("initPlaySim clamps ascension into [0, cap]", () => {
     const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 4 });
-    expect(initPlaySim(world, 4, 0, "internal", 99).ascension).toBe(5);
+    expect(initPlaySim(world, 4, 0, "internal", 99).ascension).toBe(ASCENSION_CAP);
     expect(initPlaySim(world, 4, 0, "internal", -3).ascension).toBe(0);
   });
 });
