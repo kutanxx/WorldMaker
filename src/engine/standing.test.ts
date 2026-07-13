@@ -170,13 +170,28 @@ describe("neighborAttitudes", () => {
     s.truces.set(weaker.id, s.tick + 2);
     a = neighborAttitudes(s).find((x) => x.id === weaker.id)!;
     expect(a.att).toBe("friendly");
-    // my own attacks display but never flip attitude
+    // my own attacks now flip attitude (backed by REVENGE_MULT retaliation)
     s.truces.delete(weaker.id);
     s.attacksOnPlayer.delete(weaker.id);
     s.attacksByPlayer.set(weaker.id, s.tick);
     a = neighborAttitudes(s).find((x) => x.id === weaker.id)!;
     expect(a.iAttackedAgo).toBe(0);
-    expect(a.att).toBe("wary");
+    expect(a.att).toBe("hostile");
+  });
+
+  it("a fresh grudge the player caused now reads hostile — and relaxes when it decays", () => {
+    const s = playerState(1);
+    const weaker = neighborAttitudes(s).find((a) => a.att === "wary");
+    expect(weaker).toBeDefined();
+    if (!weaker) return;
+    s.attacksByPlayer.set(weaker.id, s.tick);
+    let att = neighborAttitudes(s).find((a) => a.id === weaker.id)!;
+    expect(att.att).toBe("hostile");
+    expect(att.iAttackedAgo).toBe(0);
+    s.tick += GRUDGE_TICKS; // decayed
+    att = neighborAttitudes(s).find((a) => a.id === weaker.id)!;
+    expect(att.att).not.toBe("hostile"); // wary (or friendly if a truce fixture applies)
+    expect(att.iAttackedAgo).toBeNull();
   });
 
   it("borderReport averages each side of the front, read-only, null off the play path", () => {
