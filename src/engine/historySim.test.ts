@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { generateWorld } from "./world";
 import { DEFAULT_PARAMS } from "../types/world";
-import { initSim, stepSim, TICKS, aggregate, contestStrength, W_CONSTS_FOR_TEST, CONQUEST_SOL, CONTEST_THRESH, buildStraitLinks, buildSeaLanes, STRAIT_HOPS, type Stance } from "./historySim";
+import { initSim, stepSim, TICKS, aggregate, contestStrength, W_CONSTS_FOR_TEST, CONQUEST_SOL, CONTEST_THRESH, buildStraitLinks, buildSeaLanes, STRAIT_HOPS, GRUDGE_TICKS, REVENGE_MULT, type Stance } from "./historySim";
 import { initPlaySim, playTurn } from "./playSim";
 import { OCEAN, LAND } from "./terrain";
 
@@ -264,5 +264,60 @@ describe("sea lanes", () => {
     playTurn(s, null);
     expect(s.owner[b]).toBe(player);                       // the expedition landed
     expect(s.attacksByPlayer.get(foe)).toBe(s.tick - 1);   // recorded during the tick (tick has advanced)
+  });
+
+  // ROBUST staging (contest margins are seed-sensitive): the FOE owns everything except the
+  // player's single cell t; t's solidarity is tuned into the sandwich window where the foe's
+  // attack holds WITHOUT a grudge but flips WITH one — that sandwich IS the proof of the mult.
+  function stageRevenge(seed: number, playerSol: number) {
+    const { world } = generateWorld({ ...DEFAULT_PARAMS, seed });
+    const s = initPlaySim(world, seed, 0, "internal");
+    const player = 0, foe = 1;
+    // find a player-owned cell with at least one land neighbor to become the lone holdout
+    let t = -1;
+    for (let c = 0; c < s.n; c++) {
+      if (s.owner[c] < 0 || s.terrain[c] === OCEAN) continue;
+      if (s.grid.neighbors[c].some((nb) => s.terrain[nb] !== OCEAN)) { t = c; break; }
+    }
+    for (let c = 0; c < s.n; c++) if (s.owner[c] >= 0) s.owner[c] = foe;
+    s.owner[t] = player;
+    // neutralize the 3 economic zones' global +ECON_BONUS-per-zone atk bonus (zoneBonus() in
+    // historySim.ts is NOT locality-gated — it just checks ownership anywhere on the map). With
+    // the foe owning ~everything else, it would otherwise also own all 3 zones for a flat +0.36
+    // atk that swamps any player solidarity up to 1.0 (verified empirically: with the zones left
+    // to the foe, atk beats the best possible defense at every playerSol in [0,1] and every seed
+    // 1-60 — the mult alone can't be isolated). Dropping them to unclaimed removes that fixed
+    // term so the sandwich becomes reachable via playerSol alone, as intended.
+    for (const z of s.economicZones) if (z.cell !== t) s.owner[z.cell] = -1;
+    // foe's capital on a neighbor: kills the admin-distance penalty for the attack
+    const nb = s.grid.neighbors[t].find((x) => s.terrain[x] !== OCEAN)!;
+    s.capitals[foe] = nb;
+    s.capitals[player] = t;
+    for (let c = 0; c < s.n; c++) s.solidarity[c] = s.owner[c] === foe ? 0.5 : s.owner[c] === player ? playerSol : 0;
+    return { s, t, foe, player };
+  }
+
+  it("a fresh grudge flips a contest the foe would otherwise lose (REVENGE_MULT bites)", () => {
+    expect(REVENGE_MULT).toBeGreaterThan(1);
+    // sandwich: same staging, only the grudge differs
+    const clean = stageRevenge(3, 0.9);
+    playTurn(clean.s, null);
+    const held = clean.s.owner[clean.t] === clean.player;
+
+    const grudged = stageRevenge(3, 0.9);
+    grudged.s.attacksByPlayer.set(grudged.foe, grudged.s.tick); // the player struck them this tick
+    playTurn(grudged.s, null);
+    const fell = grudged.s.owner[grudged.t] === grudged.foe;
+
+    expect(held).toBe(true);  // without a grudge the internal-stance defense holds
+    expect(fell).toBe(true);  // with one, REVENGE_MULT (1.2) tips the same contest
+  });
+
+  it("the grudge expires after GRUDGE_TICKS — the same contest holds again", () => {
+    const stale = stageRevenge(3, 0.9);
+    stale.s.tick = GRUDGE_TICKS; // age the ledger entry set at tick 0 to exactly-expired
+    stale.s.attacksByPlayer.set(stale.foe, 0);
+    playTurn(stale.s, null);
+    expect(stale.s.owner[stale.t]).toBe(stale.player);
   });
 });

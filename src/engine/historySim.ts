@@ -43,6 +43,9 @@ export const STRAIT_HOPS = STRAIT_SEA_HOPS;
 export const AMPHIB_MULT = 0.85;    // attacker strength penalty for crossing water
 export const EXPEDITION_MULT = 0.6;  // attacker penalty for crossing a SEA LANE (a costly naval expedition)
 
+export const GRUDGE_TICKS = 5;  // 50y — grudges decay (Civ VI grievances); moved from standing.ts (import direction)
+export const REVENGE_MULT = 1.2; // a grudge-holding polity strikes PLAYER cells this much harder while fresh
+
 export interface Agg { cells: number; power: number; avg: number; }
 
 export interface HistoryPolity {
@@ -264,6 +267,14 @@ export function initSim(world: World, worldSeed: number): SimState {
   return { grid, terrain, n, owner, solidarity, polities, capitals, alive, golden, rng, nameGen, events, snapshots, economicZones, zoneCells, cityCells, playerPolity: -1, stance: "internal", peakCells: 0, truces: new Map(), foundedCities: new Set(), lastDilemma: -99, dilemmaFlags: new Set(), attacksOnPlayer: new Map(), attacksByPlayer: new Map(), tick: 0, seaLanes: [] };
 }
 
+// revenge (play only): a polity the player struck within the grudge window hits back harder
+// at PLAYER cells. Callers sit inside playerPolity>=0 gates — the o===-1===playerPolity
+// pure-path trap never reaches this, and no rng is drawn.
+function revengeMult(s: SimState, attacker: number): number {
+  const t = s.attacksByPlayer.get(attacker);
+  return t !== undefined && s.tick - t < GRUDGE_TICKS ? REVENGE_MULT : 1;
+}
+
 export function stepSim(s: SimState): void {
   const year = (s.tick + 1) * YEARS_PER_TICK;
   const { n, owner, terrain } = s;      // owner is a live ref, mutated in place; never reassigned
@@ -305,7 +316,7 @@ export function stepSim(s: SimState): void {
     let atk = attack, def = defend;
     if (s.playerPolity >= 0) {
       if (best === s.playerPolity) atk *= STANCE_ATK_MULT[s.stance];   // player attacking
-      if (o === s.playerPolity) def *= STANCE_DEF_MULT[s.stance];       // player defending
+      if (o === s.playerPolity) { def *= STANCE_DEF_MULT[s.stance]; atk *= revengeMult(s, best); } // player defending; grudges bite
     }
     if (atk > def * CONTEST_THRESH) {
       nextOwner[c] = best;
@@ -337,7 +348,7 @@ export function stepSim(s: SimState): void {
       let atk = contestStrength(s, agg, best, c, bestCell) * AMPHIB_MULT;
       let def = o < 0 ? 0 : contestStrength(s, agg, o, c, c);
       if (best === s.playerPolity) atk *= STANCE_ATK_MULT[s.stance];
-      if (o === s.playerPolity) def *= STANCE_DEF_MULT[s.stance];
+      if (o === s.playerPolity) { def *= STANCE_DEF_MULT[s.stance]; atk *= revengeMult(s, best); }
       if (atk > def * CONTEST_THRESH) {
         nextOwner[c] = best;
         if (o === s.playerPolity) s.attacksOnPlayer.set(best, s.tick);
@@ -357,7 +368,7 @@ export function stepSim(s: SimState): void {
         let atk = contestStrength(s, agg, p, to, from) * EXPEDITION_MULT;
         let def = o < 0 ? 0 : contestStrength(s, agg, o, to, to);
         if (p === s.playerPolity) atk *= STANCE_ATK_MULT[s.stance];
-        if (o === s.playerPolity) def *= STANCE_DEF_MULT[s.stance];
+        if (o === s.playerPolity) { def *= STANCE_DEF_MULT[s.stance]; atk *= revengeMult(s, p); }
         if (atk > def * CONTEST_THRESH) {
           nextOwner[to] = p;
           if (o === s.playerPolity) s.attacksOnPlayer.set(p, s.tick);

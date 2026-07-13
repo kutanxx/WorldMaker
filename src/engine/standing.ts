@@ -1,5 +1,5 @@
 import type { SimState } from "./historySim";
-import { aggregate } from "./historySim";
+import { aggregate, GRUDGE_TICKS } from "./historySim";
 import { frontEdges, hostileNeighbors } from "./intervention";
 
 // tuning knobs for the "how am I doing" readout (UI layer — NOT engine goldens)
@@ -57,7 +57,7 @@ export function computeStanding(s: SimState, opts: { neighborsOnly?: boolean } =
 // wary = everything else. The Civ-agendas lesson: never display what the sim doesn't back.
 export type Attitude = "friendly" | "wary" | "hostile";
 export const ATT_HOSTILE_RATIO = 1.15; // their cells / ours at/above this ⇒ hostile
-export const GRUDGE_TICKS = 5; // 50y — grudges decay (the Civ VI grievances lesson)
+export { GRUDGE_TICKS }; // single source with the sim (imported above) — the chip stops saying 원한 exactly when the sim stops acting on it
 
 export interface NeighborAttitude {
   id: number; name: string;
