@@ -57,7 +57,7 @@ describe("playApp", () => {
       toggle.click();
       const panel = root.querySelector(".play-panel")!.textContent!;
       expect(panel).toContain("년");        // Korean year
-      expect(panel).toContain("결속");      // Korean "cohesion"
+      expect(panel).toContain("민심");      // Korean loyalty (metric)
       expect((root.querySelector(".btn-advance") as HTMLButtonElement).textContent).toContain("다음 해");
     } finally {
       if (saved === null) localStorage.removeItem("wm:lang");
@@ -404,7 +404,10 @@ describe("playApp", () => {
     createPlayApp(root, 1);
     (root.querySelector(".nation-choice") as HTMLButtonElement).click();
     expect(root.querySelector(".invest-seg")).not.toBeNull();
-    expect(root.querySelectorAll(".invest-seg button").length).toBe(2); // 전국 | 국경
+    const investBtns = [...root.querySelectorAll(".invest-seg button")];
+    expect(investBtns.length).toBe(2); // 내정 다지기 | 국경 방비
+    // the number names its metric (민심/loyalty) + keeps the %p unit — not a bare "+N%p"
+    expect(investBtns.every((b) => /(민심|loyalty) \+\d+%p/.test(b.textContent || ""))).toBe(true);
     expect(root.querySelector(".peace-select")).toBeNull(); // peace moved to the neighbor chips
     expect(root.querySelector(".btn-advance")).not.toBeNull();
     expect(root.querySelector(".btn-pass")).not.toBeNull();

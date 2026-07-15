@@ -3,9 +3,9 @@ import { playDilemmaFx, playT } from "./i18n";
 
 describe("playDilemmaFx", () => {
   it("formats cell and cohesion deltas with direction glyphs", () => {
-    expect(playDilemmaFx("ko", { cells: -5, cohesion: 1 })).toBe("국력 ▼5셀 · 결속 ▲");
+    expect(playDilemmaFx("ko", { cells: -5, cohesion: 1 })).toBe("국력 ▼5셀 · 민심 ▲");
     expect(playDilemmaFx("ko", { cells: 3 })).toBe("국력 ▲+3셀");
-    expect(playDilemmaFx("en", { cohesion: 2 })).toBe("cohesion ▲▲");
+    expect(playDilemmaFx("en", { cohesion: 2 })).toBe("loyalty ▲▲");
   });
   it("renders a gamble as odds + reversed failure, never a resolved outcome", () => {
     const line = playDilemmaFx("ko", { cohesion: 1, odds: 0.5 });
@@ -21,7 +21,7 @@ describe("playDilemmaFx", () => {
   });
   it("a gamble with cells AND cohesion wraps the whole effect, failure fully negated", () => {
     const line = playDilemmaFx("ko", { cells: 8, cohesion: 1, odds: 0.62 });
-    expect(line).toBe("성공 62%: 국력 ▲+8셀 · 결속 ▲ / 실패: 국력 ▼8셀 · 결속 ▼");
+    expect(line).toBe("성공 62%: 국력 ▲+8셀 · 민심 ▲ / 실패: 국력 ▼8셀 · 민심 ▼");
   });
   it("renders the new note codes, including the live prophecy condition percent", () => {
     expect(playDilemmaFx("en", { note: "noEffect" })).toBe(playT("en", "fxNoEffect"));

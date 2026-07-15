@@ -686,13 +686,14 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
       if (over) { renderReplayBar(); return; }
       actions.innerHTML = "";
 
-      // invest = a 2-segment control (전국 | 국경), each showing its numeric effect — not a dropdown
+      // invest = a 2-segment control (내정 다지기 | 국경 방비), each naming the metric (민심) + its
+      // numeric effect — not a dropdown; the label reuses playT("cohesion") so it tracks the metric name
       const investSeg = document.createElement("span");
       investSeg.className = "view-toggle invest-seg";
       for (const scope of ["nation", "border"] as const) {
         const fx = investEffect(scope);
         const b = document.createElement("button");
-        b.textContent = `💰 ${playT(lang, scope === "border" ? "investFrontierOpt" : "investRealmOpt")} (+${fx.gain}%p)`;
+        b.textContent = `💰 ${playT(lang, scope === "border" ? "investFrontierOpt" : "investRealmOpt")} (${playT(lang, "cohesion")} +${fx.gain}%p)`;
         b.title = playT(lang, "tipInvest");
         b.className = pendingAction?.type === "invest" && pendingAction.scope === scope ? "active" : "";
         b.addEventListener("click", () => {
@@ -716,7 +717,7 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
           : pendingAction.type === "attack" ? ` — ⚔ +${predictCapture(s, pendingAction.cell).length || 1}${playT(lang, "cells")}`
             : pendingAction.type === "foundCity" ? ` — ${playT(lang, "advFound")}`
               : pendingAction.type === "peace" ? ` — 🕊 ${s.polities[pendingAction.polity].name}`
-                : ` — 💰 ${playT(lang, pendingAction.scope === "border" ? "investFrontierOpt" : "investRealmOpt")} +${investEffect(pendingAction.scope).gain}%p`;
+                : ` — 💰 ${playT(lang, pendingAction.scope === "border" ? "investFrontierOpt" : "investRealmOpt")} ${playT(lang, "cohesion")} +${investEffect(pendingAction.scope).gain}%p`;
       advance.textContent = playT(lang, "advance") + summary();
       if (dilemma) {
         const dot = document.createElement("span");
