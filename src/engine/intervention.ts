@@ -205,7 +205,7 @@ export function applyIntervention(s: SimState, action: Action): InterventionResu
       const captured = resolveCapture(s, target, def, amphib, agg).length;
       s.attacksByPlayer.set(def, s.tick); // grudge ledger: the player struck this polity
       const how = amphib ? "Landed on and captured" : "Captured";
-      const what = captured > 1 ? `${captured} cells` : "a cell";
+      const what = captured > 1 ? `${captured} tiles` : "a tile";
       return { ok: true, message: `${how} ${what} from ${name}.`, code: amphib ? "landed" : "captured", data: { name, n: captured } };
     }
     return { ok: false, message: `Attack on ${name} was repulsed.`, code: "repulsed", data: { name } };
@@ -219,7 +219,7 @@ export function applyIntervention(s: SimState, action: Action): InterventionResu
       n++;
     }
     const where = action.scope === "border" ? "the frontier" : "the realm";
-    return { ok: true, message: `Invested in ${where}: cohesion raised on ${n} cells.`, code: "invested", data: { scope: action.scope, n } };
+    return { ok: true, message: `Invested in ${where}: stability raised on ${n} tiles.`, code: "invested", data: { scope: action.scope, n } };
   }
   if (action.type === "foundCity") {
     const cell = action.cell;

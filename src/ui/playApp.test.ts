@@ -834,6 +834,49 @@ describe("playApp", () => {
     }
   });
 
+  it("picker puts the map above the nation cards (map-centered layout)", () => {
+    const root = document.createElement("div");
+    createPlayApp(root, 1);
+    const rowEl = root.querySelector(".picker-row")!;
+    const map = rowEl.querySelector(".picker-map")!;
+    const cards = rowEl.querySelector(".landing")!;
+    expect(map).not.toBeNull();
+    expect(cards).not.toBeNull();
+    // map precedes the card row in DOM order (hero on top, choices below)
+    expect(map.compareDocumentPosition(cards) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("clicking a nation's region on the picker map starts that reign", () => {
+    const root = document.createElement("div");
+    createPlayApp(root, 1);
+    const region = root.querySelector(".picker-map [data-polity]") as SVGElement;
+    expect(region).not.toBeNull();
+    region.dispatchEvent(new Event("click", { bubbles: true }));
+    expect(root.querySelector("svg.world")).not.toBeNull();   // play screen mounted
+    expect(root.querySelector(".nation-choice")).toBeNull();  // picker gone
+  });
+
+  it("hovering a region on the picker map highlights that nation, like a card", () => {
+    const root = document.createElement("div");
+    createPlayApp(root, 1);
+    const mapBox = root.querySelector(".picker-map")!;
+    const magenta = () => mapBox.querySelectorAll(`[fill="${PLAYER_COLOR}"]`).length;
+    const region = mapBox.querySelector("[data-polity]") as SVGElement;
+    const before = magenta();
+    region.dispatchEvent(new Event("mouseover", { bubbles: true }));
+    expect(magenta()).toBeGreaterThan(before);
+    mapBox.dispatchEvent(new Event("mouseleave"));
+    expect(magenta()).toBe(before);
+  });
+
+  it("nation card sub uses the friendly 칸/tiles unit, not 셀/cells", () => {
+    const root = document.createElement("div");
+    createPlayApp(root, 1);
+    const sub = root.querySelector(".nation-choice .choice-sub")!.textContent || "";
+    expect(sub).toMatch(/칸|tiles/);
+    expect(sub).not.toMatch(/셀|cells/);
+  });
+
   it("the nation picker shows a minimap; hovering a card highlights that nation", () => {
     const root = document.createElement("div");
     createPlayApp(root, 1);

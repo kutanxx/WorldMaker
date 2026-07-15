@@ -91,9 +91,21 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
     };
     paintMini(-1);
     mapBox.appendChild(mapSvg);
+    // the map is also a selector: click a nation's region to start, hover to highlight it (mirrors
+    // the cards). politicalLayer paints one [data-polity] path per polity; delegation survives the
+    // paintMini repaints. Only playable nations (the ones the cards list) respond.
+    const playableIds = new Set(nationsByCells.map((n) => n.p.id));
+    const polityUnder = (e: Event): number => {
+      const el = (e.target as Element | null)?.closest?.("[data-polity]");
+      const id = el ? Number(el.getAttribute("data-polity")) : -1;
+      return playableIds.has(id) ? id : -1;
+    };
+    mapBox.addEventListener("mouseover", (e) => { const id = polityUnder(e); if (id >= 0) paintMini(id); });
+    mapBox.addEventListener("mouseleave", () => paintMini(-1));
+    mapBox.addEventListener("click", (e) => { const id = polityUnder(e); if (id >= 0) startGame(id); });
     const row = document.createElement("div");
     row.className = "picker-row";
-    row.append(picker, mapBox);
+    row.append(mapBox, picker); // map is the centered hero; the cards sit below it
     root.append(title, langButton(renderPicker), row);
     const maxCells = nationsByCells[0]?.cells || 1;
     for (const { p, cells } of nationsByCells) {

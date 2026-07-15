@@ -24,8 +24,8 @@ export function reignChronicle(s: SimState, worldName: string, lang: "ko" | "en"
     ? ko ? `${years}년의 통치에서 살아남았다.` : `The realm survived ${years} years of rule.`
     : ko ? `${years}년, 나라가 멸망했다.` : `The realm fell in year ${years}.`;
   const stats = ko
-    ? `최대 ${sc.peakCells}셀 · 최종 ${sc.cells}셀 · 순위 ${sc.rank > 0 ? `${sc.rank}/${sc.nations}` : "—"} · 도시 ${sc.citiesHeld}/${sc.citiesFounded}`
-    : `Peak ${sc.peakCells} cells · final ${sc.cells} · rank ${sc.rank > 0 ? `${sc.rank}/${sc.nations}` : "—"} · cities ${sc.citiesHeld}/${sc.citiesFounded}`;
+    ? `최대 ${sc.peakCells}칸 · 최종 ${sc.cells}칸 · 순위 ${sc.rank > 0 ? `${sc.rank}/${sc.nations}` : "—"} · 도시 ${sc.citiesHeld}/${sc.citiesFounded}`
+    : `Peak ${sc.peakCells} tiles · final ${sc.cells} · rank ${sc.rank > 0 ? `${sc.rank}/${sc.nations}` : "—"} · cities ${sc.citiesHeld}/${sc.citiesFounded}`;
 
   // one merged, year-ordered stream: the player's events + noteworthy decade swings
   const lines: { year: number; text: string }[] = [];
@@ -39,7 +39,7 @@ export function reignChronicle(s: SimState, worldName: string, lang: "ko" | "en"
     if (Math.abs(net) < DELTA_NOTEWORTHY) continue;
     const year = s.snapshots[i].year;
     const change = net > 0 ? `+${net}` : `−${-net}`;
-    lines.push({ year, text: ko ? `${year}년: ${change}셀 (${cur}셀)` : `Year ${year}: ${change} cells (${cur} total)` });
+    lines.push({ year, text: ko ? `${year}년: ${change}칸 (${cur}칸)` : `Year ${year}: ${change} tiles (${cur} total)` });
   }
   lines.sort((a, b) => a.year - b.year);
 

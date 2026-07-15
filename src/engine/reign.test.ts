@@ -27,7 +27,7 @@ describe("reignChronicle", () => {
     const nation = s.polities[s.playerPolity].name;
     expect(md).toContain(`# ${nation}`);
     expect(md).toContain(world.name);
-    expect(md).toMatch(/최대 \d+셀/);
+    expect(md).toMatch(/최대 \d+칸/);
     expect(md).toMatch(/도시 \d+\/\d+/);
   });
 

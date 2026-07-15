@@ -98,26 +98,25 @@ svg.world .legend { pointer-events: none; }
   max-width: 760px; margin: 0 auto; padding: 26px 16px 44px;
   display: flex; gap: 22px; flex-wrap: wrap; justify-content: center; align-items: stretch;
 }
-.picker-row { display: flex; gap: 18px; align-items: flex-start; justify-content: center; flex-wrap: wrap; }
-.picker-row .landing { flex: 1 1 340px; }
-.picker-map { flex: 0 1 380px; max-width: 380px; position: sticky; top: 12px; pointer-events: none; }
+/* map-centered picker: the map is the hero on top, the nation cards a wrapping row beneath it */
+.picker-row { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.picker-map { width: 100%; max-width: 600px; margin: 0 auto; cursor: pointer; }
 .picker-map svg { width: 100%; height: auto; display: block; }
-@media (max-width: 900px) {
-  .picker-row { flex-direction: column-reverse; align-items: stretch; }
-  .picker-map { position: static; max-width: 100%; margin: 0 auto; }
-}
+.picker-map .territory { cursor: pointer; }        /* each nation region is clickable to select */
+.picker-row .landing { padding: 10px 16px 40px; max-width: 760px; }
+@media (max-width: 900px) { .picker-map { max-width: 100%; } }
 .choice-card {
   display: flex; flex-direction: column; align-items: center; text-align: center;
-  flex: 1 1 280px; max-width: 330px; text-decoration: none;
+  flex: 0 1 170px; max-width: 210px; text-decoration: none;
   background: #f6efdd; border: 1px solid #cbb784; border-radius: 10px; border-top: 3px solid #b7975a;
-  padding: 26px 22px 24px; color: #2a2118; box-shadow: 0 1px 4px rgba(60,47,28,.15);
+  padding: 14px 16px 13px; color: #2a2118; box-shadow: 0 1px 4px rgba(60,47,28,.15);
   transition: transform .12s, background .12s, box-shadow .12s;
 }
 .choice-card:hover { background: #efe6cf; box-shadow: 0 4px 14px rgba(60,47,28,.24); transform: translateY(-3px); }
 .choice-icon { font-size: 40px; line-height: 1; margin-bottom: 10px; }
-.choice-title { font-family: 'Cinzel', serif; font-weight: 600; font-size: 22px; margin: 0 0 8px; color: #3c2f1c; letter-spacing: .03em; }
+.choice-title { font-family: 'Cinzel', serif; font-weight: 600; font-size: 18px; margin: 0 0 4px; color: #3c2f1c; letter-spacing: .03em; }
 .choice-desc { font-size: 14px; line-height: 1.55; margin: 0; color: #4a3f2c; }
-.choice-sub { margin-top: 12px; font-size: 12px; color: #8a7550; letter-spacing: .04em; }
+.choice-sub { margin-top: 6px; font-size: 12px; color: #8a7550; letter-spacing: .04em; }
 .stub { max-width: 720px; margin: 0 auto; padding: 48px 16px; text-align: center; }
 .stub p { font-size: 15px; line-height: 1.6; color: #4a3f2c; }
 .stub-badge { display: inline-block; font-family: 'Cinzel', serif; font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: #8a7550; border: 1px solid #cbb784; border-radius: 20px; padding: 4px 14px; margin-bottom: 18px; }

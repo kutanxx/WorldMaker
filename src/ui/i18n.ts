@@ -56,7 +56,7 @@ export function t(lang: Lang, key: string): string {
 // --- Version B play screen (empire sim) ---
 export const PLAY_UI: Record<Lang, Record<string, string>> = {
   en: {
-    chooseRealm: "Choose your realm", cells: "cells", cohesion: "stability", threats: "threats",
+    chooseRealm: "Choose your realm", cells: "tiles", cohesion: "stability", threats: "threats",
     diffEasy: "easy", diffNormal: "normal", diffHard: "hard",
     civilWarRisk: "civil-war risk", fallen: "fallen",
     aggressive: "aggressive", defensive: "defensive", internal: "internal",
@@ -117,13 +117,13 @@ export const PLAY_UI: Record<Lang, Record<string, string>> = {
     factIAttacked: "you attacked them {n} turns ago · grudge", factIAttackedNow: "you attacked them this turn · grudge",
   },
   ko: {
-    chooseRealm: "국가를 선택하세요", cells: "셀", cohesion: "안정도", threats: "위협",
+    chooseRealm: "국가를 선택하세요", cells: "칸", cohesion: "안정도", threats: "위협",
     diffEasy: "쉬움", diffNormal: "보통", diffHard: "어려움",
     civilWarRisk: "내전 위험", fallen: "멸망",
     aggressive: "공격적", defensive: "방어적", internal: "내치",
     investRealmOpt: "내정 다지기", investFrontierOpt: "국경 방비",
     tipInvest: "안정도(나라의 응집력)을 즉시 올립니다 — 일회성, 이후 자연 감쇠. %p = 안정도이 오르는 폭. 국경 방비 = 전투 직결, 내정 다지기 = 내전 예방.",
-    tipStrength: "내 영토(셀 수)를 이웃 세력 평균과 비교합니다. 앞서면 우세, 밀리면 열세.",
+    tipStrength: "내 영토(칸 수)를 이웃 세력 평균과 비교합니다. 앞서면 우세, 밀리면 열세.",
     tipCohesion: "안정도이 낮으면 전투에서 약해져 땅을 잃기 쉽습니다. 나라가 크고 안정도까지 낮으면 내란으로 분열될 수 있습니다. 투자(💰)나 내치 태세로 회복합니다.",
     tipThreat: "국경에 맞닿은 적국 수. 많을수록 침공 압박이 커집니다.",
     cohWeak: "약해짐",
@@ -141,7 +141,7 @@ export const PLAY_UI: Record<Lang, Record<string, string>> = {
     adviceLowSol: "💡 안정도이 낮습니다 — 투자하거나 내치 태세로 회복하세요.",
     adviceDefend: "💡 국경이 밀리고 있습니다 — 방어 태세로 바꾸고 국경에 투자하세요.",
     adviceExpand: "💡 확장의 적기입니다 — 지도의 초록 구역을 클릭해 공격하세요.",
-    adviceBuild: "💡 정세가 안정적입니다 — 금색 셀에 도시를 세워 기반을 다지세요.",
+    adviceBuild: "💡 정세가 안정적입니다 — 금색 칸에 도시를 세워 기반을 다지세요.",
     legendPush: "점령 가능 구역", legendSea: "상륙 지점", legendLane: "원정 항로", legendSite: "도시 부지", legendThreat: "위험 국경", legendCity: "내 도시",
     strength: "국력", strengthStrong: "우세", strengthEven: "균형", strengthWeak: "열세",
     yourNation: "당신의 국가",
@@ -217,10 +217,10 @@ export function playLog(lang: Lang, code: string | undefined, data: Record<strin
     : (lang === "ko" ? "전국" : "the realm");
   if (lang === "ko") {
     switch (code) {
-      case "captured": return cnt > 1 ? `${name}에게서 셀 ${cnt}개를 빼앗았습니다.` : `${name}에게서 셀을 빼앗았습니다.`;
-      case "landed": return cnt > 1 ? `${name}에 상륙하여 셀 ${cnt}개를 점령했습니다.` : `${name}에 상륙하여 셀을 점령했습니다.`;
+      case "captured": return cnt > 1 ? `${name}에게서 칸 ${cnt}개를 빼앗았습니다.` : `${name}에게서 칸을 빼앗았습니다.`;
+      case "landed": return cnt > 1 ? `${name}에 상륙하여 칸 ${cnt}개를 점령했습니다.` : `${name}에 상륙하여 칸을 점령했습니다.`;
       case "repulsed": return `${name} 공격이 격퇴당했습니다.`;
-      case "invested": return `${where}에 투자: ${n}개 셀의 안정도이 올랐습니다.`;
+      case "invested": return `${where}에 투자: ${n}개 칸의 안정도이 올랐습니다.`;
       case "founded": return `${name}을(를) 건설했습니다.`;
       case "badSite": return "도시를 세울 수 없는 곳입니다.";
       case "peaceMade": return `${name}과(와) ${Number(data.years ?? 0)}년 강화를 맺었습니다.`;
@@ -231,15 +231,15 @@ export function playLog(lang: Lang, code: string | undefined, data: Record<strin
     }
   }
   switch (code) {
-    case "captured": return cnt > 1 ? `Captured ${cnt} cells from ${name}.` : `Captured a cell from ${name}.`;
-    case "landed": return cnt > 1 ? `Landed on and captured ${cnt} cells from ${name}.` : `Landed on and captured a cell from ${name}.`;
+    case "captured": return cnt > 1 ? `Captured ${cnt} tiles from ${name}.` : `Captured a tile from ${name}.`;
+    case "landed": return cnt > 1 ? `Landed on and captured ${cnt} tiles from ${name}.` : `Landed on and captured a tile from ${name}.`;
     case "repulsed": return `Attack on ${name} was repulsed.`;
-    case "invested": return `Invested in ${where}: stability raised on ${n} cells.`;
+    case "invested": return `Invested in ${where}: stability raised on ${n} tiles.`;
     case "founded": return `Founded the city of ${name}.`;
     case "badSite": return "Not a viable city site.";
     case "peaceMade": return `Made peace with ${name} for ${Number(data.years ?? 0)} years.`;
     case "notHostile": return "Not a hostile neighbour.";
-    case "notEnemy": return "Not an enemy cell.";
+    case "notEnemy": return "Not an enemy tile.";
     case "unreachable": return "Not reachable from your territory.";
     default: return "";
   }
@@ -285,16 +285,16 @@ export function playDilemmaOutcome(lang: Lang, code: string, data: Record<string
       case "unrestConcede": return `변경 ${n}개 영지를 양보했다. 안정도이 가라앉는다.`;
       case "unrestCrushOk": return "반란의 싹을 잘랐다. 권위가 섰다.";
       case "unrestCrushFail": return "진압이 역효과를 냈다. 안정도이 흉흉하다.";
-      case "raidersFortify": return `국경 ${n}개 셀을 요새화했다.`;
-      case "raidersRaid": return `보복 원정이 ${name}에게서 셀 ${n}개를 빼앗았다.`;
+      case "raidersFortify": return `국경 ${n}개 칸을 요새화했다.`;
+      case "raidersRaid": return `보복 원정이 ${name}에게서 칸 ${n}개를 빼앗았다.`;
       case "raidersNoTarget": return "원정대가 마땅한 목표를 찾지 못했다.";
-      case "warwearyLevy": return `국경 ${n}개 셀에 병력을 증강했다.`;
+      case "warwearyLevy": return `국경 ${n}개 칸에 병력을 증강했다.`;
       case "warwearyTerms": return `${name}와(과) 20년 화의를 맺었다. 제후들은 못마땅해한다.`;
       case "warwearyNoFoe": return "화의를 청할 상대가 없었다.";
       case "boomtownCharter": return "시장 특허가 온 나라의 상인을 불러모은다.";
-      case "boomtownWall": return `성벽이 올라가 주변 ${n}개 셀이 든든해졌다.`;
+      case "boomtownWall": return `성벽이 올라가 주변 ${n}개 칸이 든든해졌다.`;
       case "prosperityFeast": return "대축제가 열렸다. 온 나라가 하나가 된다.";
-      case "prosperityFrontier": return `변경 ${n}개 셀에 개척민이 들어섰다.`;
+      case "prosperityFrontier": return `변경 ${n}개 칸에 개척민이 들어섰다.`;
       case "defectorAccept": return `${name}의 영지가 귀부했다.`;
       case "defectorReturn": return `${name}이(가) 10년 불가침을 약속했다.`;
       case "prophecySponsor": return "예언자가 왕실의 이름으로 순회를 시작했다.";
@@ -303,11 +303,11 @@ export function playDilemmaOutcome(lang: Lang, code: string, data: Record<string
       case "prophecyDebunked": return "예언은 빈말이 되었고, 왕실의 체면이 깎였다.";
       case "prophecyBuried": return "예언은 조용히 잊혔다.";
       case "hegemonRally": return `${n}개 이웃과 휴전을 맺어 측면을 지켰다.`;
-      case "hegemonArm": return `국경 ${n}개 셀에 방비를 세웠다.`;
+      case "hegemonArm": return `국경 ${n}개 칸에 방비를 세웠다.`;
       case "hegemonTribute": return `${name}에 조공을 바쳤다. 굴욕이지만 나라는 산다.`;
       case "hegemonDefy": return "항전의 깃발이 올랐다.";
-      case "hegemonVictory": return `결전에서 승리했다! ${name}에게서 ${n}개 셀을 빼앗았다.`;
-      case "hegemonRout": return `결전에서 패했다. ${name}에게 ${n}개 셀을 내주었다.`;
+      case "hegemonVictory": return `결전에서 승리했다! ${name}에게서 ${n}개 칸을 빼앗았다.`;
+      case "hegemonRout": return `결전에서 패했다. ${name}에게 ${n}개 칸을 내주었다.`;
       case "hegemonKneel": return `${name} 앞에 무릎 꿇었다. 나라는 살아남았다.`;
       default: return "";
     }
@@ -316,16 +316,16 @@ export function playDilemmaOutcome(lang: Lang, code: string, data: Record<string
     case "unrestConcede": return `Conceded ${n} border fiefs; the realm breathes again.`;
     case "unrestCrushOk": return "The unrest was crushed; authority holds.";
     case "unrestCrushFail": return "The crackdown backfired; resentment spreads.";
-    case "raidersFortify": return `Fortified ${n} border cells.`;
-    case "raidersRaid": return `The punitive raid took ${n} cells from ${name}.`;
+    case "raidersFortify": return `Fortified ${n} border tiles.`;
+    case "raidersRaid": return `The punitive raid took ${n} tiles from ${name}.`;
     case "raidersNoTarget": return "The raiders found no worthy target.";
-    case "warwearyLevy": return `Levies strengthen ${n} border cells.`;
+    case "warwearyLevy": return `Levies strengthen ${n} border tiles.`;
     case "warwearyTerms": return `Terms agreed with ${name} for 20 years; the lords grumble.`;
     case "warwearyNoFoe": return "There was no foe to treat with.";
     case "boomtownCharter": return "The market charter draws traders from all the realm.";
-    case "boomtownWall": return `New walls hearten ${n} cells around the city.`;
+    case "boomtownWall": return `New walls hearten ${n} tiles around the city.`;
     case "prosperityFeast": return "A great festival unites the realm.";
-    case "prosperityFrontier": return `Settlers strengthen ${n} frontier cells.`;
+    case "prosperityFrontier": return `Settlers strengthen ${n} frontier tiles.`;
     case "defectorAccept": return `The defecting fief joins you, angering ${name}.`;
     case "defectorReturn": return `${name} pledges 10 years of peace.`;
     case "prophecySponsor": return "The prophet tours in the crown's name.";
@@ -334,11 +334,11 @@ export function playDilemmaOutcome(lang: Lang, code: string, data: Record<string
     case "prophecyDebunked": return "The prophecy rings hollow; the crown is embarrassed.";
     case "prophecyBuried": return "The prophecy is quietly forgotten.";
     case "hegemonRally": return `Truces with ${n} neighbors secure the flanks.`;
-    case "hegemonArm": return `The border arms: ${n} cells fortified.`;
+    case "hegemonArm": return `The border arms: ${n} tiles fortified.`;
     case "hegemonTribute": return `Tribute paid to ${name}; humiliating, but the realm lives.`;
     case "hegemonDefy": return "The banner of defiance is raised.";
-    case "hegemonVictory": return `Victory! ${n} cells taken from ${name}.`;
-    case "hegemonRout": return `Routed — ${n} cells lost to ${name}.`;
+    case "hegemonVictory": return `Victory! ${n} tiles taken from ${name}.`;
+    case "hegemonRout": return `Routed — ${n} tiles lost to ${name}.`;
     case "hegemonKneel": return `You kneel before ${name}; the realm survives.`;
     default: return "";
   }
@@ -377,15 +377,15 @@ export function playFell(lang: Lang, years: number): string {
 export function playStats(lang: Lang, peak: number, final: number, rank: string, cities = 0): string {
   const cityPart = cities ? (lang === "ko" ? ` · 도시 ${cities}` : ` · ${cities} cities founded`) : "";
   return lang === "ko"
-    ? `최대 ${peak}셀 · 최종 ${final}셀${cityPart} · 순위 ${rank}.`
-    : `Peak ${peak} cells · final ${final} cells${cityPart} · rank ${rank}.`;
+    ? `최대 ${peak}칸 · 최종 ${final}칸${cityPart} · 순위 ${rank}.`
+    : `Peak ${peak} tiles · final ${final} tiles${cityPart} · rank ${rank}.`;
 }
 // per-decade gain/loss summary; "−" is U+2212 to match the minus used elsewhere
 export function playDelta(lang: Lang, year: number, gained: number, lost: number): string {
   const parts: string[] = [];
   if (gained) parts.push(`+${gained}`);
   if (lost) parts.push(`−${lost}`);
-  const unit = lang === "ko" ? "셀" : "cells";
+  const unit = lang === "ko" ? "칸" : "tiles";
   const still = lang === "ko" ? "변동 없음" : "no change";
   const change = parts.length ? `${parts.join(" ")} ${unit}` : still;
   return lang === "ko" ? `${year}년: ${change}` : `Year ${year}: ${change}`;
