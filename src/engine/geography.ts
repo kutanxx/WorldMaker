@@ -90,7 +90,7 @@ export function detectRegions(grid: GridLike, biome: number[], terrain: number[]
   return regions;
 }
 
-function featureName(rng: Rng, ng: { nation(): string }, kind: number): string {
+export function featureName(rng: Rng, ng: { nation(): string }, kind: number): string {
   const noun = pick(rng, NOUNS[kind] ?? ["Land"]);
   const r = rng();
   if (r < 0.45) return `the ${pick(rng, ADJ)} ${noun}`;

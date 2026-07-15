@@ -3,7 +3,7 @@ import { generateWorld } from "./world";
 import { DEFAULT_PARAMS } from "../types/world";
 import { OCEAN } from "./terrain";
 import { mulberry32, deriveSeed } from "./rng";
-import { pickProvinceSeeds, assignProvinces } from "./provinces";
+import { pickProvinceSeeds, assignProvinces, buildProvinces } from "./provinces";
 
 const grid1 = () => generateWorld({ ...DEFAULT_PARAMS, seed: 1 }).world;
 
@@ -39,5 +39,31 @@ describe("assignProvinces", () => {
       if (pof[nb] === target && !seen.has(nb)) { seen.add(nb); q.push(nb); }
     }
     expect(seen.size).toBe(members.size); // one connected component
+  });
+});
+
+describe("buildProvinces", () => {
+  it("partitions ALL land with named, connected provinces; ocean is -1; deterministic", () => {
+    const w = grid1();
+    const run = () => buildProvinces(w.grid, w.terrain, w.biome, mulberry32(deriveSeed(1, 8100)), 100);
+    const { provinceOf, provinces } = run();
+    // full land coverage, ocean excluded
+    let land = 0, covered = 0;
+    for (let c = 0; c < w.grid.count; c++) {
+      if (w.terrain[c] === OCEAN) { expect(provinceOf[c]).toBe(-1); continue; }
+      land++;
+      if (provinceOf[c] >= 0 && provinceOf[c] < provinces.length) covered++;
+    }
+    expect(covered).toBe(land);
+    // partition: sum of province cell counts equals land count
+    expect(provinces.reduce((s, p) => s + p.cells, 0)).toBe(land);
+    // every province is named and non-empty
+    for (const p of provinces) { expect(p.name.length).toBeGreaterThan(0); expect(p.cells).toBeGreaterThan(0); }
+    // count is at least the seed target (may exceed by seedless-island cleanup)
+    expect(provinces.length).toBeGreaterThanOrEqual(100);
+    // deterministic: a second run is identical
+    const again = run();
+    expect(Array.from(again.provinceOf)).toEqual(Array.from(provinceOf));
+    expect(again.provinces.map((p) => p.name)).toEqual(provinces.map((p) => p.name));
   });
 });
