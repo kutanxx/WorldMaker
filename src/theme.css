@@ -100,9 +100,11 @@ svg.world .legend { pointer-events: none; }
 }
 /* map-centered picker: the map is the hero on top, the nation cards a wrapping row beneath it */
 .picker-row { display: flex; flex-direction: column; align-items: center; gap: 6px; }
-.picker-map { width: 100%; max-width: 600px; margin: 0 auto; cursor: pointer; }
+.picker-map { width: 100%; max-width: 900px; margin: 0 auto; cursor: pointer; }
 .picker-map svg { width: 100%; height: auto; display: block; }
-.picker-map .territory { cursor: pointer; }        /* each nation region is clickable to select */
+/* the game map keeps .territory non-interactive (its attack-target overlay is what's clickable);
+   the picker map has no overlay, so re-enable hits on the nation fills to select by clicking. */
+.picker-map .territory { cursor: pointer; pointer-events: auto; }
 .picker-row .landing { padding: 10px 16px 40px; max-width: 760px; }
 @media (max-width: 900px) { .picker-map { max-width: 100%; } }
 .choice-card {

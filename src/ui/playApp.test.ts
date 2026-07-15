@@ -847,6 +847,10 @@ describe("playApp", () => {
   });
 
   it("clicking a nation's region on the picker map starts that reign", () => {
+    // NB: synthetic dispatch skips hit-testing, so this can't catch a CSS pointer-events:none
+    // blocking real clicks (jsdom loads no theme.css and does no layout). The picker territory
+    // needs `pointer-events: auto` to override the game map's `.political .territory { none }`;
+    // that regression is only observable in a real browser (elementFromPoint → path.territory).
     const root = document.createElement("div");
     createPlayApp(root, 1);
     const region = root.querySelector(".picker-map [data-polity]") as SVGElement;
