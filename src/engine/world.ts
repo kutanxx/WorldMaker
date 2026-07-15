@@ -9,6 +9,7 @@ import { assignPolities } from "./polities";
 import { detectRegions, nameGeography, worldName } from "./geography";
 import { assignCultures } from "./culture";
 import { traceRivers, nameRivers } from "./rivers";
+import { buildProvinces, PROVINCE_SALT } from "./provinces";
 
 export function generateWorld(params: WorldParams): GeneratedWorld {
   const rng = mulberry32(params.seed);
@@ -97,6 +98,11 @@ export function generateWorld(params: WorldParams): GeneratedWorld {
   const rivRng = mulberry32(deriveSeed(params.seed, 8002));
   const rivers = nameRivers(rivRng, trunks, phonAt);
 
+  // provinces: a fixed geographic partition of the land on its own rng stream (8100), read-only over
+  // terrain/biome/grid — adds no main-stream draw, so the golden regression stays byte-unchanged
+  const provRng = mulberry32(deriveSeed(params.seed, PROVINCE_SALT));
+  const { provinceOf, provinces } = buildProvinces(grid, terrain, biome, provRng);
+
   const world: World = {
     params,
     name,
@@ -116,6 +122,8 @@ export function generateWorld(params: WorldParams): GeneratedWorld {
     biome: Array.from(biome),
     polityOf: Array.from(polityOf),
     polities,
+    provinceOf: Array.from(provinceOf),
+    provinces,
     cities,
     rivers,
     riverNet: segments,

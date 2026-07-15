@@ -103,3 +103,24 @@ describe("world rivers", () => {
     expect(JSON.stringify(a.riverNet)).toBe(JSON.stringify(b.riverNet));
   });
 });
+
+describe("province partition", () => {
+  it("adds no main-stream draws (existing golden hash holds) and pins the province partition", () => {
+    const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });
+    // regression: the political golden hash is byte-identical (provinces use a separate rng stream)
+    let h = 2166136261 >>> 0;
+    for (const p of world.polityOf) { h ^= (p + 1); h = Math.imul(h, 16777619) >>> 0; }
+    expect(h >>> 0).toBe(1350115163);
+    // partition invariants
+    expect(world.provinceOf.length).toBe(world.grid.count);
+    for (let c = 0; c < world.grid.count; c++) {
+      if (world.terrain[c] === OCEAN) expect(world.provinceOf[c]).toBe(-1);
+      else expect(world.provinceOf[c]).toBeGreaterThanOrEqual(0);
+    }
+    // golden partition hash (locks the deterministic province map)
+    let ph = 2166136261 >>> 0;
+    for (const p of world.provinceOf) { ph ^= (p + 1); ph = Math.imul(ph, 16777619) >>> 0; }
+    expect(ph >>> 0).toBe(2955931295);     // golden province partition hash (seed 1)
+    expect(world.provinces.length).toBe(102); // 100 target + 2 seedless-island cleanup provinces
+  });
+});

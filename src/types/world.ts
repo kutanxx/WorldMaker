@@ -1,3 +1,5 @@
+import type { Province } from "../engine/provinces";
+
 export interface WorldParams {
   seed: number;
   width: number;
@@ -70,6 +72,8 @@ export interface World {
   biome: number[];
   polityOf: number[];
   polities: Polity[];
+  provinceOf: number[];
+  provinces: Province[];
   cities: CityMarker[];
   rivers: River[];
   riverNet: RiverSegment[];
