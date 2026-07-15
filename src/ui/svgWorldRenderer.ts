@@ -6,8 +6,9 @@ import { coastline, type Segment } from "../engine/borders";
 import { cellPath, segPath } from "./svgPaths";
 import { politicalLayer, type PoliticalOpts } from "./politicalLayer";
 import { cultureLayer } from "./cultureLayer";
+import { provinceLayer } from "./provinceLayer";
 
-export type MapView = "terrain" | "political" | "culture";
+export type MapView = "terrain" | "political" | "culture" | "province";
 
 export function politicalOpts(view: MapView): PoliticalOpts {
   return view === "political" ? { fills: true, labels: true, legend: true } : {};
@@ -90,9 +91,10 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
     fill: "none", stroke: "#5f7888", "stroke-width": 0.6,
   }));
   const slot = svgEl("g", { class: "political-slot" });
-  slot.appendChild(view === "culture"
-    ? cultureLayer(grid, world.cultureOf, world.cultures)
-    : politicalLayer(grid, world.polityOf, world.polities, politicalOpts(view)));
+  slot.appendChild(
+    view === "culture" ? cultureLayer(grid, world.cultureOf, world.cultures)
+      : view === "province" ? provinceLayer(grid, world.provinceOf, world.provinces)
+        : politicalLayer(grid, world.polityOf, world.polities, politicalOpts(view)));
   root.appendChild(slot);
 
   // mountain relief: a small peak glyph on each alpine cell so ranges read as mountains rather

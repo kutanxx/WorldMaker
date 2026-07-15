@@ -7,6 +7,14 @@ import { renderWorld } from "./svgWorldRenderer";
 describe("renderWorld biomes", () => {
   const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });
   const svg = renderWorld(world);
+  it("renders a province view: province layer, no nation labels, biomes muted", () => {
+    const pv = renderWorld(world, "province");
+    expect(pv.querySelectorAll(".political-slot .province").length).toBe(1);
+    expect(pv.querySelectorAll(".province .province-border").length).toBe(1);
+    expect(pv.querySelectorAll(".province .province-fill").length).toBeGreaterThan(1);
+    expect(pv.querySelectorAll(".nation-labels").length).toBe(0);         // not the political view
+    expect(pv.querySelector(".biomes")?.getAttribute("opacity")).toBe("0.6"); // muted like political/culture
+  });
   it("fills cells by biome (several biome paths, no political region fills)", () => {
     expect(svg.querySelectorAll(".biomes path.biome").length).toBeGreaterThan(1);
     expect(svg.querySelectorAll(".regions").length).toBe(0);
