@@ -130,7 +130,8 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
       if (currentView === "culture") {
         slot.replaceChildren(cultureLayer(world.grid, world.cultureOf, world.cultures)); // time-independent
       } else if (currentView === "province") {
-        slot.replaceChildren(provinceLayer(world.grid, world.provinceOf, world.provinces)); // geography, time-independent
+        // provinces are geography (time-independent); nation borders track the scrubbed year via snap.owner
+        slot.replaceChildren(provinceLayer(world.grid, world.provinceOf, world.provinces, { owner: snap.owner }));
       } else {
         slot.replaceChildren(politicalLayer(world.grid, snap.owner, history.polities, politicalOpts(currentView)));
       }

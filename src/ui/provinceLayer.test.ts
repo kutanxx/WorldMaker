@@ -48,6 +48,20 @@ describe("provinceLayer", () => {
     for (const c of colors) expect(c).toMatch(/^hsl\(/); // per-province hue, not the old faint biome hex
   });
 
+  it("draws bold nation borders when an owner array is given, and none without", () => {
+    const owner = [0, 1, 1, -1]; // a nation border runs between cell 0 (nation 0) and cell 1 (nation 1)
+    const withOwner = provinceLayer(grid, provinceOf, provinces, { owner });
+    const nb = withOwner.querySelector("path.nation-border");
+    expect(nb).not.toBeNull();
+    expect((nb!.getAttribute("d") || "").length).toBeGreaterThan(0);
+    expect(provinceLayer(grid, provinceOf, provinces).querySelector("path.nation-border")).toBeNull();
+  });
+
+  it("places a settlement seat dot at each province", () => {
+    const g = provinceLayer(grid, provinceOf, provinces);
+    expect(g.querySelectorAll("circle.province-seat").length).toBe(2); // one per province
+  });
+
   it("skips ocean cells (province -1 contributes no fill)", () => {
     const g = provinceLayer(grid, provinceOf, provinces);
     // total fill paths equal province count (2), never 3 — the ocean cell is not its own fill

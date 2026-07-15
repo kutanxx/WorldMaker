@@ -12,6 +12,8 @@ describe("renderWorld biomes", () => {
     expect(pv.querySelectorAll(".political-slot .province").length).toBe(1);
     expect(pv.querySelectorAll(".province .province-border").length).toBe(1);
     expect(pv.querySelectorAll(".province .province-fill").length).toBeGreaterThan(1);
+    expect(pv.querySelectorAll(".province .nation-border").length).toBe(1);      // bold country borders
+    expect(pv.querySelectorAll(".province circle.province-seat").length).toBeGreaterThan(1); // a city per province
     expect(pv.querySelectorAll(".nation-labels").length).toBe(0);         // not the political view
     expect(pv.querySelector(".biomes")?.getAttribute("opacity")).toBe("0.6"); // muted like political/culture
   });

@@ -93,7 +93,7 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
   const slot = svgEl("g", { class: "political-slot" });
   slot.appendChild(
     view === "culture" ? cultureLayer(grid, world.cultureOf, world.cultures)
-      : view === "province" ? provinceLayer(grid, world.provinceOf, world.provinces)
+      : view === "province" ? provinceLayer(grid, world.provinceOf, world.provinces, { owner: world.polityOf })
         : politicalLayer(grid, world.polityOf, world.polities, politicalOpts(view)));
   root.appendChild(slot);
 

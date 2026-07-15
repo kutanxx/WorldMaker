@@ -17,9 +17,9 @@ function provinceColor(id: number): string {
 // and province-name labels emitted largest-first so deconflictLabels keeps the biggest on collision.
 export function provinceLayer(
   grid: GridLike, provinceOf: ArrayLike<number>, provinces: Province[],
-  opts: { fills?: boolean; labels?: boolean } = {},
+  opts: { fills?: boolean; labels?: boolean; owner?: ArrayLike<number> } = {},
 ): SVGGElement {
-  const { fills = true, labels = true } = opts;
+  const { fills = true, labels = true, owner } = opts;
   const g = svgEl("g", { class: "province" }) as SVGGElement;
 
   if (fills) {
@@ -47,12 +47,32 @@ export function provinceLayer(
     fill: "none", stroke: "#3c2f1c", "stroke-width": 1.1, "stroke-opacity": 0.9,
   }));
 
+  // nation (country) borders, when an owner array is supplied: the same boundary algorithm fed
+  // ownership instead of provinces, drawn BOLD + dark ON TOP of the thin province lines (classic
+  // EU4: fine province mesh + heavy country outlines). In Version A this owner tracks the timeline year.
+  if (owner) {
+    g.appendChild(svgEl("path", {
+      class: "nation-border", d: segPath(politicalBorders(grid, owner)),
+      fill: "none", stroke: "#161009", "stroke-width": 2, "stroke-opacity": 0.95, "stroke-linejoin": "round",
+    }));
+  }
+
+  // settlement seats: a small dot at each province's centre so every province visibly "has a city"
+  const seats = svgEl("g", { class: "province-seats" });
+  for (const prov of provinces) {
+    seats.appendChild(svgEl("circle", {
+      class: "province-seat", cx: prov.centroid[0], cy: prov.centroid[1], r: 1.6,
+      fill: "#2a2118", stroke: "#f4ecd8", "stroke-width": 0.6,
+    }));
+  }
+  g.appendChild(seats);
+
   if (labels) {
     const lg = svgEl("g", { class: "province-labels" });
     for (const prov of [...provinces].sort((a, b) => b.cells - a.cells)) {
       const tx = svgEl("text", {
-        class: "province-label", x: prov.centroid[0], y: prov.centroid[1],
-        "text-anchor": "middle", "font-size": 7,
+        class: "province-label", x: prov.centroid[0] + 4, y: prov.centroid[1] + 3,
+        "text-anchor": "start", "font-size": 7,
       });
       tx.textContent = prov.name;
       lg.appendChild(tx);
