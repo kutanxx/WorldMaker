@@ -100,8 +100,13 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
       const id = el ? Number(el.getAttribute("data-polity")) : -1;
       return playableIds.has(id) ? id : -1;
     };
-    mapBox.addEventListener("mouseover", (e) => { const id = polityUnder(e); if (id >= 0) paintMini(id); });
-    mapBox.addEventListener("mouseleave", () => paintMini(-1));
+    // hover repaints the fills to highlight; only when the hovered nation CHANGES. Repainting on
+    // every mouseover replaces the path under the cursor, and the browser then re-fires mouseover on
+    // the fresh element → an endless repaint churn that also detaches the click target mid-gesture,
+    // so real clicks never resolve (the delegated click lands on the svg, not a [data-polity] path).
+    let hoverId = -1;
+    mapBox.addEventListener("mouseover", (e) => { const id = polityUnder(e); if (id >= 0 && id !== hoverId) { hoverId = id; paintMini(id); } });
+    mapBox.addEventListener("mouseleave", () => { if (hoverId !== -1) { hoverId = -1; paintMini(-1); } });
     mapBox.addEventListener("click", (e) => { const id = polityUnder(e); if (id >= 0) startGame(id); });
     const row = document.createElement("div");
     row.className = "picker-row";

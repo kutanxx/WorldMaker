@@ -873,6 +873,20 @@ describe("playApp", () => {
     expect(magenta()).toBe(before);
   });
 
+  it("hovering the same region twice does not re-churn the map DOM (keeps the click target stable)", () => {
+    // regression: repainting the fills on EVERY mouseover replaces the path under the cursor; the
+    // browser then re-fires mouseover on the fresh element → endless churn that detaches the click
+    // target mid-gesture, so real clicks never resolve. paintMini must only run when the id changes.
+    const root = document.createElement("div");
+    createPlayApp(root, 1);
+    const map = root.querySelector(".picker-map")!;
+    const pid = map.querySelector("[data-polity]")!.getAttribute("data-polity")!;
+    map.querySelector("[data-polity]")!.dispatchEvent(new Event("mouseover", { bubbles: true }));
+    const afterFirst = map.querySelector(`[data-polity="${pid}"]`);
+    afterFirst!.dispatchEvent(new Event("mouseover", { bubbles: true })); // same nation again
+    expect(map.querySelector(`[data-polity="${pid}"]`)).toBe(afterFirst); // no rebuild ⇒ stable target
+  });
+
   it("nation card sub uses the friendly 칸/tiles unit, not 셀/cells", () => {
     const root = document.createElement("div");
     createPlayApp(root, 1);
