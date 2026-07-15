@@ -31,3 +31,19 @@ export function pickProvinceSeeds(grid: GridLike, terrain: ArrayLike<number>, ta
   }
   return seeds;
 }
+
+// multi-source BFS over the land adjacency graph: seed i owns province i; ties (equal graph
+// distance) go to the lower seed index (FIFO frontier). Guarantees connected, water-respecting
+// provinces. Land not reachable from any seed stays -1 (buildProvinces cleans those up).
+export function assignProvinces(grid: GridLike, terrain: ArrayLike<number>, seeds: number[]): Int32Array {
+  const provinceOf = new Int32Array(grid.count).fill(-1);
+  const queue: number[] = [];
+  for (let i = 0; i < seeds.length; i++) { provinceOf[seeds[i]] = i; queue.push(seeds[i]); }
+  for (let head = 0; head < queue.length; head++) {
+    const c = queue[head], pid = provinceOf[c];
+    for (const nb of grid.neighbors[c]) {
+      if (terrain[nb] !== OCEAN && provinceOf[nb] === -1) { provinceOf[nb] = pid; queue.push(nb); }
+    }
+  }
+  return provinceOf;
+}
