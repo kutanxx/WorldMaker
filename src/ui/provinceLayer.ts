@@ -12,6 +12,27 @@ function provinceColor(id: number): string {
   return `hsl(${((id * 137.508) % 360).toFixed(1)}, 45%, 68%)`;
 }
 
+// each province's majority-owner nation (the nation holding the most of its cells); ties → lower id,
+// -1 if the province is mostly unclaimed. Snapping ownership to whole provinces makes nation borders
+// follow province edges (EU4: you own whole provinces) instead of cutting through them cell-by-cell.
+export function provinceOwners(
+  provinceOf: ArrayLike<number>, provinces: Province[], owner: ArrayLike<number>,
+): number[] {
+  const tally: Map<number, number>[] = provinces.map(() => new Map());
+  for (let c = 0; c < provinceOf.length; c++) {
+    const p = provinceOf[c];
+    if (p < 0 || p >= tally.length) continue;
+    const o = owner[c];
+    if (o < 0) continue;
+    tally[p].set(o, (tally[p].get(o) ?? 0) + 1);
+  }
+  return provinces.map((_, p) => {
+    let best = -1, bestN = 0;
+    for (const [o, n] of tally[p]) if (n > bestN || (n === bestN && o < best)) { bestN = n; best = o; }
+    return best;
+  });
+}
+
 // A dedicated "provinces" view layer: faint per-province biome tint (with a <title> so hovering any
 // province names it), the province borders (same algorithm the political view uses, fed provinceOf),
 // and province-name labels emitted largest-first so deconflictLabels keeps the biggest on collision.
@@ -47,12 +68,16 @@ export function provinceLayer(
     fill: "none", stroke: "#3c2f1c", "stroke-width": 1.1, "stroke-opacity": 0.9,
   }));
 
-  // nation (country) borders, when an owner array is supplied: the same boundary algorithm fed
-  // ownership instead of provinces, drawn BOLD + dark ON TOP of the thin province lines (classic
-  // EU4: fine province mesh + heavy country outlines). In Version A this owner tracks the timeline year.
+  // nation (country) borders, when an owner array is supplied: ownership is SNAPPED to whole provinces
+  // (each province → its majority owner) so the border follows province edges, never cutting through a
+  // province. Drawn BOLD + dark ON TOP of the thin province lines (EU4: fine province mesh + heavy
+  // country outlines). In Version A the owner tracks the timeline year.
   if (owner) {
+    const powners = provinceOwners(provinceOf, provinces, owner);
+    const snapped = new Int32Array(grid.count).fill(-1);
+    for (let c = 0; c < grid.count; c++) { const p = provinceOf[c]; if (p >= 0) snapped[c] = powners[p]; }
     g.appendChild(svgEl("path", {
-      class: "nation-border", d: segPath(politicalBorders(grid, owner)),
+      class: "nation-border", d: segPath(politicalBorders(grid, snapped)),
       fill: "none", stroke: "#161009", "stroke-width": 2, "stroke-opacity": 0.95, "stroke-linejoin": "round",
     }));
   }
