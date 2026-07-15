@@ -686,7 +686,7 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
       if (over) { renderReplayBar(); return; }
       actions.innerHTML = "";
 
-      // invest = a 2-segment control (내정 다지기 | 국경 방비), each naming the metric (민심) + its
+      // invest = a 2-segment control (내정 다지기 | 국경 방비), each naming the metric (안정도) + its
       // numeric effect — not a dropdown; the label reuses playT("cohesion") so it tracks the metric name
       const investSeg = document.createElement("span");
       investSeg.className = "view-toggle invest-seg";
