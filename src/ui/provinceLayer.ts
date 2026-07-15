@@ -1,0 +1,58 @@
+import type { World } from "../types/world";
+import { svgEl } from "./renderer";
+import { cellPath, segPath } from "./svgPaths";
+import { politicalBorders } from "../engine/borders";
+import { BIOME_COLORS } from "../engine/biome";
+import type { Province } from "../engine/provinces";
+
+type GridLike = Pick<World["grid"], "count" | "polygons" | "neighbors" | "points">;
+
+// A dedicated "provinces" view layer: faint per-province biome tint (with a <title> so hovering any
+// province names it), the province borders (same algorithm the political view uses, fed provinceOf),
+// and province-name labels emitted largest-first so deconflictLabels keeps the biggest on collision.
+export function provinceLayer(
+  grid: GridLike, provinceOf: ArrayLike<number>, provinces: Province[],
+  opts: { fills?: boolean; labels?: boolean } = {},
+): SVGGElement {
+  const { fills = true, labels = true } = opts;
+  const g = svgEl("g", { class: "province" }) as SVGGElement;
+
+  if (fills) {
+    const byProv: string[] = provinces.map(() => "");
+    for (let i = 0; i < grid.count; i++) {
+      const p = provinceOf[i];
+      if (p < 0 || p >= byProv.length) continue;
+      byProv[p] += cellPath(grid.polygons[i]);
+    }
+    for (const prov of provinces) {
+      if (!byProv[prov.id]) continue;
+      const path = svgEl("path", {
+        class: "province-fill", "data-province": prov.id, d: byProv[prov.id],
+        fill: BIOME_COLORS[prov.biome] ?? "#cbb488", "fill-opacity": 0.18,
+      });
+      const title = svgEl("title");
+      title.textContent = prov.name;
+      path.appendChild(title);
+      g.appendChild(path);
+    }
+  }
+
+  g.appendChild(svgEl("path", {
+    class: "province-border", d: segPath(politicalBorders(grid, provinceOf)),
+    fill: "none", stroke: "#6b5a3f", "stroke-width": 0.5, "stroke-opacity": 0.7,
+  }));
+
+  if (labels) {
+    const lg = svgEl("g", { class: "province-labels" });
+    for (const prov of [...provinces].sort((a, b) => b.cells - a.cells)) {
+      const tx = svgEl("text", {
+        class: "province-label", x: prov.centroid[0], y: prov.centroid[1],
+        "text-anchor": "middle", "font-size": 7,
+      });
+      tx.textContent = prov.name;
+      lg.appendChild(tx);
+    }
+    g.appendChild(lg);
+  }
+  return g;
+}
