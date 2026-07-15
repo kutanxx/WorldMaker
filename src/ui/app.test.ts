@@ -132,4 +132,14 @@ describe("createApp", () => {
     expect(cityFrame.querySelector("svg.city")).not.toBeNull();
     expect(cityFrame.querySelector(".map-zoom-controls")).not.toBeNull();
   });
+
+  it("has a Provinces view toggle that switches the map to the province layer", () => {
+    const root = document.createElement("div");
+    createApp(root, small);
+    const btns = [...root.querySelectorAll(".view-toggle button")] as HTMLButtonElement[];
+    const prov = btns.find((b) => /Provinces|영토/.test(b.textContent || ""));
+    expect(prov).not.toBeUndefined();
+    prov!.click();
+    expect(root.querySelector("svg .province")).not.toBeNull();
+  });
 });

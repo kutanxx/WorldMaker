@@ -5,7 +5,7 @@
 export function deconflictLabels(svg: SVGSVGElement): void {
   const tiers: [string, number][] = [
     [".nation-label.player", 6], [".nation-label:not(.player)", 5], [".city-capital", 4],
-    [".region-label", 3], [".river-label", 2], [".city-town", 1],
+    [".region-label", 3], [".province-label", 3], [".river-label", 2], [".city-town", 1],
   ];
   const labels: { el: SVGGraphicsElement; box: DOMRect; prio: number }[] = [];
   try {

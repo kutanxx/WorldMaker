@@ -36,14 +36,14 @@ export const UI: Record<Lang, Record<string, string>> = {
   en: {
     generate: "Generate", randomSeed: "Random seed", exportJson: "Export JSON",
     exportPng: "Export PNG", exportSvg: "Export SVG", gazetteer: "Gazetteer",
-    terrain: "Terrain", political: "Political", culture: "Culture",
+    terrain: "Terrain", political: "Political", culture: "Culture", province: "Provinces",
     backToWorld: "Back to world", water: "Water", mainRoad: "Main road",
     compassN: "N", langToggle: "한국어",
   },
   ko: {
     generate: "생성", randomSeed: "랜덤 시드", exportJson: "JSON 내보내기",
     exportPng: "PNG 내보내기", exportSvg: "SVG 내보내기", gazetteer: "가제티어",
-    terrain: "지형", political: "정치", culture: "문화",
+    terrain: "지형", political: "정치", culture: "문화", province: "영토",
     backToWorld: "지도로 돌아가기", water: "물", mainRoad: "큰길",
     compassN: "북", langToggle: "EN",
   },

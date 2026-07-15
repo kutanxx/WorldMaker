@@ -13,6 +13,7 @@ import { createTimeline, type Timeline } from "./timeline";
 import { attachZoomPan, type ZoomPan } from "./zoomPan";
 import { politicalLayer } from "./politicalLayer";
 import { cultureLayer } from "./cultureLayer";
+import { provinceLayer } from "./provinceLayer";
 import { deconflictLabels } from "./deconflict";
 import { type Lang, t } from "./i18n";
 import { detectLang, saveLang } from "./lang";
@@ -62,7 +63,8 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
   const terrainBtn = document.createElement("button");
   const politicalBtn = document.createElement("button");
   const cultureBtn = document.createElement("button");
-  viewToggle.append(terrainBtn, politicalBtn, cultureBtn);
+  const provinceBtn = document.createElement("button");
+  viewToggle.append(terrainBtn, politicalBtn, cultureBtn, provinceBtn);
   controls.append(seedInput, regenBtn, randomBtn, jsonBtn, pngBtn, svgBtn, gazBtn, viewToggle, langBtn);
 
   // set every UI string from the current language (called on init and on language toggle)
@@ -76,6 +78,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     terrainBtn.textContent = t(lang, "terrain");
     politicalBtn.textContent = t(lang, "political");
     cultureBtn.textContent = t(lang, "culture");
+    provinceBtn.textContent = t(lang, "province");
     langBtn.textContent = t(lang, "langToggle");
   }
   applyLang();
@@ -94,6 +97,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
   terrainBtn.addEventListener("click", () => setView("terrain"));
   politicalBtn.addEventListener("click", () => setView("political"));
   cultureBtn.addEventListener("click", () => setView("culture"));
+  provinceBtn.addEventListener("click", () => setView("province"));
 
   function showWorld(): void {
     openCityId = null;
@@ -102,6 +106,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     terrainBtn.classList.toggle("active", currentView === "terrain");
     politicalBtn.classList.toggle("active", currentView === "political");
     cultureBtn.classList.toggle("active", currentView === "culture");
+    provinceBtn.classList.toggle("active", currentView === "province");
     const svg = renderWorld(generated.world, currentView, history.economicZones.map((z) => z.cell), lang);
     svg.addEventListener("click", (e) => {
       const target = e.target as Element;
@@ -124,6 +129,8 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
       const snap = history.snapshots[index];
       if (currentView === "culture") {
         slot.replaceChildren(cultureLayer(world.grid, world.cultureOf, world.cultures)); // time-independent
+      } else if (currentView === "province") {
+        slot.replaceChildren(provinceLayer(world.grid, world.provinceOf, world.provinces)); // geography, time-independent
       } else {
         slot.replaceChildren(politicalLayer(world.grid, snap.owner, history.polities, politicalOpts(currentView)));
       }
