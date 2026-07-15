@@ -131,6 +131,19 @@ svg.world .legend { pointer-events: none; }
 .front line { pointer-events: none; }
 .sea-target { pointer-events: none; }
 .sea-lane { pointer-events: none; }
+/* chronicle → map ping: a positioned log row is clickable; clicking flashes a sonar ring */
+.chronicle-event.pingable { cursor: pointer; }
+.chronicle-event.pingable:hover { text-decoration: underline dotted; text-underline-offset: 2px; }
+.map-ping { pointer-events: none; }
+.map-ping-ring {
+  fill: none; stroke: #e8b53a; stroke-width: 2;
+  transform-box: fill-box; transform-origin: center;
+  animation: wm-ping 1.1s ease-out forwards;
+}
+@keyframes wm-ping {
+  from { transform: scale(0.4); opacity: .95; stroke-width: 3; }
+  to   { transform: scale(6);   opacity: 0;  stroke-width: 1; }
+}
 /* dilemma card: a question aimed at the ruler */
 .dilemma { border-left: 3px solid #a8842c; }
 .dilemma .dilemma-title { font-weight: 600; margin-right: 8px; }

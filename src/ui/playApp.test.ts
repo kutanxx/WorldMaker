@@ -886,4 +886,45 @@ describe("playApp", () => {
       localStorage.removeItem(`wm:legacy:${SEED}`);
     }
   });
+
+  describe("chronicle → map ping", () => {
+    // advance (passively) until a positioned event lands in the log, or the reign ends
+    function playUntilPingable(root: HTMLElement): HTMLElement | null {
+      for (let i = 0; i < 50; i++) {
+        const pingable = root.querySelector<HTMLElement>(".chronicle-event.pingable");
+        if (pingable) return pingable;
+        const advance = root.querySelector<HTMLButtonElement>(".btn-advance");
+        if (!advance) break; // reign ended
+        advance.click();
+      }
+      return root.querySelector<HTMLElement>(".chronicle-event.pingable");
+    }
+
+    it("a positioned chronicle event is pingable; clicking it flashes a map ping at that cell", () => {
+      const root = document.createElement("div");
+      createPlayApp(root, 1);
+      (root.querySelector(".nation-choice") as HTMLButtonElement).click();
+      const pingable = playUntilPingable(root);
+      expect(pingable).not.toBeNull();
+      const cell = Number(pingable!.dataset.cell);
+      expect(Number.isInteger(cell)).toBe(true);
+      expect(root.querySelector("svg.world .map-ping")).toBeNull(); // nothing pinged yet
+      pingable!.click();
+      const ping = root.querySelector("svg.world .map-ping");
+      expect(ping).not.toBeNull();
+    });
+
+    it("the positionless year-delta row is not pingable and never pings", () => {
+      const root = document.createElement("div");
+      createPlayApp(root, 1);
+      (root.querySelector(".nation-choice") as HTMLButtonElement).click();
+      (root.querySelector(".btn-advance") as HTMLButtonElement).click();
+      // the delta row (e.g. "1010년 · +N / −M") carries no cell — always present after an advance
+      const plain = [...root.querySelectorAll<HTMLElement>(".chronicle-event")].find((r) => !r.classList.contains("pingable"));
+      expect(plain).not.toBeUndefined();
+      expect(plain!.dataset.cell).toBeUndefined();
+      plain!.click();
+      expect(root.querySelector("svg.world .map-ping")).toBeNull();
+    });
+  });
 });

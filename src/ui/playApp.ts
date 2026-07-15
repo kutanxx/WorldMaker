@@ -725,7 +725,8 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
         dot.title = playT(lang, "advanceAlertTip");
         advance.appendChild(dot);
       }
-      // --- BEGIN verbatim advance handler (do not modify; sole amendment: the momentum capture, battle report 07-12) ---
+      // --- BEGIN verbatim advance handler (do not modify; sanctioned amendments: [1] the momentum
+      //     capture, battle report 07-12; [2] passing e.cell to appendLog for chronicle→map ping 07-15) ---
       advance.addEventListener("click", () => {
         const before = Int32Array.from(s.owner);
         const cohBefore = aggregate(s)[s.playerPolity]?.avg ?? 0;
@@ -746,7 +747,7 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
         if (msg) appendLog(`— ${msg}`);
         for (const e of r.events) {
           const hl = isPlayerEvent(e);
-          appendLog(hl ? `${HEADLINE_ICON[e.type] ?? "•"} ${e.text}` : e.text, hl);
+          appendLog(hl ? `${HEADLINE_ICON[e.type] ?? "•"} ${e.text}` : e.text, hl, e.cell); // [2] e.cell → chronicle ping
         }
         const vp = victoryProgress(s);
         prosperStreak = vp.prosperityGate ? prosperStreak + 1 : 0;
@@ -768,13 +769,45 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
       actions.append(investSeg, pass, advance);
     }
 
-    function appendLog(text: string, headline = false): void {
+    function appendLog(text: string, headline = false, cell?: number): void {
       if (!text) return;
       const row = document.createElement("div");
       row.className = headline ? "chronicle-event headline" : "chronicle-event";
       row.textContent = text;
+      if (typeof cell === "number") {
+        // a positioned event: clicking the row flashes a ping where it happened on the map
+        row.classList.add("pingable");
+        row.dataset.cell = String(cell);
+        row.title = playT(lang, "pingLocate");
+        row.addEventListener("click", () => pingMap(cell));
+      }
       log.appendChild(row);
       log.scrollTop = log.scrollHeight;
+    }
+
+    // ephemeral sonar ping at a cell on the CURRENT map svg — no SimState, no re-render.
+    // viewBox-based zoom means grid-point coordinates place it correctly at any zoom/scale;
+    // a later renderMap() rebuilds the svg and the ping is gone (transient by design).
+    function pingMap(cell: number): void {
+      const svg = mapFrame.querySelector("svg");
+      if (!svg) return;
+      const NS = "http://www.w3.org/2000/svg";
+      const x = world.grid.points[cell * 2], y = world.grid.points[cell * 2 + 1];
+      const g = document.createElementNS(NS, "g");
+      g.setAttribute("class", "map-ping");
+      g.setAttribute("pointer-events", "none");
+      for (const delay of ["0s", "0.25s"]) {
+        const ring = document.createElementNS(NS, "circle");
+        ring.setAttribute("cx", String(x));
+        ring.setAttribute("cy", String(y));
+        ring.setAttribute("r", "4");
+        ring.setAttribute("class", "map-ping-ring");
+        ring.style.animationDelay = delay;
+        g.appendChild(ring);
+      }
+      g.addEventListener("animationend", () => g.remove());
+      window.setTimeout(() => g.remove(), 1600); // fallback (jsdom fires no animationend)
+      svg.appendChild(g);
     }
 
     const HEADLINE_ICON: Record<string, string> = {
