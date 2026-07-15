@@ -40,6 +40,14 @@ describe("provinceLayer", () => {
     expect(labels).toEqual(["the Grey Fields", "Iron Wastes"]);
   });
 
+  it("gives each province a distinct (id-based) colour, not the biome colour", () => {
+    const g = provinceLayer(grid, provinceOf, provinces);
+    const fills = [...g.querySelectorAll("path.province-fill")];
+    const colors = fills.map((f) => f.getAttribute("fill"));
+    expect(colors[0]).not.toBe(colors[1]);      // neighbouring provinces read as different regions
+    for (const c of colors) expect(c).toMatch(/^hsl\(/); // per-province hue, not the old faint biome hex
+  });
+
   it("skips ocean cells (province -1 contributes no fill)", () => {
     const g = provinceLayer(grid, provinceOf, provinces);
     // total fill paths equal province count (2), never 3 — the ocean cell is not its own fill

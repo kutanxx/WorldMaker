@@ -2,10 +2,15 @@ import type { World } from "../types/world";
 import { svgEl } from "./renderer";
 import { cellPath, segPath } from "./svgPaths";
 import { politicalBorders } from "../engine/borders";
-import { BIOME_COLORS } from "../engine/biome";
 import type { Province } from "../engine/provinces";
 
 type GridLike = Pick<World["grid"], "count" | "polygons" | "neighbors" | "points">;
+
+// EU4-style: a distinct hue per province (golden-angle spacing) so adjacent provinces read as
+// separate regions regardless of biome. Deterministic (id-based) and inline so it survives export.
+function provinceColor(id: number): string {
+  return `hsl(${((id * 137.508) % 360).toFixed(1)}, 45%, 68%)`;
+}
 
 // A dedicated "provinces" view layer: faint per-province biome tint (with a <title> so hovering any
 // province names it), the province borders (same algorithm the political view uses, fed provinceOf),
@@ -28,7 +33,7 @@ export function provinceLayer(
       if (!byProv[prov.id]) continue;
       const path = svgEl("path", {
         class: "province-fill", "data-province": prov.id, d: byProv[prov.id],
-        fill: BIOME_COLORS[prov.biome] ?? "#cbb488", "fill-opacity": 0.18,
+        fill: provinceColor(prov.id), "fill-opacity": 0.7,
       });
       const title = svgEl("title");
       title.textContent = prov.name;
@@ -39,7 +44,7 @@ export function provinceLayer(
 
   g.appendChild(svgEl("path", {
     class: "province-border", d: segPath(politicalBorders(grid, provinceOf)),
-    fill: "none", stroke: "#6b5a3f", "stroke-width": 0.5, "stroke-opacity": 0.7,
+    fill: "none", stroke: "#3c2f1c", "stroke-width": 1.1, "stroke-opacity": 0.9,
   }));
 
   if (labels) {
