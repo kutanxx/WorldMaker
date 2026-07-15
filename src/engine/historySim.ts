@@ -47,7 +47,14 @@ export const GRUDGE_TICKS = 5;  // 50y — grudges decay (Civ VI grievances); mo
 export const REVENGE_MULT = 1.2; // a grudge-holding polity strikes PLAYER cells this much harder while fresh
 
 export const ASCENSION_CAP = 5;          // ladder ceiling — the annals ★ stays comparable
-export const ASCENSION_SOL_DELTA = 0.005; // per level per tick: every rival regenerates this much faster
+// per level per tick: every rival regenerates this much faster. 0.003 (was 0.005): at 0.005 the
+// interior nudge (+0.005·L) cancels SOL_DECAY (0.02) at L=4 and reverses it at L=5, so large
+// empires never fall below CIVILWAR_MAX_ASA — rival civil wars froze (sweep: 18/20 seeds→1/20 at
+// A5) AND an aggressive player was unwinnable (20/20 deaths, 0 cells). 0.003 keeps interior decay
+// negative at every level, so the world stays dynamic (A5 civil wars 12/20) and beatable, at the
+// cost of a flatter A3–A5 lethality ramp. Diminishing-return forms were measured and INVERTED the
+// ramp (A5 easier than A0), so the difficulty could not be decoupled from consolidation.
+export const ASCENSION_SOL_DELTA = 0.003;
 
 export interface Agg { cells: number; power: number; avg: number; }
 

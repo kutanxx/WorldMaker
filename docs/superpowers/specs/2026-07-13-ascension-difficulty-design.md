@@ -64,3 +64,14 @@ Throwaway sweep during implementation (numbers into the report, file deleted): 1
 - **Losses increment too** — punishes retrying, the opposite of the roguelite loop.
 - **Uncapped** — unbalanceable, and the annals ★ comparison loses meaning.
 - **Buffing bot ATTACK instead of cohesion regen** — regen is visible in the border report and meters (honest); a hidden attack multiplier would be another invisible hand.
+
+## Tune addendum 2026-07-15 — `ASCENSION_SOL_DELTA` 0.005 → 0.003
+
+The original ship flagged a watch: at 0.005 the interior nudge (+0.005·L) cancels `SOL_DECAY` (0.02) at L=4 and reverses it at L=5, so large empires stop falling below `CIVILWAR_MAX_ASA` and rival civil wars freeze. A 20-seed sweep (passive + aggressive strategies, full 50 ticks) confirmed it and found a second, worse failure:
+
+| | civil wars @A5 | aggressive player @A5 |
+|---|---|---|
+| **0.005 (was)** | 1/20 seeds — frozen | 0 cells, **20/20 deaths** — unwinnable |
+| **0.003 (now)** | 12/20 seeds — alive | ~79 cells, 2/20 rank-1, 18/20 deaths — hard but beatable |
+
+So at 0.005 the top of the ladder was both static AND unwinnable — the worst combination for a killing-time game. A diminishing-return form (`nudge × (1−sv)`) was also measured; it restored civil wars but **inverted** the lethality ramp (A5 easier than A0), confirming that in this engine "difficulty" is delivered *through* hegemon consolidation and cannot be decoupled from it. 0.003 keeps interior decay negative at every level (L=5: −0.02+0.015 = −0.005), so the world stays dynamic and beatable. Accepted cost: the A3–A5 lethality ramp flattens (passive deaths 9/8/9) — a livelier, beatable world was judged better than a harder static wall. The `5 * ASCENSION_SOL_DELTA` delta test references the constant symbolically, so it stays green at either value.
