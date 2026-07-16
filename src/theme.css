@@ -108,6 +108,9 @@ svg.world .legend { pointer-events: none; }
   display: flex; justify-content: space-between; align-items: center; gap: 12px;
   width: 100%; max-width: 900px; margin: 0 auto; padding: 10px 2px 0;
 }
+/* pull the "국가를 선택하세요" title up close to the home/language bar (only on the picker, where the
+   bar precedes it — the map tool's stand-alone WorldMaker title keeps its normal spacing). */
+.picker-topbar + .app-title { padding-top: 4px; }
 .landing {
   max-width: 760px; margin: 0 auto; padding: 26px 16px 44px;
   display: flex; gap: 22px; flex-wrap: wrap; justify-content: center; align-items: stretch;
