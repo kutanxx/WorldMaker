@@ -44,6 +44,15 @@ describe("playApp", () => {
     expect(home!.textContent).toMatch(/Home|홈/);
   });
 
+  it("renders a challenges row with a chip per fixed challenge on the play screen", () => {
+    const root = document.createElement("div");
+    createPlayApp(root, 1);
+    (root.querySelector(".nation-choice") as HTMLButtonElement).click();
+    const row = root.querySelector(".challenges");
+    expect(row).not.toBeNull();
+    expect(row!.querySelectorAll(".challenge-chip").length).toBe(3);
+  });
+
   it("shows a nation picker, then mounts the play screen on selection", () => {
     const root = document.createElement("div");
     createPlayApp(root, 1);

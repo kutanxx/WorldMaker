@@ -229,6 +229,13 @@ svg.world .legend { pointer-events: none; }
 /* standing panel: momentum headline + two health meters + threat line */
 .goals { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 12px; color: #5a4a34; margin: 2px 0 4px; }
 .goal-chip { border: 1px solid rgba(42, 33, 24, 0.25); border-radius: 10px; padding: 2px 8px; white-space: nowrap; cursor: help; }
+.challenges { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 4px; }
+.challenge-chip {
+  font-size: 12px; padding: 3px 8px; border-radius: 10px;
+  background: #efe6cf; border: 1px solid #cbb784; color: #4a3f2c;
+}
+.challenge-chip.done { background: #dcecb9; border-color: #8caa4e; color: #3a4a1a; font-weight: 600; }
+.challenge-chip.failed { opacity: .5; text-decoration: line-through; }
 .momentum { margin: 4px 0; font-weight: 600; color: #3a2f22; }
 .standing { display: flex; flex-direction: column; gap: 3px; margin: 4px 0; }
 .meter { display: flex; justify-content: space-between; gap: 8px; padding: 2px 8px;
@@ -298,7 +305,7 @@ svg.world .legend { pointer-events: none; }
   #play button, #landing button { min-height: 48px; padding: 10px 14px; font-size: 15px; touch-action: manipulation; }
   a.home { min-height: 48px; padding: 10px 14px; font-size: 15px; touch-action: manipulation; }
   .neighbor-chip { min-height: 44px; display: inline-flex; align-items: center; padding: 8px 12px; font-size: 14px; touch-action: manipulation; }
-  .goal-chip { padding: 8px 12px; }
+  .goal-chip, .challenge-chip { padding: 8px 12px; }
   .play-actions .timeline-play { min-width: 48px; }
   .play-actions .timeline-slider { height: 36px; }
   .map-zoom-controls button { min-width: 48px; }

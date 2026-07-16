@@ -24,6 +24,7 @@ import { hashStringToSeed } from "../engine/rng";
 import { dailyName } from "./daily";
 import { installTipStrip } from "./tipStrip";
 import { attachZoomPan, type ZoomPan } from "./zoomPan";
+import { CHALLENGES, type ChallengeCtx } from "./challenges";
 
 const STANCES: Stance[] = ["aggressive", "defensive", "internal"];
 const NEIGHBOR_SHOW = 6;
@@ -179,6 +180,9 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
     let momentum: { gained: number; lost: number; dCohesionDir: -1 | 0 | 1; actionGain: number } | null = null;
     let prosperStreak = 0;
     const highlights: DilemmaOutcome[] = [];
+    const chalCtx: ChallengeCtx = { everAttacked: false, minCellsEver: aggregate(s)[playerPolity]?.cells ?? 0 };
+    const chalDone = new Set<string>();
+    const chalFailed = new Set<string>(); // latches a failed challenge so a later tick can't flip it to done
 
     const howtoBox = document.createElement("div");
     howtoBox.className = "howto-slot";
@@ -186,6 +190,8 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
     panel.className = "play-panel controls";
     const goals = document.createElement("div");
     goals.className = "goals";
+    const challengesRow = document.createElement("div");
+    challengesRow.className = "challenges";
     const dilemmaBox = document.createElement("div");
     dilemmaBox.className = "dilemma controls";
     dilemmaBox.style.display = "none";
@@ -211,7 +217,7 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
     playHome.className = "home play-home";
     playHome.setAttribute("href", "index.html");
     playHome.textContent = playT(lang, "home");
-    side.append(playHome, panel, goals, dilemmaBox, log);
+    side.append(playHome, panel, goals, challengesRow, dilemmaBox, log);
     main.append(stage, actions);
     col.append(side, main);
     root.append(howtoBox, col);
@@ -710,6 +716,35 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
       }
     }
 
+    function renderChallenges(): void {
+      challengesRow.innerHTML = "";
+      if (!s.alive[s.playerPolity] && !over) return;
+      chalCtx.minCellsEver = Math.min(chalCtx.minCellsEver, aggregate(s)[s.playerPolity]?.cells ?? 0);
+      const label = document.createElement("span");
+      label.className = "goals-label";
+      label.textContent = `${playT(lang, "challenges")}:`;
+      challengesRow.appendChild(label);
+      for (const ch of CHALLENGES) {
+        const { state, progress } = ch.evaluate(s, chalCtx, over);
+        if (state === "failed") chalFailed.add(ch.code); // latch failure — a later tick must not flip it to done
+        const failed = chalFailed.has(ch.code);
+        if (state === "done" && !failed && !chalDone.has(ch.code)) {
+          chalDone.add(ch.code); // latch completion + ping the chronicle the first time it lands
+          appendLog(playT(lang, "chalDone").replace("{name}", playT(lang, "chal" + ch.code[0].toUpperCase() + ch.code.slice(1))), true);
+        }
+        const done = chalDone.has(ch.code);
+        const chip = document.createElement("span");
+        chip.className = "challenge-chip" + (done ? " done" : failed ? " failed" : "");
+        const name = playT(lang, "chal" + ch.code[0].toUpperCase() + ch.code.slice(1));
+        const mark = done ? "✓ " : failed ? "✗ " : "";
+        const prog = !done && !failed && progress.cells !== undefined && progress.target !== undefined
+          ? ` ${progress.cells}/${progress.target}` : "";
+        chip.textContent = `${mark}${ch.icon} ${name}${prog}`;
+        chip.title = playT(lang, "tipChal" + ch.code[0].toUpperCase() + ch.code.slice(1));
+        challengesRow.appendChild(chip);
+      }
+    }
+
     function renderActions(): void {
       // game over: the command bar belongs to the replay scrubber now. renderReplayBar() clears
       // `actions` and preserves the current frame itself — bail before the innerHTML wipe below,
@@ -758,6 +793,9 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
         dot.title = playT(lang, "advanceAlertTip");
         advance.appendChild(dot);
       }
+      // pre-listener (runs before the verbatim handler, while pendingAction is still set): a committed
+      // attack fails the Bloodless challenge. Kept OUT of the verbatim block on purpose.
+      advance.addEventListener("click", () => { if (pendingAction?.type === "attack") chalCtx.everAttacked = true; });
       // --- BEGIN verbatim advance handler (do not modify; sanctioned amendments: [1] the momentum
       //     capture, battle report 07-12; [2] passing e.cell to appendLog for chronicle→map ping 07-15) ---
       advance.addEventListener("click", () => {
@@ -879,10 +917,10 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
       }
     }
 
-    function renderAll(): void { renderMap(); renderPanel(); renderGoals(); renderActions(); renderDilemma(); renderHowto(); renderLegend(); }
+    function renderAll(): void { renderMap(); renderPanel(); renderGoals(); renderChallenges(); renderActions(); renderDilemma(); renderHowto(); renderLegend(); }
 
     // a picked-but-uncommitted action must repaint the meters/goals too, not just map+bar
-    function renderPending(): void { renderMap(); renderPanel(); renderGoals(); renderActions(); }
+    function renderPending(): void { renderMap(); renderPanel(); renderGoals(); renderChallenges(); renderActions(); }
 
     // re-render the live screen in the current language (keeps the accumulated log)
     function rerender(): void {
