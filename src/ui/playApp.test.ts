@@ -945,6 +945,36 @@ describe("playApp", () => {
     expect(map.querySelector(`[data-polity="${pid}"]`)).toBe(afterFirst); // no rebuild ⇒ stable target
   });
 
+  it("on touch, tapping a nation arms it (highlight + confirm) instead of starting the reign", () => {
+    const root = document.createElement("div");
+    createPlayApp(root, 1);
+    const mapBox = root.querySelector(".picker-map")!;
+    const confirm = mapBox.querySelector(".picker-confirm") as HTMLButtonElement;
+    expect(confirm).not.toBeNull();
+    expect(confirm.style.display).toBe("none"); // hidden until a nation is armed
+    const region = mapBox.querySelector("[data-polity]") as SVGElement;
+    // simulate a touch gesture: a touch pointerdown, then the click it produces
+    const pd = new Event("pointerdown", { bubbles: true }); (pd as unknown as { pointerType: string }).pointerType = "touch";
+    region.dispatchEvent(pd);
+    region.dispatchEvent(new Event("click", { bubbles: true }));
+    expect(root.querySelector(".nation-choice")).not.toBeNull();   // still on the picker (NOT started)
+    expect(confirm.style.display).not.toBe("none");                // confirm button now shown
+    expect(mapBox.querySelectorAll(`[fill="${PLAYER_COLOR}"]`).length).toBeGreaterThan(0); // nation highlighted
+  });
+
+  it("on touch, the confirm button starts the armed reign", () => {
+    const root = document.createElement("div");
+    createPlayApp(root, 1);
+    const mapBox = root.querySelector(".picker-map")!;
+    const region = mapBox.querySelector("[data-polity]") as SVGElement;
+    const pd = new Event("pointerdown", { bubbles: true }); (pd as unknown as { pointerType: string }).pointerType = "touch";
+    region.dispatchEvent(pd);
+    region.dispatchEvent(new Event("click", { bubbles: true })); // arm
+    (root.querySelector(".picker-confirm") as HTMLButtonElement).click(); // confirm
+    expect(root.querySelector("svg.world")).not.toBeNull();  // play screen mounted
+    expect(root.querySelector(".nation-choice")).toBeNull(); // picker gone
+  });
+
   it("nation card sub uses the friendly 칸/tiles unit, not 셀/cells", () => {
     const root = document.createElement("div");
     createPlayApp(root, 1);

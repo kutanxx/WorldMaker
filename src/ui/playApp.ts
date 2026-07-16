@@ -90,25 +90,51 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
         ...(hoverId >= 0 ? { playerPolity: hoverId, playerColor: PLAYER_COLOR } : {}),
       }));
     };
+    // repaint the highlight ONLY when the shown nation CHANGES. Repainting on every mouseover replaces
+    // the path under the cursor and the browser re-fires mouseover on the fresh element → endless churn
+    // that detaches the click target mid-gesture (real clicks never resolve). So guard every repaint.
+    let shownId = -1;
+    const show = (id: number) => { if (id !== shownId) { shownId = id; paintMini(id); } };
     paintMini(-1);
     mapBox.appendChild(mapSvg);
-    // the map is also a selector: click a nation's region to start, hover to highlight it (mirrors
-    // the cards). politicalLayer paints one [data-polity] path per polity; delegation survives the
-    // paintMini repaints. Only playable nations (the ones the cards list) respond.
+    // touch has no hover, so a tap can't preview a nation before committing. On touch, map selection
+    // is two-step: first tap ARMS the nation (highlight + this confirm button), a second tap (or the
+    // button) starts. Hidden until a nation is armed.
+    const confirmBtn = document.createElement("button");
+    confirmBtn.className = "picker-confirm";
+    confirmBtn.style.display = "none";
+    mapBox.appendChild(confirmBtn);
+
+    // the map is also a selector: a nation's region highlights (hover on mouse, tap on touch) then
+    // starts. politicalLayer paints one [data-polity] path per polity; delegation survives the repaints.
+    // Only playable nations (the ones the cards list) respond.
     const playableIds = new Set(nationsByCells.map((n) => n.p.id));
+    const nameOf = (id: number) => polities0.find((p) => p.id === id)?.name ?? "";
     const polityUnder = (e: Event): number => {
       const el = (e.target as Element | null)?.closest?.("[data-polity]");
       const id = el ? Number(el.getAttribute("data-polity")) : -1;
       return playableIds.has(id) ? id : -1;
     };
-    // hover repaints the fills to highlight; only when the hovered nation CHANGES. Repainting on
-    // every mouseover replaces the path under the cursor, and the browser then re-fires mouseover on
-    // the fresh element → an endless repaint churn that also detaches the click target mid-gesture,
-    // so real clicks never resolve (the delegated click lands on the svg, not a [data-polity] path).
-    let hoverId = -1;
-    mapBox.addEventListener("mouseover", (e) => { const id = polityUnder(e); if (id >= 0 && id !== hoverId) { hoverId = id; paintMini(id); } });
-    mapBox.addEventListener("mouseleave", () => { if (hoverId !== -1) { hoverId = -1; paintMini(-1); } });
-    mapBox.addEventListener("click", (e) => { const id = polityUnder(e); if (id >= 0) startGame(id); });
+    // mouse keeps its one-click-start (hover already previews the nation); touch gets the two-step
+    // above. We tell them apart by the pointer type of the gesture that produced the click.
+    let selectedId = -1;         // the armed nation (touch flow)
+    let lastPointerTouch = false;
+    mapBox.addEventListener("pointerdown", (e) => { lastPointerTouch = (e as PointerEvent).pointerType === "touch"; });
+    const arm = (id: number) => {
+      selectedId = id;
+      show(id);
+      confirmBtn.textContent = playT(lang, "startRealm").replace("{name}", nameOf(id));
+      confirmBtn.style.display = "";
+    };
+    mapBox.addEventListener("mouseover", (e) => { const id = polityUnder(e); if (id >= 0) show(id); });
+    mapBox.addEventListener("mouseleave", () => show(selectedId)); // revert to the armed nation, or none
+    mapBox.addEventListener("click", (e) => {
+      const id = polityUnder(e);
+      if (id < 0) return;
+      if (!lastPointerTouch || id === selectedId) return startGame(id); // mouse starts now; a touch RE-tap confirms
+      arm(id); // touch first tap: highlight + reveal the confirm button
+    });
+    confirmBtn.addEventListener("click", () => { if (selectedId >= 0) startGame(selectedId); });
     const row = document.createElement("div");
     row.className = "picker-row";
     row.append(mapBox, picker); // map is the centered hero; the cards sit below it

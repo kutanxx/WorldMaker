@@ -56,7 +56,7 @@ export function t(lang: Lang, key: string): string {
 // --- Version B play screen (empire sim) ---
 export const PLAY_UI: Record<Lang, Record<string, string>> = {
   en: {
-    chooseRealm: "Choose your realm", home: "🏠 Home", cells: "tiles", cohesion: "stability", threats: "threats",
+    chooseRealm: "Choose your realm", home: "🏠 Home", startRealm: "▶ Begin as {name}", cells: "tiles", cohesion: "stability", threats: "threats",
     diffEasy: "easy", diffNormal: "normal", diffHard: "hard",
     civilWarRisk: "civil-war risk", fallen: "fallen",
     aggressive: "aggressive", defensive: "defensive", internal: "internal",
@@ -122,7 +122,7 @@ export const PLAY_UI: Record<Lang, Record<string, string>> = {
     factIAttacked: "you attacked them {n} turns ago · grudge", factIAttackedNow: "you attacked them this turn · grudge",
   },
   ko: {
-    chooseRealm: "국가를 선택하세요", home: "🏠 홈", cells: "칸", cohesion: "안정도", threats: "위협",
+    chooseRealm: "국가를 선택하세요", home: "🏠 홈", startRealm: "▶ {name}(으)로 시작", cells: "칸", cohesion: "안정도", threats: "위협",
     diffEasy: "쉬움", diffNormal: "보통", diffHard: "어려움",
     civilWarRisk: "내전 위험", fallen: "멸망",
     aggressive: "공격적", defensive: "방어적", internal: "내치",
