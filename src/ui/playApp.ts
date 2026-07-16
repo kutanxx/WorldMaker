@@ -115,7 +115,11 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
     home.className = "home";
     home.setAttribute("href", "index.html");
     home.textContent = playT(lang, "home");
-    root.append(title, home, langButton(renderPicker), row);
+    // a top bar so home (left) and the language toggle (right) sit apart, not cramped together
+    const topbar = document.createElement("div");
+    topbar.className = "picker-topbar";
+    topbar.append(home, langButton(renderPicker));
+    root.append(topbar, title, row);
     const maxCells = nationsByCells[0]?.cells || 1;
     for (const { p, cells } of nationsByCells) {
       const b = document.createElement("button");

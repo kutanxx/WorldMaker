@@ -25,6 +25,15 @@ describe("playApp", () => {
     expect(home!.textContent).toMatch(/Home|홈/);
   });
 
+  it("groups the picker's home and language buttons in one aligned top bar", () => {
+    const root = document.createElement("div");
+    createPlayApp(root, 1);
+    const bar = root.querySelector(".picker-topbar");
+    expect(bar).not.toBeNull();
+    expect(bar!.querySelector("a.home")).not.toBeNull();
+    expect(bar!.querySelector(".lang-toggle")).not.toBeNull();
+  });
+
   it("in-game play screen also has a home link back to the landing chooser", () => {
     const root = document.createElement("div");
     createPlayApp(root, 1);
