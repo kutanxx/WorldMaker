@@ -158,6 +158,7 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
           `${playT(lang, "legacyReignN").replace("{n}", String(e.n))} · ${e.nation} · ` +
           `${ICON[e.kind] ?? "•"} ${playYear(lang, e.year)} — "${playLegacyEpitaph(lang, e.epitaph.code, e.epitaph.data)}"` +
           (e.asc ? ` ⬆${e.asc}` : "") +
+          (e.challenges?.length ? " " + "🏅".repeat(e.challenges.length) : "") +
           star;
         panel.appendChild(row);
       }

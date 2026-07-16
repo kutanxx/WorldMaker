@@ -1009,6 +1009,23 @@ describe("playApp", () => {
     }
   });
 
+  it("shows a challenge medal in the picker annals for reigns that completed one", () => {
+    const store = new Map<string, string>();
+    vi.spyOn(Storage.prototype, "getItem").mockImplementation((k: string) => store.get(k) ?? null);
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation((k: string, v: string) => void store.set(k, v));
+    store.set("wm:legacy:1", JSON.stringify([{
+      v: 1, n: 1, nation: "A335", kind: "endurance", cause: "", year: 500, peakCells: 40, citiesFounded: 2,
+      epitaph: { code: "epiEndured", data: {} }, challenges: ["bloodless", "blitz"],
+    }]));
+    const root = document.createElement("div");
+    createPlayApp(root, 1);
+    const annals = root.querySelector(".legacy-row");
+    expect(annals).not.toBeNull();
+    expect(annals!.textContent).toContain("🏅");
+    vi.restoreAllMocks();
+  });
+
+
   describe("chronicle → map ping", () => {
     // advance (passively) until a positioned event lands in the log, or the reign ends
     function playUntilPingable(root: HTMLElement): HTMLElement | null {
