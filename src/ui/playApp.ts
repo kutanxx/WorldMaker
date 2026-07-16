@@ -200,7 +200,14 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
     side.className = "play-side";
     const main = document.createElement("div");
     main.className = "play-main";
-    side.append(panel, goals, dilemmaBox, log);
+    // home link back to the landing chooser: prepended to the info rail (built once, so it survives
+    // the panel/goals/log re-renders during play). Leaving mid-reign abandons the run — fine, this is
+    // a one-sitting game with no save. Relative href for the Pages /WorldMaker/ subpath.
+    const playHome = document.createElement("a");
+    playHome.className = "home play-home";
+    playHome.setAttribute("href", "index.html");
+    playHome.textContent = playT(lang, "home");
+    side.append(playHome, panel, goals, dilemmaBox, log);
     main.append(stage, actions);
     col.append(side, main);
     root.append(howtoBox, col);

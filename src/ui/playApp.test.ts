@@ -25,6 +25,16 @@ describe("playApp", () => {
     expect(home!.textContent).toMatch(/Home|홈/);
   });
 
+  it("in-game play screen also has a home link back to the landing chooser", () => {
+    const root = document.createElement("div");
+    createPlayApp(root, 1);
+    (root.querySelector(".nation-choice") as HTMLButtonElement).click();
+    const home = root.querySelector(".play-shell a.home");
+    expect(home).not.toBeNull();
+    expect(home!.getAttribute("href")).toBe("index.html");
+    expect(home!.textContent).toMatch(/Home|홈/);
+  });
+
   it("shows a nation picker, then mounts the play screen on selection", () => {
     const root = document.createElement("div");
     createPlayApp(root, 1);
