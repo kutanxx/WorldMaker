@@ -67,4 +67,18 @@ describe("ascensionLevel", () => {
     recordReign(7, { nation: "X", kind: "endurance", cause: "", year: 500, peakCells: 10, citiesFounded: 0, epitaph: { code: "epiEndured", data: {} }, asc: 3 }, store);
     expect(loadLegacy(7, store)[0].asc).toBe(3);
   });
+
+  it("round-trips the optional challenges field, and old rows without it still load", () => {
+    const store = new Map<string, string>();
+    const storage = { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => void store.set(k, v) };
+    recordReign(7, {
+      nation: "A335", kind: "endurance", cause: "", year: 500, peakCells: 40, citiesFounded: 2,
+      epitaph: { code: "epiEndured", data: {} }, challenges: ["bloodless", "blitz"],
+    }, storage);
+    const got = loadLegacy(7, storage);
+    expect(got[0].challenges).toEqual(["bloodless", "blitz"]);
+    // a legacy row saved before this field existed still loads (challenges === undefined)
+    store.set("wm:legacy:8", JSON.stringify([{ v: 1, n: 1, nation: "Old", kind: "defeat", cause: "X", year: 100, peakCells: 5, citiesFounded: 0, epitaph: { code: "epiFallen", data: { name: "X" } } }]));
+    expect(loadLegacy(8, storage)[0].challenges).toBeUndefined();
+  });
 });

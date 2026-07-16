@@ -22,6 +22,7 @@ export interface LegacyEntry {
   peakCells: number;
   citiesFounded: number;
   asc?: number;                 // ascension level the run was played at (absent for A0 / legacy rows)
+  challenges?: string[];        // codes of micro-challenges completed this reign (absent = none)
   epitaph: { code: EpitaphCode; data: Record<string, string | number> };
 }
 
