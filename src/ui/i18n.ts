@@ -38,14 +38,14 @@ export const UI: Record<Lang, Record<string, string>> = {
     exportPng: "Export PNG", exportSvg: "Export SVG", gazetteer: "Gazetteer",
     terrain: "Terrain", political: "Political", culture: "Culture", province: "Provinces",
     backToWorld: "Back to world", water: "Water", mainRoad: "Main road",
-    compassN: "N", langToggle: "한국어",
+    compassN: "N", langToggle: "한국어", home: "🏠 Home",
   },
   ko: {
     generate: "생성", randomSeed: "랜덤 시드", exportJson: "JSON 내보내기",
     exportPng: "PNG 내보내기", exportSvg: "SVG 내보내기", gazetteer: "가제티어",
     terrain: "지형", political: "정치", culture: "문화", province: "영토",
     backToWorld: "지도로 돌아가기", water: "물", mainRoad: "큰길",
-    compassN: "북", langToggle: "EN",
+    compassN: "북", langToggle: "EN", home: "🏠 홈",
   },
 };
 
@@ -56,7 +56,7 @@ export function t(lang: Lang, key: string): string {
 // --- Version B play screen (empire sim) ---
 export const PLAY_UI: Record<Lang, Record<string, string>> = {
   en: {
-    chooseRealm: "Choose your realm", cells: "tiles", cohesion: "stability", threats: "threats",
+    chooseRealm: "Choose your realm", home: "🏠 Home", cells: "tiles", cohesion: "stability", threats: "threats",
     diffEasy: "easy", diffNormal: "normal", diffHard: "hard",
     civilWarRisk: "civil-war risk", fallen: "fallen",
     aggressive: "aggressive", defensive: "defensive", internal: "internal",
@@ -117,7 +117,7 @@ export const PLAY_UI: Record<Lang, Record<string, string>> = {
     factIAttacked: "you attacked them {n} turns ago · grudge", factIAttackedNow: "you attacked them this turn · grudge",
   },
   ko: {
-    chooseRealm: "국가를 선택하세요", cells: "칸", cohesion: "안정도", threats: "위협",
+    chooseRealm: "국가를 선택하세요", home: "🏠 홈", cells: "칸", cohesion: "안정도", threats: "위협",
     diffEasy: "쉬움", diffNormal: "보통", diffHard: "어려움",
     civilWarRisk: "내전 위험", fallen: "멸망",
     aggressive: "공격적", defensive: "방어적", internal: "내치",

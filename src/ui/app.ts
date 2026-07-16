@@ -45,6 +45,9 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
   let lang: Lang = detectLang();
   let openCityId: number | null = null; // which screen is showing (null = world)
 
+  const homeBtn = document.createElement("a"); // back to the landing chooser (index.html — relative for the Pages subpath)
+  homeBtn.className = "home";
+  homeBtn.setAttribute("href", "index.html");
   const seedInput = document.createElement("input");
   seedInput.type = "number";
   seedInput.value = String(params.seed);
@@ -65,10 +68,11 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
   const cultureBtn = document.createElement("button");
   const provinceBtn = document.createElement("button");
   viewToggle.append(terrainBtn, politicalBtn, cultureBtn, provinceBtn);
-  controls.append(seedInput, regenBtn, randomBtn, jsonBtn, pngBtn, svgBtn, gazBtn, viewToggle, langBtn);
+  controls.append(homeBtn, seedInput, regenBtn, randomBtn, jsonBtn, pngBtn, svgBtn, gazBtn, viewToggle, langBtn);
 
   // set every UI string from the current language (called on init and on language toggle)
   function applyLang(): void {
+    homeBtn.textContent = t(lang, "home");
     regenBtn.textContent = t(lang, "generate");
     randomBtn.textContent = "🎲 " + t(lang, "randomSeed");
     jsonBtn.textContent = t(lang, "exportJson");

@@ -58,6 +58,14 @@ describe("createApp", () => {
     expect(Number.isInteger(Number(seedInput.value))).toBe(true);
     expect(root.querySelector("svg.world")).not.toBeNull();
   });
+  it("has a home link in the controls that returns to the landing chooser", () => {
+    const root = document.createElement("div");
+    createApp(root, small);
+    const home = root.querySelector(".controls a.home");
+    expect(home).not.toBeNull();
+    expect(home!.getAttribute("href")).toBe("index.html");
+    expect(home!.textContent).toMatch(/Home|홈/);
+  });
   it("shows a timeline and a political layer over the world", () => {
     const root = document.createElement("div");
     createApp(root, small);

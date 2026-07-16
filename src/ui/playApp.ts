@@ -111,7 +111,11 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
     const row = document.createElement("div");
     row.className = "picker-row";
     row.append(mapBox, picker); // map is the centered hero; the cards sit below it
-    root.append(title, langButton(renderPicker), row);
+    const home = document.createElement("a"); // back to the landing chooser (relative for the Pages subpath)
+    home.className = "home";
+    home.setAttribute("href", "index.html");
+    home.textContent = playT(lang, "home");
+    root.append(title, home, langButton(renderPicker), row);
     const maxCells = nationsByCells[0]?.cells || 1;
     for (const { p, cells } of nationsByCells) {
       const b = document.createElement("button");

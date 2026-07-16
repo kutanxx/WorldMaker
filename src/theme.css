@@ -25,6 +25,14 @@ button, input {
 }
 button:hover { background: #e7d9b6; }
 input[type=number] { width: 88px; cursor: text; }
+/* home link (back to the landing chooser): styled to sit among the controls buttons, but a touch
+   warmer so it reads as "leave this screen" rather than an action. Anchor, so it navigates natively. */
+a.home {
+  padding: 5px 10px; font-family: inherit; font-size: 14px; color: #3c2f1c; text-decoration: none;
+  background: #efdcb4; border: 1px solid #b7a071; border-radius: 4px; cursor: pointer;
+  display: inline-flex; align-items: center; line-height: 1.4;
+}
+a.home:hover { background: #e7cf9c; }
 .stage {
   position: relative;
   background: #f6efdd; border: 1px solid #cbb784; border-radius: 6px; padding: 10px;
@@ -279,6 +287,7 @@ svg.world .legend { pointer-events: none; }
    13px button copy read as "tall but tiny" — so text scales up with the box. */
 @media (pointer: coarse) {
   #play button, #landing button { min-height: 48px; padding: 10px 14px; font-size: 15px; touch-action: manipulation; }
+  a.home { min-height: 48px; padding: 10px 14px; font-size: 15px; touch-action: manipulation; }
   .neighbor-chip { min-height: 44px; display: inline-flex; align-items: center; padding: 8px 12px; font-size: 14px; touch-action: manipulation; }
   .goal-chip { padding: 8px 12px; }
   .play-actions .timeline-play { min-width: 48px; }
