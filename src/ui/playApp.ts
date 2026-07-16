@@ -181,7 +181,8 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
     let momentum: { gained: number; lost: number; dCohesionDir: -1 | 0 | 1; actionGain: number } | null = null;
     let prosperStreak = 0;
     const highlights: DilemmaOutcome[] = [];
-    const chalCtx: ChallengeCtx = { everAttacked: false, minCellsEver: aggregate(s)[playerPolity]?.cells ?? 0 };
+    const chalStart = aggregate(s)[playerPolity]?.cells ?? 0;
+    const chalCtx: ChallengeCtx = { everAttacked: false, minCellsEver: chalStart, startCells: chalStart };
     const chalDone = new Set<string>();
     const chalFailed = new Set<string>(); // latches a failed challenge so a later tick can't flip it to done
 
