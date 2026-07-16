@@ -53,6 +53,27 @@ describe("playApp", () => {
     expect(row!.querySelectorAll(".challenge-chip").length).toBe(3);
   });
 
+  it("records a completed challenge (bloodless) in the legacy entry at reign end", () => {
+    const store = new Map<string, string>();
+    const spy = vi.spyOn(Storage.prototype, "setItem").mockImplementation((k: string, v: string) => void store.set(k, v));
+    vi.spyOn(Storage.prototype, "getItem").mockImplementation((k: string) => store.get(k) ?? null);
+    const root = document.createElement("div");
+    createPlayApp(root, 1);
+    (root.querySelector(".nation-choice") as HTMLButtonElement).click();
+    // advance to the end WITHOUT ever choosing an attack → bloodless completes on the endurance ending
+    for (let i = 0; i < 60; i++) {
+      const adv = root.querySelector(".btn-advance") as HTMLButtonElement | null;
+      if (!adv) break;
+      adv.click();
+    }
+    const raw = store.get("wm:legacy:1");
+    expect(raw).toBeTruthy();
+    const entry = JSON.parse(raw!)[0];
+    expect(entry.challenges).toContain("bloodless");
+    spy.mockRestore();
+    vi.restoreAllMocks();
+  });
+
   it("shows a nation picker, then mounts the play screen on selection", () => {
     const root = document.createElement("div");
     createPlayApp(root, 1);

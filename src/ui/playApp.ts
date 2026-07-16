@@ -999,6 +999,7 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
       defeatCause = cause;
       dilemma = null;
       const sc = scorecard(s);
+      renderChallenges(); // final pass: latches end-of-reign completions (e.g. bloodless) into chalDone
       recordReign(seed, {
         nation: s.polities[s.playerPolity].name,
         kind, cause,
@@ -1007,6 +1008,7 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
         citiesFounded: sc.citiesFounded,
         epitaph: composeEpitaph(kind, cause, highlights),
         ...(s.ascension > 0 ? { asc: s.ascension } : {}),
+        ...(chalDone.size ? { challenges: [...chalDone] } : {}),
       });
       renderReplayBar(); // drop the live overlays: the war is over, the atlas remains (setIndex repaints the map)
       renderPanel();
