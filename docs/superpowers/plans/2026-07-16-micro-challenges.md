@@ -322,6 +322,7 @@ import { CHALLENGES, type ChallengeCtx } from "./challenges";
 ```ts
     const chalCtx: ChallengeCtx = { everAttacked: false, minCellsEver: aggregate(s)[playerPolity]?.cells ?? 0 };
     const chalDone = new Set<string>();
+    const chalFailed = new Set<string>(); // latches a failed challenge so a later tick can't flip it to done
 ```
 
 (c) Create the `.challenges` element alongside `goals` (~line 187) and append it to the info rail right after `goals`. Change the `side.append(...)` line to include it:
@@ -358,12 +359,18 @@ and update the info-rail append (the existing `side.append(playHome, panel, goal
       challengesRow.appendChild(label);
       for (const ch of CHALLENGES) {
         const { state, progress } = ch.evaluate(s, chalCtx, over);
-        const done = chalDone.has(ch.code) || state === "done"; // chalDone latches completion
+        if (state === "failed") chalFailed.add(ch.code); // latch failure — a later tick must not flip it to done
+        const failed = chalFailed.has(ch.code);
+        if (state === "done" && !failed && !chalDone.has(ch.code)) {
+          chalDone.add(ch.code); // latch completion + ping the chronicle the first time it lands
+          appendLog(playT(lang, "chalDone").replace("{name}", playT(lang, "chal" + ch.code[0].toUpperCase() + ch.code.slice(1))), true);
+        }
+        const done = chalDone.has(ch.code);
         const chip = document.createElement("span");
-        chip.className = "challenge-chip" + (done ? " done" : state === "failed" ? " failed" : "");
+        chip.className = "challenge-chip" + (done ? " done" : failed ? " failed" : "");
         const name = playT(lang, "chal" + ch.code[0].toUpperCase() + ch.code.slice(1));
-        const mark = done ? "✓ " : state === "failed" ? "✗ " : "";
-        const prog = !done && state === "active" && progress.cells !== undefined && progress.target !== undefined
+        const mark = done ? "✓ " : failed ? "✗ " : "";
+        const prog = !done && !failed && progress.cells !== undefined && progress.target !== undefined
           ? ` ${progress.cells}/${progress.target}` : "";
         chip.textContent = `${mark}${ch.icon} ${name}${prog}`;
         chip.title = playT(lang, "tipChal" + ch.code[0].toUpperCase() + ch.code.slice(1));
@@ -371,6 +378,8 @@ and update the info-rail append (the existing `side.append(playHome, panel, goal
       }
     }
 ```
+
+Note: `chalFailed` latches `failed` so blitz cannot flip from failed→done after the deadline; `chalDone` latches completion and pings the chronicle once. The `appendLog(... "chalDone" ...)` call means the completion ping is implemented here (Task 4 no longer adds it).
 
 (f) Wire it into the render aggregators. Change `renderAll` (~line 882) and `renderPending` (~line 885) to call it after `renderGoals()`:
 
@@ -456,20 +465,11 @@ it("records a completed challenge (bloodless) in the legacy entry at reign end",
 Run: `npx vitest run src/ui/playApp.test.ts -t "records a completed challenge"`
 Expected: FAIL — `entry.challenges` is undefined (not yet wired).
 
-- [ ] **Step 3: Implement the ping and the record**
+- [ ] **Step 3: Record completed challenges at reign end**
 
-(a) In `renderChallenges` (Task 3e), inside the `for (const ch of CHALLENGES)` loop, add a completion-ping block IMMEDIATELY BEFORE the existing `const done = chalDone.has(ch.code) || state === "done";` line, so the chronicle pings the first time a challenge newly completes:
+The completion chronicle ping is already implemented in `renderChallenges` (Task 3). This step only finalizes and records.
 
-```ts
-        if (state === "done" && !chalDone.has(ch.code)) {
-          chalDone.add(ch.code);
-          appendLog(playT(lang, "chalDone").replace("{name}", playT(lang, "chal" + ch.code[0].toUpperCase() + ch.code.slice(1))), true);
-        }
-```
-
-The `const done = chalDone.has(ch.code) || state === "done";` line stays exactly as written in Task 3.
-
-(b) In `end()` (~line 958), BEFORE the `recordReign(...)` call, evaluate challenges one final time so Bloodless (which only completes on a non-defeat ending) is latched, then pass the set. Add `renderChallenges();` right after `const sc = scorecard(s);`, and add the `challenges` field to the `recordReign` object:
+In `end()` (~line 958), BEFORE the `recordReign(...)` call, run `renderChallenges()` one final time so Bloodless (which only completes on a non-defeat ending, when `over` is true) is latched into `chalDone`, then pass the set. Add `renderChallenges();` right after `const sc = scorecard(s);`, and add the `challenges` field to the `recordReign` object:
 
 ```ts
       const sc = scorecard(s);
