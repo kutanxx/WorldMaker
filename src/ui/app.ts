@@ -13,7 +13,7 @@ import { createTimeline, type Timeline } from "./timeline";
 import { attachZoomPan, type ZoomPan } from "./zoomPan";
 import { politicalLayer } from "./politicalLayer";
 import { cultureLayer } from "./cultureLayer";
-import { provinceLayer } from "./provinceLayer";
+import { provinceLayer, snapOwnersToProvinces } from "./provinceLayer";
 import { deconflictLabels } from "./deconflict";
 import { type Lang, t } from "./i18n";
 import { detectLang, saveLang } from "./lang";
@@ -133,7 +133,9 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
         // provinces are geography (time-independent); nation borders track the scrubbed year via snap.owner
         slot.replaceChildren(provinceLayer(world.grid, world.provinceOf, world.provinces, { owner: snap.owner }));
       } else {
-        slot.replaceChildren(politicalLayer(world.grid, snap.owner, history.polities, politicalOpts(currentView)));
+        // nation ownership snapped to whole provinces so terrain/political borders match the province view
+        const snapped = snapOwnersToProvinces(world.grid.count, world.provinceOf, world.provinces, snap.owner);
+        slot.replaceChildren(politicalLayer(world.grid, snapped, history.polities, politicalOpts(currentView)));
       }
       applyChronicleYear(chronicle, snap.year);
       deconflictLabels(svg); // hide colliding lower-priority labels after the year's labels are in place

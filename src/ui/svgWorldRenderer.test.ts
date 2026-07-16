@@ -3,6 +3,9 @@ import { describe, it, expect } from "vitest";
 import { generateWorld } from "../engine/world";
 import { DEFAULT_PARAMS } from "../types/world";
 import { renderWorld } from "./svgWorldRenderer";
+import { politicalBorders } from "../engine/borders";
+import { segPath } from "./svgPaths";
+import { snapOwnersToProvinces } from "./provinceLayer";
 
 describe("renderWorld biomes", () => {
   const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });
@@ -78,6 +81,16 @@ describe("renderWorld political view", () => {
   it("is self-contained for export: biomes muted inline, no biome legend", () => {
     expect(svg.querySelector(".biomes")?.getAttribute("opacity")).toBe("0.6");
     expect(svg.querySelectorAll(".biome-legend").length).toBe(0);
+  });
+  it("snaps nation borders to province edges in political & terrain views (whole-province ownership)", () => {
+    const snapped = snapOwnersToProvinces(world.grid.count, world.provinceOf, world.provinces, world.polityOf);
+    const expected = segPath(politicalBorders(world.grid, snapped));
+    const cellBased = segPath(politicalBorders(world.grid, world.polityOf));
+    expect(expected).not.toBe(cellBased); // provinces straddle raw polity edges, so snapping actually moves the border
+    for (const view of ["political", "terrain"] as const) {
+      const d = renderWorld(world, view).querySelector("path.border")?.getAttribute("d");
+      expect(d).toBe(expected);
+    }
   });
 });
 

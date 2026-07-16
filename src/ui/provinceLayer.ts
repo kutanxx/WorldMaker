@@ -33,6 +33,19 @@ export function provinceOwners(
   });
 }
 
+// per-cell ownership SNAPPED to whole provinces: every cell takes its province's majority owner
+// (via provinceOwners); ocean / province-less cells stay -1. Feed this to politicalBorders /
+// politicalLayer and the nation borders + fills fall on province edges — the EU4 whole-province
+// model — so every map view (terrain/political/province) agrees on where a country ends.
+export function snapOwnersToProvinces(
+  count: number, provinceOf: ArrayLike<number>, provinces: Province[], owner: ArrayLike<number>,
+): Int32Array {
+  const powners = provinceOwners(provinceOf, provinces, owner);
+  const snapped = new Int32Array(count).fill(-1);
+  for (let c = 0; c < count; c++) { const p = provinceOf[c]; if (p >= 0) snapped[c] = powners[p]; }
+  return snapped;
+}
+
 // A dedicated "provinces" view layer: faint per-province biome tint (with a <title> so hovering any
 // province names it), the province borders (same algorithm the political view uses, fed provinceOf),
 // and province-name labels emitted largest-first so deconflictLabels keeps the biggest on collision.
@@ -73,9 +86,7 @@ export function provinceLayer(
   // province. Drawn BOLD + dark ON TOP of the thin province lines (EU4: fine province mesh + heavy
   // country outlines). In Version A the owner tracks the timeline year.
   if (owner) {
-    const powners = provinceOwners(provinceOf, provinces, owner);
-    const snapped = new Int32Array(grid.count).fill(-1);
-    for (let c = 0; c < grid.count; c++) { const p = provinceOf[c]; if (p >= 0) snapped[c] = powners[p]; }
+    const snapped = snapOwnersToProvinces(grid.count, provinceOf, provinces, owner);
     g.appendChild(svgEl("path", {
       class: "nation-border", d: segPath(politicalBorders(grid, snapped)),
       fill: "none", stroke: "#161009", "stroke-width": 2, "stroke-opacity": 0.95, "stroke-linejoin": "round",

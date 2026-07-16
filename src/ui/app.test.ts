@@ -133,6 +133,20 @@ describe("createApp", () => {
     expect(cityFrame.querySelector(".map-zoom-controls")).not.toBeNull();
   });
 
+  it("draws nation borders at the same place in the political and province views (whole-province ownership)", () => {
+    const root = document.createElement("div");
+    createApp(root, small);
+    const btns = [...root.querySelectorAll(".view-toggle button")] as HTMLButtonElement[];
+    const province = btns.find((b) => /Provinces|영토/.test(b.textContent || ""))!;
+    const political = btns.find((b) => b.textContent === "Political")!;
+    province.click();
+    const provBorder = root.querySelector(".province .nation-border")?.getAttribute("d");
+    political.click();
+    const polBorder = root.querySelector(".political-slot .border")?.getAttribute("d");
+    expect(provBorder).toBeTruthy();
+    expect(polBorder).toBe(provBorder); // same snapped ownership → identical border geometry across views
+  });
+
   it("has a Provinces view toggle that switches the map to the province layer", () => {
     const root = document.createElement("div");
     createApp(root, small);

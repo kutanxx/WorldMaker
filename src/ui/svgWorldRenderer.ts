@@ -6,7 +6,7 @@ import { coastline, type Segment } from "../engine/borders";
 import { cellPath, segPath } from "./svgPaths";
 import { politicalLayer, type PoliticalOpts } from "./politicalLayer";
 import { cultureLayer } from "./cultureLayer";
-import { provinceLayer } from "./provinceLayer";
+import { provinceLayer, snapOwnersToProvinces } from "./provinceLayer";
 
 export type MapView = "terrain" | "political" | "culture" | "province";
 
@@ -94,7 +94,9 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
   slot.appendChild(
     view === "culture" ? cultureLayer(grid, world.cultureOf, world.cultures)
       : view === "province" ? provinceLayer(grid, world.provinceOf, world.provinces, { owner: world.polityOf })
-        : politicalLayer(grid, world.polityOf, world.polities, politicalOpts(view)));
+        // terrain/political: snap nation ownership to whole provinces so borders (and political fills)
+        // fall on province edges — the SAME geometry the province view uses, so views stay consistent.
+        : politicalLayer(grid, snapOwnersToProvinces(grid.count, world.provinceOf, world.provinces, world.polityOf), world.polities, politicalOpts(view)));
   root.appendChild(slot);
 
   // mountain relief: a small peak glyph on each alpine cell so ranges read as mountains rather

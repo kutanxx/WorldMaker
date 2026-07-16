@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from "vitest";
-import { provinceLayer, provinceOwners } from "./provinceLayer";
+import { provinceLayer, provinceOwners, snapOwnersToProvinces } from "./provinceLayer";
 import type { Province } from "../engine/provinces";
 
 // 4 cells in a row (squares), cells 0-1 = province 0, cell 2 = province 1, cell 3 = ocean (-1)
@@ -62,6 +62,12 @@ describe("provinceLayer", () => {
     expect(provinceOwners(provinceOf, provinces, [0, 1, 1, -1])).toEqual([0, 1]);
     // an all-unclaimed province resolves to -1 (no nation)
     expect(provinceOwners(provinceOf, provinces, [-1, -1, 3, -1])).toEqual([-1, 3]);
+  });
+
+  it("snapOwnersToProvinces maps every cell to its province's majority owner (ocean stays -1)", () => {
+    // province 0 = cells 0,1 (owners 0,1 → tie → lower id 0); province 1 = cell 2 (owner 1); cell 3 = ocean
+    const snapped = snapOwnersToProvinces(4, provinceOf, provinces, [0, 1, 1, -1]);
+    expect([...snapped]).toEqual([0, 0, 1, -1]);
   });
 
   it("places a settlement seat dot at each province", () => {
