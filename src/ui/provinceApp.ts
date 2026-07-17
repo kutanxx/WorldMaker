@@ -1,9 +1,11 @@
 import { generateWorld } from "../engine/world";
 import { DEFAULT_PARAMS } from "../types/world";
-import { initProvinceSim, pAggregate, PROVINCE_SIM_TICKS, type ProvinceSimState } from "../engine/provinceSim";
+import {
+  initProvinceSim, pAggregate, PROVINCE_SIM_TICKS, armableTargets, stepPlayerTurn, type ProvinceSimState,
+} from "../engine/provinceSim";
 import { politicalLayer } from "./politicalLayer";
 import { politicalBorders } from "../engine/borders";
-import { segPath } from "./svgPaths";
+import { segPath, cellPath } from "./svgPaths";
 import { PLAYER_COLOR } from "./nationPalette";
 import { svgEl } from "./renderer";
 import { detectLang } from "./lang";
@@ -23,6 +25,8 @@ export function mountProvinceApp(root: HTMLElement, opts: { seed?: number } = {}
   const seed = opts.seed ?? Math.floor(Date.now() % 1_000_000); // non-deterministic seed is fine — UI only
   const world = generateWorld({ ...DEFAULT_PARAMS, seed }).world;
   let ui: UI | null = null; // null = picker mode
+  const targets = new Set<number>();
+  const log: string[] = [];
 
   function playerProvinceCount(u: UI): number {
     let k = 0; for (let p = 0; p < u.s.n; p++) if (u.s.provOwner[p] === u.playerId) k++; return k;
@@ -55,7 +59,29 @@ export function mountProvinceApp(root: HTMLElement, opts: { seed?: number } = {}
     if (!s.alive[playerId]) return; // only live nations are playable
     const startProvinces = (() => { let k = 0; for (let p = 0; p < s.n; p++) if (s.provOwner[p] === playerId) k++; return k; })();
     ui = { world, s, playerId, startProvinces };
+    targets.clear();
+    log.length = 0;
     render();
+  }
+
+  function targetOverlay(u: UI): SVGGElement {
+    const arm = new Set(armableTargets(u.s, u.playerId));
+    const byProv: string[] = u.world.provinces.map(() => "");
+    for (let c = 0; c < u.world.grid.count; c++) {
+      const p = u.world.provinceOf[c];
+      if (p >= 0 && arm.has(p)) byProv[p] += cellPath(u.world.grid.polygons[c]);
+    }
+    const g = svgEl("g", { class: "prov-targets" }) as SVGGElement;
+    for (const prov of u.world.provinces) {
+      if (!byProv[prov.id]) continue;
+      const path = svgEl("path", {
+        class: "prov-target" + (targets.has(prov.id) ? " armed" : ""), "data-province": prov.id,
+        d: byProv[prov.id], fill: targets.has(prov.id) ? "#e8b53a" : "transparent", "fill-opacity": targets.has(prov.id) ? 0.35 : 0,
+        stroke: targets.has(prov.id) ? "#e8b53a" : "none", "stroke-width": 1.5,
+      });
+      g.appendChild(path);
+    }
+    return g;
   }
 
   function hudText(u: UI): string {
@@ -81,6 +107,33 @@ export function mountProvinceApp(root: HTMLElement, opts: { seed?: number } = {}
       hud.className = "prov-hud";
       hud.textContent = hudText(ui);
       root.appendChild(hud);
+
+      map.appendChild(targetOverlay(ui));
+      map.addEventListener("click", (e) => {
+        const el = (e.target as Element | null)?.closest?.(".prov-target");
+        if (!el) return;
+        const p = Number(el.getAttribute("data-province"));
+        if (targets.has(p)) targets.delete(p); else targets.add(p);
+        render();
+      });
+      const bar = document.createElement("div");
+      bar.className = "prov-bar";
+      const advance = document.createElement("button");
+      advance.className = "prov-advance";
+      advance.textContent = lang === "ko" ? "진행 ▶" : "Advance ▶";
+      advance.addEventListener("click", () => {
+        const ev = stepPlayerTurn(ui!.s, ui!.playerId, targets);
+        for (const c of ev.conquests) log.unshift(`${lang === "ko" ? "정복" : "took"} ${ui!.world.provinces[c.prov].name}`);
+        for (const id of ev.eliminated) log.unshift(`${ui!.world.polities[id]?.name ?? id} ${lang === "ko" ? "멸망" : "eliminated"}`);
+        targets.clear();
+        render();
+      });
+      bar.appendChild(advance);
+      root.appendChild(bar);
+      const logEl = document.createElement("div");
+      logEl.className = "prov-log";
+      logEl.textContent = log.slice(0, 8).join(" · ");
+      root.appendChild(logEl);
     }
   }
   render();

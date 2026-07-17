@@ -54,3 +54,37 @@ describe("province picker → play (seed 1)", () => {
     expect(playerPath.getAttribute("fill")).toBe("#c0247a"); // PLAYER_COLOR (src/ui/nationPalette.ts:20)
   });
 });
+
+describe("province turn loop (seed 1)", () => {
+  let root: HTMLElement;
+  beforeEach(() => { root = document.createElement("div"); document.body.appendChild(root); });
+
+  function startAsFirstPolity(): number {
+    mountProvinceApp(root, { seed: 1 });
+    const path = root.querySelector("[data-polity]") as SVGPathElement;
+    const pid = Number(path.getAttribute("data-polity"));
+    path.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    return pid;
+  }
+
+  it("only armable provinces get a target overlay, and clicking toggles the armed class", () => {
+    startAsFirstPolity();
+    const targets = root.querySelectorAll(".prov-target");
+    expect(targets.length).toBeGreaterThan(0);
+    const first = targets[0] as SVGPathElement;
+    expect(first.classList.contains("armed")).toBe(false);
+    first.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    // after a click the same province path (re-rendered) is armed
+    const provId = first.getAttribute("data-province");
+    const armed = root.querySelector(`.prov-target[data-province="${provId}"]`) as SVGPathElement;
+    expect(armed.classList.contains("armed")).toBe(true);
+  });
+
+  it("advancing bumps the turn and logs any conquest", () => {
+    startAsFirstPolity();
+    const target = root.querySelector(".prov-target") as SVGPathElement;
+    target.dispatchEvent(new MouseEvent("click", { bubbles: true })); // arm one province
+    (root.querySelector(".prov-advance") as HTMLButtonElement).dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    expect(root.querySelector(".prov-hud")!.textContent).toMatch(/1\s*\/\s*50/); // turn advanced
+  });
+});
