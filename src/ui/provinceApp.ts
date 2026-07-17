@@ -120,8 +120,32 @@ export function mountProvinceApp(root: HTMLElement, opts: { seed?: number } = {}
     return `${t.prov} ${playerProvinceCount(u)}/${totalLandProvinces(u)} · ${t.sol} ${avg}% · ${t.turn} ${u.s.tick}/${PROVINCE_SIM_TICKS} · ${t.cap} ${capOk ? t.capOk : t.capLost} · ${t.rivals} ${liveRivals(u)}`;
   }
 
+  function buildHeader(): HTMLElement {
+    const h = document.createElement("div");
+    h.className = "prov-header";
+    const home = document.createElement("a");
+    home.className = "home";
+    home.href = "index.html"; // relative — GitHub Pages sub-path safe
+    home.textContent = lang === "ko" ? "🏠 홈" : "🏠 Home";
+    const title = document.createElement("h1");
+    title.className = "app-title prov-title";
+    title.textContent = lang === "ko" ? "영토" : "Provinces";
+    const hint = document.createElement("div");
+    hint.className = "prov-hint";
+    hint.textContent = ui
+      ? (lang === "ko"
+          ? `${ui.world.polities[ui.playerId]?.name ?? ""} — 시작의 3배 정복 또는 50턴 생존`
+          : `${ui.world.polities[ui.playerId]?.name ?? ""} — conquer 3× your start, or survive 50 turns`)
+      : (lang === "ko"
+          ? "지도에서 나라를 클릭해 다스릴 제국을 고르세요"
+          : "Click a nation on the map to choose your realm");
+    h.append(home, title, hint);
+    return h;
+  }
+
   function render(): void {
     root.innerHTML = "";
+    root.appendChild(buildHeader());
     const map = buildMap();
     root.appendChild(map);
     if (!ui) {

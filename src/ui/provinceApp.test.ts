@@ -52,6 +52,16 @@ describe("mountProvinceApp (seed 1)", () => {
     expect(labelIdx).toBeGreaterThan(natIdx);  // …and after the nation outlines
   });
 
+  it("has a header with a home link back to the landing and a picker hint", () => {
+    mountProvinceApp(root, { seed: 1 });
+    const home = root.querySelector(".prov-header a.home") as HTMLAnchorElement;
+    expect(home).toBeTruthy();
+    expect(home.getAttribute("href")).toBe("index.html"); // relative — Pages sub-path safe
+    expect(root.querySelector(".prov-header .app-title")).toBeTruthy();
+    // in picker mode a hint tells the player to click a nation to begin
+    expect(root.querySelector(".prov-hint")?.textContent || "").toMatch(/나라|클릭|nation|click/i);
+  });
+
   it("does not mutate the world's province objects (read-only aliasing guard)", () => {
     const world = generateWorld({ ...DEFAULT_PARAMS, seed: 1 }).world;
     const before = world.provinces[0].cells;

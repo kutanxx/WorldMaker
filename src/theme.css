@@ -326,7 +326,7 @@ svg.world .legend { pointer-events: none; }
    19px tall; user feel-pass on a real phone asked for bigger than the 44px first cut, and the
    13px button copy read as "tall but tiny" — so text scales up with the box. */
 @media (pointer: coarse) {
-  #play button, #landing button { min-height: 44px; padding: 8px 12px; font-size: 14px; touch-action: manipulation; }
+  #play button, #landing button, #province-app button { min-height: 44px; padding: 8px 12px; font-size: 14px; touch-action: manipulation; }
   a.home { min-height: 44px; padding: 8px 12px; font-size: 14px; touch-action: manipulation; }
   .neighbor-chip { min-height: 44px; display: inline-flex; align-items: center; padding: 8px 12px; font-size: 14px; touch-action: manipulation; }
   .goal-chip, .challenge-chip { padding: 8px 12px; }
@@ -342,3 +342,36 @@ svg.world .legend { pointer-events: none; }
 @media (pointer: coarse) and (min-width: 1100px) {
   .tip-strip { top: 8px; bottom: auto; }
 }
+
+/* ── Province game (playProvince.html) — parchment chrome around the map, matching the atlas theme ── */
+#province-app { max-width: 1000px; margin: 0 auto; padding: 10px 16px 40px; }
+.prov-header { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; position: relative; padding: 4px 0 2px; }
+.prov-title { margin: 0 auto; font-size: 26px; }               /* Cinzel via .app-title; centred between home link and the flex edge */
+.prov-header a.home { position: absolute; left: 0; top: 6px; } /* home link tucked in the corner, title stays optically centred */
+.prov-hint { width: 100%; text-align: center; color: #7a5a2f; font-style: italic; font-size: 14px; margin-top: 2px; }
+.prov-map {
+  display: block; width: 100%; max-width: 900px; margin: 10px auto 0; background: #eadfc2;
+  border: 1px solid #cbb784; border-radius: 5px; box-shadow: 0 2px 12px rgba(60, 47, 28, 0.16);
+}
+.prov-target { cursor: pointer; }
+.prov-hud {
+  max-width: 900px; margin: 10px auto 0; padding: 8px 16px; text-align: center;
+  font-family: 'Cinzel', serif; font-size: 13px; letter-spacing: .03em; color: #3c2f1c;
+  background: #f7f2e6; border: 1px solid #cbb784; border-radius: 20px;
+}
+.prov-bar { display: flex; justify-content: center; gap: 10px; margin: 12px auto 0; }
+.prov-advance {
+  font-family: 'Cinzel', serif; font-weight: 600; font-size: 15px; letter-spacing: .04em;
+  padding: 9px 26px; background: #d8b25a; border-color: #b9923f;
+}
+.prov-advance:hover { background: #cda84f; }
+.prov-log {
+  max-width: 900px; min-height: 1.3em; margin: 8px auto 0; padding: 2px 12px; text-align: center;
+  color: #6a5a3c; font-style: italic; font-size: 13px;
+}
+.prov-over {
+  max-width: 900px; margin: 14px auto 0; padding: 16px; text-align: center;
+  font-family: 'Cinzel', serif; font-weight: 600; font-size: 22px; color: #3c2f1c;
+  background: #f7f2e6; border: 2px solid #cbb784; border-radius: 10px; box-shadow: 0 3px 14px rgba(60, 47, 28, 0.18);
+}
+@media (max-width: 640px) { .prov-title { font-size: 21px; } .prov-hud { font-size: 12px; } }
