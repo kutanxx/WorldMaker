@@ -4,6 +4,7 @@ import type { Province } from "./provinces";
 type GridLike = Pick<World["grid"], "count" | "neighbors">;
 
 const SOL_INIT = 0.5;
+const SOL_RISE = 0.03, SOL_DECAY = 0.02;
 
 export const PROVINCE_SIM_TICKS = 50;
 
@@ -91,4 +92,21 @@ export function pAggregate(s: ProvinceSimState): PAgg[] {
   const out: PAgg[] = [];
   for (let id = 0; id < k; id++) out.push({ cells: cells[id], avg: cells[id] > 0 ? wsol[id] / cells[id] : 0 });
   return out;
+}
+
+export function stepProvinceSim(s: ProvinceSimState): void {
+  const { n, provOwner, adj } = s;
+  // 1. solidarity: frontier provinces (adjacent to a different owner) rise; interior provinces decay
+  const nextSol = new Float32Array(n);
+  for (let p = 0; p < n; p++) {
+    const o = provOwner[p];
+    if (o < 0) { nextSol[p] = 0; continue; }
+    let frontier = false;
+    for (const q of adj[p]) if (provOwner[q] !== o) { frontier = true; break; }
+    const sv = s.provSol[p] + (frontier ? SOL_RISE : -SOL_DECAY);
+    nextSol[p] = sv < 0 ? 0 : sv > 1 ? 1 : sv;
+  }
+  s.provSol = nextSol;
+  // 2. contest & conquest — added in Task 5, BEFORE the tick bump
+  s.tick++;
 }

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type { Province } from "./provinces";
-import { buildProvinceAdj, initProvinceSim, pAggregate, type ProvinceSimState } from "./provinceSim";
+import { buildProvinceAdj, initProvinceSim, pAggregate, stepProvinceSim, type ProvinceSimState } from "./provinceSim";
 import { generateWorld } from "./world";
 import { DEFAULT_PARAMS } from "../types/world";
 
@@ -64,5 +64,24 @@ describe("pAggregate", () => {
   it("reports 0/0 for a polity that owns nothing", () => {
     const agg = pAggregate(fakeState({ provOwner: Int32Array.from([-1, -1]) }));
     expect(agg[0]).toEqual({ cells: 0, avg: 0 });
+  });
+});
+
+describe("stepProvinceSim — solidarity", () => {
+  // three provinces in a line: 0,1 owned by A(0); 2 owned by B(1). 1 borders 2 (frontier); 0 is interior.
+  function line(): ProvinceSimState {
+    const provinces: Province[] = [0, 1, 2].map((i) => ({ id: i, name: String(i), cells: 10, centroid: [i * 10, 0], seedCell: i, biome: 4 }));
+    return {
+      provinces, n: 3, provOwner: Int32Array.from([0, 0, 1]), provSol: Float32Array.from([0.5, 0.5, 0.5]),
+      adj: [[1], [0, 2], [1]], capitalProv: Int32Array.from([0, 2]), alive: [true, true], tick: 0,
+    } as ProvinceSimState;
+  }
+  it("raises frontier provinces and decays interior ones", () => {
+    const s = line();
+    stepProvinceSim(s);
+    expect(s.provSol[0]).toBeCloseTo(0.5 - 0.02, 5); // interior A province decays
+    expect(s.provSol[1]).toBeCloseTo(0.5 + 0.03, 5); // A province bordering B rises
+    expect(s.provSol[2]).toBeCloseTo(0.5 + 0.03, 5); // B province bordering A rises
+    expect(s.tick).toBe(1);
   });
 });
