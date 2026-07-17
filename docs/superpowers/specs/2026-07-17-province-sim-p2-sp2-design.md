@@ -69,10 +69,11 @@ player instead of by their strongest neighbour.
 2. **Contest & whole-province conquest (single double-buffered pass, `nextOwner = provOwner.slice()`).** For each
    province `p` with owner `o`, determine its attacker from the **pre-turn** state:
    - **Player-forced:** if `p` is in `targets` **and** the player borders `p` (some `adj[p]` province is owned by
-     `playerId`) and `p` is a valid target — `o !== playerId` and (`o < 0` unowned wilderness, or `s.alive[o]` a
-     live enemy) → attacker = `playerId`. (The player may claim adjacent **unowned** provinces too, just as the AI
-     can — for those `def = 0`.) The player's front province for the strength calc is the player-owned neighbour
-     of `p` with the **highest `provSol`** (tie → lowest province id).
+     `playerId`) and `o !== playerId` → attacker = `playerId`. Any non-player province the player borders is a
+     valid target: a live enemy's, a **since-eliminated** nation's leftover province, or **unowned** wilderness
+     (for unowned `def = 0`). (Allowing dead nations' leftover provinces prevents stranded, unconquerable land.)
+     The player's front province for the strength calc is the player-owned neighbour of `p` with the **highest
+     `provSol`** (tie → lowest province id).
    - **AI auto:** otherwise attacker = the strongest **live, non-player** adjacent enemy by `agg.avg` (SP1's
      existing rule, but the player id is **excluded** from auto-initiation — the player only attacks its targets).
    - Resolve exactly as SP1: `atk = strength(attacker, p, attackerFrontProv)`, `def = o<0 ? 0 : strength(o, p, p)`;
@@ -101,7 +102,8 @@ Notes:
   (`startProvinces`) for the domination threshold. (Minimal: a random seed on load; a "new world" button re-rolls.
   No daily/string-seed input in the slice.)
 - **Each turn.** Provinces adjacent to the player's territory that are **not** the player's own — a live enemy's,
-  or unowned wilderness — are **armable**: clicking toggles a target highlight (multiple allowed). "Advance" calls `stepPlayerTurn(s, playerId, targets)`, appends
+  a since-eliminated nation's leftover, or unowned wilderness — are **armable** (`armableTargets(s, playerId)`):
+  clicking toggles a target highlight (multiple allowed). "Advance" calls `stepPlayerTurn(s, playerId, targets)`, appends
   the returned events to the chronicle, clears targets, re-renders the map, and re-checks victory/defeat.
 - **HUD (minimal).** Player province count / total land provinces; average solidarity (`pAggregate[playerId].avg`);
   turn `X / 50`; capital status; live-rival count. A chronicle log of conquest/elimination events.
