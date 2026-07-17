@@ -36,3 +36,21 @@ describe("mountProvinceApp (seed 1)", () => {
     expect(world.provinces[0].cells).toBe(before);
   });
 });
+
+describe("province picker → play (seed 1)", () => {
+  let root: HTMLElement;
+  beforeEach(() => { root = document.createElement("div"); document.body.appendChild(root); });
+
+  it("clicking a live nation's territory starts a game and shows the HUD", () => {
+    mountProvinceApp(root, { seed: 1 });
+    const path = root.querySelector("[data-polity]") as SVGPathElement;
+    const pid = Number(path.getAttribute("data-polity"));
+    path.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    const hud = root.querySelector(".prov-hud");
+    expect(hud).toBeTruthy();
+    expect(hud!.textContent).toMatch(/0\s*\/\s*50/); // turn 0 of 50
+    // the started nation is painted with the player colour
+    const playerPath = root.querySelector(`[data-polity="${pid}"]`) as SVGPathElement;
+    expect(playerPath.getAttribute("fill")).toBe("#c0247a"); // PLAYER_COLOR (src/ui/nationPalette.ts:20)
+  });
+});
