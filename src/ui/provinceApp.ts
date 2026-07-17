@@ -20,6 +20,8 @@ export function provinceCellOwner(count: number, provinceOf: ArrayLike<number>, 
 
 interface UI { world: ReturnType<typeof generateWorld>["world"]; s: ProvinceSimState; playerId: number; startProvinces: number; }
 
+const DOMINATION_MULT = 3;
+
 export function mountProvinceApp(root: HTMLElement, opts: { seed?: number } = {}): void {
   const lang = detectLang();
   const seed = opts.seed ?? Math.floor(Date.now() % 1_000_000); // non-deterministic seed is fine — UI only
@@ -33,6 +35,18 @@ export function mountProvinceApp(root: HTMLElement, opts: { seed?: number } = {}
   }
   function totalLandProvinces(u: UI): number { return u.s.n; }
   function liveRivals(u: UI): number { return u.s.alive.filter((a, id) => a && id !== u.playerId).length; }
+
+  type Outcome = { kind: "defeat"; by: string } | { kind: "domination" } | { kind: "survival" } | null;
+  function outcome(u: UI): Outcome {
+    if (!u.s.alive[u.playerId]) {
+      const cap = u.s.capitalProv[u.playerId];
+      const by = u.world.polities[u.s.provOwner[cap]]?.name ?? "?";
+      return { kind: "defeat", by };
+    }
+    if (playerProvinceCount(u) >= DOMINATION_MULT * u.startProvinces) return { kind: "domination" };
+    if (u.s.tick >= PROVINCE_SIM_TICKS) return { kind: "survival" };
+    return null;
+  }
 
   function buildMap(): SVGSVGElement {
     const s = ui ? ui.s : initProvinceSim(world); // picker previews the initial partition
@@ -103,6 +117,28 @@ export function mountProvinceApp(root: HTMLElement, opts: { seed?: number } = {}
         if (el) startGame(Number(el.getAttribute("data-polity")));
       });
     } else {
+      const oc = outcome(ui);
+      if (oc) {
+        const over = document.createElement("div");
+        over.className = "prov-over";
+        over.textContent =
+          oc.kind === "defeat" ? (lang === "ko" ? `패배 — ${oc.by}에게 수도 함락` : `Defeat — capital taken by ${oc.by}`)
+          : oc.kind === "domination" ? (lang === "ko" ? "지배 승리!" : "Domination victory!")
+          : (lang === "ko" ? "생존 승리 — 왕조가 살아남았다" : "Survival victory — your dynasty endured");
+        const again = document.createElement("button"); again.className = "prov-again";
+        again.textContent = lang === "ko" ? "다시" : "Play again";
+        again.addEventListener("click", () => { ui = null; targets.clear(); log.length = 0; render(); });
+        const nw = document.createElement("button"); nw.className = "prov-new";
+        nw.textContent = lang === "ko" ? "새 세계" : "New world";
+        nw.addEventListener("click", () => mountProvinceApp(root, {})); // fresh seed
+        const bar = document.createElement("div"); bar.className = "prov-bar";
+        bar.append(again, nw);
+        root.append(over, bar);
+        const logEl = document.createElement("div"); logEl.className = "prov-log";
+        logEl.textContent = log.slice(0, 8).join(" · ");
+        root.appendChild(logEl);
+        return; // no target overlay / advance once the game is over
+      }
       const hud = document.createElement("div");
       hud.className = "prov-hud";
       hud.textContent = hudText(ui);

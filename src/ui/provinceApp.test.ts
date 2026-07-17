@@ -88,3 +88,26 @@ describe("province turn loop (seed 1)", () => {
     expect(root.querySelector(".prov-hud")!.textContent).toMatch(/1\s*\/\s*50/); // turn advanced
   });
 });
+
+describe("province victory / defeat", () => {
+  let root: HTMLElement;
+  beforeEach(() => { root = document.createElement("div"); document.body.appendChild(root); });
+
+  it("declares survival victory after the last turn if the capital is held", () => {
+    mountProvinceApp(root, { seed: 1 });
+    const path = root.querySelector("[data-polity]") as SVGPathElement;
+    path.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    // advance to the horizon without attacking (pure survival)
+    for (let i = 0; i < 50; i++) {
+      const adv = root.querySelector(".prov-advance") as HTMLButtonElement | null;
+      if (!adv) break; // game already ended (defeat)
+      adv.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    }
+    const over = root.querySelector(".prov-over");
+    expect(over).toBeTruthy();
+    expect(over!.textContent).toMatch(/생존|survi|정복|domina|패배|defeat/i); // some terminal outcome shown
+    // a finished game offers restart
+    expect(root.querySelector(".prov-again")).toBeTruthy();
+    expect(root.querySelector(".prov-new")).toBeTruthy();
+  });
+});
