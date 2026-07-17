@@ -18,6 +18,11 @@ export interface ProvinceSimState {
   tick: number;
 }
 
+export interface PAgg {
+  cells: number;
+  avg: number;
+}
+
 // two provinces are adjacent iff some land cell of one has a land-neighbour cell in the other.
 export function buildProvinceAdj(
   provinceOf: ArrayLike<number>, provinces: Province[], grid: GridLike,
@@ -71,4 +76,19 @@ export function initProvinceSim(world: World): ProvinceSimState {
   const adj = buildProvinceAdj(provinceOf, provinces, grid);
   const alive = polities.map((pol) => capitalProv[pol.id] >= 0 && provOwner[capitalProv[pol.id]] === pol.id);
   return { provinces, n, provOwner, provSol, adj, capitalProv, alive, tick: 0 };
+}
+
+export function pAggregate(s: ProvinceSimState): PAgg[] {
+  const k = s.capitalProv.length; // number of polities
+  const cells = new Float64Array(k), wsol = new Float64Array(k);
+  for (let p = 0; p < s.n; p++) {
+    const o = s.provOwner[p];
+    if (o < 0 || o >= k) continue;
+    const c = s.provinces[p].cells;
+    cells[o] += c;
+    wsol[o] += s.provSol[p] * c;
+  }
+  const out: PAgg[] = [];
+  for (let id = 0; id < k; id++) out.push({ cells: cells[id], avg: cells[id] > 0 ? wsol[id] / cells[id] : 0 });
+  return out;
 }
