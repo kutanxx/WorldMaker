@@ -85,3 +85,28 @@ describe("stepProvinceSim — solidarity", () => {
     expect(s.tick).toBe(1);
   });
 });
+
+describe("stepProvinceSim — conquest & capital defeat", () => {
+  // B(1)'s lone province 1 is its capital and is weak; A(0) is large and cohesive next door → A takes it,
+  // eliminating B. A's provinces 0 (capital) and 2 make A big; province 1 is B's only (capital) province.
+  function fixture(): ProvinceSimState {
+    const provinces: Province[] = [0, 1, 2].map((i) => ({ id: i, name: String(i), cells: 20, centroid: [i * 10, 0], seedCell: i, biome: 4 }));
+    return {
+      provinces, n: 3, provOwner: Int32Array.from([0, 1, 0]),
+      provSol: Float32Array.from([0.9, 0.1, 0.9]),
+      adj: [[1], [0, 2], [1]], capitalProv: Int32Array.from([0, 1]), alive: [true, true], tick: 0,
+    } as ProvinceSimState;
+  }
+  it("flips the whole weak enemy province to the strong aggressor and resets its solidarity", () => {
+    const s = fixture();
+    stepProvinceSim(s);
+    expect(s.provOwner[1]).toBe(0);          // province 1 conquered by A
+    expect(s.provSol[1]).toBeCloseTo(0.7, 5); // fresh conquest → CONQUEST_SOL
+  });
+  it("marks a nation dead once its capital province is taken", () => {
+    const s = fixture();
+    stepProvinceSim(s);
+    expect(s.alive[1]).toBe(false); // B lost its capital province
+    expect(s.alive[0]).toBe(true);
+  });
+});

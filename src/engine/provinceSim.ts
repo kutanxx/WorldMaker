@@ -5,6 +5,8 @@ type GridLike = Pick<World["grid"], "count" | "neighbors">;
 
 const SOL_INIT = 0.5;
 const SOL_RISE = 0.03, SOL_DECAY = 0.02;
+const CONQUEST_SOL = 0.7;
+const W_ASA = 1.0, W_LOCAL = 0.5, W_POWER = 0.03, W_DIST = 0.002, SIZE_CAP = 24, CONTEST_THRESH = 1.03;
 
 export const PROVINCE_SIM_TICKS = 50;
 
@@ -94,6 +96,20 @@ export function pAggregate(s: ProvinceSimState): PAgg[] {
   return out;
 }
 
+function centroidDist(a: Province, b: Province): number {
+  return Math.hypot(a.centroid[0] - b.centroid[0], a.centroid[1] - b.centroid[1]);
+}
+
+// mirrors the cell sim's contestStrength(polity, distCell, solCell) at province granularity.
+function strength(s: ProvinceSimState, agg: PAgg[], polity: number, distProv: number, solProv: number): number {
+  const cap = s.capitalProv[polity];
+  const d = cap >= 0 ? centroidDist(s.provinces[distProv], s.provinces[cap]) : 0;
+  return W_ASA * agg[polity].avg
+    + W_LOCAL * s.provSol[solProv]
+    + W_POWER * Math.sqrt(Math.min(agg[polity].cells, SIZE_CAP))
+    - W_DIST * d;
+}
+
 export function stepProvinceSim(s: ProvinceSimState): void {
   const { n, provOwner, adj } = s;
   // 1. solidarity: frontier provinces (adjacent to a different owner) rise; interior provinces decay
@@ -107,6 +123,31 @@ export function stepProvinceSim(s: ProvinceSimState): void {
     nextSol[p] = sv < 0 ? 0 : sv > 1 ? 1 : sv;
   }
   s.provSol = nextSol;
-  // 2. contest & conquest — added in Task 5, BEFORE the tick bump
+  // 2. contest & whole-province conquest (double-buffered). Each province meets its strongest LIVE
+  // adjacent enemy; if the attacker beats the defender by the threshold, the whole province flips.
+  const agg = pAggregate(s);
+  const nextOwner = provOwner.slice();
+  const conquered: number[] = [];
+  for (let p = 0; p < n; p++) {
+    const o = provOwner[p];
+    let best = -1, bestAvg = -Infinity, bestQ = -1;
+    for (const q of adj[p]) {
+      const po = provOwner[q];
+      if (po < 0 || po === o || !s.alive[po]) continue; // dead nations (no capital) don't initiate
+      if (agg[po].avg > bestAvg) { bestAvg = agg[po].avg; best = po; bestQ = q; }
+    }
+    if (best < 0) continue;
+    const atk = strength(s, agg, best, p, bestQ);
+    const def = o < 0 ? 0 : strength(s, agg, o, p, p);
+    if (atk > def * CONTEST_THRESH) { nextOwner[p] = best; conquered.push(p); }
+  }
+  s.provOwner = nextOwner;
+  // fresh conquests reset to CONQUEST_SOL — applied AFTER the loop so contest reads the stable stepped
+  // solidarity (no mid-loop mutation of provSol that a later province could read)
+  for (const p of conquered) s.provSol[p] = CONQUEST_SOL;
+  // a polity that lost its capital province is dead (stops initiating attacks next tick)
+  for (let id = 0; id < s.alive.length; id++) {
+    s.alive[id] = s.capitalProv[id] >= 0 && s.provOwner[s.capitalProv[id]] === id;
+  }
   s.tick++;
 }
