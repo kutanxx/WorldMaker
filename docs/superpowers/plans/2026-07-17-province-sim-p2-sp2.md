@@ -39,11 +39,12 @@
 - Test: `src/engine/provinceSim.test.ts`
 
 **Interfaces:**
-- Consumes: `ProvinceSimState`, `pAggregate`, `strength` (internal), constants `SOL_RISE`, `SOL_DECAY`, `CONQUEST_SOL`, `CONTEST_THRESH` — all already in `provinceSim.ts`.
+- Consumes: `ProvinceSimState`, `PAgg`, `pAggregate`, `strength` (internal), constants `SOL_RISE`, `SOL_DECAY`, `CONQUEST_SOL`, `CONTEST_THRESH` — all already in `provinceSim.ts`.
 - Produces:
   - `interface PlayerStepEvents { conquests: { prov: number; from: number; to: number }[]; eliminated: number[] }`
   - `armableTargets(s: ProvinceSimState, playerId: number): number[]` — sorted list of provinces the player may attack this turn: not player-owned, and adjacent to at least one player-owned province (enemy alive, enemy eliminated, or unowned all qualify).
   - `stepPlayerTurn(s: ProvinceSimState, playerId: number, targets: ReadonlySet<number>): PlayerStepEvents` — one player turn (solidarity step; contest where the player attacks its explicit targets and AI nations auto-contest with the player excluded from auto-initiation; `alive` recompute; `tick++`). Returns the turn's conquests + eliminations.
+- Refactor (same file): extract the solidarity update and the contest/conquest passes that SP1's `stepProvinceSim` inlines into shared private helpers (`stepSolidarity`, `contestPass`, `aiAttacker`, `recomputeAlive`), so `stepProvinceSim` and `stepPlayerTurn` share one implementation instead of duplicating the logic block. This is **behavior-preserving** — SP1's golden tests (`initProvinceSim` provOwner `226648593`, 50-tick `3566824384`) are the guard and must stay green.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -112,7 +113,80 @@ Expected: FAIL — `armableTargets`/`stepPlayerTurn` are not exported.
 
 - [ ] **Step 3: Implement**
 
-Add to `src/engine/provinceSim.ts` (after `stepProvinceSim`):
+First, extract SP1's inlined step logic into shared private helpers. In `src/engine/provinceSim.ts`, add these **above** `stepProvinceSim` (they use the module's existing `SOL_RISE`, `SOL_DECAY`, `CONQUEST_SOL`, `CONTEST_THRESH`, `pAggregate`, `strength`):
+
+```ts
+// double-buffered solidarity update: frontier provinces (adjacent to a different owner) rise, interior decay,
+// clamp [0,1]. (Extracted from stepProvinceSim so the player step shares it — behaviour unchanged.)
+function stepSolidarity(s: ProvinceSimState): void {
+  const { n, provOwner, adj } = s;
+  const nextSol = new Float32Array(n);
+  for (let p = 0; p < n; p++) {
+    const o = provOwner[p];
+    if (o < 0) { nextSol[p] = 0; continue; }
+    let frontier = false;
+    for (const q of adj[p]) if (provOwner[q] !== o) { frontier = true; break; }
+    const sv = s.provSol[p] + (frontier ? SOL_RISE : -SOL_DECAY);
+    nextSol[p] = sv < 0 ? 0 : sv > 1 ? 1 : sv;
+  }
+  s.provSol = nextSol;
+}
+
+type AttackerPick = { attacker: number; frontProv: number } | null;
+
+// double-buffered contest: for each province p (owner o) an attacker is chosen by `pick(p, o, agg)`; if
+// atk > def·CONTEST_THRESH the whole province flips. Reads pre-turn ownership + stepped solidarity, writes a
+// fresh owner buffer, then resets conquered provinces to CONQUEST_SOL. Returns the conquered province ids.
+function contestPass(s: ProvinceSimState, pick: (p: number, o: number, agg: PAgg[]) => AttackerPick): number[] {
+  const agg = pAggregate(s);
+  const nextOwner = s.provOwner.slice();
+  const conquered: number[] = [];
+  for (let p = 0; p < s.n; p++) {
+    const o = s.provOwner[p];
+    const chosen = pick(p, o, agg);
+    if (!chosen) continue;
+    const atk = strength(s, agg, chosen.attacker, p, chosen.frontProv);
+    const def = o < 0 ? 0 : strength(s, agg, o, p, p);
+    if (atk > def * CONTEST_THRESH) { nextOwner[p] = chosen.attacker; conquered.push(p); }
+  }
+  s.provOwner = nextOwner;
+  for (const p of conquered) s.provSol[p] = CONQUEST_SOL;
+  return conquered;
+}
+
+function recomputeAlive(s: ProvinceSimState): void {
+  for (let id = 0; id < s.alive.length; id++) {
+    s.alive[id] = s.capitalProv[id] >= 0 && s.provOwner[s.capitalProv[id]] === id;
+  }
+}
+
+// attacker chooser: p's strongest LIVE adjacent enemy by agg.avg. `excludePlayer` (an id, or -1 for none) is
+// never chosen as an aggressor — the player only attacks its explicit targets, never auto-initiates.
+function aiAttacker(s: ProvinceSimState, excludePlayer: number) {
+  return (p: number, o: number, agg: PAgg[]): AttackerPick => {
+    let attacker = -1, frontProv = -1, bestAvg = -Infinity;
+    for (const q of s.adj[p]) {
+      const po = s.provOwner[q];
+      if (po < 0 || po === o || po === excludePlayer || !s.alive[po]) continue;
+      if (agg[po].avg > bestAvg) { bestAvg = agg[po].avg; attacker = po; frontProv = q; }
+    }
+    return attacker < 0 ? null : { attacker, frontProv };
+  };
+}
+```
+
+Then **replace** SP1's `stepProvinceSim` body with the helper-based version (behaviour identical — golden-guarded):
+
+```ts
+export function stepProvinceSim(s: ProvinceSimState): void {
+  stepSolidarity(s);
+  contestPass(s, aiAttacker(s, -1)); // -1 = no player; every nation may auto-initiate
+  recomputeAlive(s);
+  s.tick++;
+}
+```
+
+Then add the player API (after `stepProvinceSim`):
 
 ```ts
 export interface PlayerStepEvents {
@@ -134,70 +208,39 @@ export function armableTargets(s: ProvinceSimState, playerId: number): number[] 
 }
 
 // one player turn: rng-free. Solidarity step, then a single double-buffered contest where the player attacks
-// its explicit `targets` and every OTHER province is auto-contested by its strongest live non-player enemy
-// (the player never auto-initiates). Then alive-recompute and tick++. Returns this turn's conquests/eliminations.
+// its explicit `targets` (from its highest-solidarity adjacent front province) and every OTHER province is
+// auto-contested by its strongest live non-player enemy. Then alive-recompute + tick++. Returns the events.
 export function stepPlayerTurn(
   s: ProvinceSimState, playerId: number, targets: ReadonlySet<number>,
 ): PlayerStepEvents {
-  const { n, adj } = s;
   const prevOwner = s.provOwner.slice();
   const prevAlive = s.alive.slice();
-
-  // 1. solidarity (identical to stepProvinceSim step 1)
-  const nextSol = new Float32Array(n);
-  for (let p = 0; p < n; p++) {
-    const o = s.provOwner[p];
-    if (o < 0) { nextSol[p] = 0; continue; }
-    let frontier = false;
-    for (const q of adj[p]) if (s.provOwner[q] !== o) { frontier = true; break; }
-    const sv = s.provSol[p] + (frontier ? SOL_RISE : -SOL_DECAY);
-    nextSol[p] = sv < 0 ? 0 : sv > 1 ? 1 : sv;
-  }
-  s.provSol = nextSol;
-
-  // 2. contest (double-buffered): player-forced targets first, else strongest live non-player enemy.
-  const agg = pAggregate(s);
-  const nextOwner = s.provOwner.slice();
-  const conquered: number[] = [];
-  for (let p = 0; p < n; p++) {
-    const o = s.provOwner[p];
-    let attacker = -1, frontProv = -1;
+  stepSolidarity(s);
+  const ai = aiAttacker(s, playerId); // AI excludes the player from auto-initiating
+  const conquered = contestPass(s, (p, o, agg) => {
     if (o !== playerId && targets.has(p)) {
-      // player attacks p from its highest-solidarity adjacent province (tie → lowest id)
       let bestSol = -Infinity, bestFront = -1;
-      for (const q of adj[p]) {
+      for (const q of s.adj[p]) {
         if (s.provOwner[q] !== playerId) continue;
         const sv = s.provSol[q];
         if (sv > bestSol || (sv === bestSol && (bestFront < 0 || q < bestFront))) { bestSol = sv; bestFront = q; }
       }
-      if (bestFront >= 0) { attacker = playerId; frontProv = bestFront; }
+      if (bestFront >= 0) return { attacker: playerId, frontProv: bestFront };
     }
-    if (attacker < 0) {
-      let bestAvg = -Infinity;
-      for (const q of adj[p]) {
-        const po = s.provOwner[q];
-        if (po < 0 || po === o || po === playerId || !s.alive[po]) continue;
-        if (agg[po].avg > bestAvg) { bestAvg = agg[po].avg; attacker = po; frontProv = q; }
-      }
-    }
-    if (attacker < 0) continue;
-    const atk = strength(s, agg, attacker, p, frontProv);
-    const def = o < 0 ? 0 : strength(s, agg, o, p, p);
-    if (atk > def * CONTEST_THRESH) { nextOwner[p] = attacker; conquered.push(p); }
-  }
-  s.provOwner = nextOwner;
-  for (const p of conquered) s.provSol[p] = CONQUEST_SOL;
-  for (let id = 0; id < s.alive.length; id++) {
-    s.alive[id] = s.capitalProv[id] >= 0 && s.provOwner[s.capitalProv[id]] === id;
-  }
+    return ai(p, o, agg);
+  });
+  recomputeAlive(s);
   s.tick++;
-
   const conquests = conquered.map((p) => ({ prov: p, from: prevOwner[p], to: s.provOwner[p] }));
   const eliminated: number[] = [];
   for (let id = 0; id < s.alive.length; id++) if (prevAlive[id] && !s.alive[id]) eliminated.push(id);
   return { conquests, eliminated };
 }
 ```
+
+> The SP1 `stepProvinceSim` unit tests AND its determinism goldens (`226648593` / `3566824384`) must stay green
+> after the refactor — run them in Step 4. If a golden moves, the refactor changed behaviour: STOP and fix the
+> refactor (do not re-pin the golden).
 
 - [ ] **Step 4: Run to verify it passes**
 
