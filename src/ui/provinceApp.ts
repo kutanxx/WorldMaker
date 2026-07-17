@@ -58,6 +58,12 @@ export function mountProvinceApp(root: HTMLElement, opts: { seed?: number } = {}
       world.grid, owner, world.polities,
       { fills: true, labels: true, legend: false, ...(ui ? { playerPolity: ui.playerId, playerColor: PLAYER_COLOR } : {}) },
     ));
+    // the province mesh: EVERY province boundary (incl. those inside one nation), so the map visibly
+    // reads as "play in provinces" and not just nation blobs. Thin + faint UNDER the bold country lines.
+    svg.appendChild(svgEl("path", {
+      class: "province-border", d: segPath(politicalBorders(world.grid, world.provinceOf)),
+      fill: "none", stroke: "#3c2f1c", "stroke-width": 0.5, "stroke-opacity": 0.5,
+    }));
     // politicalLayer's own border path is unclassed as "nation-border" (that class belongs to
     // provinceLayer's owner overlay) — since `owner` here is already province-snapped, draw the same
     // bold country-outline overlay directly so every province view agrees on where a country ends.

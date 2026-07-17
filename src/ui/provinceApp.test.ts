@@ -28,6 +28,18 @@ describe("mountProvinceApp (seed 1)", () => {
     expect(root.querySelector(".nation-border")).toBeTruthy();
   });
 
+  it("renders the intra-nation province mesh (province borders denser than nation borders)", () => {
+    mountProvinceApp(root, { seed: 1 });
+    const provBorder = root.querySelector(".province-border") as SVGPathElement;
+    const natBorder = root.querySelector(".nation-border") as SVGPathElement;
+    expect(provBorder).toBeTruthy();
+    const pd = provBorder.getAttribute("d") || "";
+    const nd = natBorder.getAttribute("d") || "";
+    // every province boundary draws (incl. those inside one nation), so the mesh is strictly
+    // denser than the country outlines — this is what makes it read as "play in provinces".
+    expect(pd.length).toBeGreaterThan(nd.length);
+  });
+
   it("does not mutate the world's province objects (read-only aliasing guard)", () => {
     const world = generateWorld({ ...DEFAULT_PARAMS, seed: 1 }).world;
     const before = world.provinces[0].cells;
