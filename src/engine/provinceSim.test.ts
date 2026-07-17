@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import type { Province } from "./provinces";
 import { buildProvinceAdj, initProvinceSim, pAggregate, stepProvinceSim, PROVINCE_SIM_TICKS, type ProvinceSimState } from "./provinceSim";
+import { armableTargets, stepPlayerTurn } from "./provinceSim";
 import { generateWorld } from "./world";
 import { DEFAULT_PARAMS } from "../types/world";
 
@@ -148,5 +149,57 @@ describe("provinceSim determinism + safety (seed 1)", () => {
     let h = 2166136261 >>> 0;
     for (const p of world.polityOf) { h ^= (p + 1); h = Math.imul(h, 16777619) >>> 0; }
     expect(h >>> 0).toBe(1350115163);
+  });
+});
+
+describe("armableTargets", () => {
+  // line: A(0) owns prov 0 (capital) & 1; B(1) owns prov 2 (capital); prov 3 unowned; adj 1-2, 2-3.
+  function line(): ProvinceSimState {
+    const provinces: Province[] = [0, 1, 2, 3].map((i) => ({ id: i, name: String(i), cells: 10, centroid: [i * 10, 0], seedCell: i, biome: 4 }));
+    return {
+      provinces, n: 4, provOwner: Int32Array.from([0, 0, 1, -1]), provSol: Float32Array.from([0.5, 0.5, 0.5, 0]),
+      adj: [[1], [0, 2], [1, 3], [2]], capitalProv: Int32Array.from([0, 2]), alive: [true, true], tick: 0,
+    } as ProvinceSimState;
+  }
+  it("lists adjacent non-player provinces (enemy) but not the player's own or non-adjacent ones", () => {
+    // player = A(0); prov 1 borders enemy prov 2 → armable is [2]; prov 3 (unowned) is not adjacent to A.
+    expect(armableTargets(line(), 0)).toEqual([2]);
+  });
+  it("includes an adjacent unowned province", () => {
+    // player = B(1); B's prov 2 borders A's prov 1 AND unowned prov 3 → [1, 3]
+    expect(armableTargets(line(), 1)).toEqual([1, 3]);
+  });
+});
+
+describe("stepPlayerTurn", () => {
+  // A(0) is big/cohesive (prov 0 capital + prov 1), B(1) holds a lone weak capital prov 2. adj 1-2.
+  function fixture(): ProvinceSimState {
+    const provinces: Province[] = [0, 1, 2].map((i) => ({ id: i, name: String(i), cells: 20, centroid: [i * 10, 0], seedCell: i, biome: 4 }));
+    return {
+      provinces, n: 3, provOwner: Int32Array.from([0, 0, 1]), provSol: Float32Array.from([0.9, 0.9, 0.1]),
+      adj: [[1], [0, 2], [1]], capitalProv: Int32Array.from([0, 2]), alive: [true, true], tick: 0,
+    } as ProvinceSimState;
+  }
+  it("conquers a targeted weak enemy province for the player and returns the event", () => {
+    const s = fixture();
+    const ev = stepPlayerTurn(s, 0, new Set([2]));
+    expect(s.provOwner[2]).toBe(0);
+    expect(s.provSol[2]).toBeCloseTo(0.7, 5); // CONQUEST_SOL
+    expect(ev.conquests).toEqual([{ prov: 2, from: 1, to: 0 }]);
+    expect(ev.eliminated).toEqual([1]); // B lost its capital province
+    expect(s.tick).toBe(1);
+  });
+  it("does NOT take a beatable enemy province the player did not target (player never auto-initiates)", () => {
+    const s = fixture();
+    stepPlayerTurn(s, 0, new Set()); // no targets
+    expect(s.provOwner[2]).toBe(1); // prov 2 stays B's — player didn't attack, and B isn't attacking itself
+    expect(s.alive[1]).toBe(true);
+  });
+  it("lets an AI nation capture the player's province (player is a valid defender)", () => {
+    // swap roles: player = B(1) with the weak lone capital; A(0) is the AI aggressor.
+    const s = fixture();
+    stepPlayerTurn(s, 1, new Set()); // player B does nothing; AI A auto-contests prov 2
+    expect(s.provOwner[2]).toBe(0); // A took the player's capital province
+    expect(s.alive[1]).toBe(false); // player B defeated
   });
 });

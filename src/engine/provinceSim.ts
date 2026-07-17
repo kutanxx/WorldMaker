@@ -110,9 +110,10 @@ function strength(s: ProvinceSimState, agg: PAgg[], polity: number, distProv: nu
     - W_DIST * d;
 }
 
-export function stepProvinceSim(s: ProvinceSimState): void {
+// double-buffered solidarity update: frontier provinces (adjacent to a different owner) rise, interior decay,
+// clamp [0,1]. (Extracted from stepProvinceSim so the player step shares it — behaviour unchanged.)
+function stepSolidarity(s: ProvinceSimState): void {
   const { n, provOwner, adj } = s;
-  // 1. solidarity: frontier provinces (adjacent to a different owner) rise; interior provinces decay
   const nextSol = new Float32Array(n);
   for (let p = 0; p < n; p++) {
     const o = provOwner[p];
@@ -123,31 +124,101 @@ export function stepProvinceSim(s: ProvinceSimState): void {
     nextSol[p] = sv < 0 ? 0 : sv > 1 ? 1 : sv;
   }
   s.provSol = nextSol;
-  // 2. contest & whole-province conquest (double-buffered). Each province meets its strongest LIVE
-  // adjacent enemy; if the attacker beats the defender by the threshold, the whole province flips.
+}
+
+type AttackerPick = { attacker: number; frontProv: number } | null;
+
+// double-buffered contest: for each province p (owner o) an attacker is chosen by `pick(p, o, agg)`; if
+// atk > def·CONTEST_THRESH the whole province flips. Reads pre-turn ownership + stepped solidarity, writes a
+// fresh owner buffer, then resets conquered provinces to CONQUEST_SOL. Returns the conquered province ids.
+function contestPass(s: ProvinceSimState, pick: (p: number, o: number, agg: PAgg[]) => AttackerPick): number[] {
   const agg = pAggregate(s);
-  const nextOwner = provOwner.slice();
+  const nextOwner = s.provOwner.slice();
   const conquered: number[] = [];
-  for (let p = 0; p < n; p++) {
-    const o = provOwner[p];
-    let best = -1, bestAvg = -Infinity, bestQ = -1;
-    for (const q of adj[p]) {
-      const po = provOwner[q];
-      if (po < 0 || po === o || !s.alive[po]) continue; // dead nations (no capital) don't initiate
-      if (agg[po].avg > bestAvg) { bestAvg = agg[po].avg; best = po; bestQ = q; }
-    }
-    if (best < 0) continue;
-    const atk = strength(s, agg, best, p, bestQ);
+  for (let p = 0; p < s.n; p++) {
+    const o = s.provOwner[p];
+    const chosen = pick(p, o, agg);
+    if (!chosen) continue;
+    const atk = strength(s, agg, chosen.attacker, p, chosen.frontProv);
     const def = o < 0 ? 0 : strength(s, agg, o, p, p);
-    if (atk > def * CONTEST_THRESH) { nextOwner[p] = best; conquered.push(p); }
+    if (atk > def * CONTEST_THRESH) { nextOwner[p] = chosen.attacker; conquered.push(p); }
   }
   s.provOwner = nextOwner;
-  // fresh conquests reset to CONQUEST_SOL — applied AFTER the loop so contest reads the stable stepped
-  // solidarity (no mid-loop mutation of provSol that a later province could read)
   for (const p of conquered) s.provSol[p] = CONQUEST_SOL;
-  // a polity that lost its capital province is dead (stops initiating attacks next tick)
+  return conquered;
+}
+
+function recomputeAlive(s: ProvinceSimState): void {
   for (let id = 0; id < s.alive.length; id++) {
     s.alive[id] = s.capitalProv[id] >= 0 && s.provOwner[s.capitalProv[id]] === id;
   }
+}
+
+// attacker chooser: p's strongest LIVE adjacent enemy by agg.avg. `excludePlayer` (an id, or -1 for none) is
+// never chosen as an aggressor — the player only attacks its explicit targets, never auto-initiates.
+function aiAttacker(s: ProvinceSimState, excludePlayer: number) {
+  return (p: number, o: number, agg: PAgg[]): AttackerPick => {
+    let attacker = -1, frontProv = -1, bestAvg = -Infinity;
+    for (const q of s.adj[p]) {
+      const po = s.provOwner[q];
+      if (po < 0 || po === o || po === excludePlayer || !s.alive[po]) continue;
+      if (agg[po].avg > bestAvg) { bestAvg = agg[po].avg; attacker = po; frontProv = q; }
+    }
+    return attacker < 0 ? null : { attacker, frontProv };
+  };
+}
+
+export function stepProvinceSim(s: ProvinceSimState): void {
+  stepSolidarity(s);
+  contestPass(s, aiAttacker(s, -1)); // -1 = no player; every nation may auto-initiate
+  recomputeAlive(s);
   s.tick++;
+}
+
+export interface PlayerStepEvents {
+  conquests: { prov: number; from: number; to: number }[];
+  eliminated: number[];
+}
+
+// provinces the player may attack this turn: not player-owned, and adjacent to some player-owned province.
+// Enemy (alive or already-eliminated) and unowned wilderness all qualify — so no land is stranded.
+export function armableTargets(s: ProvinceSimState, playerId: number): number[] {
+  const out: number[] = [];
+  for (let p = 0; p < s.n; p++) {
+    if (s.provOwner[p] === playerId) continue;
+    let borders = false;
+    for (const q of s.adj[p]) if (s.provOwner[q] === playerId) { borders = true; break; }
+    if (borders) out.push(p);
+  }
+  return out;
+}
+
+// one player turn: rng-free. Solidarity step, then a single double-buffered contest where the player attacks
+// its explicit `targets` (from its highest-solidarity adjacent front province) and every OTHER province is
+// auto-contested by its strongest live non-player enemy. Then alive-recompute + tick++. Returns the events.
+export function stepPlayerTurn(
+  s: ProvinceSimState, playerId: number, targets: ReadonlySet<number>,
+): PlayerStepEvents {
+  const prevOwner = s.provOwner.slice();
+  const prevAlive = s.alive.slice();
+  stepSolidarity(s);
+  const ai = aiAttacker(s, playerId); // AI excludes the player from auto-initiating
+  const conquered = contestPass(s, (p, o, agg) => {
+    if (o !== playerId && targets.has(p)) {
+      let bestSol = -Infinity, bestFront = -1;
+      for (const q of s.adj[p]) {
+        if (s.provOwner[q] !== playerId) continue;
+        const sv = s.provSol[q];
+        if (sv > bestSol || (sv === bestSol && (bestFront < 0 || q < bestFront))) { bestSol = sv; bestFront = q; }
+      }
+      if (bestFront >= 0) return { attacker: playerId, frontProv: bestFront };
+    }
+    return ai(p, o, agg);
+  });
+  recomputeAlive(s);
+  s.tick++;
+  const conquests = conquered.map((p) => ({ prov: p, from: prevOwner[p], to: s.provOwner[p] }));
+  const eliminated: number[] = [];
+  for (let id = 0; id < s.alive.length; id++) if (prevAlive[id] && !s.alive[id]) eliminated.push(id);
+  return { conquests, eliminated };
 }
