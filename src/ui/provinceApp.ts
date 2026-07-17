@@ -54,10 +54,11 @@ export function mountProvinceApp(root: HTMLElement, opts: { seed?: number } = {}
     const svg = svgEl("svg", {
       class: "prov-map", viewBox: `0 0 ${world.grid.width} ${world.grid.height}`, preserveAspectRatio: "xMidYMid meet",
     }) as SVGSVGElement;
-    svg.appendChild(politicalLayer(
+    const layer = politicalLayer(
       world.grid, owner, world.polities,
       { fills: true, labels: true, legend: false, ...(ui ? { playerPolity: ui.playerId, playerColor: PLAYER_COLOR } : {}) },
-    ));
+    );
+    svg.appendChild(layer);
     // the province mesh: EVERY province boundary (incl. those inside one nation), so the map visibly
     // reads as "play in provinces" and not just nation blobs. Thin + faint UNDER the bold country lines.
     svg.appendChild(svgEl("path", {
@@ -71,6 +72,13 @@ export function mountProvinceApp(root: HTMLElement, opts: { seed?: number } = {}
       class: "nation-border", d: segPath(politicalBorders(world.grid, owner)),
       fill: "none", stroke: "#161009", "stroke-width": 2, "stroke-opacity": 0.95, "stroke-linejoin": "round",
     }));
+    // politicalLayer nests its name labels INSIDE its own group, which we just painted the border meshes
+    // on top of — so the province lines were crossing the text. Lift the label/marker groups to the end of
+    // the svg so they paint ABOVE the borders and stay legible.
+    for (const cls of [".free-city-markers", ".nation-labels"]) {
+      const grp = layer.querySelector(cls);
+      if (grp) svg.appendChild(grp); // appendChild MOVES the existing node to the top
+    }
     return svg;
   }
 

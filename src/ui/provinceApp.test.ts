@@ -40,6 +40,18 @@ describe("mountProvinceApp (seed 1)", () => {
     expect(pd.length).toBeGreaterThan(nd.length);
   });
 
+  it("paints nation labels ABOVE the border meshes so the province lines never cross the text", () => {
+    mountProvinceApp(root, { seed: 1 });
+    const svg = root.querySelector("svg") as SVGSVGElement;
+    const kids = Array.from(svg.children);
+    const labelIdx = kids.findIndex((el) => el.classList.contains("nation-labels"));
+    const provIdx = kids.findIndex((el) => el.classList.contains("province-border"));
+    const natIdx = kids.findIndex((el) => el.classList.contains("nation-border"));
+    expect(labelIdx).toBeGreaterThan(-1);      // labels lifted to a top-level svg child
+    expect(labelIdx).toBeGreaterThan(provIdx); // …and painted after the province mesh
+    expect(labelIdx).toBeGreaterThan(natIdx);  // …and after the nation outlines
+  });
+
   it("does not mutate the world's province objects (read-only aliasing guard)", () => {
     const world = generateWorld({ ...DEFAULT_PARAMS, seed: 1 }).world;
     const before = world.provinces[0].cells;
