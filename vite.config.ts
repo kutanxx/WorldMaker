@@ -11,6 +11,7 @@ export default defineConfig({
         main: "index.html",
         map: "map.html",
         play: "play.html",
+        playProvince: "playProvince.html",
       },
     },
   },

@@ -26,6 +26,7 @@ describe("renderChooser", () => {
     const hrefs = Array.from(root.querySelectorAll("a.choice-card")).map((a) => a.getAttribute("href"));
     expect(hrefs).toContain("map.html");
     expect(hrefs).toContain("play.html");
+    expect(hrefs).toContain("playProvince.html");
   });
 });
 
