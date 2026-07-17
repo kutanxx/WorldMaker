@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type { Province } from "./provinces";
-import { buildProvinceAdj, initProvinceSim, pAggregate, stepProvinceSim, type ProvinceSimState } from "./provinceSim";
+import { buildProvinceAdj, initProvinceSim, pAggregate, stepProvinceSim, PROVINCE_SIM_TICKS, type ProvinceSimState } from "./provinceSim";
 import { generateWorld } from "./world";
 import { DEFAULT_PARAMS } from "../types/world";
 
@@ -108,5 +108,45 @@ describe("stepProvinceSim — conquest & capital defeat", () => {
     stepProvinceSim(s);
     expect(s.alive[1]).toBe(false); // B lost its capital province
     expect(s.alive[0]).toBe(true);
+  });
+});
+
+function fnv(arr: ArrayLike<number>): number {
+  let h = 2166136261 >>> 0;
+  for (let i = 0; i < arr.length; i++) { h ^= (arr[i] + 1) >>> 0; h = Math.imul(h, 16777619) >>> 0; }
+  return h >>> 0;
+}
+function ownerShare(s: { provOwner: Int32Array; provinces: { cells: number }[] }): Map<number, number> {
+  const m = new Map<number, number>();
+  for (let p = 0; p < s.provOwner.length; p++) { const o = s.provOwner[p]; if (o >= 0) m.set(o, (m.get(o) ?? 0) + s.provinces[p].cells); }
+  return m;
+}
+
+describe("provinceSim determinism + safety (seed 1)", () => {
+  it("pins the seed-1 golden hashes (initial + after 50 ticks) — deterministic, rng-free", () => {
+    const world = generateWorld({ ...DEFAULT_PARAMS, seed: 1 }).world;
+    const s = initProvinceSim(world);
+    expect(fnv(s.provOwner)).toBe(226648593); // pinned golden hash — initial state (seed 1)
+    for (let t = 0; t < PROVINCE_SIM_TICKS; t++) stepProvinceSim(s);
+    expect(s.tick).toBe(PROVINCE_SIM_TICKS);
+    expect(fnv(s.provOwner)).toBe(3566824384); // pinned golden hash — after 50 ticks (seed 1)
+  });
+  it("is not static — territory concentrates (the top nation grows, some nations are eliminated)", () => {
+    const world = generateWorld({ ...DEFAULT_PARAMS, seed: 1 }).world;
+    const s = initProvinceSim(world);
+    const t0 = ownerShare(s);
+    const topStart = Math.max(...t0.values());
+    const aliveStart = s.alive.filter(Boolean).length;
+    for (let t = 0; t < PROVINCE_SIM_TICKS; t++) stepProvinceSim(s);
+    const topEnd = Math.max(...ownerShare(s).values());
+    const aliveEnd = s.alive.filter(Boolean).length;
+    expect(topEnd).toBeGreaterThan(topStart);  // a dominant power emerged
+    expect(aliveEnd).toBeLessThan(aliveStart); // at least one nation was conquered
+  });
+  it("does not perturb Version A's world-gen golden hash (fork is isolated)", () => {
+    const world = generateWorld({ ...DEFAULT_PARAMS, seed: 1 }).world;
+    let h = 2166136261 >>> 0;
+    for (const p of world.polityOf) { h ^= (p + 1); h = Math.imul(h, 16777619) >>> 0; }
+    expect(h >>> 0).toBe(1350115163);
   });
 });
