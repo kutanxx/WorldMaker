@@ -171,6 +171,30 @@ describe("armableTargets", () => {
   });
 });
 
+describe("stepPlayerTurn determinism + safety (seed 1)", () => {
+  // a fixed, deterministic policy: each turn the player (nation 0) attacks EVERY armable province.
+  function runPlayerGame() {
+    const world = generateWorld({ ...DEFAULT_PARAMS, seed: 1 }).world;
+    const s = initProvinceSim(world);
+    const playerId = 0;
+    for (let t = 0; t < PROVINCE_SIM_TICKS && s.alive[playerId]; t++) {
+      stepPlayerTurn(s, playerId, new Set(armableTargets(s, playerId)));
+    }
+    return s;
+  }
+  it("pins the seed-1 player-path golden hash — deterministic, rng-free", () => {
+    const a = runPlayerGame(), b = runPlayerGame();
+    expect(fnv(a.provOwner)).toBe(fnv(b.provOwner)); // two runs identical (determinism)
+    expect(fnv(a.provOwner)).toBe(3250864689); // pinned golden hash — seed-1 player-path (all-armable-targets policy)
+  });
+  it("does not perturb Version A's world-gen golden hash (fork is isolated)", () => {
+    const world = generateWorld({ ...DEFAULT_PARAMS, seed: 1 }).world;
+    let h = 2166136261 >>> 0;
+    for (const p of world.polityOf) { h ^= (p + 1); h = Math.imul(h, 16777619) >>> 0; }
+    expect(h >>> 0).toBe(1350115163);
+  });
+});
+
 describe("stepPlayerTurn", () => {
   // A(0) is big/cohesive (prov 0 capital + prov 1), B(1) holds a lone weak capital prov 2. adj 1-2.
   function fixture(): ProvinceSimState {
