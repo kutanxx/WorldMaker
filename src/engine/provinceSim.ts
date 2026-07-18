@@ -7,7 +7,7 @@ const SOL_INIT = 0.5;
 const SOL_RISE = 0.03, SOL_DECAY = 0.02;
 const CONQUEST_SOL = 0.7;
 const CONSOLIDATE_BONUS = 0.1; // a "consolidate" player turn adds this to each owned province's solidarity
-const ATTACK_EXHAUST = 0.3;    // a conquest drops the attacking front province's solidarity — aggression exposes you
+const ATTACK_EXHAUST = 0.1;    // a conquest drops the attacking front province's solidarity — aggression exposes you
 const EMPTY_TARGETS: ReadonlySet<number> = new Set();
 const W_ASA = 1.0, W_LOCAL = 0.5, W_POWER = 0.03, W_DIST = 0.002, SIZE_CAP = 24, CONTEST_THRESH = 1.03;
 
