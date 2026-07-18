@@ -1,8 +1,8 @@
 import { generateWorld } from "../engine/world";
 import { DEFAULT_PARAMS } from "../types/world";
 import {
-  initProvinceSim, pAggregate, PROVINCE_SIM_TICKS, armableTargets, stepPlayerTurn, predictCapture,
-  type ProvinceSimState,
+  initProvinceSim, pAggregate, PROVINCE_SIM_TICKS, armableTargets, stepPlayerTurn, explainAttack,
+  type ProvinceSimState, type AttackReason,
 } from "../engine/provinceSim";
 import { politicalLayer } from "./politicalLayer";
 import { politicalBorders } from "../engine/borders";
@@ -34,6 +34,21 @@ export function isDomination(prov: number, start: number, land: number): boolean
 export function shakyOpacity(sol: number): number {
   const op = (0.55 - sol) * 1.2;
   return op < 0 ? 0 : op > 0.5 ? 0.5 : op;
+}
+
+// plain-language reason an attack wins/loses, for the battle preview + tooltips.
+export function reasonText(reason: AttackReason, lang: "ko" | "en"): string {
+  const ko: Record<AttackReason, string> = {
+    "realm-strong": "내 나라가 강함", "realm-weak": "내 나라가 불안정함",
+    "target-shaky": "그 지역이 흔들림", "target-stable": "그 지역이 굳건함",
+    "near": "수도에서 가까움", "too-far": "수도에서 멀어 원정 페널티", "even": "막상막하",
+  };
+  const en: Record<AttackReason, string> = {
+    "realm-strong": "your realm is strong", "realm-weak": "your realm is unstable",
+    "target-shaky": "the province is shaky", "target-stable": "the province is well-held",
+    "near": "close to your capital", "too-far": "far from your capital", "even": "an even match",
+  };
+  return (lang === "ko" ? ko : en)[reason];
 }
 
 export function mountProvinceApp(root: HTMLElement, opts: { seed?: number } = {}): void {
@@ -130,6 +145,15 @@ export function mountProvinceApp(root: HTMLElement, opts: { seed?: number } = {}
     return g;
   }
 
+  // one readable line for a target: "Name — ⚔ 72 vs 🛡 60 · you can take (the province is shaky)"
+  function attackLine(u: UI, prov: number): string {
+    const name = u.world.provinces[prov].name;
+    const od = explainAttack(u.s, u.playerId, prov);
+    if (!od) return name;
+    const verdict = od.win ? (lang === "ko" ? "점령 가능" : "you can take") : (lang === "ko" ? "실패" : "too strong");
+    return `${name} — ⚔ ${Math.round(od.atk * 100)} ${lang === "ko" ? "대" : "vs"} 🛡 ${Math.round(od.def * 100)} · ${verdict} (${reasonText(od.reason, lang)})`;
+  }
+
   function targetOverlay(u: UI): SVGGElement {
     const arm = new Set(armableTargets(u.s, u.playerId));
     const byProv: string[] = u.world.provinces.map(() => "");
@@ -142,8 +166,8 @@ export function mountProvinceApp(root: HTMLElement, opts: { seed?: number } = {}
       if (!byProv[prov.id]) continue;
       const armed = targets.has(prov.id);
       // colour every attackable province by the EXACT (deterministic) outcome: green = you would capture it,
-      // red = the defender is too strong. Arming adds a gold ring. This is the "why did it succeed/fail" answer.
-      const win = predictCapture(u.s, u.playerId, prov.id);
+      // red = the defender is too strong. Arming adds a gold ring. The tooltip spells out the numbers + reason.
+      const win = explainAttack(u.s, u.playerId, prov.id)?.win ?? false;
       const col = win ? "#2f8f4e" : "#b23a3a";
       const path = svgEl("path", {
         class: "prov-target" + (armed ? " armed" : "") + (win ? " winnable" : " too-strong"),
@@ -152,9 +176,7 @@ export function mountProvinceApp(root: HTMLElement, opts: { seed?: number } = {}
         stroke: armed ? "#e8b53a" : col, "stroke-width": armed ? 2.2 : 1, "stroke-opacity": armed ? 1 : 0.7,
       });
       const title = svgEl("title");
-      title.textContent = win
-        ? (lang === "ko" ? `${prov.name} — 점령 가능` : `${prov.name} — you can take this`)
-        : (lang === "ko" ? `${prov.name} — 너무 강함 (내실로 힘을 키우거나 더 약한 곳을 노려요)` : `${prov.name} — too strong (consolidate, or pick a weaker target)`);
+      title.textContent = attackLine(u, prov.id);
       path.appendChild(title);
       g.appendChild(path);
     }
@@ -248,8 +270,8 @@ export function mountProvinceApp(root: HTMLElement, opts: { seed?: number } = {}
         const legend = document.createElement("div");
         legend.className = "prov-legend";
         legend.textContent = lang === "ko"
-          ? "🟩 점령 가능  ·  🟥 너무 강함 — 공격할 곳을 눌러 지정"
-          : "🟩 you can take  ·  🟥 too strong — click provinces to target";
+          ? "✓ 초록 = 점령 가능  ·  ✕ 빨강 = 너무 강함 — 지역에 마우스를 올리면 이유가 나와요"
+          : "✓ green = you can take  ·  ✕ red = too strong — hover a province for the reason";
         root.appendChild(legend);
         map.appendChild(targetOverlay(ui));
         map.addEventListener("click", (e) => {
@@ -259,6 +281,23 @@ export function mountProvinceApp(root: HTMLElement, opts: { seed?: number } = {}
           if (targets.has(p)) targets.delete(p); else targets.add(p);
           render();
         });
+        // battle preview: a readable line per targeted province — the numbers and the REASON, not just colour
+        const preview = document.createElement("div");
+        preview.className = "prov-preview";
+        if (targets.size === 0) {
+          preview.textContent = lang === "ko"
+            ? "공격할 지역을 눌러 지정하면 전투 예측이 여기 표시됩니다"
+            : "click provinces to target — the battle forecast appears here";
+        } else {
+          for (const p of [...targets].sort((a, b) => a - b)) {
+            const od = explainAttack(ui.s, ui.playerId, p);
+            const row = document.createElement("div");
+            row.className = "prov-preview-row " + (od?.win ? "winnable" : "too-strong");
+            row.textContent = (od?.win ? "✓ " : "✕ ") + attackLine(ui, p);
+            preview.appendChild(row);
+          }
+        }
+        root.appendChild(preview);
       }
 
       const bar = document.createElement("div");

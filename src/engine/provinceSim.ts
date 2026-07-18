@@ -145,10 +145,14 @@ function playerFront(s: ProvinceSimState, playerId: number, targetProv: number, 
   return front;
 }
 
-// Would the player CAPTURE `targetProv` if it attacked it this turn? Deterministic and EXACT — it mirrors the
-// contest (same stepped solidarity, aggregate, strength, and CONTEST_THRESH) that stepPlayerTurn will run, so a
-// green/red preview built on it never lies. Returns null if the player can't attack the target (not adjacent).
-export function predictCapture(s: ProvinceSimState, playerId: number, targetProv: number): boolean | null {
+// why an attack turns out the way it does — the dominant factor separating attacker from defender.
+export type AttackReason = "realm-strong" | "realm-weak" | "target-shaky" | "target-stable" | "near" | "too-far" | "even";
+export interface AttackOdds { win: boolean; atk: number; def: number; reason: AttackReason; }
+
+// Full breakdown of the player attacking `targetProv` this turn: attacker vs defender strength and the dominant
+// REASON for the verdict. Deterministic and EXACT — shares the stepped solidarity / aggregate / strength /
+// CONTEST_THRESH that stepPlayerTurn runs, so it never lies. null if the player can't reach the target.
+export function explainAttack(s: ProvinceSimState, playerId: number, targetProv: number): AttackOdds | null {
   const stepped = computeSteppedSol(s);
   const front = playerFront(s, playerId, targetProv, stepped);
   if (front < 0) return null;
@@ -157,7 +161,28 @@ export function predictCapture(s: ProvinceSimState, playerId: number, targetProv
   const o = s.provOwner[targetProv];
   const atk = strength(tmp, agg, playerId, targetProv, front);
   const def = o < 0 ? 0 : strength(tmp, agg, o, targetProv, targetProv);
-  return atk > def * CONTEST_THRESH;
+  const win = atk > def * CONTEST_THRESH;
+  // decompose attacker-minus-defender into named terms; the largest-magnitude one explains the verdict
+  const defAvg = o < 0 ? 0 : agg[o].avg;
+  const defSol = o < 0 ? 0 : stepped[targetProv];
+  const pcap = s.capitalProv[playerId], ocap = o >= 0 ? s.capitalProv[o] : -1;
+  const myDist = pcap >= 0 ? centroidDist(s.provinces[targetProv], s.provinces[pcap]) : 0;
+  const theirDist = ocap >= 0 ? centroidDist(s.provinces[targetProv], s.provinces[ocap]) : myDist;
+  const terms: [AttackReason, AttackReason, number][] = [
+    ["realm-strong", "realm-weak", W_ASA * (agg[playerId].avg - defAvg)],
+    ["target-shaky", "target-stable", W_LOCAL * (stepped[front] - defSol)],
+    ["near", "too-far", -W_DIST * (myDist - theirDist)],
+  ];
+  terms.sort((a, b) => Math.abs(b[2]) - Math.abs(a[2]));
+  const [pos, neg, val] = terms[0];
+  const reason: AttackReason = Math.abs(val) < 1e-6 ? "even" : val >= 0 ? pos : neg;
+  return { win, atk, def, reason };
+}
+
+// Would the player CAPTURE `targetProv` this turn? Convenience wrapper over explainAttack (null if unreachable).
+export function predictCapture(s: ProvinceSimState, playerId: number, targetProv: number): boolean | null {
+  const odds = explainAttack(s, playerId, targetProv);
+  return odds ? odds.win : null;
 }
 
 type AttackerPick = { attacker: number; frontProv: number } | null;

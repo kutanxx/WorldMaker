@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach } from "vitest";
-import { mountProvinceApp, provinceCellOwner, isDomination, shakyOpacity } from "./provinceApp";
+import { mountProvinceApp, provinceCellOwner, isDomination, shakyOpacity, reasonText } from "./provinceApp";
 import { generateWorld } from "../engine/world";
 import { DEFAULT_PARAMS } from "../types/world";
 import { initProvinceSim } from "../engine/provinceSim";
@@ -22,6 +22,15 @@ describe("isDomination (win = gained a fifth of the map beyond your start)", () 
   it("never triggers instantly for a big start — you must actually GAIN, not just be large", () => {
     expect(isDomination(40, 40, LAND)).toBe(false); // gained 0 → no instant win
     expect(isDomination(60, 40, LAND)).toBe(true);  // a big nation still has to conquer 20 more
+  });
+});
+
+describe("reasonText (plain-language attack reasons)", () => {
+  it("phrases each reason in the chosen language", () => {
+    expect(reasonText("realm-weak", "ko")).toContain("불안정");
+    expect(reasonText("target-stable", "ko")).toContain("굳건");
+    expect(reasonText("target-shaky", "en")).toContain("shaky");
+    expect(reasonText("too-far", "en")).toContain("far");
   });
 });
 
@@ -158,6 +167,18 @@ describe("province turn loop (seed 1)", () => {
       expect(t.querySelector("title")?.textContent || "").not.toBe("");
     }
     expect(root.querySelector(".prov-legend")).toBeTruthy();
+  });
+
+  it("shows a battle preview with strengths and a reason for each armed target", () => {
+    startAsFirstPolity();
+    const preview = root.querySelector(".prov-preview")!;
+    expect(preview.textContent || "").toMatch(/공격할|click provinces/i); // empty-state prompt before arming
+    (root.querySelector(".prov-target") as SVGPathElement).dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    const rows = root.querySelectorAll(".prov-preview-row");
+    expect(rows.length).toBe(1);
+    expect(rows[0].textContent || "").toMatch(/⚔.*🛡/);                       // attacker vs defender numbers
+    expect(rows[0].textContent || "").toMatch(/[()]/);                        // a parenthesised reason
+    expect(rows[0].classList.contains("winnable") || rows[0].classList.contains("too-strong")).toBe(true);
   });
 
   it("advancing bumps the turn and logs any conquest", () => {

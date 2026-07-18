@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import type { Province } from "./provinces";
 import { buildProvinceAdj, initProvinceSim, pAggregate, stepProvinceSim, PROVINCE_SIM_TICKS, type ProvinceSimState } from "./provinceSim";
-import { armableTargets, stepPlayerTurn, predictCapture } from "./provinceSim";
+import { armableTargets, stepPlayerTurn, predictCapture, explainAttack } from "./provinceSim";
 import { generateWorld } from "./world";
 import { DEFAULT_PARAMS } from "../types/world";
 
@@ -242,6 +242,20 @@ describe("stepPlayerTurn", () => {
     // a target the player does not border → null (can't attack): B(1) owns only prov 2, and prov 0 is not
     // adjacent to it (prov 1, owned by A, sits between them).
     expect(predictCapture(fixture(), 1, 0)).toBeNull();
+  });
+  it("explainAttack reports strengths + the dominant reason, matching the verdict", () => {
+    // A(0) strong realm takes B(1)'s weak lone province 2 → win, dominant factor is the realm gap.
+    const win = explainAttack(fixture(), 0, 2)!;
+    expect(win.win).toBe(true);
+    expect(win.atk).toBeGreaterThan(win.def);
+    expect(win.reason).toBe("realm-strong");
+    // As weak B(1) attacking A(0)'s province 1 → lose, because B's realm is unstable.
+    const lose = explainAttack(fixture(), 1, 1)!;
+    expect(lose.win).toBe(false);
+    expect(lose.reason).toBe("realm-weak");
+    // unreachable target → null, same as predictCapture
+    expect(explainAttack(fixture(), 1, 0)).toBeNull();
+    expect(predictCapture(fixture(), 0, 2)).toBe(true); // predictCapture still agrees with explainAttack.win
   });
   it("consolidate: strengthens the player's provinces and makes no player attack", () => {
     const plain = fixture(); stepPlayerTurn(plain, 0, new Set());                     // ordinary turn, no attack
