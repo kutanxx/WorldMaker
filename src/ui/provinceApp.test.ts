@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach } from "vitest";
-import { mountProvinceApp, provinceCellOwner, isDomination } from "./provinceApp";
+import { mountProvinceApp, provinceCellOwner, isDomination, shakyOpacity } from "./provinceApp";
 import { generateWorld } from "../engine/world";
 import { DEFAULT_PARAMS } from "../types/world";
 import { initProvinceSim } from "../engine/provinceSim";
@@ -22,6 +22,28 @@ describe("isDomination (win = gained a fifth of the map beyond your start)", () 
   it("never triggers instantly for a big start — you must actually GAIN, not just be large", () => {
     expect(isDomination(40, 40, LAND)).toBe(false); // gained 0 → no instant win
     expect(isDomination(60, 40, LAND)).toBe(true);  // a big nation still has to conquer 20 more
+  });
+});
+
+describe("shakyOpacity (map wash reveals fragile provinces)", () => {
+  it("is 0 for stable provinces and rises as solidarity falls, clamped to [0, 0.5]", () => {
+    expect(shakyOpacity(0.9)).toBe(0);                                   // stable → no wash, full colour
+    expect(shakyOpacity(0.1)).toBeGreaterThan(shakyOpacity(0.5));        // shakier washes more
+    expect(shakyOpacity(0.5)).toBeGreaterThan(0);                        // neutral start slightly washed
+    expect(shakyOpacity(-1)).toBeLessThanOrEqual(0.5);                   // clamped high
+    expect(shakyOpacity(2)).toBe(0);                                     // clamped low
+  });
+});
+
+describe("solidarity wash on the map (play mode)", () => {
+  let root: HTMLElement;
+  beforeEach(() => { root = document.createElement("div"); document.body.appendChild(root); });
+  it("overlays a per-province wash on owned provinces once a game starts", () => {
+    mountProvinceApp(root, { seed: 1 });
+    (root.querySelector("[data-polity]") as SVGPathElement).dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    const wash = root.querySelector(".prov-solidarity");
+    expect(wash).toBeTruthy();
+    expect(wash!.querySelectorAll(".prov-shaky").length).toBeGreaterThan(0);
   });
 });
 

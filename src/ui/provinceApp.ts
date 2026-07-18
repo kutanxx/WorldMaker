@@ -28,6 +28,13 @@ export function isDomination(prov: number, start: number, land: number): boolean
   return prov - start >= Math.round(DOMINATION_GAIN_FRAC * land);
 }
 
+// how strongly to wash a province toward parchment given its solidarity: stable land (≳0.55) stays full
+// colour, fragile land fades pale so the player SEES where their realm (and the enemy's) is shaky. Tunable.
+export function shakyOpacity(sol: number): number {
+  const op = (0.55 - sol) * 1.2;
+  return op < 0 ? 0 : op > 0.5 ? 0.5 : op;
+}
+
 export function mountProvinceApp(root: HTMLElement, opts: { seed?: number } = {}): void {
   const lang = detectLang();
   const seed = opts.seed ?? Math.floor(Date.now() % 1_000_000); // non-deterministic seed is fine — UI only
@@ -65,6 +72,9 @@ export function mountProvinceApp(root: HTMLElement, opts: { seed?: number } = {}
       { fills: true, labels: true, legend: false, ...(ui ? { playerPolity: ui.playerId, playerColor: PLAYER_COLOR } : {}) },
     );
     svg.appendChild(layer);
+    // solidarity wash: pale-out fragile provinces so stability is a THING YOU SEE on the map, not just a
+    // HUD number. Play mode only (in the picker every province is a uniform 0.5). Under the borders/labels.
+    if (ui) svg.appendChild(solidarityWash(ui));
     // the province mesh: EVERY province boundary (incl. those inside one nation), so the map visibly
     // reads as "play in provinces" and not just nation blobs. Thin + faint UNDER the bold country lines.
     svg.appendChild(svgEl("path", {
@@ -96,6 +106,25 @@ export function mountProvinceApp(root: HTMLElement, opts: { seed?: number } = {}
     targets.clear();
     log.length = 0;
     render();
+  }
+
+  function solidarityWash(u: UI): SVGGElement {
+    const byProv: string[] = u.world.provinces.map(() => "");
+    for (let c = 0; c < u.world.grid.count; c++) {
+      const p = u.world.provinceOf[c];
+      if (p >= 0 && u.s.provOwner[p] >= 0) byProv[p] += cellPath(u.world.grid.polygons[c]);
+    }
+    const g = svgEl("g", { class: "prov-solidarity", style: "pointer-events:none" }) as SVGGElement;
+    for (const prov of u.world.provinces) {
+      if (!byProv[prov.id]) continue;
+      const op = shakyOpacity(u.s.provSol[prov.id]);
+      if (op <= 0.01) continue; // stable provinces show full colour
+      g.appendChild(svgEl("path", {
+        class: "prov-shaky", "data-province": prov.id, d: byProv[prov.id],
+        fill: "#efe6cf", "fill-opacity": op.toFixed(2),
+      }));
+    }
+    return g;
   }
 
   function targetOverlay(u: UI): SVGGElement {
