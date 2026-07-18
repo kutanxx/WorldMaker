@@ -266,10 +266,11 @@ export function stepPlayerTurn(
   const prevOwner = s.provOwner.slice();
   const prevAlive = s.alive.slice();
   stepSolidarity(s);
-  // a "consolidate" turn: the player forgoes attacking and instead shores up every province it holds
-  // (applied BEFORE the contest so it also defends better this tick). AI nations still act.
+  // a "consolidate" turn: the player forgoes attacking and instead shores up ONLY the provinces it selected
+  // (passed in `targets`), not the whole realm — so it can't blanket-shield every front. Applied before the
+  // contest so it also defends better this tick. AI nations still act.
   if (opts.consolidate) {
-    for (let p = 0; p < s.n; p++) if (s.provOwner[p] === playerId) {
+    for (const p of targets) if (p >= 0 && p < s.n && s.provOwner[p] === playerId) {
       const sv = s.provSol[p] + CONSOLIDATE_BONUS;
       s.provSol[p] = sv > 1 ? 1 : sv;
     }

@@ -25,6 +25,7 @@ interface UI { world: ReturnType<typeof generateWorld>["world"]; s: ProvinceSimS
 // start-fair: a tiny realm and a large one must both take the same absolute number of provinces, a big start
 // never wins instantly (gain is 0 at t0), and a small start can't win by grabbing 2 neighbours. SP3-tunable.
 const DOMINATION_GAIN_FRAC = 0.2;
+const CONSOLIDATE_MAX = 2; // a consolidate turn can shore up at most this many provinces — you can't shield everything
 export function isDomination(prov: number, start: number, land: number): boolean {
   return prov - start >= Math.round(DOMINATION_GAIN_FRAC * land);
 }
@@ -212,6 +213,34 @@ export function mountProvinceApp(root: HTMLElement, opts: { seed?: number } = {}
     return g;
   }
 
+  // consolidate mode: your OWN provinces are clickable to shore up (capped). Selected ones get a blue ring;
+  // the rest stay transparent-but-clickable so you can pick. The wash underneath still shows which are fragile.
+  function fortifyOverlay(u: UI): SVGGElement {
+    const byProv: string[] = u.world.provinces.map(() => "");
+    for (let c = 0; c < u.world.grid.count; c++) {
+      const p = u.world.provinceOf[c];
+      if (p >= 0 && u.s.provOwner[p] === u.playerId) byProv[p] += cellPath(u.world.grid.polygons[c]);
+    }
+    const g = svgEl("g", { class: "prov-fortifies" }) as SVGGElement;
+    for (const prov of u.world.provinces) {
+      if (!byProv[prov.id]) continue;
+      const sel = targets.has(prov.id);
+      const path = svgEl("path", {
+        class: "prov-fortify" + (sel ? " armed" : ""), "data-province": prov.id, d: byProv[prov.id],
+        fill: sel ? "#3a6ea5" : "transparent", "fill-opacity": sel ? 0.34 : 0, stroke: "none",
+      });
+      const title = svgEl("title");
+      title.textContent = `${prov.name} — ${lang === "ko" ? "안정도" : "stability"} ${Math.round(u.s.provSol[prov.id] * 100)}%`;
+      path.appendChild(title);
+      g.appendChild(path);
+      if (sel) g.appendChild(svgEl("path", {
+        class: "prov-fortify-ring", style: "pointer-events:none", d: provinceOutlinePath(u, prov.id),
+        fill: "none", stroke: "#3a6ea5", "stroke-width": 2.2, "stroke-linejoin": "round",
+      }));
+    }
+    return g;
+  }
+
   function hudText(u: UI): string {
     const avg = Math.round(pAggregate(u.s)[u.playerId].avg * 100);
     const capOk = u.s.alive[u.playerId];
@@ -290,7 +319,7 @@ export function mountProvinceApp(root: HTMLElement, opts: { seed?: number } = {}
         b.className = "prov-stance-btn" + (mode === m ? " active" : "");
         b.dataset.mode = m;
         b.textContent = m === "conquer" ? (lang === "ko" ? "⚔ 정복" : "⚔ Conquer") : (lang === "ko" ? "🛡 내실" : "🛡 Consolidate");
-        b.addEventListener("click", () => { if (mode !== m) { mode = m; if (m === "consolidate") targets.clear(); render(); } });
+        b.addEventListener("click", () => { if (mode !== m) { mode = m; targets.clear(); render(); } }); // attack vs fortify selections don't carry over
         stance.appendChild(b);
       }
       root.appendChild(stance);
@@ -327,6 +356,23 @@ export function mountProvinceApp(root: HTMLElement, opts: { seed?: number } = {}
           }
         }
         root.appendChild(preview);
+      } else {
+        // consolidate mode: pick up to CONSOLIDATE_MAX of your OWN provinces to shore up — you can't shield all
+        const hint = document.createElement("div");
+        hint.className = "prov-legend";
+        hint.textContent = lang === "ko"
+          ? `🛡 지킬 지역을 최대 ${CONSOLIDATE_MAX}곳 선택 (창백할수록 취약) — 고른 곳만 튼튼해지고 나머지 전선은 무방비`
+          : `🛡 pick up to ${CONSOLIDATE_MAX} of your provinces to shore up (paler = weaker) — the rest stay exposed`;
+        root.appendChild(hint);
+        map.appendChild(fortifyOverlay(ui));
+        map.addEventListener("click", (e) => {
+          const el = (e.target as Element | null)?.closest?.(".prov-fortify");
+          if (!el) return;
+          const p = Number(el.getAttribute("data-province"));
+          if (targets.has(p)) targets.delete(p);
+          else if (targets.size < CONSOLIDATE_MAX) targets.add(p);
+          render();
+        });
       }
 
       const bar = document.createElement("div");

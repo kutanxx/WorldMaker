@@ -207,6 +207,20 @@ describe("stance toggle (conquer vs consolidate)", () => {
     expect(root.querySelectorAll(".prov-target").length).toBe(0);           // no attack overlay while consolidating
     expect(root.querySelector(".prov-advance")!.textContent).toMatch(/내실|consolidate/i);
   });
+  it("consolidate mode lets you fortify your OWN provinces, capped (no blanket shield)", () => {
+    start();
+    (Array.from(root.querySelectorAll(".prov-stance-btn")) as HTMLButtonElement[])
+      .find((b) => b.dataset.mode === "consolidate")!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    const n = root.querySelectorAll(".prov-fortify").length;
+    expect(n).toBeGreaterThan(0);                            // your provinces are selectable to shore up
+    const ids = Array.from(root.querySelectorAll(".prov-fortify")).slice(0, 3).map((e) => e.getAttribute("data-province"));
+    for (const id of ids) {                                 // re-query each time — render() rebuilds the nodes
+      const el = root.querySelector(`.prov-fortify[data-province="${id}"]`) as SVGPathElement | null;
+      el?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    }
+    expect(root.querySelectorAll(".prov-fortify.armed").length).toBe(Math.min(2, n)); // capped at CONSOLIDATE_MAX (2)
+  });
+
   it("consolidating still advances the turn", () => {
     start();
     (Array.from(root.querySelectorAll(".prov-stance-btn")) as HTMLButtonElement[])

@@ -261,11 +261,11 @@ describe("stepPlayerTurn", () => {
     expect(explainAttack(fixture(), 1, 0)).toBeNull();
     expect(predictCapture(fixture(), 0, 2)).toBe(true); // predictCapture still agrees with explainAttack.win
   });
-  it("consolidate: strengthens the player's provinces and makes no player attack", () => {
-    const plain = fixture(); stepPlayerTurn(plain, 0, new Set());                     // ordinary turn, no attack
-    const cons = fixture(); stepPlayerTurn(cons, 0, new Set([2]), { consolidate: true }); // consolidate, target ignored
-    expect(cons.provOwner[2]).toBe(1);                       // did NOT attack prov 2 despite it being targeted
-    expect(cons.provSol[0]).toBeGreaterThan(plain.provSol[0]); // player province 0 is stronger than a plain turn
-    expect(cons.provSol[1]).toBeGreaterThan(plain.provSol[1]); // …and province 1
+  it("consolidate: fortifies only the SELECTED owned provinces, and makes no player attack", () => {
+    const plain = fixture(); stepPlayerTurn(plain, 0, new Set());                       // ordinary turn, no attack
+    const cons = fixture(); stepPlayerTurn(cons, 0, new Set([0]), { consolidate: true }); // fortify ONLY province 0
+    expect(cons.provOwner[2]).toBe(1);                          // consolidate makes no attack
+    expect(cons.provSol[0]).toBeGreaterThan(plain.provSol[0]);  // the fortified province is stronger
+    expect(cons.provSol[1]).toBeCloseTo(plain.provSol[1], 5);   // an un-selected province is NOT boosted (no free blanket shield)
   });
 });
