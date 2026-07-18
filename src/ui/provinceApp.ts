@@ -20,7 +20,13 @@ export function provinceCellOwner(count: number, provinceOf: ArrayLike<number>, 
 
 interface UI { world: ReturnType<typeof generateWorld>["world"]; s: ProvinceSimState; playerId: number; startProvinces: number; }
 
-const DOMINATION_MULT = 3;
+// Domination = you have CONQUERED a fifth of the map beyond where you started. Additive (not ×start) so it is
+// start-fair: a tiny realm and a large one must both take the same absolute number of provinces, a big start
+// never wins instantly (gain is 0 at t0), and a small start can't win by grabbing 2 neighbours. SP3-tunable.
+const DOMINATION_GAIN_FRAC = 0.2;
+export function isDomination(prov: number, start: number, land: number): boolean {
+  return prov - start >= Math.round(DOMINATION_GAIN_FRAC * land);
+}
 
 export function mountProvinceApp(root: HTMLElement, opts: { seed?: number } = {}): void {
   const lang = detectLang();
@@ -43,7 +49,7 @@ export function mountProvinceApp(root: HTMLElement, opts: { seed?: number } = {}
       const by = u.world.polities[u.s.provOwner[cap]]?.name ?? "?";
       return { kind: "defeat", by };
     }
-    if (playerProvinceCount(u) >= DOMINATION_MULT * u.startProvinces) return { kind: "domination" };
+    if (isDomination(playerProvinceCount(u), u.startProvinces, u.s.n)) return { kind: "domination" };
     if (u.s.tick >= PROVINCE_SIM_TICKS) return { kind: "survival" };
     return null;
   }
@@ -134,8 +140,8 @@ export function mountProvinceApp(root: HTMLElement, opts: { seed?: number } = {}
     hint.className = "prov-hint";
     hint.textContent = ui
       ? (lang === "ko"
-          ? `${ui.world.polities[ui.playerId]?.name ?? ""} — 시작의 3배 정복 또는 50턴 생존`
-          : `${ui.world.polities[ui.playerId]?.name ?? ""} — conquer 3× your start, or survive 50 turns`)
+          ? `${ui.world.polities[ui.playerId]?.name ?? ""} — 세계의 1/5을 새로 정복하거나 50턴 생존`
+          : `${ui.world.polities[ui.playerId]?.name ?? ""} — conquer a fifth of the world, or survive 50 turns`)
       : (lang === "ko"
           ? "지도에서 나라를 클릭해 다스릴 제국을 고르세요"
           : "Click a nation on the map to choose your realm");

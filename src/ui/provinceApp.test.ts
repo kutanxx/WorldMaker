@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach } from "vitest";
-import { mountProvinceApp, provinceCellOwner } from "./provinceApp";
+import { mountProvinceApp, provinceCellOwner, isDomination } from "./provinceApp";
 import { generateWorld } from "../engine/world";
 import { DEFAULT_PARAMS } from "../types/world";
 import { initProvinceSim } from "../engine/provinceSim";
@@ -10,6 +10,18 @@ describe("provinceCellOwner", () => {
     const provinceOf = [0, 0, 1, -1];
     const provOwner = Int32Array.from([5, 2]); // prov 0 → nation 5, prov 1 → nation 2
     expect(Array.from(provinceCellOwner(4, provinceOf, provOwner))).toEqual([5, 5, 2, -1]);
+  });
+});
+
+describe("isDomination (win = gained a fifth of the map beyond your start)", () => {
+  const LAND = 102; // seed-1 land province count; target = round(0.2 * 102) = 20 provinces gained
+  it("wins once you have conquered ~20% of the map beyond your start", () => {
+    expect(isDomination(30, 10, LAND)).toBe(true);  // gained 20 → win
+    expect(isDomination(29, 10, LAND)).toBe(false); // gained 19 → not yet
+  });
+  it("never triggers instantly for a big start — you must actually GAIN, not just be large", () => {
+    expect(isDomination(40, 40, LAND)).toBe(false); // gained 0 → no instant win
+    expect(isDomination(60, 40, LAND)).toBe(true);  // a big nation still has to conquer 20 more
   });
 });
 
