@@ -151,7 +151,11 @@ export function mountProvinceApp(root: HTMLElement, opts: { seed?: number } = {}
     const od = explainAttack(u.s, u.playerId, prov);
     if (!od) return name;
     const verdict = od.win ? (lang === "ko" ? "점령 가능" : "you can take") : (lang === "ko" ? "실패" : "too strong");
-    return `${name} — ⚔ ${Math.round(od.atk * 100)} ${lang === "ko" ? "대" : "vs"} 🛡 ${Math.round(od.def * 100)} · ${verdict} (${reasonText(od.reason, lang)})`;
+    let line = `${name} — ⚔ ${Math.round(od.atk * 100)} ${lang === "ko" ? "대" : "vs"} 🛡 ${Math.round(od.def * 100)} · ${verdict} (${reasonText(od.reason, lang)})`;
+    if (!od.win) line += od.breakable // a losing attack: does building up (consolidate) open it, or is it too tough for now?
+      ? (lang === "ko" ? " · 🛡 내실하면 뚫림" : " · consolidate to break through")
+      : (lang === "ko" ? " · 지금은 벅참 (상대가 약해지길)" : " · too tough for now (wait for it to weaken)");
+    return line;
   }
 
   // clean OUTLINE of a whole province (its boundary against other provinces + ocean), not the jagged

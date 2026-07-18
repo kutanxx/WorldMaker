@@ -253,6 +253,10 @@ describe("stepPlayerTurn", () => {
     const lose = explainAttack(fixture(), 1, 1)!;
     expect(lose.win).toBe(false);
     expect(lose.reason).toBe("realm-weak");
+    // B loses now because its realm is weak — but a fully-cohesive B could take A's prov 1 → breakable.
+    expect(lose.breakable).toBe(true);
+    // A already wins, so it is trivially breakable too.
+    expect(win.breakable).toBe(true);
     // unreachable target → null, same as predictCapture
     expect(explainAttack(fixture(), 1, 0)).toBeNull();
     expect(predictCapture(fixture(), 0, 2)).toBe(true); // predictCapture still agrees with explainAttack.win

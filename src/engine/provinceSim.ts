@@ -147,7 +147,7 @@ function playerFront(s: ProvinceSimState, playerId: number, targetProv: number, 
 
 // why an attack turns out the way it does — the dominant factor separating attacker from defender.
 export type AttackReason = "realm-strong" | "realm-weak" | "target-shaky" | "target-stable" | "near" | "too-far" | "even";
-export interface AttackOdds { win: boolean; atk: number; def: number; reason: AttackReason; }
+export interface AttackOdds { win: boolean; atk: number; def: number; reason: AttackReason; breakable: boolean; }
 
 // Full breakdown of the player attacking `targetProv` this turn: attacker vs defender strength and the dominant
 // REASON for the verdict. Deterministic and EXACT — shares the stepped solidarity / aggregate / strength /
@@ -176,7 +176,11 @@ export function explainAttack(s: ProvinceSimState, playerId: number, targetProv:
   terms.sort((a, b) => Math.abs(b[2]) - Math.abs(a[2]));
   const [pos, neg, val] = terms[0];
   const reason: AttackReason = Math.abs(val) < 1e-6 ? "even" : val >= 0 ? pos : neg;
-  return { win, atk, def, reason };
+  // "breakable": could a FULLY cohesive realm (avg + front solidarity → 1) take this now? If yes, consolidating
+  // opens it; if even a maxed realm loses, the defender is too strong for now (wait for it to weaken).
+  const bestAtk = W_ASA * 1 + W_LOCAL * 1 + W_POWER * Math.sqrt(Math.min(agg[playerId].cells, SIZE_CAP)) - W_DIST * myDist;
+  const breakable = bestAtk > def * CONTEST_THRESH;
+  return { win, atk, def, reason, breakable };
 }
 
 // Would the player CAPTURE `targetProv` this turn? Convenience wrapper over explainAttack (null if unreachable).
