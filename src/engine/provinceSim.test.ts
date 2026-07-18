@@ -226,4 +226,11 @@ describe("stepPlayerTurn", () => {
     expect(s.provOwner[2]).toBe(0); // A took the player's capital province
     expect(s.alive[1]).toBe(false); // player B defeated
   });
+  it("consolidate: strengthens the player's provinces and makes no player attack", () => {
+    const plain = fixture(); stepPlayerTurn(plain, 0, new Set());                     // ordinary turn, no attack
+    const cons = fixture(); stepPlayerTurn(cons, 0, new Set([2]), { consolidate: true }); // consolidate, target ignored
+    expect(cons.provOwner[2]).toBe(1);                       // did NOT attack prov 2 despite it being targeted
+    expect(cons.provSol[0]).toBeGreaterThan(plain.provSol[0]); // player province 0 is stronger than a plain turn
+    expect(cons.provSol[1]).toBeGreaterThan(plain.provSol[1]); // …and province 1
+  });
 });

@@ -157,6 +157,32 @@ describe("province turn loop (seed 1)", () => {
   });
 });
 
+describe("stance toggle (conquer vs consolidate)", () => {
+  let root: HTMLElement;
+  beforeEach(() => { root = document.createElement("div"); document.body.appendChild(root); });
+  function start() {
+    mountProvinceApp(root, { seed: 1 });
+    (root.querySelector("[data-polity]") as SVGPathElement).dispatchEvent(new MouseEvent("click", { bubbles: true }));
+  }
+  it("offers a conquer/consolidate stance; consolidate hides the attack overlay", () => {
+    start();
+    const btns = Array.from(root.querySelectorAll(".prov-stance .prov-stance-btn")) as HTMLButtonElement[];
+    expect(btns.length).toBe(2);
+    expect(root.querySelector(".prov-stance-btn.active")).toBeTruthy();     // a mode is active (conquer default)
+    expect(root.querySelectorAll(".prov-target").length).toBeGreaterThan(0); // conquer shows attack targets
+    btns.find((b) => b.dataset.mode === "consolidate")!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    expect(root.querySelectorAll(".prov-target").length).toBe(0);           // no attack overlay while consolidating
+    expect(root.querySelector(".prov-advance")!.textContent).toMatch(/내실|consolidate/i);
+  });
+  it("consolidating still advances the turn", () => {
+    start();
+    (Array.from(root.querySelectorAll(".prov-stance-btn")) as HTMLButtonElement[])
+      .find((b) => b.dataset.mode === "consolidate")!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    (root.querySelector(".prov-advance") as HTMLButtonElement).dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    expect(root.querySelector(".prov-hud")!.textContent).toMatch(/1\s*\/\s*50/);
+  });
+});
+
 describe("province victory / defeat", () => {
   let root: HTMLElement;
   beforeEach(() => { root = document.createElement("div"); document.body.appendChild(root); });

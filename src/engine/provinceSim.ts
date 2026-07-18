@@ -6,6 +6,8 @@ type GridLike = Pick<World["grid"], "count" | "neighbors">;
 const SOL_INIT = 0.5;
 const SOL_RISE = 0.03, SOL_DECAY = 0.02;
 const CONQUEST_SOL = 0.7;
+const CONSOLIDATE_BONUS = 0.1; // a "consolidate" player turn adds this to each owned province's solidarity
+const EMPTY_TARGETS: ReadonlySet<number> = new Set();
 const W_ASA = 1.0, W_LOCAL = 0.5, W_POWER = 0.03, W_DIST = 0.002, SIZE_CAP = 24, CONTEST_THRESH = 1.03;
 
 export const PROVINCE_SIM_TICKS = 50;
@@ -198,13 +200,23 @@ export function armableTargets(s: ProvinceSimState, playerId: number): number[] 
 // auto-contested by its strongest live non-player enemy. Then alive-recompute + tick++. Returns the events.
 export function stepPlayerTurn(
   s: ProvinceSimState, playerId: number, targets: ReadonlySet<number>,
+  opts: { consolidate?: boolean } = {},
 ): PlayerStepEvents {
   const prevOwner = s.provOwner.slice();
   const prevAlive = s.alive.slice();
   stepSolidarity(s);
+  // a "consolidate" turn: the player forgoes attacking and instead shores up every province it holds
+  // (applied BEFORE the contest so it also defends better this tick). AI nations still act.
+  if (opts.consolidate) {
+    for (let p = 0; p < s.n; p++) if (s.provOwner[p] === playerId) {
+      const sv = s.provSol[p] + CONSOLIDATE_BONUS;
+      s.provSol[p] = sv > 1 ? 1 : sv;
+    }
+  }
+  const playerTargets: ReadonlySet<number> = opts.consolidate ? EMPTY_TARGETS : targets;
   const ai = aiAttacker(s, playerId); // AI excludes the player from auto-initiating
   const conquered = contestPass(s, (p, o, agg) => {
-    if (o !== playerId && targets.has(p)) {
+    if (o !== playerId && playerTargets.has(p)) {
       let bestSol = -Infinity, bestFront = -1;
       for (const q of s.adj[p]) {
         if (s.provOwner[q] !== playerId) continue;

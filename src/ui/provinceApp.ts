@@ -42,6 +42,7 @@ export function mountProvinceApp(root: HTMLElement, opts: { seed?: number } = {}
   let ui: UI | null = null; // null = picker mode
   const targets = new Set<number>();
   const log: string[] = [];
+  let mode: "conquer" | "consolidate" = "conquer"; // this turn: expand, or shore up my realm
 
   function playerProvinceCount(u: UI): number {
     let k = 0; for (let p = 0; p < u.s.n; p++) if (u.s.provOwner[p] === u.playerId) k++; return k;
@@ -105,6 +106,7 @@ export function mountProvinceApp(root: HTMLElement, opts: { seed?: number } = {}
     ui = { world, s, playerId, startProvinces };
     targets.clear();
     log.length = 0;
+    mode = "conquer";
     render();
   }
 
@@ -217,22 +219,45 @@ export function mountProvinceApp(root: HTMLElement, opts: { seed?: number } = {}
       hud.textContent = hudText(ui);
       root.appendChild(hud);
 
-      map.appendChild(targetOverlay(ui));
-      map.addEventListener("click", (e) => {
-        const el = (e.target as Element | null)?.closest?.(".prov-target");
-        if (!el) return;
-        const p = Number(el.getAttribute("data-province"));
-        if (targets.has(p)) targets.delete(p); else targets.add(p);
-        render();
-      });
+      // stance toggle: spend this turn expanding (Conquer) or shoring up your realm's stability (Consolidate)
+      const stance = document.createElement("div");
+      stance.className = "prov-stance";
+      for (const m of ["conquer", "consolidate"] as const) {
+        const b = document.createElement("button");
+        b.className = "prov-stance-btn" + (mode === m ? " active" : "");
+        b.dataset.mode = m;
+        b.textContent = m === "conquer" ? (lang === "ko" ? "⚔ 정복" : "⚔ Conquer") : (lang === "ko" ? "🛡 내실" : "🛡 Consolidate");
+        b.addEventListener("click", () => { if (mode !== m) { mode = m; if (m === "consolidate") targets.clear(); render(); } });
+        stance.appendChild(b);
+      }
+      root.appendChild(stance);
+
+      if (mode === "conquer") {
+        map.appendChild(targetOverlay(ui));
+        map.addEventListener("click", (e) => {
+          const el = (e.target as Element | null)?.closest?.(".prov-target");
+          if (!el) return;
+          const p = Number(el.getAttribute("data-province"));
+          if (targets.has(p)) targets.delete(p); else targets.add(p);
+          render();
+        });
+      }
+
       const bar = document.createElement("div");
       bar.className = "prov-bar";
       const advance = document.createElement("button");
       advance.className = "prov-advance";
-      advance.textContent = lang === "ko" ? "진행 ▶" : "Advance ▶";
+      advance.textContent = mode === "consolidate"
+        ? (lang === "ko" ? "내실 다지기 ▶" : "Consolidate ▶")
+        : (lang === "ko" ? "정복 진행 ▶" : "Advance ▶");
       advance.addEventListener("click", () => {
-        const ev = stepPlayerTurn(ui!.s, ui!.playerId, targets);
-        for (const c of ev.conquests) log.unshift(`${lang === "ko" ? "정복" : "took"} ${ui!.world.provinces[c.prov].name}`);
+        const pid = ui!.playerId;
+        const ev = stepPlayerTurn(ui!.s, pid, targets, { consolidate: mode === "consolidate" });
+        // categorise flips from the PLAYER's view: land I took vs land I lost (ignore AI-vs-AI flips)
+        for (const c of ev.conquests) {
+          if (c.to === pid) log.unshift(`${lang === "ko" ? "정복" : "took"} ${ui!.world.provinces[c.prov].name}`);
+          else if (c.from === pid) log.unshift(`${lang === "ko" ? "상실" : "lost"} ${ui!.world.provinces[c.prov].name}`);
+        }
         for (const id of ev.eliminated) log.unshift(`${ui!.world.polities[id]?.name ?? id} ${lang === "ko" ? "멸망" : "eliminated"}`);
         targets.clear();
         render();
