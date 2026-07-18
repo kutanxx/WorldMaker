@@ -185,7 +185,7 @@ describe("stepPlayerTurn determinism + safety (seed 1)", () => {
   it("pins the seed-1 player-path golden hash — deterministic, rng-free", () => {
     const a = runPlayerGame(), b = runPlayerGame();
     expect(fnv(a.provOwner)).toBe(fnv(b.provOwner)); // two runs identical (determinism)
-    expect(fnv(a.provOwner)).toBe(3250864689); // pinned golden hash — seed-1 player-path (all-armable-targets policy)
+    expect(fnv(a.provOwner)).toBe(30543232); // pinned golden — seed-1 player-path (all-armable policy); re-pinned when ATTACK_EXHAUST landed
   });
   it("does not perturb Version A's world-gen golden hash (fork is isolated)", () => {
     const world = generateWorld({ ...DEFAULT_PARAMS, seed: 1 }).world;

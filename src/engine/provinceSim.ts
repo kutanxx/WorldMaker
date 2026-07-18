@@ -7,6 +7,7 @@ const SOL_INIT = 0.5;
 const SOL_RISE = 0.03, SOL_DECAY = 0.02;
 const CONQUEST_SOL = 0.7;
 const CONSOLIDATE_BONUS = 0.1; // a "consolidate" player turn adds this to each owned province's solidarity
+const ATTACK_EXHAUST = 0.3;    // a conquest drops the attacking front province's solidarity — aggression exposes you
 const EMPTY_TARGETS: ReadonlySet<number> = new Set();
 const W_ASA = 1.0, W_LOCAL = 0.5, W_POWER = 0.03, W_DIST = 0.002, SIZE_CAP = 24, CONTEST_THRESH = 1.03;
 
@@ -194,20 +195,22 @@ type AttackerPick = { attacker: number; frontProv: number } | null;
 // double-buffered contest: for each province p (owner o) an attacker is chosen by `pick(p, o, agg)`; if
 // atk > def·CONTEST_THRESH the whole province flips. Reads pre-turn ownership + stepped solidarity, writes a
 // fresh owner buffer, then resets conquered provinces to CONQUEST_SOL. Returns the conquered province ids.
-function contestPass(s: ProvinceSimState, pick: (p: number, o: number, agg: PAgg[]) => AttackerPick): number[] {
+interface Conquest { prov: number; attacker: number; front: number; }
+
+function contestPass(s: ProvinceSimState, pick: (p: number, o: number, agg: PAgg[]) => AttackerPick): Conquest[] {
   const agg = pAggregate(s);
   const nextOwner = s.provOwner.slice();
-  const conquered: number[] = [];
+  const conquered: Conquest[] = [];
   for (let p = 0; p < s.n; p++) {
     const o = s.provOwner[p];
     const chosen = pick(p, o, agg);
     if (!chosen) continue;
     const atk = strength(s, agg, chosen.attacker, p, chosen.frontProv);
     const def = o < 0 ? 0 : strength(s, agg, o, p, p);
-    if (atk > def * CONTEST_THRESH) { nextOwner[p] = chosen.attacker; conquered.push(p); }
+    if (atk > def * CONTEST_THRESH) { nextOwner[p] = chosen.attacker; conquered.push({ prov: p, attacker: chosen.attacker, front: chosen.frontProv }); }
   }
   s.provOwner = nextOwner;
-  for (const p of conquered) s.provSol[p] = CONQUEST_SOL;
+  for (const c of conquered) s.provSol[c.prov] = CONQUEST_SOL; // a fresh conquest is cohesive
   return conquered;
 }
 
@@ -284,9 +287,15 @@ export function stepPlayerTurn(
     }
     return ai(p, o, agg);
   });
+  // committing an assault exhausts the province you attacked FROM — its solidarity drops, so blitzing on many
+  // fronts leaves them weak and exposed to a counterattack next turn (the "push vs hold" tension). Player only.
+  for (const c of conquered) if (c.attacker === playerId) {
+    const v = s.provSol[c.front] - ATTACK_EXHAUST;
+    s.provSol[c.front] = v < 0 ? 0 : v;
+  }
   recomputeAlive(s);
   s.tick++;
-  const conquests = conquered.map((p) => ({ prov: p, from: prevOwner[p], to: s.provOwner[p] }));
+  const conquests = conquered.map((c) => ({ prov: c.prov, from: prevOwner[c.prov], to: s.provOwner[c.prov] }));
   const eliminated: number[] = [];
   for (let id = 0; id < s.alive.length; id++) if (prevAlive[id] && !s.alive[id]) eliminated.push(id);
   return { conquests, eliminated };
