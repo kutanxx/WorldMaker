@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import type { Province } from "./provinces";
 import { buildProvinceAdj, initProvinceSim, pAggregate, stepProvinceSim, PROVINCE_SIM_TICKS, type ProvinceSimState } from "./provinceSim";
-import { armableTargets, stepPlayerTurn } from "./provinceSim";
+import { armableTargets, stepPlayerTurn, predictCapture } from "./provinceSim";
 import { generateWorld } from "./world";
 import { DEFAULT_PARAMS } from "../types/world";
 
@@ -225,6 +225,23 @@ describe("stepPlayerTurn", () => {
     stepPlayerTurn(s, 1, new Set()); // player B does nothing; AI A auto-contests prov 2
     expect(s.provOwner[2]).toBe(0); // A took the player's capital province
     expect(s.alive[1]).toBe(false); // player B defeated
+  });
+  it("predictCapture exactly matches what stepPlayerTurn will do (green/red never lies)", () => {
+    // A(0) big & cohesive can take B(1)'s weak lone capital province 2 → predict TRUE, and it happens.
+    const s1 = fixture();
+    expect(predictCapture(s1, 0, 2)).toBe(true);
+    stepPlayerTurn(s1, 0, new Set([2]));
+    expect(s1.provOwner[2]).toBe(0); // prediction held
+
+    // As weak B(1), attacking A(0)'s adjacent province 1 (B borders it via prov 2) → predict FALSE, and it fails.
+    const s2 = fixture();
+    expect(predictCapture(s2, 1, 1)).toBe(false);
+    stepPlayerTurn(s2, 1, new Set([1]));
+    expect(s2.provOwner[1]).toBe(0); // A kept province 1
+
+    // a target the player does not border → null (can't attack): B(1) owns only prov 2, and prov 0 is not
+    // adjacent to it (prov 1, owned by A, sits between them).
+    expect(predictCapture(fixture(), 1, 0)).toBeNull();
   });
   it("consolidate: strengthens the player's provinces and makes no player attack", () => {
     const plain = fixture(); stepPlayerTurn(plain, 0, new Set());                     // ordinary turn, no attack

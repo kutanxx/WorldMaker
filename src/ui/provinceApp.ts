@@ -1,7 +1,8 @@
 import { generateWorld } from "../engine/world";
 import { DEFAULT_PARAMS } from "../types/world";
 import {
-  initProvinceSim, pAggregate, PROVINCE_SIM_TICKS, armableTargets, stepPlayerTurn, type ProvinceSimState,
+  initProvinceSim, pAggregate, PROVINCE_SIM_TICKS, armableTargets, stepPlayerTurn, predictCapture,
+  type ProvinceSimState,
 } from "../engine/provinceSim";
 import { politicalLayer } from "./politicalLayer";
 import { politicalBorders } from "../engine/borders";
@@ -139,11 +140,22 @@ export function mountProvinceApp(root: HTMLElement, opts: { seed?: number } = {}
     const g = svgEl("g", { class: "prov-targets" }) as SVGGElement;
     for (const prov of u.world.provinces) {
       if (!byProv[prov.id]) continue;
+      const armed = targets.has(prov.id);
+      // colour every attackable province by the EXACT (deterministic) outcome: green = you would capture it,
+      // red = the defender is too strong. Arming adds a gold ring. This is the "why did it succeed/fail" answer.
+      const win = predictCapture(u.s, u.playerId, prov.id);
+      const col = win ? "#2f8f4e" : "#b23a3a";
       const path = svgEl("path", {
-        class: "prov-target" + (targets.has(prov.id) ? " armed" : ""), "data-province": prov.id,
-        d: byProv[prov.id], fill: targets.has(prov.id) ? "#e8b53a" : "transparent", "fill-opacity": targets.has(prov.id) ? 0.35 : 0,
-        stroke: targets.has(prov.id) ? "#e8b53a" : "none", "stroke-width": 1.5,
+        class: "prov-target" + (armed ? " armed" : "") + (win ? " winnable" : " too-strong"),
+        "data-province": prov.id, d: byProv[prov.id],
+        fill: col, "fill-opacity": armed ? 0.42 : 0.15,
+        stroke: armed ? "#e8b53a" : col, "stroke-width": armed ? 2.2 : 1, "stroke-opacity": armed ? 1 : 0.7,
       });
+      const title = svgEl("title");
+      title.textContent = win
+        ? (lang === "ko" ? `${prov.name} — 점령 가능` : `${prov.name} — you can take this`)
+        : (lang === "ko" ? `${prov.name} — 너무 강함 (내실로 힘을 키우거나 더 약한 곳을 노려요)` : `${prov.name} — too strong (consolidate, or pick a weaker target)`);
+      path.appendChild(title);
       g.appendChild(path);
     }
     return g;
@@ -233,6 +245,12 @@ export function mountProvinceApp(root: HTMLElement, opts: { seed?: number } = {}
       root.appendChild(stance);
 
       if (mode === "conquer") {
+        const legend = document.createElement("div");
+        legend.className = "prov-legend";
+        legend.textContent = lang === "ko"
+          ? "🟩 점령 가능  ·  🟥 너무 강함 — 공격할 곳을 눌러 지정"
+          : "🟩 you can take  ·  🟥 too strong — click provinces to target";
+        root.appendChild(legend);
         map.appendChild(targetOverlay(ui));
         map.addEventListener("click", (e) => {
           const el = (e.target as Element | null)?.closest?.(".prov-target");

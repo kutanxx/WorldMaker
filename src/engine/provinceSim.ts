@@ -112,9 +112,9 @@ function strength(s: ProvinceSimState, agg: PAgg[], polity: number, distProv: nu
     - W_DIST * d;
 }
 
-// double-buffered solidarity update: frontier provinces (adjacent to a different owner) rise, interior decay,
-// clamp [0,1]. (Extracted from stepProvinceSim so the player step shares it — behaviour unchanged.)
-function stepSolidarity(s: ProvinceSimState): void {
+// the next-tick solidarity buffer: frontier provinces (adjacent to a different owner) rise, interior decay,
+// clamp [0,1]. Pure — returns a fresh array without mutating `s` (the attack preview reuses it).
+function computeSteppedSol(s: ProvinceSimState): Float32Array {
   const { n, provOwner, adj } = s;
   const nextSol = new Float32Array(n);
   for (let p = 0; p < n; p++) {
@@ -125,7 +125,39 @@ function stepSolidarity(s: ProvinceSimState): void {
     const sv = s.provSol[p] + (frontier ? SOL_RISE : -SOL_DECAY);
     nextSol[p] = sv < 0 ? 0 : sv > 1 ? 1 : sv;
   }
-  s.provSol = nextSol;
+  return nextSol;
+}
+
+// double-buffered solidarity update (behaviour unchanged; shared by the AI step and the player step).
+function stepSolidarity(s: ProvinceSimState): void {
+  s.provSol = computeSteppedSol(s);
+}
+
+// the player's front province for attacking `targetProv`: its highest-solidarity own neighbour (tie → lowest
+// id), using the provided solidarity buffer. -1 if the player doesn't border the target.
+function playerFront(s: ProvinceSimState, playerId: number, targetProv: number, sol: ArrayLike<number>): number {
+  let bestSol = -Infinity, front = -1;
+  for (const q of s.adj[targetProv]) {
+    if (s.provOwner[q] !== playerId) continue;
+    const v = sol[q];
+    if (v > bestSol || (v === bestSol && (front < 0 || q < front))) { bestSol = v; front = q; }
+  }
+  return front;
+}
+
+// Would the player CAPTURE `targetProv` if it attacked it this turn? Deterministic and EXACT — it mirrors the
+// contest (same stepped solidarity, aggregate, strength, and CONTEST_THRESH) that stepPlayerTurn will run, so a
+// green/red preview built on it never lies. Returns null if the player can't attack the target (not adjacent).
+export function predictCapture(s: ProvinceSimState, playerId: number, targetProv: number): boolean | null {
+  const stepped = computeSteppedSol(s);
+  const front = playerFront(s, playerId, targetProv, stepped);
+  if (front < 0) return null;
+  const tmp: ProvinceSimState = { ...s, provSol: stepped };
+  const agg = pAggregate(tmp);
+  const o = s.provOwner[targetProv];
+  const atk = strength(tmp, agg, playerId, targetProv, front);
+  const def = o < 0 ? 0 : strength(tmp, agg, o, targetProv, targetProv);
+  return atk > def * CONTEST_THRESH;
 }
 
 type AttackerPick = { attacker: number; frontProv: number } | null;
@@ -217,13 +249,8 @@ export function stepPlayerTurn(
   const ai = aiAttacker(s, playerId); // AI excludes the player from auto-initiating
   const conquered = contestPass(s, (p, o, agg) => {
     if (o !== playerId && playerTargets.has(p)) {
-      let bestSol = -Infinity, bestFront = -1;
-      for (const q of s.adj[p]) {
-        if (s.provOwner[q] !== playerId) continue;
-        const sv = s.provSol[q];
-        if (sv > bestSol || (sv === bestSol && (bestFront < 0 || q < bestFront))) { bestSol = sv; bestFront = q; }
-      }
-      if (bestFront >= 0) return { attacker: playerId, frontProv: bestFront };
+      const front = playerFront(s, playerId, p, s.provSol); // s.provSol is already the stepped buffer here
+      if (front >= 0) return { attacker: playerId, frontProv: front };
     }
     return ai(p, o, agg);
   });

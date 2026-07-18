@@ -148,6 +148,18 @@ describe("province turn loop (seed 1)", () => {
     expect(armed.classList.contains("armed")).toBe(true);
   });
 
+  it("colours each attackable province by predicted outcome (winnable vs too-strong) with a legend", () => {
+    startAsFirstPolity();
+    const targets = Array.from(root.querySelectorAll(".prov-target"));
+    expect(targets.length).toBeGreaterThan(0);
+    // every target is classified one way or the other, and carries an explanatory tooltip
+    for (const t of targets) {
+      expect(t.classList.contains("winnable") || t.classList.contains("too-strong")).toBe(true);
+      expect(t.querySelector("title")?.textContent || "").not.toBe("");
+    }
+    expect(root.querySelector(".prov-legend")).toBeTruthy();
+  });
+
   it("advancing bumps the turn and logs any conquest", () => {
     startAsFirstPolity();
     const target = root.querySelector(".prov-target") as SVGPathElement;
