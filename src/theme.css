@@ -353,6 +353,11 @@ svg.world .legend { pointer-events: none; }
   display: block; width: 100%; max-width: 900px; margin: 10px auto 0; background: #eadfc2;
   border: 1px solid #cbb784; border-radius: 5px; box-shadow: 0 2px 12px rgba(60, 47, 28, 0.16);
 }
+/* the global `.political .territory { pointer-events: none }` (for the cell game's attack overlay) would
+   otherwise make the province picker's nation fills un-clickable — re-enable them here, and make the
+   decorative overlays click-through so a real click always lands on the nation underneath. */
+.prov-map .territory { pointer-events: auto; cursor: pointer; }
+.prov-map .province-border, .prov-map .nation-border, .prov-map .nation-labels { pointer-events: none; }
 .prov-target { cursor: pointer; }
 .prov-hud {
   max-width: 900px; margin: 10px auto 0; padding: 8px 16px; text-align: center;
