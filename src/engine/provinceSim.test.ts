@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import type { Province } from "./provinces";
 import { buildProvinceAdj, initProvinceSim, pAggregate, stepProvinceSim, PROVINCE_SIM_TICKS, type ProvinceSimState } from "./provinceSim";
 import { armableTargets, stepPlayerTurn, predictCapture, explainAttack } from "./provinceSim";
+import { offerProvinceDilemma, resolveProvinceDilemma } from "./provinceSim";
 import { generateWorld } from "./world";
 import { DEFAULT_PARAMS } from "../types/world";
 
@@ -168,6 +169,38 @@ describe("armableTargets", () => {
   it("includes an adjacent unowned province", () => {
     // player = B(1); B's prov 2 borders A's prov 1 AND unowned prov 3 → [1, 3]
     expect(armableTargets(line(), 1)).toEqual([1, 3]);
+  });
+});
+
+describe("province dilemmas (rng-free, state-triggered)", () => {
+  function st(over: Record<string, unknown> = {}): ProvinceSimState {
+    const provinces: Province[] = [0, 1, 2, 3].map((i) => ({ id: i, name: String(i), cells: 10, centroid: [i * 10, 0], seedCell: i, biome: 4 }));
+    return {
+      provinces, n: 4, provOwner: Int32Array.from([0, 0, 1, 1]), provSol: Float32Array.from([0.5, 0.5, 0.5, 0.5]),
+      adj: [[1], [0, 2], [1, 3], [2]], capitalProv: Int32Array.from([0, 3]), alive: [true, true], tick: 0, ...over,
+    } as ProvinceSimState;
+  }
+  it("offers 'restless' for a very shaky owned province", () => {
+    expect(offerProvinceDilemma(st({ provSol: Float32Array.from([0.5, 0.15, 0.5, 0.5]) }), 0)).toEqual({ code: "restless", prov: 1 });
+  });
+  it("offers 'defector' for a low-solidarity adjacent enemy province (not their capital)", () => {
+    expect(offerProvinceDilemma(st({ provSol: Float32Array.from([0.5, 0.5, 0.2, 0.5]) }), 0)).toEqual({ code: "defector", prov: 2 });
+  });
+  it("offers 'muster' periodically when nothing else triggers, else null", () => {
+    expect(offerProvinceDilemma(st({ tick: 12 }), 0)).toEqual({ code: "muster", prov: -1 });
+    expect(offerProvinceDilemma(st({ tick: 5 }), 0)).toBeNull();
+  });
+  it("resolve 'restless' A garrisons the province at the capital's expense", () => {
+    const s = st({ provSol: Float32Array.from([0.5, 0.15, 0.5, 0.5]) });
+    resolveProvinceDilemma(s, 0, { code: "restless", prov: 1 }, "a");
+    expect(s.provSol[1]).toBeCloseTo(0.35, 5); // +0.2
+    expect(s.provSol[0]).toBeCloseTo(0.45, 5); // capital -0.05
+  });
+  it("resolve 'defector' A transfers the enemy province to the player (fragile)", () => {
+    const s = st({ provSol: Float32Array.from([0.5, 0.5, 0.2, 0.5]) });
+    resolveProvinceDilemma(s, 0, { code: "defector", prov: 2 }, "a");
+    expect(s.provOwner[2]).toBe(0);
+    expect(s.provSol[2]).toBeCloseTo(0.25, 5);
   });
 });
 

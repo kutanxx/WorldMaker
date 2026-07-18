@@ -300,3 +300,59 @@ export function stepPlayerTurn(
   for (let id = 0; id < s.alive.length; id++) if (prevAlive[id] && !s.alive[id]) eliminated.push(id);
   return { conquests, eliminated };
 }
+
+// --- Dilemmas: occasional choice cards for texture. rng-FREE — a dilemma appears only when the game STATE
+// triggers it (a shaky province, a wavering neighbour, a periodic muster), so the sequence is deterministic.
+// The engine golden tests never call these, so they stay untouched. The UI enforces a cooldown between offers.
+export type ProvinceDilemmaCode = "restless" | "defector" | "muster";
+export interface ProvinceDilemma { code: ProvinceDilemmaCode; prov: number } // prov = the province in question (-1 = none)
+
+const DILEMMA_RESTLESS_MAX = 0.25; // your province is "restless" below this solidarity
+const DILEMMA_DEFECTOR_MAX = 0.3;  // an enemy province may defect below this
+const DILEMMA_MUSTER_EVERY = 12;   // a muster is called every this-many ticks
+
+// the dilemma (if any) the current state calls for, by priority. Deterministic.
+export function offerProvinceDilemma(s: ProvinceSimState, playerId: number): ProvinceDilemma | null {
+  // 1. restless: your shakiest owned province, if it is very fragile
+  let worst = -1, worstSol = DILEMMA_RESTLESS_MAX;
+  for (let p = 0; p < s.n; p++) if (s.provOwner[p] === playerId && s.provSol[p] < worstSol) { worstSol = s.provSol[p]; worst = p; }
+  if (worst >= 0) return { code: "restless", prov: worst };
+  // 2. defector: a low-solidarity enemy province adjacent to you (never a nation's capital — no free kills)
+  for (let p = 0; p < s.n; p++) {
+    const o = s.provOwner[p];
+    if (o < 0 || o === playerId || s.capitalProv[o] === p || s.provSol[p] >= DILEMMA_DEFECTOR_MAX) continue;
+    for (const q of s.adj[p]) if (s.provOwner[q] === playerId) return { code: "defector", prov: p };
+  }
+  // 3. muster: periodic
+  if (s.tick > 0 && s.tick % DILEMMA_MUSTER_EVERY === 0) return { code: "muster", prov: -1 };
+  return null;
+}
+
+// apply a dilemma choice ("a" or "b") to the state. Mutates provSol / provOwner; rng-free, deterministic.
+export function resolveProvinceDilemma(s: ProvinceSimState, playerId: number, d: ProvinceDilemma, choice: "a" | "b"): void {
+  const clamp = (v: number) => (v < 0 ? 0 : v > 1 ? 1 : v);
+  if (d.code === "restless") {
+    if (choice === "a") { // garrison it — steady the province, but the capital gives up troops
+      s.provSol[d.prov] = clamp(s.provSol[d.prov] + 0.2);
+      const cap = s.capitalProv[playerId];
+      if (cap >= 0) s.provSol[cap] = clamp(s.provSol[cap] - 0.05);
+    } // "b": let it be — no change (it stays fragile)
+  } else if (d.code === "defector") {
+    if (choice === "a") { // accept fealty — gain the province, but it starts fragile
+      s.provOwner[d.prov] = playerId;
+      s.provSol[d.prov] = 0.25;
+      recomputeAlive(s);
+    } // "b": refuse — no change
+  } else { // muster
+    for (let p = 0; p < s.n; p++) {
+      if (s.provOwner[p] !== playerId) continue;
+      if (choice === "a") { // levy the frontier — border rises, interior gives up its garrison
+        let frontier = false;
+        for (const q of s.adj[p]) if (s.provOwner[q] !== playerId) { frontier = true; break; }
+        s.provSol[p] = clamp(s.provSol[p] + (frontier ? 0.1 : -0.05));
+      } else { // rest — a small steady gain everywhere
+        s.provSol[p] = clamp(s.provSol[p] + 0.03);
+      }
+    }
+  }
+}

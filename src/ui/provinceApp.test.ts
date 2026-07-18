@@ -231,6 +231,24 @@ describe("stance toggle (conquer vs consolidate)", () => {
     expect(root.querySelectorAll(".prov-fortify.armed").length).toBe(Math.min(2, n)); // capped at CONSOLIDATE_MAX (2)
   });
 
+  it("surfaces a dilemma card during play that the player resolves to continue", () => {
+    mountProvinceApp(root, { seed: 1 });
+    (root.querySelector("[data-polity]") as SVGPathElement).dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    let card: Element | null = null;
+    for (let i = 0; i < 25; i++) {
+      card = root.querySelector(".prov-dilemma");
+      if (card) break;
+      const adv = root.querySelector(".prov-advance") as HTMLButtonElement | null;
+      if (!adv) break;
+      adv.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    }
+    expect(card).toBeTruthy();                                              // a dilemma appeared within 25 turns
+    expect(root.querySelectorAll(".prov-dilemma .prov-choice").length).toBe(2); // two tradeoff choices
+    (root.querySelector(".prov-choice") as HTMLButtonElement).dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    expect(root.querySelector(".prov-dilemma")).toBeNull();                 // resolving dismisses it
+    expect(root.querySelector(".prov-advance")).toBeTruthy();               // …and the normal turn UI returns
+  });
+
   it("consolidating still advances the turn", () => {
     start();
     (Array.from(root.querySelectorAll(".prov-stance-btn")) as HTMLButtonElement[])
@@ -248,8 +266,10 @@ describe("province victory / defeat", () => {
     mountProvinceApp(root, { seed: 1 });
     const path = root.querySelector("[data-polity]") as SVGPathElement;
     path.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    // advance to the horizon without attacking (pure survival)
-    for (let i = 0; i < 50; i++) {
+    // advance to the horizon without attacking (pure survival); resolve any dilemma cards that block the turn
+    for (let i = 0; i < 70; i++) {
+      const choice = root.querySelector(".prov-choice") as HTMLButtonElement | null;
+      if (choice) { choice.dispatchEvent(new MouseEvent("click", { bubbles: true })); continue; }
       const adv = root.querySelector(".prov-advance") as HTMLButtonElement | null;
       if (!adv) break; // game already ended (defeat)
       adv.dispatchEvent(new MouseEvent("click", { bubbles: true }));

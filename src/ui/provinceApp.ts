@@ -2,7 +2,8 @@ import { generateWorld } from "../engine/world";
 import { DEFAULT_PARAMS } from "../types/world";
 import {
   initProvinceSim, pAggregate, PROVINCE_SIM_TICKS, armableTargets, stepPlayerTurn, explainAttack,
-  type ProvinceSimState, type AttackReason,
+  offerProvinceDilemma, resolveProvinceDilemma,
+  type ProvinceSimState, type AttackReason, type ProvinceDilemma,
 } from "../engine/provinceSim";
 import { politicalLayer } from "./politicalLayer";
 import { politicalBorders, sharedEdge, type Segment } from "../engine/borders";
@@ -69,6 +70,9 @@ export function mountProvinceApp(root: HTMLElement, opts: { seed?: number } = {}
   const targets = new Set<number>();
   const log: string[] = [];
   let mode: "conquer" | "consolidate" = "conquer"; // this turn: expand, or shore up my realm
+  let pendingDilemma: ProvinceDilemma | null = null; // a choice card awaiting the player
+  let lastDilemmaTick = -99;
+  const DILEMMA_COOLDOWN = 4; // don't spam cards — min turns between offers
 
   function playerProvinceCount(u: UI): number {
     let k = 0; for (let p = 0; p < u.s.n; p++) if (u.s.provOwner[p] === u.playerId) k++; return k;
@@ -133,6 +137,8 @@ export function mountProvinceApp(root: HTMLElement, opts: { seed?: number } = {}
     targets.clear();
     log.length = 0;
     mode = "conquer";
+    pendingDilemma = null;
+    lastDilemmaTick = -99;
     render();
   }
 
@@ -258,6 +264,37 @@ export function mountProvinceApp(root: HTMLElement, opts: { seed?: number } = {}
     return `${t.prov} ${playerProvinceCount(u)}/${totalLandProvinces(u)} · ${t.sol} ${avg}% · ${t.turn} ${u.s.tick}/${PROVINCE_SIM_TICKS} · ${t.cap} ${capOk ? t.capOk : t.capLost} · ${t.rivals} ${liveRivals(u)}`;
   }
 
+  // a dilemma choice card — title, flavour, and two tradeoff options. Resolving applies the effect and continues.
+  function dilemmaCard(u: UI, d: ProvinceDilemma): HTMLElement {
+    const name = d.prov >= 0 ? u.world.provinces[d.prov].name : "";
+    const T = {
+      restless: { ko: [`🔥 동요하는 정복지 — ${name}`, "갓 정복한 땅이 동요합니다.", "주둔군 파견 (그 땅 안정 ↑, 수도 지침)", "방치 (그대로 둔다)"],
+                  en: [`🔥 A restless conquest — ${name}`, "Your newly-taken land simmers.", "Garrison it (steady it; your capital tires)", "Let it be"] },
+      defector: { ko: [`🏳 국경의 배신자 — ${name}`, "국경 영주가 귀순을 제안합니다.", "수락 (영토 획득, 불안정하게)", "거절"],
+                  en: [`🏳 A border defector — ${name}`, "A border lord offers you fealty.", "Accept (gain the province, fragile)", "Refuse"] },
+      muster: { ko: ["⚔ 소집령", "장군들이 소집을 청합니다.", "국경 징집 (국경 ↑, 내륙 ↓)", "휴식 (전 영토 소폭 ↑)"],
+                en: ["⚔ The muster", "Your marshals call for a levy.", "Levy the frontier (border ↑, interior ↓)", "Rest (small gain everywhere)"] },
+    }[d.code][lang];
+    const card = document.createElement("div");
+    card.className = "prov-dilemma";
+    const h = document.createElement("div"); h.className = "prov-dilemma-title"; h.textContent = T[0];
+    const body = document.createElement("div"); body.className = "prov-dilemma-body"; body.textContent = T[1];
+    const bar = document.createElement("div"); bar.className = "prov-bar";
+    for (const [choice, label] of [["a", T[2]], ["b", T[3]]] as const) {
+      const b = document.createElement("button");
+      b.className = "prov-choice"; b.dataset.choice = choice; b.textContent = label;
+      b.addEventListener("click", () => {
+        resolveProvinceDilemma(u.s, u.playerId, d, choice);
+        log.unshift(`${lang === "ko" ? "결정" : "chose"}: ${(choice === "a" ? T[2] : T[3]).split(" (")[0]}`);
+        pendingDilemma = null;
+        render();
+      });
+      bar.appendChild(b);
+    }
+    card.append(h, body, bar);
+    return card;
+  }
+
   function buildHeader(): HTMLElement {
     const h = document.createElement("div");
     h.className = "prov-header";
@@ -324,6 +361,16 @@ export function mountProvinceApp(root: HTMLElement, opts: { seed?: number } = {}
       hud.className = "prov-hud";
       hud.textContent = hudText(ui);
       root.appendChild(hud);
+
+      // a pending dilemma takes over the turn — resolve it before doing anything else
+      if (pendingDilemma) {
+        root.appendChild(dilemmaCard(ui, pendingDilemma));
+        const logEl = document.createElement("div");
+        logEl.className = "prov-log";
+        logEl.textContent = log.slice(0, 8).join(" · ");
+        root.appendChild(logEl);
+        return;
+      }
 
       // stance toggle: spend this turn expanding (Conquer) or shoring up your realm's stability (Consolidate)
       const stance = document.createElement("div");
@@ -406,6 +453,11 @@ export function mountProvinceApp(root: HTMLElement, opts: { seed?: number } = {}
         }
         for (const id of ev.eliminated) log.unshift(`${ui!.world.polities[id]?.name ?? id} ${lang === "ko" ? "멸망" : "eliminated"}`);
         targets.clear();
+        // a dilemma may arise from the new state (cooldown-gated, deterministic)
+        if (!pendingDilemma && ui!.s.tick - lastDilemmaTick >= DILEMMA_COOLDOWN) {
+          const d = offerProvinceDilemma(ui!.s, ui!.playerId);
+          if (d) { pendingDilemma = d; lastDilemmaTick = ui!.s.tick; }
+        }
         render();
       });
       bar.appendChild(advance);
