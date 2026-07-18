@@ -5,7 +5,7 @@ import {
   type ProvinceSimState, type AttackReason,
 } from "../engine/provinceSim";
 import { politicalLayer } from "./politicalLayer";
-import { politicalBorders } from "../engine/borders";
+import { politicalBorders, sharedEdge, type Segment } from "../engine/borders";
 import { segPath, cellPath } from "./svgPaths";
 import { PLAYER_COLOR } from "./nationPalette";
 import { svgEl } from "./renderer";
@@ -154,6 +154,23 @@ export function mountProvinceApp(root: HTMLElement, opts: { seed?: number } = {}
     return `${name} — ⚔ ${Math.round(od.atk * 100)} ${lang === "ko" ? "대" : "vs"} 🛡 ${Math.round(od.def * 100)} · ${verdict} (${reasonText(od.reason, lang)})`;
   }
 
+  // clean OUTLINE of a whole province (its boundary against other provinces + ocean), not the jagged
+  // per-cell mesh — so the highlight reads as a province, not a pile of cells.
+  function provinceOutlinePath(u: UI, provId: number): string {
+    const grid = u.world.grid;
+    const po = u.world.provinceOf;
+    const segs: Segment[] = [];
+    for (let i = 0; i < grid.count; i++) {
+      if (po[i] !== provId) continue;
+      for (const j of grid.neighbors[i]) {
+        if (po[j] === provId) continue; // internal cell edge — skip
+        const e = sharedEdge(grid.polygons[i], grid.polygons[j]);
+        if (e) segs.push(e);
+      }
+    }
+    return segPath(segs);
+  }
+
   function targetOverlay(u: UI): SVGGElement {
     const arm = new Set(armableTargets(u.s, u.playerId));
     const byProv: string[] = u.world.provinces.map(() => "");
@@ -166,19 +183,27 @@ export function mountProvinceApp(root: HTMLElement, opts: { seed?: number } = {}
       if (!byProv[prov.id]) continue;
       const armed = targets.has(prov.id);
       // colour every attackable province by the EXACT (deterministic) outcome: green = you would capture it,
-      // red = the defender is too strong. Arming adds a gold ring. The tooltip spells out the numbers + reason.
+      // red = the defender is too strong. The tooltip spells out the numbers + reason.
       const win = explainAttack(u.s, u.playerId, prov.id)?.win ?? false;
       const col = win ? "#2f8f4e" : "#b23a3a";
+      // the tinted FILL is already province-shaped (a union of the cells); NO stroke here, so we don't draw the
+      // internal cell mesh. It stays the clickable target.
       const path = svgEl("path", {
         class: "prov-target" + (armed ? " armed" : "") + (win ? " winnable" : " too-strong"),
         "data-province": prov.id, d: byProv[prov.id],
-        fill: col, "fill-opacity": armed ? 0.42 : 0.15,
-        stroke: armed ? "#e8b53a" : col, "stroke-width": armed ? 2.2 : 1, "stroke-opacity": armed ? 1 : 0.7,
+        fill: col, "fill-opacity": armed ? 0.4 : 0.16, stroke: "none",
       });
       const title = svgEl("title");
       title.textContent = attackLine(u, prov.id);
       path.appendChild(title);
       g.appendChild(path);
+      // armed provinces get a clean gold PROVINCE outline (not the cell mesh) to show the selection.
+      if (armed) {
+        g.appendChild(svgEl("path", {
+          class: "prov-target-ring", style: "pointer-events:none", d: provinceOutlinePath(u, prov.id),
+          fill: "none", stroke: "#e8b53a", "stroke-width": 2.2, "stroke-linejoin": "round",
+        }));
+      }
     }
     return g;
   }
