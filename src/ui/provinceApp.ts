@@ -37,6 +37,15 @@ export function shakyOpacity(sol: number): number {
   return op < 0 ? 0 : op > 0.5 ? 0.5 : op;
 }
 
+// surviving to the horizon is not a flat "win" — it is GRADED by how much you grew, so turtling in place reads
+// as an unremarkable "merely endured" while real expansion is celebrated (research: anti-turtle = win-condition).
+export function survivalGrade(prov: number, start: number, land: number): "great" | "grown" | "held" {
+  const gain = prov - start;
+  if (gain >= Math.round(0.1 * land)) return "great"; // grew by ~a tenth of the map
+  if (gain > 0) return "grown";
+  return "held";                                        // stood still or shrank — the turtle outcome
+}
+
 // plain-language reason an attack wins/loses, for the battle preview + tooltips.
 export function reasonText(reason: AttackReason, lang: "ko" | "en"): string {
   const ko: Record<AttackReason, string> = {
@@ -287,11 +296,16 @@ export function mountProvinceApp(root: HTMLElement, opts: { seed?: number } = {}
       const oc = outcome(ui);
       if (oc) {
         const over = document.createElement("div");
-        over.className = "prov-over";
+        // survival is graded by growth so turtling reads as unremarkable and only expansion/domination feels earned
+        const grade = survivalGrade(playerProvinceCount(ui), ui.startProvinces, ui.s.n);
+        const survivalText = grade === "great" ? (lang === "ko" ? "강대국 — 왕조가 크게 뻗어나갔다" : "A great power — your realm expanded mightily")
+          : grade === "grown" ? (lang === "ko" ? "생존 — 왕국을 넓히며 버텨냈다" : "Endured — you expanded and held on")
+          : (lang === "ko" ? "겨우 버텨냈다 — 영토는 그대로였다" : "Merely endured — you held your ground, no more");
+        over.className = "prov-over" + (oc.kind === "domination" ? " win" : oc.kind === "survival" && grade !== "held" ? " ok" : "");
         over.textContent =
           oc.kind === "defeat" ? (lang === "ko" ? `패배 — ${oc.by}에게 수도 함락` : `Defeat — capital taken by ${oc.by}`)
-          : oc.kind === "domination" ? (lang === "ko" ? "지배 승리!" : "Domination victory!")
-          : (lang === "ko" ? "생존 승리 — 왕조가 살아남았다" : "Survival victory — your dynasty endured");
+          : oc.kind === "domination" ? (lang === "ko" ? "🏆 지배 승리!" : "🏆 Domination victory!")
+          : survivalText;
         const again = document.createElement("button"); again.className = "prov-again";
         again.textContent = lang === "ko" ? "다시" : "Play again";
         again.addEventListener("click", () => { ui = null; targets.clear(); log.length = 0; render(); });

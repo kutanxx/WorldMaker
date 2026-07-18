@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach } from "vitest";
-import { mountProvinceApp, provinceCellOwner, isDomination, shakyOpacity, reasonText } from "./provinceApp";
+import { mountProvinceApp, provinceCellOwner, isDomination, shakyOpacity, reasonText, survivalGrade } from "./provinceApp";
 import { generateWorld } from "../engine/world";
 import { DEFAULT_PARAMS } from "../types/world";
 import { initProvinceSim } from "../engine/provinceSim";
@@ -22,6 +22,16 @@ describe("isDomination (win = gained a fifth of the map beyond your start)", () 
   it("never triggers instantly for a big start — you must actually GAIN, not just be large", () => {
     expect(isDomination(40, 40, LAND)).toBe(false); // gained 0 → no instant win
     expect(isDomination(60, 40, LAND)).toBe(true);  // a big nation still has to conquer 20 more
+  });
+});
+
+describe("survivalGrade (turtling to turn 50 is a lesser outcome than expanding)", () => {
+  const LAND = 102; // "great" threshold = round(0.1 * 102) = 10 provinces gained
+  it("grades survival by growth: great / grown / held", () => {
+    expect(survivalGrade(25, 15, LAND)).toBe("great"); // gained 10 → great power
+    expect(survivalGrade(19, 15, LAND)).toBe("grown"); // gained 4 → grown
+    expect(survivalGrade(15, 15, LAND)).toBe("held");  // no gain → merely endured (turtle)
+    expect(survivalGrade(12, 15, LAND)).toBe("held");  // shrank → still just held
   });
 });
 
@@ -246,7 +256,7 @@ describe("province victory / defeat", () => {
     }
     const over = root.querySelector(".prov-over");
     expect(over).toBeTruthy();
-    expect(over!.textContent).toMatch(/생존|survi|정복|domina|패배|defeat/i); // some terminal outcome shown
+    expect(over!.textContent).toMatch(/버텨|endured|강대국|great|생존|survi|패배|defeat/i); // some terminal outcome shown
     // a finished game offers restart
     expect(root.querySelector(".prov-again")).toBeTruthy();
     expect(root.querySelector(".prov-new")).toBeTruthy();

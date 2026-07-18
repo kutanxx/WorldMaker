@@ -391,4 +391,6 @@ svg.world .legend { pointer-events: none; }
   font-family: 'Cinzel', serif; font-weight: 600; font-size: 22px; color: #3c2f1c;
   background: #f7f2e6; border: 2px solid #cbb784; border-radius: 10px; box-shadow: 0 3px 14px rgba(60, 47, 28, 0.18);
 }
+.prov-over.win { background: #f6ecc9; border-color: #d8b25a; box-shadow: 0 3px 18px rgba(216, 178, 90, .5); } /* domination */
+.prov-over.ok { border-color: #b7c39a; } /* survived AND grew — a real result, not just a turtle */
 @media (max-width: 640px) { .prov-title { font-size: 21px; } .prov-hud { font-size: 12px; } }
