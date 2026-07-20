@@ -216,7 +216,7 @@ describe("buildSeaLanes — connectivity fallback", () => {
   // cells: 0 => P0(cap of nation, island A) ; 1 => sea ; ... ; big gap ; N => P1 (island B). No land adjacency.
   function farIslands() {
     const provinceOf = [0, -1, -1, -1, -1, 1];
-    const points = Float64Array.from([0, 0, 20, 0, 40, 0, 60, 0, 80, 0, 100, 0]);
+    const points: number[] = [0, 0, 20, 0, 40, 0, 60, 0, 80, 0, 100, 0];
     const neighbors = [[1], [0, 2], [1, 3], [2, 4], [3, 5], [4]];
     const grid = { count: 6, neighbors, points, width: 100, height: 10 };
     const provinces = [
@@ -237,7 +237,7 @@ describe("buildSeaLanes — connectivity fallback", () => {
   it("adds no fallback lane when capitals already connect by land", () => {
     // one landmass, two provinces adjacent by land → already one component → no lane needed.
     const provinceOf = [0, 0, 1, 1];
-    const points = Float64Array.from([0, 0, 10, 0, 20, 0, 30, 0]);
+    const points: number[] = [0, 0, 10, 0, 20, 0, 30, 0];
     const neighbors = [[1], [0, 2], [1, 3], [2]];
     const grid = { count: 4, neighbors, points, width: 30, height: 10 };
     const provinces = [
