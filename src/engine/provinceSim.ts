@@ -136,6 +136,8 @@ export function buildSeaLanes(
       if (!best || d < best.d || (d === best.d && (a < best.a || (a === best.a && b < best.b)))) best = { a, b, d };
     }
     if (!best) break; // no coastal way to connect (all-inland capitals) — leave as is
+    // intentionally ignores LANE_MAX_DEGREE: a lifeline must connect a stranded capital-component regardless of
+    // the degree cap, which is only a soft guarantee for the short-hop lanes added in part (1) above.
     add(best.a, best.b);
   }
 

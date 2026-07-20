@@ -209,7 +209,7 @@ describe("sea lanes (play mode)", () => {
     // pick the first live polity territory to start (mirrors how other tests in this file start a game).
     const terr = root.querySelector<SVGElement>("[data-polity]");
     terr?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    const lanes = root.querySelectorAll(".prov-map .sea-lane");
+    const lanes = root.querySelectorAll(".prov-map .prov-lane");
     // seed 1 has ≥1 lane by construction (connectivity fallback guarantees reachability); each is a dashed <line>.
     expect(lanes.length).toBeGreaterThan(0);
     expect(lanes[0].getAttribute("stroke-dasharray")).toBeTruthy();

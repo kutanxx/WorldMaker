@@ -232,6 +232,29 @@ describe("sea lanes — combat & frontier", () => {
     const both = islands({ adj: [[1], [0]], laneAdj: [[1], [0]] });
     expect(explainAttack(both, 0, 1)!.lane).toBe(false);
   });
+
+  it("aiAttacker's tie-break also prefers land: an AI conquest succeeds via the land front even though an " +
+     "equal-strength lane front to the same realm exists", () => {
+    // A(0) owns two provinces at EQUAL post-step solidarity, so its realm avg is identical either way: prov 0
+    // (its capital) is LAND-adjacent to the target, prov 1 is LANE-adjacent to the target only. Strength is tuned
+    // so a land assault (mult=1) clears the threshold but the SAME strength via a lane assault (mult=EXPEDITION_
+    // MULT=0.6) would not — so a conquest only happens if aiAttacker actually picked the land front on the tie.
+    function fixture(over: Record<string, unknown> = {}): ProvinceSimState {
+      const provinces: Province[] = [
+        { id: 0, name: "A-cap", cells: 10, centroid: [0, 0], seedCell: 0, biome: 4 },
+        { id: 1, name: "A-other", cells: 10, centroid: [50, 0], seedCell: 1, biome: 4 },
+        { id: 2, name: "B-cap", cells: 10, centroid: [0, 0], seedCell: 2, biome: 4 }, // same centroid as A's
+      ];                                                                              // capital → zero dist term
+      return {
+        provinces, n: 3, provOwner: Int32Array.from([0, 0, 1]), provSol: Float32Array.from([0.8, 0.8, 0.6]),
+        adj: [[2], [], [0]], laneAdj: [[], [2], [1]],
+        capitalProv: Int32Array.from([0, 2]), alive: [true, true], tick: 0, ...over,
+      } as ProvinceSimState;
+    }
+    const s = fixture();
+    stepProvinceSim(s);
+    expect(s.provOwner[2]).toBe(0); // A takes B's province — only reachable via the un-penalised land route
+  });
 });
 
 describe("province dilemmas (rng-free, state-triggered)", () => {

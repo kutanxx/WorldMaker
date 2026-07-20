@@ -358,7 +358,7 @@ svg.world .legend { pointer-events: none; }
    decorative overlays click-through so a real click always lands on the nation underneath. */
 .prov-map .territory { pointer-events: auto; cursor: pointer; }
 .prov-map .province-border, .prov-map .nation-border, .prov-map .nation-labels { pointer-events: none; }
-.prov-map .sea-lane { pointer-events: none; }
+.prov-map .prov-lane { pointer-events: none; }
 .prov-target { cursor: pointer; }
 .prov-hud {
   max-width: 900px; margin: 10px auto 0; padding: 8px 16px; text-align: center;

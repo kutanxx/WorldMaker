@@ -171,7 +171,7 @@ export function mountProvinceApp(root: HTMLElement, opts: { seed?: number } = {}
       if (q <= p) continue; // draw each undirected lane once
       const a = u.world.provinces[p].centroid, b = u.world.provinces[q].centroid;
       g.appendChild(svgEl("line", {
-        class: "sea-lane", x1: a[0], y1: a[1], x2: b[0], y2: b[1],
+        class: "prov-lane", x1: a[0], y1: a[1], x2: b[0], y2: b[1],
         stroke: "#3f5d78", "stroke-width": 1.4, "stroke-dasharray": "6 5", "stroke-opacity": 0.55,
       }));
     }
