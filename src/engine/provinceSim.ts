@@ -13,7 +13,7 @@ const EMPTY_TARGETS: ReadonlySet<number> = new Set();
 const W_ASA = 1.0, W_LOCAL = 0.5, W_POWER = 0.03, W_DIST = 0.002, SIZE_CAP = 24, CONTEST_THRESH = 1.03;
 const LANE_HOP_CELLS = 3;   // a short-hop lane may cross up to this many cell-spacings of open water
 const LANE_MAX_DEGREE = 3;  // Risk lesson: few connections per territory (chokepoints, not a mesh)
-const EXPEDITION_MULT = 0.6; // a lane crossing is a costly naval invasion — attacker strength is scaled by this
+export const EXPEDITION_MULT = 0.6; // a lane crossing is a costly naval invasion — attacker strength is scaled by this
 
 export const PROVINCE_SIM_TICKS = 50;
 
@@ -77,6 +77,7 @@ function wharfDist(a: number[], b: number[], points: ArrayLike<number>): number 
 export function buildSeaLanes(
   provinceOf: ArrayLike<number>, provinces: Province[], grid: LaneGrid, adj: number[][], capitals: number[],
 ): number[][] {
+  void capitals;
   const n = provinces.length;
   const lanes: Set<number>[] = Array.from({ length: n }, () => new Set<number>());
   const wharf = wharfCells(provinceOf, n, grid);

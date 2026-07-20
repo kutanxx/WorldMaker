@@ -311,12 +311,12 @@ describe("buildSeaLanes — short-hop coastal crossings", () => {
   // grid.points are cell centers; width/height set the spacing reference.
   function strait(): {
     provinceOf: number[]; provinces: import("./provinces").Province[];
-    grid: { count: number; neighbors: number[][]; points: Float64Array; width: number; height: number };
+    grid: { count: number; neighbors: number[][]; points: number[]; width: number; height: number };
     adj: number[][];
   } {
     // cells: 0,1 => P0 ; 2 => sea(-1) ; 3,4 => P1. neighbours are the line.
     const provinceOf = [0, 0, -1, 1, 1];
-    const points = Float64Array.from([0, 0, 10, 0, 20, 0, 30, 0, 40, 0]);
+    const points = [0, 0, 10, 0, 20, 0, 30, 0, 40, 0];
     const neighbors = [[1], [0, 2], [1, 3], [2, 4], [3]];
     const grid = { count: 5, neighbors, points, width: 40, height: 10 };
     const provinces = [
@@ -344,8 +344,7 @@ describe("buildSeaLanes — short-hop coastal crossings", () => {
     // one hub province surrounded by 5 island provinces all within hop range → hub keeps at most LANE_MAX_DEGREE (3).
     // cells: 0 => hub P0 at origin; islands P1..P5 one sea cell away in a ring.
     const provinceOf = [0, -1, 1, 2, 3, 4, 5];
-    const pts = [0, 0,  0, 5,  10, 0,  0, 10,  -10, 0,  0, -10,  7, 7];
-    const points = Float64Array.from(pts);
+    const points = [0, 0,  0, 5,  10, 0,  0, 10,  -10, 0,  0, -10,  7, 7];
     const neighbors = [[1], [0, 2, 3, 4, 5, 6], [1], [1], [1], [1], [1]];
     const grid = { count: 7, neighbors, points, width: 40, height: 40 };
     const mk = (id: number, x: number, y: number, c: number) =>
