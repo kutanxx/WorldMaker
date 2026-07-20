@@ -23,6 +23,7 @@ export interface ProvinceSimState {
   provOwner: Int32Array;   // province → polity id (-1 unowned)
   provSol: Float32Array;   // province → solidarity [0,1]
   adj: number[][];         // province land-adjacency, index-aligned to provinces
+  laneAdj?: number[][];    // expedition sea lanes (province → lane partners); optional so land-only fixtures compile
   capitalProv: Int32Array; // polity id → its capital province id
   alive: boolean[];        // polity id → still holds its capital province
   tick: number;
@@ -141,6 +142,10 @@ export function buildSeaLanes(
   return lanes.map((s) => [...s].sort((x, y) => x - y));
 }
 
+// lane partners of province p, tolerant of fixtures that predate laneAdj (→ land-only, no lanes).
+function laneOf(s: ProvinceSimState, p: number): number[] { return s.laneAdj?.[p] ?? []; }
+void laneOf; // unused until Task 4 wires lane crossings into stepping; keep the helper defined now.
+
 // each province's majority owner over its cells (ties → lower id; unowned → -1)
 function majorityOwner(provinceOf: ArrayLike<number>, nProv: number, owner: ArrayLike<number>): Int32Array {
   const tally: Map<number, number>[] = Array.from({ length: nProv }, () => new Map<number, number>());
@@ -176,8 +181,10 @@ export function initProvinceSim(world: World): ProvinceSimState {
   const provSol = new Float32Array(n);
   for (let p = 0; p < n; p++) provSol[p] = provOwner[p] >= 0 ? SOL_INIT : 0;
   const adj = buildProvinceAdj(provinceOf, provinces, grid);
+  const capitals = [...new Set([...capitalProv].filter((c) => c >= 0))];
+  const laneAdj = buildSeaLanes(provinceOf, provinces, world.grid, adj, capitals);
   const alive = polities.map((pol) => capitalProv[pol.id] >= 0 && provOwner[capitalProv[pol.id]] === pol.id);
-  return { provinces, n, provOwner, provSol, adj, capitalProv, alive, tick: 0 };
+  return { provinces, n, provOwner, provSol, adj, laneAdj, capitalProv, alive, tick: 0 };
 }
 
 export function pAggregate(s: ProvinceSimState): PAgg[] {

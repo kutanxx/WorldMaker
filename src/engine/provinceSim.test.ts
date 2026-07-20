@@ -44,6 +44,24 @@ describe("initProvinceSim (seed 1)", () => {
       expect(s.provSol[p]).toBe(s.provOwner[p] >= 0 ? 0.5 : 0);
     }
   });
+  it("builds sea lanes so every capital is reachable over land ∪ lanes", () => {
+    // union land adjacency with lane adjacency and flood-fill from each capital; all capitals share one component.
+    const lab = new Int32Array(s.n).fill(-1);
+    let next = 0;
+    for (let s0 = 0; s0 < s.n; s0++) {
+      if (lab[s0] >= 0) continue;
+      const stack = [s0]; lab[s0] = next;
+      while (stack.length) {
+        const u = stack.pop()!;
+        for (const v of s.adj[u]) if (lab[v] < 0) { lab[v] = next; stack.push(v); }
+        for (const v of (s.laneAdj?.[u] ?? [])) if (lab[v] < 0) { lab[v] = next; stack.push(v); }
+      }
+      next++;
+    }
+    const capLabels = new Set(world.polities.map((p) => lab[s.capitalProv[p.id]]));
+    expect(capLabels.size).toBe(1); // one connected reach-graph across all capitals
+    expect(s.laneAdj?.length).toBe(s.n);
+  });
 });
 
 function fakeState(over: Record<string, unknown> = {}): ProvinceSimState {
