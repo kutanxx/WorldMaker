@@ -2,6 +2,7 @@ import type { World } from "../types/world";
 import type { Province } from "./provinces";
 
 type GridLike = Pick<World["grid"], "count" | "neighbors">;
+type LaneGrid = Pick<World["grid"], "count" | "neighbors" | "points" | "width" | "height">;
 
 const SOL_INIT = 0.5;
 const SOL_RISE = 0.03, SOL_DECAY = 0.02;
@@ -10,6 +11,9 @@ const CONSOLIDATE_BONUS = 0.1; // a "consolidate" player turn adds this to each 
 const ATTACK_EXHAUST = 0.1;    // a conquest drops the attacking front province's solidarity — aggression exposes you
 const EMPTY_TARGETS: ReadonlySet<number> = new Set();
 const W_ASA = 1.0, W_LOCAL = 0.5, W_POWER = 0.03, W_DIST = 0.002, SIZE_CAP = 24, CONTEST_THRESH = 1.03;
+const LANE_HOP_CELLS = 3;   // a short-hop lane may cross up to this many cell-spacings of open water
+const LANE_MAX_DEGREE = 3;  // Risk lesson: few connections per territory (chokepoints, not a mesh)
+const EXPEDITION_MULT = 0.6; // a lane crossing is a costly naval invasion — attacker strength is scaled by this
 
 export const PROVINCE_SIM_TICKS = 50;
 
@@ -43,6 +47,64 @@ export function buildProvinceAdj(
     }
   }
   return adj.map((s) => [...s].sort((a, b) => a - b));
+}
+
+// cells of province p that touch open sea (a neighbour cell is ocean, provinceOf < 0) — the crossing endpoints.
+function wharfCells(provinceOf: ArrayLike<number>, nProv: number, grid: LaneGrid): number[][] {
+  const out: number[][] = Array.from({ length: nProv }, () => []);
+  for (let c = 0; c < grid.count; c++) {
+    const p = provinceOf[c];
+    if (p < 0) continue;
+    for (const nb of grid.neighbors[c]) if (provinceOf[nb] < 0) { out[p].push(c); break; }
+  }
+  return out;
+}
+
+// nearest Euclidean distance between any wharf cell of a and any wharf cell of b (Infinity if either has none).
+function wharfDist(a: number[], b: number[], points: ArrayLike<number>): number {
+  let best = Infinity;
+  for (const ca of a) for (const cb of b) {
+    const dx = points[ca * 2] - points[cb * 2], dy = points[ca * 2 + 1] - points[cb * 2 + 1];
+    const d = Math.hypot(dx, dy);
+    if (d < best) best = d;
+  }
+  return best;
+}
+
+// Risk-style expedition lanes over open water. Deterministic, rng-free. `laneAdj[p]` = sorted unique partners.
+// Two halves: (1) short-hop lanes between nearby coastal provinces (this task); (2) a connectivity fallback so
+// every capital is reachable (Task 2). `capitals` = the distinct capital province ids (used only by the fallback).
+export function buildSeaLanes(
+  provinceOf: ArrayLike<number>, provinces: Province[], grid: LaneGrid, adj: number[][], capitals: number[],
+): number[][] {
+  const n = provinces.length;
+  const lanes: Set<number>[] = Array.from({ length: n }, () => new Set<number>());
+  const wharf = wharfCells(provinceOf, n, grid);
+  const coastal = provinces.filter((p) => wharf[p.id].length > 0).map((p) => p.id);
+  const spacing = Math.sqrt((grid.width * grid.height) / Math.max(1, grid.count));
+  const maxHop = LANE_HOP_CELLS * spacing;
+
+  const landAdj: Set<number>[] = adj.map((a) => new Set(a));
+  const add = (a: number, b: number) => { lanes[a].add(b); lanes[b].add(a); };
+
+  // (1) short-hop candidates: coastal pairs, not land-adjacent, within maxHop. Add greedily by ascending distance,
+  //     skipping a pair if either endpoint is already at the degree cap. Ties → lower (a,b) id.
+  const cand: { a: number; b: number; d: number }[] = [];
+  for (let i = 0; i < coastal.length; i++) for (let j = i + 1; j < coastal.length; j++) {
+    const a = coastal[i], b = coastal[j];
+    if (landAdj[a].has(b)) continue;
+    const d = wharfDist(wharf[a], wharf[b], grid.points);
+    if (d <= maxHop) cand.push({ a, b, d });
+  }
+  cand.sort((x, y) => x.d - y.d || x.a - y.a || x.b - y.b);
+  for (const { a, b } of cand) {
+    if (lanes[a].size >= LANE_MAX_DEGREE || lanes[b].size >= LANE_MAX_DEGREE) continue;
+    add(a, b);
+  }
+
+  // (2) connectivity fallback — added in Task 2.
+
+  return lanes.map((s) => [...s].sort((x, y) => x - y));
 }
 
 // each province's majority owner over its cells (ties → lower id; unowned → -1)

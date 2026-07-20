@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import type { Province } from "./provinces";
 import { buildProvinceAdj, initProvinceSim, pAggregate, stepProvinceSim, PROVINCE_SIM_TICKS, type ProvinceSimState } from "./provinceSim";
+import { buildSeaLanes } from "./provinceSim";
 import { armableTargets, stepPlayerTurn, predictCapture, explainAttack } from "./provinceSim";
 import { offerProvinceDilemma, resolveProvinceDilemma } from "./provinceSim";
 import { generateWorld } from "./world";
@@ -300,5 +301,58 @@ describe("stepPlayerTurn", () => {
     expect(cons.provOwner[2]).toBe(1);                          // consolidate makes no attack
     expect(cons.provSol[0]).toBeGreaterThan(plain.provSol[0]);  // the fortified province is stronger
     expect(cons.provSol[1]).toBeCloseTo(plain.provSol[1], 5);   // an un-selected province is NOT boosted (no free blanket shield)
+  });
+});
+
+describe("buildSeaLanes — short-hop coastal crossings", () => {
+  // 4 land provinces in two pairs separated by a thin sea. Row of cells:
+  //   [P0][P0][sea][P1][P1]   (a narrow one-cell strait between P0 and P1)
+  //   [P2 far ................ P3]  handled in Task 2; here just P0/P1.
+  // grid.points are cell centers; width/height set the spacing reference.
+  function strait(): {
+    provinceOf: number[]; provinces: import("./provinces").Province[];
+    grid: { count: number; neighbors: number[][]; points: Float64Array; width: number; height: number };
+    adj: number[][];
+  } {
+    // cells: 0,1 => P0 ; 2 => sea(-1) ; 3,4 => P1. neighbours are the line.
+    const provinceOf = [0, 0, -1, 1, 1];
+    const points = Float64Array.from([0, 0, 10, 0, 20, 0, 30, 0, 40, 0]);
+    const neighbors = [[1], [0, 2], [1, 3], [2, 4], [3]];
+    const grid = { count: 5, neighbors, points, width: 40, height: 10 };
+    const provinces = [
+      { id: 0, name: "P0", cells: 2, centroid: [5, 0] as [number, number], seedCell: 0, biome: 4 },
+      { id: 1, name: "P1", cells: 2, centroid: [35, 0] as [number, number], seedCell: 3, biome: 4 },
+    ];
+    const adj = buildProvinceAdj(provinceOf, provinces, grid);
+    return { provinceOf, provinces, grid, adj };
+  }
+
+  it("links two coastal provinces across a narrow sea gap", () => {
+    const { provinceOf, provinces, grid, adj } = strait();
+    expect(adj).toEqual([[], []]); // NOT land-adjacent (sea cell 2 between them)
+    const lanes = buildSeaLanes(provinceOf, provinces, grid, adj, [0, 1]);
+    expect(lanes).toEqual([[1], [0]]); // a lane bridges them
+  });
+
+  it("is deterministic (two runs identical)", () => {
+    const a = strait(), b = strait();
+    expect(buildSeaLanes(a.provinceOf, a.provinces, a.grid, a.adj, [0, 1]))
+      .toEqual(buildSeaLanes(b.provinceOf, b.provinces, b.grid, b.adj, [0, 1]));
+  });
+
+  it("respects the per-province degree cap", () => {
+    // one hub province surrounded by 5 island provinces all within hop range → hub keeps at most LANE_MAX_DEGREE (3).
+    // cells: 0 => hub P0 at origin; islands P1..P5 one sea cell away in a ring.
+    const provinceOf = [0, -1, 1, 2, 3, 4, 5];
+    const pts = [0, 0,  0, 5,  10, 0,  0, 10,  -10, 0,  0, -10,  7, 7];
+    const points = Float64Array.from(pts);
+    const neighbors = [[1], [0, 2, 3, 4, 5, 6], [1], [1], [1], [1], [1]];
+    const grid = { count: 7, neighbors, points, width: 40, height: 40 };
+    const mk = (id: number, x: number, y: number, c: number) =>
+      ({ id, name: "P" + id, cells: 1, centroid: [x, y] as [number, number], seedCell: c, biome: 4 });
+    const provinces = [mk(0, 0, 0, 0), mk(1, 0, 5, 2), mk(2, 10, 0, 3), mk(3, 0, 10, 4), mk(4, -10, 0, 5), mk(5, 0, -10, 6)];
+    const adj = buildProvinceAdj(provinceOf, provinces, grid);
+    const lanes = buildSeaLanes(provinceOf, provinces, grid, adj, [0, 1, 2, 3, 4, 5]);
+    expect(lanes[0].length).toBeLessThanOrEqual(3); // hub capped at LANE_MAX_DEGREE
   });
 });
