@@ -144,7 +144,6 @@ export function buildSeaLanes(
 
 // lane partners of province p, tolerant of fixtures that predate laneAdj (→ land-only, no lanes).
 function laneOf(s: ProvinceSimState, p: number): number[] { return s.laneAdj?.[p] ?? []; }
-void laneOf; // unused until Task 4 wires lane crossings into stepping; keep the helper defined now.
 
 // each province's majority owner over its cells (ties → lower id; unowned → -1)
 function majorityOwner(provinceOf: ArrayLike<number>, nProv: number, owner: ArrayLike<number>): Int32Array {
@@ -226,6 +225,7 @@ function computeSteppedSol(s: ProvinceSimState): Float32Array {
     if (o < 0) { nextSol[p] = 0; continue; }
     let frontier = false;
     for (const q of adj[p]) if (provOwner[q] !== o) { frontier = true; break; }
+    if (!frontier) for (const q of laneOf(s, p)) if (provOwner[q] !== o) { frontier = true; break; }
     const sv = s.provSol[p] + (frontier ? SOL_RISE : -SOL_DECAY);
     nextSol[p] = sv < 0 ? 0 : sv > 1 ? 1 : sv;
   }
@@ -237,33 +237,41 @@ function stepSolidarity(s: ProvinceSimState): void {
   s.provSol = computeSteppedSol(s);
 }
 
-// the player's front province for attacking `targetProv`: its highest-solidarity own neighbour (tie → lowest
-// id), using the provided solidarity buffer. -1 if the player doesn't border the target.
-function playerFront(s: ProvinceSimState, playerId: number, targetProv: number, sol: ArrayLike<number>): number {
-  let bestSol = -Infinity, front = -1;
-  for (const q of s.adj[targetProv]) {
-    if (s.provOwner[q] !== playerId) continue;
-    const v = sol[q];
-    if (v > bestSol || (v === bestSol && (front < 0 || q < front))) { bestSol = v; front = q; }
-  }
-  return front;
+// the attacker's best own province bordering `target`, and whether the route is a lane (expedition). Land
+// neighbours are preferred (no penalty); among a route class, highest solidarity wins (tie → lower id).
+// front = -1 if the attacker doesn't reach the target at all.
+function attackFront(s: ProvinceSimState, attacker: number, target: number, sol: ArrayLike<number>): { front: number; lane: boolean } {
+  const pickBest = (ids: number[]): number => {
+    let bestSol = -Infinity, front = -1;
+    for (const q of ids) {
+      if (s.provOwner[q] !== attacker) continue;
+      const v = sol[q];
+      if (v > bestSol || (v === bestSol && (front < 0 || q < front))) { bestSol = v; front = q; }
+    }
+    return front;
+  };
+  const land = pickBest(s.adj[target]);
+  if (land >= 0) return { front: land, lane: false };
+  const lane = pickBest(laneOf(s, target));
+  return { front: lane, lane: lane >= 0 };
 }
 
 // why an attack turns out the way it does — the dominant factor separating attacker from defender.
 export type AttackReason = "realm-strong" | "realm-weak" | "target-shaky" | "target-stable" | "near" | "too-far" | "even";
-export interface AttackOdds { win: boolean; atk: number; def: number; reason: AttackReason; breakable: boolean; }
+export interface AttackOdds { win: boolean; atk: number; def: number; reason: AttackReason; breakable: boolean; lane: boolean; }
 
 // Full breakdown of the player attacking `targetProv` this turn: attacker vs defender strength and the dominant
 // REASON for the verdict. Deterministic and EXACT — shares the stepped solidarity / aggregate / strength /
 // CONTEST_THRESH that stepPlayerTurn runs, so it never lies. null if the player can't reach the target.
 export function explainAttack(s: ProvinceSimState, playerId: number, targetProv: number): AttackOdds | null {
   const stepped = computeSteppedSol(s);
-  const front = playerFront(s, playerId, targetProv, stepped);
+  const { front, lane } = attackFront(s, playerId, targetProv, stepped);
   if (front < 0) return null;
   const tmp: ProvinceSimState = { ...s, provSol: stepped };
   const agg = pAggregate(tmp);
   const o = s.provOwner[targetProv];
-  const atk = strength(tmp, agg, playerId, targetProv, front);
+  const mult = lane ? EXPEDITION_MULT : 1;
+  const atk = strength(tmp, agg, playerId, targetProv, front) * mult;
   const def = o < 0 ? 0 : strength(tmp, agg, o, targetProv, targetProv);
   const win = atk > def * CONTEST_THRESH;
   // decompose attacker-minus-defender into named terms; the largest-magnitude one explains the verdict
@@ -282,9 +290,9 @@ export function explainAttack(s: ProvinceSimState, playerId: number, targetProv:
   const reason: AttackReason = Math.abs(val) < 1e-6 ? "even" : val >= 0 ? pos : neg;
   // "breakable": could a FULLY cohesive realm (avg + front solidarity → 1) take this now? If yes, consolidating
   // opens it; if even a maxed realm loses, the defender is too strong for now (wait for it to weaken).
-  const bestAtk = W_ASA * 1 + W_LOCAL * 1 + W_POWER * Math.sqrt(Math.min(agg[playerId].cells, SIZE_CAP)) - W_DIST * myDist;
+  const bestAtk = (W_ASA * 1 + W_LOCAL * 1 + W_POWER * Math.sqrt(Math.min(agg[playerId].cells, SIZE_CAP)) - W_DIST * myDist) * mult;
   const breakable = bestAtk > def * CONTEST_THRESH;
-  return { win, atk, def, reason, breakable };
+  return { win, atk, def, reason, breakable, lane };
 }
 
 // Would the player CAPTURE `targetProv` this turn? Convenience wrapper over explainAttack (null if unreachable).
@@ -293,7 +301,7 @@ export function predictCapture(s: ProvinceSimState, playerId: number, targetProv
   return odds ? odds.win : null;
 }
 
-type AttackerPick = { attacker: number; frontProv: number } | null;
+type AttackerPick = { attacker: number; frontProv: number; lane: boolean } | null;
 
 // double-buffered contest: for each province p (owner o) an attacker is chosen by `pick(p, o, agg)`; if
 // atk > def·CONTEST_THRESH the whole province flips. Reads pre-turn ownership + stepped solidarity, writes a
@@ -308,7 +316,7 @@ function contestPass(s: ProvinceSimState, pick: (p: number, o: number, agg: PAgg
     const o = s.provOwner[p];
     const chosen = pick(p, o, agg);
     if (!chosen) continue;
-    const atk = strength(s, agg, chosen.attacker, p, chosen.frontProv);
+    const atk = strength(s, agg, chosen.attacker, p, chosen.frontProv) * (chosen.lane ? EXPEDITION_MULT : 1);
     const def = o < 0 ? 0 : strength(s, agg, o, p, p);
     if (atk > def * CONTEST_THRESH) { nextOwner[p] = chosen.attacker; conquered.push({ prov: p, attacker: chosen.attacker, front: chosen.frontProv }); }
   }
@@ -327,13 +335,18 @@ function recomputeAlive(s: ProvinceSimState): void {
 // never chosen as an aggressor — the player only attacks its explicit targets, never auto-initiates.
 function aiAttacker(s: ProvinceSimState, excludePlayer: number) {
   return (p: number, o: number, agg: PAgg[]): AttackerPick => {
-    let attacker = -1, frontProv = -1, bestAvg = -Infinity;
-    for (const q of s.adj[p]) {
+    let attacker = -1, frontProv = -1, lane = false, bestAvg = -Infinity;
+    const consider = (q: number, viaLane: boolean) => {
       const po = s.provOwner[q];
-      if (po < 0 || po === o || po === excludePlayer || !s.alive[po]) continue;
-      if (agg[po].avg > bestAvg) { bestAvg = agg[po].avg; attacker = po; frontProv = q; }
-    }
-    return attacker < 0 ? null : { attacker, frontProv };
+      if (po < 0 || po === o || po === excludePlayer || !s.alive[po]) return;
+      // strictly-better realm wins; on a tie, prefer the land route (viaLane === false).
+      if (agg[po].avg > bestAvg || (agg[po].avg === bestAvg && lane && !viaLane)) {
+        bestAvg = agg[po].avg; attacker = po; frontProv = q; lane = viaLane;
+      }
+    };
+    for (const q of s.adj[p]) consider(q, false);
+    for (const q of laneOf(s, p)) consider(q, true);
+    return attacker < 0 ? null : { attacker, frontProv, lane };
   };
 }
 
@@ -357,6 +370,7 @@ export function armableTargets(s: ProvinceSimState, playerId: number): number[] 
     if (s.provOwner[p] === playerId) continue;
     let borders = false;
     for (const q of s.adj[p]) if (s.provOwner[q] === playerId) { borders = true; break; }
+    if (!borders) for (const q of laneOf(s, p)) if (s.provOwner[q] === playerId) { borders = true; break; }
     if (borders) out.push(p);
   }
   return out;
@@ -385,8 +399,8 @@ export function stepPlayerTurn(
   const ai = aiAttacker(s, playerId); // AI excludes the player from auto-initiating
   const conquered = contestPass(s, (p, o, agg) => {
     if (o !== playerId && playerTargets.has(p)) {
-      const front = playerFront(s, playerId, p, s.provSol); // s.provSol is already the stepped buffer here
-      if (front >= 0) return { attacker: playerId, frontProv: front };
+      const { front, lane } = attackFront(s, playerId, p, s.provSol); // s.provSol is already the stepped buffer here
+      if (front >= 0) return { attacker: playerId, frontProv: front, lane };
     }
     return ai(p, o, agg);
   });
