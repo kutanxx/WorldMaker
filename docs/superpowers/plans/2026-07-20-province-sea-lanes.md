@@ -617,10 +617,13 @@ Two golden tests now FAIL with a message like `expected <NEW> to be 3566824384` 
 
 The init hash `226648593` and Version A `1350115163` MUST still pass — do NOT change them. If either fails, STOP: lanes leaked into init or into the cell sim.
 
-- [ ] **Step 6: Guard the non-static signal**
+- [ ] **Step 6: Update the non-static signal to a lane-robust invariant** (DECIDED 2026-07-21)
 
-Run: `npx vitest run src/engine/provinceSim.test.ts -t "not static"`
-Expected: PASS (top nation still grows, alive count still shrinks). **If it FAILS, STOP and report the before/after numbers** — do not adjust constants to force it; that is SP3 balance data for the user.
+Measurement (20-seed throwaway probe) after lanes: the world is MORE dynamic — `aliveEnd < aliveStart` holds in 20/20 seeds (more eliminations than before), and a hegemon still emerges in 13/20. But the old `topEnd > topStart` assertion is a seed-1-specific proxy that now fails on seed 1 (a minority case where symmetric expeditions fragment the leader). **User decision: accept the more-dynamic world (aligns with SP3 anti-turtle goal); replace the fragile "top grows" assertion with a robust dynamism invariant.** Keep `EXPEDITION_MULT = 0.6`.
+
+In `describe("provinceSim determinism + safety (seed 1)", ...)`, the `"is not static"` test: keep `expect(aliveEnd).toBeLessThan(aliveStart)` (eliminations happen — 20/20), and REPLACE `expect(topEnd).toBeGreaterThan(topStart)` with `expect(topEnd).not.toBe(topStart)` (the leading power's share shifts — the world isn't frozen; direction-agnostic). Update the test's comment to explain the world is contested rather than always concentrating, once sea lanes spread aggression across fronts.
+
+Run: `npx vitest run src/engine/provinceSim.test.ts -t "not static"` → PASS.
 
 - [ ] **Step 7: Run the whole suite + commit**
 
