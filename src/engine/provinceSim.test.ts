@@ -351,7 +351,47 @@ describe("buildSeaLanes — short-hop coastal crossings", () => {
       ({ id, name: "P" + id, cells: 1, centroid: [x, y] as [number, number], seedCell: c, biome: 4 });
     const provinces = [mk(0, 0, 0, 0), mk(1, 0, 5, 2), mk(2, 10, 0, 3), mk(3, 0, 10, 4), mk(4, -10, 0, 5), mk(5, 0, -10, 6)];
     const adj = buildProvinceAdj(provinceOf, provinces, grid);
-    const lanes = buildSeaLanes(provinceOf, provinces, grid, adj, [0, 1, 2, 3, 4, 5]);
+    // single capital (hub) — this test targets the short-hop degree cap, not the connectivity fallback,
+    // so there must be only one capital-bearing component (nothing for the fallback to bridge).
+    const lanes = buildSeaLanes(provinceOf, provinces, grid, adj, [0]);
     expect(lanes[0].length).toBeLessThanOrEqual(3); // hub capped at LANE_MAX_DEGREE
+  });
+});
+
+describe("buildSeaLanes — connectivity fallback", () => {
+  // Two capitals on land-disconnected islands FAR apart (beyond hop range) still get exactly one lifeline lane.
+  // cells: 0 => P0(cap of nation, island A) ; 1 => sea ; ... ; big gap ; N => P1 (island B). No land adjacency.
+  function farIslands() {
+    const provinceOf = [0, -1, -1, -1, -1, 1];
+    const points: number[] = [0, 0, 20, 0, 40, 0, 60, 0, 80, 0, 100, 0];
+    const neighbors = [[1], [0, 2], [1, 3], [2, 4], [3, 5], [4]];
+    const grid = { count: 6, neighbors, points, width: 100, height: 10 };
+    const provinces = [
+      { id: 0, name: "A", cells: 1, centroid: [0, 0] as [number, number], seedCell: 0, biome: 4 },
+      { id: 1, name: "B", cells: 1, centroid: [100, 0] as [number, number], seedCell: 5, biome: 4 },
+    ];
+    const adj = buildProvinceAdj(provinceOf, provinces, grid);
+    return { provinceOf, provinces, grid, adj };
+  }
+
+  it("bridges land-disconnected capital components even beyond hop range", () => {
+    const { provinceOf, provinces, grid, adj } = farIslands();
+    // both provinces are >maxHop apart, so the short-hop pass adds nothing; the fallback must still connect them.
+    const lanes = buildSeaLanes(provinceOf, provinces, grid, adj, [0, 1]);
+    expect(lanes).toEqual([[1], [0]]);
+  });
+
+  it("adds no fallback lane when capitals already connect by land", () => {
+    // one landmass, two provinces adjacent by land → already one component → no lane needed.
+    const provinceOf = [0, 0, 1, 1];
+    const points: number[] = [0, 0, 10, 0, 20, 0, 30, 0];
+    const neighbors = [[1], [0, 2], [1, 3], [2]];
+    const grid = { count: 4, neighbors, points, width: 30, height: 10 };
+    const provinces = [
+      { id: 0, name: "A", cells: 2, centroid: [5, 0] as [number, number], seedCell: 0, biome: 4 },
+      { id: 1, name: "B", cells: 2, centroid: [25, 0] as [number, number], seedCell: 2, biome: 4 },
+    ];
+    const adj = buildProvinceAdj(provinceOf, provinces, grid);
+    expect(buildSeaLanes(provinceOf, provinces, grid, adj, [0, 1])).toEqual([[], []]);
   });
 });

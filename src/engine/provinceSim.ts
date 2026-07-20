@@ -77,7 +77,6 @@ function wharfDist(a: number[], b: number[], points: ArrayLike<number>): number 
 export function buildSeaLanes(
   provinceOf: ArrayLike<number>, provinces: Province[], grid: LaneGrid, adj: number[][], capitals: number[],
 ): number[][] {
-  void capitals;
   const n = provinces.length;
   const lanes: Set<number>[] = Array.from({ length: n }, () => new Set<number>());
   const wharf = wharfCells(provinceOf, n, grid);
@@ -103,7 +102,41 @@ export function buildSeaLanes(
     add(a, b);
   }
 
-  // (2) connectivity fallback — added in Task 2.
+  // (2) connectivity fallback: join every capital-bearing component into one, cheapest wharf pair first.
+  // Component labels over adj ∪ lanes-so-far.
+  const label = (): Int32Array => {
+    const lab = new Int32Array(n).fill(-1);
+    let next = 0;
+    for (let s0 = 0; s0 < n; s0++) {
+      if (lab[s0] >= 0) continue;
+      const stack = [s0]; lab[s0] = next;
+      while (stack.length) {
+        const u = stack.pop()!;
+        for (const v of adj[u]) if (lab[v] < 0) { lab[v] = next; stack.push(v); }
+        for (const v of lanes[u]) if (lab[v] < 0) { lab[v] = next; stack.push(v); }
+      }
+      next++;
+    }
+    return lab;
+  };
+  const capProvs = [...new Set(capitals.filter((c) => c >= 0))];
+  // repeatedly connect the two distinct capital-components whose nearest coastal provinces are closest.
+  for (;;) {
+    const lab = label();
+    const capLabels = [...new Set(capProvs.map((c) => lab[c]))];
+    if (capLabels.length <= 1) break;
+    let best: { a: number; b: number; d: number } | null = null;
+    // consider only coastal provinces; find the closest cross-component wharf pair (ties → lower ids).
+    for (let i = 0; i < coastal.length; i++) for (let j = i + 1; j < coastal.length; j++) {
+      const a = coastal[i], b = coastal[j];
+      if (lab[a] === lab[b]) continue;                       // same component already
+      if (!capLabels.includes(lab[a]) || !capLabels.includes(lab[b])) continue; // both sides must carry a capital
+      const d = wharfDist(wharf[a], wharf[b], grid.points);
+      if (!best || d < best.d || (d === best.d && (a < best.a || (a === best.a && b < best.b)))) best = { a, b, d };
+    }
+    if (!best) break; // no coastal way to connect (all-inland capitals) — leave as is
+    add(best.a, best.b);
+  }
 
   return lanes.map((s) => [...s].sort((x, y) => x - y));
 }
