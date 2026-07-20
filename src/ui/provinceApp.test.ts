@@ -200,6 +200,22 @@ describe("province turn loop (seed 1)", () => {
   });
 });
 
+describe("sea lanes (play mode)", () => {
+  let root: HTMLElement;
+  beforeEach(() => { root = document.createElement("div"); document.body.appendChild(root); });
+
+  it("draws a dashed sea-lane for each expedition route in play mode", () => {
+    mountProvinceApp(root, { seed: 1 });
+    // pick the first live polity territory to start (mirrors how other tests in this file start a game).
+    const terr = root.querySelector<SVGElement>("[data-polity]");
+    terr?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    const lanes = root.querySelectorAll(".prov-map .sea-lane");
+    // seed 1 has ≥1 lane by construction (connectivity fallback guarantees reachability); each is a <path>.
+    expect(lanes.length).toBeGreaterThan(0);
+    expect(lanes[0].getAttribute("stroke-dasharray")).toBeTruthy();
+  });
+});
+
 describe("stance toggle (conquer vs consolidate)", () => {
   let root: HTMLElement;
   beforeEach(() => { root = document.createElement("div"); document.body.appendChild(root); });

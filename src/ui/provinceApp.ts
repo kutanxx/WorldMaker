@@ -106,6 +106,7 @@ export function mountProvinceApp(root: HTMLElement, opts: { seed?: number } = {}
     // solidarity wash: pale-out fragile provinces so stability is a THING YOU SEE on the map, not just a
     // HUD number. Play mode only (in the picker every province is a uniform 0.5). Under the borders/labels.
     if (ui) svg.appendChild(solidarityWash(ui));
+    if (ui) svg.appendChild(seaLaneLayer(ui));
     // the province mesh: EVERY province boundary (incl. those inside one nation), so the map visibly
     // reads as "play in provinces" and not just nation blobs. Thin + faint UNDER the bold country lines.
     svg.appendChild(svgEl("path", {
@@ -161,11 +162,27 @@ export function mountProvinceApp(root: HTMLElement, opts: { seed?: number } = {}
     return g;
   }
 
+  // expedition sea lanes: a dashed route between each linked province pair's centroids. Play mode only;
+  // pointer-events off so it never blocks target clicks. Deduped by p < q.
+  function seaLaneLayer(u: UI): SVGGElement {
+    const g = svgEl("g", { class: "prov-lanes", style: "pointer-events:none" }) as SVGGElement;
+    const laneAdj = u.s.laneAdj ?? [];
+    for (let p = 0; p < laneAdj.length; p++) for (const q of laneAdj[p]) {
+      if (q <= p) continue; // draw each undirected lane once
+      const a = u.world.provinces[p].centroid, b = u.world.provinces[q].centroid;
+      g.appendChild(svgEl("line", {
+        class: "sea-lane", x1: a[0], y1: a[1], x2: b[0], y2: b[1],
+        stroke: "#3f5d78", "stroke-width": 1.4, "stroke-dasharray": "6 5", "stroke-opacity": 0.55,
+      }));
+    }
+    return g;
+  }
+
   // one readable line for a target: "Name — ⚔ 72 vs 🛡 60 · you can take (the province is shaky)"
   function attackLine(u: UI, prov: number): string {
-    const name = u.world.provinces[prov].name;
     const od = explainAttack(u.s, u.playerId, prov);
-    if (!od) return name;
+    const name = (od?.lane ? "⚓ " : "") + u.world.provinces[prov].name;
+    if (!od) return u.world.provinces[prov].name;
     const verdict = od.win ? (lang === "ko" ? "점령 가능" : "you can take") : (lang === "ko" ? "실패" : "too strong");
     let line = `${name} — ⚔ ${Math.round(od.atk * 100)} ${lang === "ko" ? "대" : "vs"} 🛡 ${Math.round(od.def * 100)} · ${verdict} (${reasonText(od.reason, lang)})`;
     if (!od.win) line += od.breakable // a losing attack: does building up (consolidate) open it, or is it too tough for now?
@@ -389,8 +406,8 @@ export function mountProvinceApp(root: HTMLElement, opts: { seed?: number } = {}
         const legend = document.createElement("div");
         legend.className = "prov-legend";
         legend.textContent = lang === "ko"
-          ? "✓ 초록 = 점령 가능  ·  ✕ 빨강 = 너무 강함 — 지역에 마우스를 올리면 이유가 나와요"
-          : "✓ green = you can take  ·  ✕ red = too strong — hover a province for the reason";
+          ? "✓ 초록 = 점령 가능  ·  ✕ 빨강 = 너무 강함  ·  ⚓ = 바다 건너 원정 — 지역에 마우스를 올리면 이유가 나와요"
+          : "✓ green = you can take  ·  ✕ red = too strong  ·  ⚓ = sea expedition — hover a province for the reason";
         root.appendChild(legend);
         map.appendChild(targetOverlay(ui));
         map.addEventListener("click", (e) => {
