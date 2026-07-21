@@ -82,6 +82,13 @@ New state field `unrest: Int32Array` on `ProvinceSimState`, one entry per provin
 - **Double-buffered** like `contestPass`: all flips are decided from the pre-defection ownership and
   applied together, so defections cannot cascade within one tick.
 - **A capital province never defects** → no nation can be eliminated without combat.
+- **Death stays permanent** → a defection may never hand an ELIMINATED nation its own former capital
+  province back. Without this, `recomputeAlive` would revive it, the chronicle would log 멸망 twice
+  with no revival line, and the HUD's rival count would climb — an undesigned path. Decided during
+  the final review; `revoltPass` skips the flip (and zeroes the clock) in that case.
+- A defecting province is handed to its new owner at `CONQUEST_SOL`, exactly as a conquered one is —
+  changing hands settles a province either way. Note this raises the receiving nation's average
+  stability, so a defection modestly strengthens the winner; deliberate, and a lever for future tuning.
 - Applies **symmetrically** to the player and to every AI nation.
 
 Step order becomes: `stepSolidarity → contestPass → revoltPass → recomputeAlive → tick++` (both in
