@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { describe, it, expect, beforeEach } from "vitest";
-import { mountProvinceApp, provinceCellOwner, isDomination, shakyOpacity, reasonText, survivalGrade } from "./provinceApp";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { mountProvinceApp, provinceCellOwner, isDomination, shakyOpacity, reasonText, survivalGrade, defectionReasonText } from "./provinceApp";
 import { generateWorld } from "../engine/world";
 import { DEFAULT_PARAMS } from "../types/world";
 import { initProvinceSim } from "../engine/provinceSim";
@@ -296,5 +296,57 @@ describe("province victory / defeat", () => {
     // a finished game offers restart
     expect(root.querySelector(".prov-again")).toBeTruthy();
     expect(root.querySelector(".prov-new")).toBeTruthy();
+  });
+});
+
+describe("defectionReasonText (a warning always says why)", () => {
+  it("phrases each reason in the chosen language, with the neighbour counts for 'isolated'", () => {
+    expect(defectionReasonText("isolated", 1, 4, "ko")).toContain("고립");
+    expect(defectionReasonText("isolated", 1, 4, "ko")).toContain("4");
+    expect(defectionReasonText("far", 1, 2, "ko")).toContain("멂");
+    expect(defectionReasonText("shaky", 1, 2, "en")).toContain("garrison");
+    expect(defectionReasonText("far", 1, 2, "en")).toContain("far");
+  });
+});
+
+describe("defection warning in play mode", () => {
+  let root: HTMLElement;
+  beforeEach(() => {
+    root = document.createElement("div");
+    document.body.appendChild(root);
+    // mountProvinceApp has no lang override — force Korean via the same "wm:lang" key detectLang() reads,
+    // so the KO-specific assertions below are deterministic regardless of the test runner's navigator.language.
+    localStorage.setItem("wm:lang", "ko");
+  });
+  afterEach(() => { localStorage.removeItem("wm:lang"); });
+
+  // found deterministically: seed 1's first live polity has a province go at-risk by turn 3
+  // (throwaway script per the task brief, scanning seeds 1-20 for the first at-risk turn; deleted after use).
+  const SEED = 1;
+  const TURNS = 3;
+
+  it("shows a countdown badge with its reason, a ring on the map, and a remedy hint", () => {
+    mountProvinceApp(root, { seed: SEED });
+    (root.querySelector("[data-polity]") as SVGPathElement).dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    // advance until the player actually has land at risk; resolve any dilemma cards that block the turn.
+    // arms every armable target each turn (mirrors the "all-armable" policy the Step 1a script used to
+    // derive SEED/TURNS, so this loop reproduces the exact same at-risk state deterministically).
+    for (let t = 0; t < TURNS; t++) {
+      const choice = root.querySelector(".prov-choice") as HTMLButtonElement | null;
+      if (choice) { choice.dispatchEvent(new MouseEvent("click", { bubbles: true })); t--; continue; }
+      let next: Element | null;
+      while ((next = root.querySelector(".prov-target:not(.armed)"))) {
+        next.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      }
+      (root.querySelector(".prov-advance") as HTMLButtonElement)
+        .dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    }
+    const panel = root.querySelector(".prov-risk")!;
+    expect(panel).toBeTruthy();                                       // the warning renders at all
+    const row = panel.querySelector(".prov-risk-row")!;
+    expect(row.textContent || "").toMatch(/이탈 \d턴/);                // countdown
+    expect(row.textContent || "").toMatch(/고립|멂|수비/);              // …and the REASON
+    expect(panel.querySelector(".prov-risk-hint")!.textContent || "").toMatch(/내실/); // …and the remedy
+    expect(root.querySelectorAll(".prov-map .prov-risk-ring").length).toBeGreaterThan(0); // …and the map ring
   });
 });

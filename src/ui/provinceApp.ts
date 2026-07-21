@@ -2,8 +2,8 @@ import { generateWorld } from "../engine/world";
 import { DEFAULT_PARAMS } from "../types/world";
 import {
   initProvinceSim, pAggregate, PROVINCE_SIM_TICKS, armableTargets, stepPlayerTurn, explainAttack,
-  offerProvinceDilemma, resolveProvinceDilemma,
-  type ProvinceSimState, type AttackReason, type ProvinceDilemma,
+  offerProvinceDilemma, resolveProvinceDilemma, defectionRisk,
+  type ProvinceSimState, type AttackReason, type ProvinceDilemma, type DefectionReason,
 } from "../engine/provinceSim";
 import { politicalLayer } from "./politicalLayer";
 import { politicalBorders, sharedEdge, type Segment } from "../engine/borders";
@@ -60,6 +60,18 @@ export function reasonText(reason: AttackReason, lang: "ko" | "en"): string {
     "near": "close to your capital", "too-far": "far from your capital", "even": "an even match",
   };
   return (lang === "ko" ? ko : en)[reason];
+}
+
+// a defection warning always says WHY, the same contract explainAttack follows for attacks.
+export function defectionReasonText(reason: DefectionReason, ownN: number, foeN: number, lang: "ko" | "en"): string {
+  if (lang === "ko") {
+    return reason === "isolated" ? `고립됨 (적 이웃 ${foeN} · 내 이웃 ${ownN})`
+      : reason === "far" ? "수도에서 너무 멂"
+      : "수비가 약함";
+  }
+  return reason === "isolated" ? `isolated (${foeN} hostile vs ${ownN} friendly)`
+    : reason === "far" ? "too far from your capital"
+    : "its garrison is thin";
 }
 
 export function mountProvinceApp(root: HTMLElement, opts: { seed?: number } = {}): void {
@@ -157,6 +169,21 @@ export function mountProvinceApp(root: HTMLElement, opts: { seed?: number } = {}
       g.appendChild(svgEl("path", {
         class: "prov-shaky", "data-province": prov.id, d: byProv[prov.id],
         fill: "#efe6cf", "fill-opacity": op.toFixed(2),
+      }));
+    }
+    return g;
+  }
+
+  // provinces of yours that are slipping away — an amber dashed outline so you can SEE which land is at
+  // risk, not just read about it. pointer-events off so it never blocks targeting.
+  function defectionOverlay(u: UI): SVGGElement {
+    const g = svgEl("g", { class: "prov-risks", style: "pointer-events:none" }) as SVGGElement;
+    for (let p = 0; p < u.s.n; p++) {
+      if (u.s.provOwner[p] !== u.playerId) continue;
+      if (!defectionRisk(u.s, p)) continue;
+      g.appendChild(svgEl("path", {
+        class: "prov-risk-ring", d: provinceOutlinePath(u, p),
+        fill: "none", stroke: "#d08a1e", "stroke-width": 2.4, "stroke-dasharray": "5 4", "stroke-linejoin": "round",
       }));
     }
     return g;
@@ -379,6 +406,32 @@ export function mountProvinceApp(root: HTMLElement, opts: { seed?: number } = {}
       hud.textContent = hudText(ui);
       root.appendChild(hud);
 
+      map.appendChild(defectionOverlay(ui));
+      const risks: { p: number; r: NonNullable<ReturnType<typeof defectionRisk>> }[] = [];
+      for (let p = 0; p < ui.s.n; p++) {
+        if (ui.s.provOwner[p] !== ui.playerId) continue;
+        const r = defectionRisk(ui.s, p);
+        if (r) risks.push({ p, r });
+      }
+      if (risks.length) {
+        const panel = document.createElement("div");
+        panel.className = "prov-risk";
+        for (const { p, r } of risks) {
+          const row = document.createElement("div");
+          row.className = "prov-risk-row";
+          const turns = lang === "ko" ? `이탈 ${r.turnsLeft}턴` : `defects in ${r.turnsLeft}`;
+          row.textContent = `⚠ ${ui.world.provinces[p].name} — ${turns} · ${defectionReasonText(r.reason, r.ownN, r.foeN, lang)}`;
+          panel.appendChild(row);
+        }
+        const hint = document.createElement("div");
+        hint.className = "prov-risk-hint";
+        hint.textContent = lang === "ko"
+          ? "내실로 다지거나, 압박하는 땅을 치세요"
+          : "consolidate it, or take the province pressing it";
+        panel.appendChild(hint);
+        root.appendChild(panel);
+      }
+
       // a pending dilemma takes over the turn — resolve it before doing anything else
       if (pendingDilemma) {
         root.appendChild(dilemmaCard(ui, pendingDilemma));
@@ -467,6 +520,10 @@ export function mountProvinceApp(root: HTMLElement, opts: { seed?: number } = {}
         for (const c of ev.conquests) {
           if (c.to === pid) log.unshift(`${lang === "ko" ? "정복" : "took"} ${ui!.world.provinces[c.prov].name}`);
           else if (c.from === pid) log.unshift(`${lang === "ko" ? "상실" : "lost"} ${ui!.world.provinces[c.prov].name}`);
+        }
+        for (const d of ev.defections) {
+          if (d.from === pid) log.unshift(`${lang === "ko" ? "이탈" : "defected"} ${ui!.world.provinces[d.prov].name}`);
+          else if (d.to === pid) log.unshift(`${lang === "ko" ? "귀순" : "joined you"} ${ui!.world.provinces[d.prov].name}`);
         }
         for (const id of ev.eliminated) log.unshift(`${ui!.world.polities[id]?.name ?? id} ${lang === "ko" ? "멸망" : "eliminated"}`);
         targets.clear();
