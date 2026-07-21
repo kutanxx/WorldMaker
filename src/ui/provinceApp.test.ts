@@ -1,6 +1,9 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mountProvinceApp, provinceCellOwner, isDomination, shakyOpacity, reasonText, survivalGrade, defectionReasonText } from "./provinceApp";
+import {
+  mountProvinceApp, provinceCellOwner, isDomination, shakyOpacity, reasonText, survivalGrade, defectionReasonText,
+  sortRisksByUrgency,
+} from "./provinceApp";
 import { generateWorld } from "../engine/world";
 import { DEFAULT_PARAMS } from "../types/world";
 import { initProvinceSim } from "../engine/provinceSim";
@@ -13,7 +16,7 @@ describe("provinceCellOwner", () => {
   });
 });
 
-describe("isDomination (win = gained a seventh of the map beyond your start)", () => {
+describe("isDomination (win = gained 15% of the map beyond your start)", () => {
   const LAND = 102; // seed-1 land province count; target = round(0.15 * 102) = 15 provinces gained
   it("wins once you have conquered ~15% of the map beyond your start", () => {
     expect(isDomination(25, 10, LAND)).toBe(true);  // gained 15 → win
@@ -306,6 +309,53 @@ describe("defectionReasonText (a warning always says why)", () => {
     expect(defectionReasonText("far", 1, 2, "ko")).toContain("멂");
     expect(defectionReasonText("shaky", 1, 2, "en")).toContain("garrison");
     expect(defectionReasonText("far", 1, 2, "en")).toContain("far");
+  });
+});
+
+describe("sortRisksByUrgency (risk panel orders most-urgent first)", () => {
+  it("sorts by ascending turnsLeft, ties broken by province id ascending", () => {
+    const risks = [
+      { p: 5, r: { turnsLeft: 3, reason: "isolated" as const, ownN: 0, foeN: 2, rival: 1 } },
+      { p: 1, r: { turnsLeft: 0, reason: "far" as const, ownN: 0, foeN: 1, rival: 1 } },
+      { p: 2, r: { turnsLeft: 1, reason: "shaky" as const, ownN: 0, foeN: 1, rival: 1 } },
+      { p: 0, r: { turnsLeft: 1, reason: "isolated" as const, ownN: 0, foeN: 1, rival: 1 } }, // ties p2 on turnsLeft
+    ];
+    const sorted = sortRisksByUrgency(risks);
+    expect(sorted.map((x) => x.p)).toEqual([1, 0, 2, 5]); // turnsLeft 0, then the tie (0 < 2) at turnsLeft 1, then 3
+    // input array is untouched (pure function)
+    expect(risks.map((x) => x.p)).toEqual([5, 1, 2, 0]);
+  });
+});
+
+describe("defection chronicle log (both directions)", () => {
+  let root: HTMLElement;
+  beforeEach(() => {
+    root = document.createElement("div");
+    document.body.appendChild(root);
+    localStorage.setItem("wm:lang", "ko");
+  });
+  afterEach(() => { localStorage.removeItem("wm:lang"); });
+
+  // found deterministically: seed 1's first live polity, arming exactly ONE unarmed target per turn (a
+  // gentler growth than the "all-armable" policy used elsewhere in this file), produces BOTH a province
+  // defecting away from the player ("이탈") and an enemy province defecting to the player ("귀순") by turn 3.
+  const SEED = 1;
+  const TURNS = 3;
+
+  it("logs 'defected' when the player loses a province and 'joined you' when one defects to the player", () => {
+    mountProvinceApp(root, { seed: SEED });
+    (root.querySelector("[data-polity]") as SVGPathElement).dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    for (let t = 0; t < TURNS; t++) {
+      const choice = root.querySelector(".prov-choice") as HTMLButtonElement | null;
+      if (choice) { choice.dispatchEvent(new MouseEvent("click", { bubbles: true })); t--; continue; }
+      // arm at most one unarmed target this turn (gentler than all-armable — lets defection dynamics play out)
+      const target = root.querySelector(".prov-target:not(.armed)") as SVGPathElement | null;
+      if (target) target.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      (root.querySelector(".prov-advance") as HTMLButtonElement).dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    }
+    const log = root.querySelector(".prov-log")!.textContent || "";
+    expect(log).toMatch(/이탈/);  // the player lost a province to defection
+    expect(log).toMatch(/귀순/);  // an enemy province defected to the player
   });
 });
 

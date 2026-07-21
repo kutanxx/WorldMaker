@@ -151,7 +151,7 @@ describe("provinceSim determinism + safety (seed 1)", () => {
     expect(fnv(s.provOwner)).toBe(226648593); // pinned golden hash — initial state (seed 1)
     for (let t = 0; t < PROVINCE_SIM_TICKS; t++) stepProvinceSim(s);
     expect(s.tick).toBe(PROVINCE_SIM_TICKS);
-    expect(fnv(s.provOwner)).toBe(4205818895); // pinned golden hash — after 50 ticks (seed 1) — re-pinned with sea lanes — re-pinned with defection (no-rival fix)
+    expect(fnv(s.provOwner)).toBe(2503300448); // pinned golden hash — after 50 ticks (seed 1) — re-pinned with sea lanes — re-pinned with defection (no-rival fix) — re-pinned (no-resurrect)
   });
   it("is not static — the world is contested and dynamic (nations are eliminated, the leader's share shifts)", () => {
     // sea lanes spread aggression across more simultaneous fronts, so a single hegemon growing every seed-1 run
@@ -288,6 +288,32 @@ describe("province dilemmas (rng-free, state-triggered)", () => {
     expect(s.provOwner[2]).toBe(0);
     expect(s.provSol[2]).toBeCloseTo(0.25, 5);
   });
+
+  it("resolve 'defector' resets the unrest clock — every ownership change gives a FULL grace period", () => {
+    // prov 1 is granted to the player via the dilemma while its unrest clock already reads 2 (as it would for
+    // a genuinely low-solidarity border province that was already wavering under someone else's rule). It
+    // stays pressed by the rival afterwards (rival still owns prov 2 AND prov 3, both bordering prov 1 — the
+    // player has NO friendly neighbour there), so without the reset the very next tick would push the clock
+    // to 3 = UNREST_FLIP and flip it straight back — before the player ever got to act on the "gift".
+    const provinces: Province[] = [
+      { id: 0, name: "player-cap", cells: 10, centroid: [1, 0], seedCell: 0, biome: 4 },
+      { id: 1, name: "granted", cells: 10, centroid: [0, 0], seedCell: 1, biome: 4 },
+      { id: 2, name: "rival-cap", cells: 10, centroid: [2000, 0], seedCell: 2, biome: 4 },
+    ];
+    const s = {
+      provinces, n: 3,
+      provOwner: Int32Array.from([0, 1, 1]), // prov 1 still the rival's, about to be granted to the player
+      provSol: Float32Array.from([0.5, 0.2, 0.5]),
+      adj: [[], [2], [1]], // player capital isolated; prov 1 borders ONLY the rival's (far) capital
+      capitalProv: Int32Array.from([0, 2]),
+      alive: [true, true], unrest: Int32Array.from([0, 2, 0]), tick: 0, // prov 1 already at unrest=2
+    } as ProvinceSimState;
+    resolveProvinceDilemma(s, 0, { code: "defector", prov: 1 }, "a");
+    expect(s.provOwner[1]).toBe(0); // granted to the player
+    expect(s.unrest![1]).toBe(0);   // clock reset by the grant itself
+    stepProvinceSim(s); // one tick: without the reset, clock 2→3=UNREST_FLIP would flip it straight back
+    expect(s.provOwner[1]).toBe(0); // the player still holds the "gift" a turn later
+  });
 });
 
 describe("stepPlayerTurn determinism + safety (seed 1)", () => {
@@ -304,7 +330,7 @@ describe("stepPlayerTurn determinism + safety (seed 1)", () => {
   it("pins the seed-1 player-path golden hash — deterministic, rng-free", () => {
     const a = runPlayerGame(), b = runPlayerGame();
     expect(fnv(a.provOwner)).toBe(fnv(b.provOwner)); // two runs identical (determinism)
-    expect(fnv(a.provOwner)).toBe(2143822576); // pinned golden — seed-1 player-path (all-armable policy); re-pinned at ATTACK_EXHAUST 0.1 — re-pinned with sea lanes — re-pinned with defection (no-rival fix)
+    expect(fnv(a.provOwner)).toBe(2374466985); // pinned golden — seed-1 player-path (all-armable policy); re-pinned at ATTACK_EXHAUST 0.1 — re-pinned with sea lanes — re-pinned with defection (no-rival fix) — re-pinned (no-resurrect)
   });
   it("does not perturb Version A's world-gen golden hash (fork is isolated)", () => {
     const world = generateWorld({ ...DEFAULT_PARAMS, seed: 1 }).world;
@@ -524,9 +550,25 @@ describe("defection pressure", () => {
   });
 
   it("ignores unowned neighbours — wilderness neither supports nor pressures", () => {
-    // prov 3 owned by 1; neighbours are prov 2 (owned by 1 → friendly) and prov 4 (unowned → ignored).
-    const s = row({ capitalProv: Int32Array.from([-1, 0]) });
-    expect(defectionRisk(s, 3)).toBeNull(); // ownN=1, foeN=0
+    // Rebuilt so the verdict actually depends on this rule: province 1 (owned by nation 0, provSol=0, ownN=0)
+    // has TWO unowned land neighbours and nothing else. If wilderness were (wrongly) counted as pressure,
+    // foeN=2 vs hold = ownN(0) + REVOLT_SELF*0 - REVOLT_DIST*30 ≈ -0.09 → press(2) > hold(-0.09) would flag
+    // it at risk. Correctly ignoring wilderness leaves foeN=0 → pressureOf bails out before hold even matters.
+    const provinces: Province[] = [
+      { id: 0, name: "cap", cells: 10, centroid: [0, 0], seedCell: 0, biome: 4 },
+      { id: 1, name: "p", cells: 10, centroid: [30, 0], seedCell: 1, biome: 4 },
+      { id: 2, name: "u1", cells: 10, centroid: [40, 0], seedCell: 2, biome: 4 },
+      { id: 3, name: "u2", cells: 10, centroid: [20, 0], seedCell: 3, biome: 4 },
+    ];
+    const s = {
+      provinces, n: 4,
+      provOwner: Int32Array.from([0, 0, -1, -1]),
+      provSol: Float32Array.from([0.5, 0, 0, 0]),
+      adj: [[], [2, 3], [1], [1]], // prov0 (capital) isolated; prov1 borders ONLY the two unowned provinces
+      capitalProv: Int32Array.from([0]),
+      alive: [true], unrest: new Int32Array(4), tick: 0,
+    } as ProvinceSimState;
+    expect(defectionRisk(s, 1)).toBeNull(); // ownN=0, foeN=0 (wilderness ignored on both sides)
   });
 
   it("ignores lane neighbours — pressure is a land-border phenomenon", () => {
@@ -692,6 +734,33 @@ describe("defection — countdown and flip", () => {
     expect(ev.defections).toEqual([]);
     ev = stepPlayerTurn(s, 0, new Set());
     expect(ev.defections).toEqual([{ prov: 1, from: 0, to: 1 }]);
+  });
+
+  it("never resurrects an eliminated nation by defecting its old capital province back to it", () => {
+    // Nation X (id 1) has already been eliminated: its former capital (prov 0) now belongs to nation Y (id 0),
+    // but X still holds the two provinces surrounding it (prov 1, prov 2) — a realistic mid-collapse state.
+    // Y's REAL capital (prov 3) is far away and isolated, so prov 0 is thinly held and would (without the
+    // no-resurrect guard) accumulate unrest and defect back to X, which recomputeAlive would then revive.
+    const provinces: Province[] = [
+      { id: 0, name: "old-capital", cells: 10, centroid: [0, 0], seedCell: 0, biome: 4 },
+      { id: 1, name: "x-land-1", cells: 10, centroid: [-5, 0], seedCell: 1, biome: 4 },
+      { id: 2, name: "x-land-2", cells: 10, centroid: [5, 0], seedCell: 2, biome: 4 },
+      { id: 3, name: "y-capital", cells: 10, centroid: [1000, 0], seedCell: 3, biome: 4 },
+    ];
+    const s = {
+      provinces, n: 4,
+      provOwner: Int32Array.from([0, 1, 1, 0]),      // prov 0 held by Y; prov 1,2 still held by (dead) X
+      provSol: Float32Array.from([0.5, 0.5, 0.5, 0.5]),
+      adj: [[1, 2], [0], [0], []],
+      laneAdj: [[], [], [], []],
+      capitalProv: Int32Array.from([3, 0]),           // Y's capital = prov 3; X's capital = prov 0
+      alive: [true, false],                            // X is already dead (doesn't hold its own capital)
+      unrest: new Int32Array(4), tick: 0,
+    } as ProvinceSimState;
+    expect(s.alive[1]).toBe(false);
+    for (let t = 0; t < 10; t++) stepProvinceSim(s); // well past UNREST_FLIP (3)
+    expect(s.provOwner[0]).toBe(0);   // Y still holds X's old capital province — no defection back to X
+    expect(s.alive[1]).toBe(false);   // X is STILL dead — never resurrected
   });
 
   it("consolidating a pressed province stops its defection clock, so it never flips — while left alone it does", () => {

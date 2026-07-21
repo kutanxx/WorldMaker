@@ -22,7 +22,7 @@ export function provinceCellOwner(count: number, provinceOf: ArrayLike<number>, 
 
 interface UI { world: ReturnType<typeof generateWorld>["world"]; s: ProvinceSimState; playerId: number; startProvinces: number; }
 
-// Domination = you have CONQUERED a seventh (~0.15) of the map beyond where you started. Additive (not ×start)
+// Domination = you have CONQUERED 15% of the map beyond where you started. Additive (not ×start)
 // so it is start-fair: a tiny realm and a large one must both take the same absolute number of provinces, a big
 // start never wins instantly (gain is 0 at t0), and a small start can't win by grabbing 2 neighbours. Lowered
 // from 0.2 after measurement: province defection makes holding conquered land harder, so net expansion is
@@ -62,6 +62,12 @@ export function reasonText(reason: AttackReason, lang: "ko" | "en"): string {
     "near": "close to your capital", "too-far": "far from your capital", "even": "an even match",
   };
   return (lang === "ko" ? ko : en)[reason];
+}
+
+// risk-panel ordering: most-urgent (fewest turns left) first, ties broken by province id — so a province
+// flipping NEXT TURN is never buried below one with turns to spare. Pure + exported so it's directly testable.
+export function sortRisksByUrgency<T extends { p: number; r: { turnsLeft: number } }>(risks: T[]): T[] {
+  return [...risks].sort((a, b) => a.r.turnsLeft - b.r.turnsLeft || a.p - b.p);
 }
 
 // a defection warning always says WHY, the same contract explainAttack follows for attacks.
@@ -355,8 +361,8 @@ export function mountProvinceApp(root: HTMLElement, opts: { seed?: number } = {}
     hint.className = "prov-hint";
     hint.textContent = ui
       ? (lang === "ko"
-          ? `${ui.world.polities[ui.playerId]?.name ?? ""} — 세계의 1/7을 새로 정복하거나 50턴 생존`
-          : `${ui.world.polities[ui.playerId]?.name ?? ""} — conquer a seventh of the world, or survive 50 turns`)
+          ? `${ui.world.polities[ui.playerId]?.name ?? ""} — 세계의 15%를 새로 정복하거나 50턴 생존`
+          : `${ui.world.polities[ui.playerId]?.name ?? ""} — conquer 15% of the world, or survive 50 turns`)
       : (lang === "ko"
           ? "지도에서 나라를 클릭해 다스릴 제국을 고르세요"
           : "Click a nation on the map to choose your realm");
@@ -418,7 +424,7 @@ export function mountProvinceApp(root: HTMLElement, opts: { seed?: number } = {}
       if (risks.length) {
         const panel = document.createElement("div");
         panel.className = "prov-risk";
-        for (const { p, r } of risks) {
+        for (const { p, r } of sortRisksByUrgency(risks)) {
           const row = document.createElement("div");
           row.className = "prov-risk-row";
           const turns = lang === "ko" ? `이탈 ${r.turnsLeft}턴` : `defects in ${r.turnsLeft}`;

@@ -396,6 +396,10 @@ function revoltPass(s: ProvinceSimState): Defection[] {
   for (let p = 0; p < s.n; p++) {
     const pr = pressureOf(s, p);
     if (!pr || pr.press <= pr.hold) { clock[p] = 0; continue; }
+    // death stays permanent: never hand a dead polity its own capital province back. Without this, a
+    // province that happens to be an ELIMINATED nation's old capital could defect to it, and
+    // recomputeAlive would resurrect a nation that was supposed to be gone for good.
+    if (s.capitalProv[pr.rival] === p && !s.alive[pr.rival]) { clock[p] = 0; continue; }
     clock[p]++;
     if (clock[p] >= UNREST_FLIP) {
       nextOwner[p] = pr.rival;
@@ -546,6 +550,7 @@ export function resolveProvinceDilemma(s: ProvinceSimState, playerId: number, d:
     if (choice === "a") { // accept fealty — gain the province, but it starts fragile
       s.provOwner[d.prov] = playerId;
       s.provSol[d.prov] = 0.25;
+      unrestArr(s)[d.prov] = 0; // every ownership change resets the clock — a full grace period for the new owner
       recomputeAlive(s);
     } // "b": refuse — no change
   } else { // muster
