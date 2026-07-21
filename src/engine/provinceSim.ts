@@ -474,9 +474,11 @@ export function stepPlayerTurn(
   // (passed in `targets`), not the whole realm — so it can't blanket-shield every front. Applied before the
   // contest so it also defends better this tick. AI nations still act.
   if (opts.consolidate) {
+    const clock = unrestArr(s);
     for (const p of targets) if (p >= 0 && p < s.n && s.provOwner[p] === playerId) {
       const sv = s.provSol[p] + CONSOLIDATE_BONUS;
       s.provSol[p] = sv > 1 ? 1 : sv;
+      clock[p] = 0; // shoring a province up steadies it — the defection clock stops
     }
   }
   const playerTargets: ReadonlySet<number> = opts.consolidate ? EMPTY_TARGETS : targets;

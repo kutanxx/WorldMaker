@@ -693,4 +693,23 @@ describe("defection — countdown and flip", () => {
     ev = stepPlayerTurn(s, 0, new Set());
     expect(ev.defections).toEqual([{ prov: 1, from: 0, to: 1 }]);
   });
+
+  it("consolidating a pressed province stops its defection clock, so it never flips — while left alone it does", () => {
+    // one plain tick, unconsolidated: prov 1 is pressed but not yet gone — its clock reads 1.
+    const baseline = salient();
+    stepProvinceSim(baseline);
+    expect(baseline.provOwner[1]).toBe(0);
+    expect(baseline.unrest![1]).toBe(1);
+
+    // fresh identical state, left alone for MORE than UNREST_FLIP turns → it DOES defect (control).
+    const neglected = salient();
+    for (let t = 0; t < 5; t++) stepProvinceSim(neglected);
+    expect(neglected.provOwner[1]).not.toBe(0); // defected away from the player
+
+    // fresh identical state, consolidated EVERY turn for more turns than UNREST_FLIP → it must hold.
+    const held = salient();
+    for (let t = 0; t < 5; t++) stepPlayerTurn(held, 0, new Set([1]), { consolidate: true });
+    expect(held.provOwner[1]).toBe(0);   // still the player's — the clock never reached UNREST_FLIP
+    expect(held.unrest![1]).toBe(0);     // reset every turn by the consolidate block
+  });
 });
