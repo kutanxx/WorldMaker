@@ -101,6 +101,16 @@ So "take it and move on" stops working; you must either consolidate a conquest o
   `UNREST_FLIP - unrest[p]` turns remaining. Presented as an **event warning, not a second meter** —
   the game already went through several rounds of metric renaming (결속 → 민심 → 안정도) and must not
   introduce a competing percentage stat next to stability.
+
+- **The badge must say WHY**, matching the `explainAttack` precedent (this game never shows an outcome
+  without its reason). The engine exports the reason alongside the countdown, derived from which term
+  dominates the `press - hold` gap:
+  - `isolated` — hostile land neighbours outnumber friendly ones (the usual case):
+    `고립됨 (적 이웃 4 · 내 이웃 1)` / `isolated (4 hostile vs 1 friendly)`
+  - `far` — the distance term is what tips it: `수도에서 너무 멂` / `too far from your capital`
+  - `shaky` — its own garrison is the weak link: `수비가 약함` / `its garrison is thin`
+- **The badge must say HOW TO STOP IT** — one hint line, so a warning is never a dead end:
+  `내실로 다지거나, 압박하는 땅을 치세요` / `consolidate it, or take the province pressing it`.
 - A chronicle log line when a province defects, distinct from `정복` (conquest) and `상실` (lost in
   battle): `이탈` / `defected`.
 - v1 shows warnings for the **player's own provinces only** — the purpose is the punishment signal.
@@ -127,6 +137,15 @@ guesswork. Across ~20 seeds, record and check:
    still holds; report the numbers if it does not rather than tuning to force it.
 5. **Player can still win.** A conquest-policy headless run still reaches domination on some seeds —
    defection must not make expansion pointless.
+6. **An overseas conquest is KEEPABLE with investment — the critical check.** Take a distant province
+   via a sea-lane expedition, then consolidate it every turn: it must be able to survive. If the
+   `REVOLT_DIST` term is so strong that no amount of investment can hold a far conquest, this mechanic
+   silently nullifies the sea-lane feature shipped the day before — "you can take it but never keep
+   it" is a wall, not a decision. Measure the distance at which a consolidated province still holds,
+   and lower `REVOLT_DIST` if the answer is "never".
+7. **At-risk provinces are FEW at any one time.** Count how many of the player's provinces show a
+   warning simultaneously over a run. A handful (roughly 0–3) is a pointed signal; a screenful is
+   turn-by-turn tedium and means the constants are too harsh. Record the distribution.
 
 If the numbers are bad, adjust the three constants once and re-measure; record the decision.
 
@@ -147,9 +166,13 @@ solidarity rise/decay model itself.
    the whole province moves; a capital province never flips; two provinces flipping in one tick both
    resolve from pre-flip ownership (no cascade).
 4. **Symmetry** — an AI nation's exposed province defects to the player under the same rule.
-5. **provinceApp DOM** — the `⚠` badge renders with the correct remaining count for an at-risk
-   player province and is absent otherwise; the defection log line appears.
-6. **Golden guards** — re-pinned 50-tick and player-path hashes; init and Version A unchanged.
+5. **Defection reason** — a pure exported helper returns `isolated` / `far` / `shaky` for hand-built
+   fixtures where each term respectively dominates the `press - hold` gap, mirroring how
+   `explainAttack` picks its `AttackReason`.
+6. **provinceApp DOM** — the `⚠` badge renders with the correct remaining count AND its reason text
+   for an at-risk player province, is absent otherwise, the remedy hint is present, and the defection
+   log line appears. KO + EN.
+7. **Golden guards** — re-pinned 50-tick and player-path hashes; init and Version A unchanged.
 
 ## Sources
 
