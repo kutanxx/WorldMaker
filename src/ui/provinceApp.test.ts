@@ -13,15 +13,15 @@ describe("provinceCellOwner", () => {
   });
 });
 
-describe("isDomination (win = gained a fifth of the map beyond your start)", () => {
-  const LAND = 102; // seed-1 land province count; target = round(0.2 * 102) = 20 provinces gained
-  it("wins once you have conquered ~20% of the map beyond your start", () => {
-    expect(isDomination(30, 10, LAND)).toBe(true);  // gained 20 → win
-    expect(isDomination(29, 10, LAND)).toBe(false); // gained 19 → not yet
+describe("isDomination (win = gained a seventh of the map beyond your start)", () => {
+  const LAND = 102; // seed-1 land province count; target = round(0.15 * 102) = 15 provinces gained
+  it("wins once you have conquered ~15% of the map beyond your start", () => {
+    expect(isDomination(25, 10, LAND)).toBe(true);  // gained 15 → win
+    expect(isDomination(24, 10, LAND)).toBe(false); // gained 14 → not yet
   });
   it("never triggers instantly for a big start — you must actually GAIN, not just be large", () => {
     expect(isDomination(40, 40, LAND)).toBe(false); // gained 0 → no instant win
-    expect(isDomination(60, 40, LAND)).toBe(true);  // a big nation still has to conquer 20 more
+    expect(isDomination(55, 40, LAND)).toBe(true);  // a big nation still has to conquer 15 more
   });
 });
 

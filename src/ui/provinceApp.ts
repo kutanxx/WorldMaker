@@ -22,10 +22,12 @@ export function provinceCellOwner(count: number, provinceOf: ArrayLike<number>, 
 
 interface UI { world: ReturnType<typeof generateWorld>["world"]; s: ProvinceSimState; playerId: number; startProvinces: number; }
 
-// Domination = you have CONQUERED a fifth of the map beyond where you started. Additive (not ×start) so it is
-// start-fair: a tiny realm and a large one must both take the same absolute number of provinces, a big start
-// never wins instantly (gain is 0 at t0), and a small start can't win by grabbing 2 neighbours. SP3-tunable.
-const DOMINATION_GAIN_FRAC = 0.2;
+// Domination = you have CONQUERED a seventh (~0.15) of the map beyond where you started. Additive (not ×start)
+// so it is start-fair: a tiny realm and a large one must both take the same absolute number of provinces, a big
+// start never wins instantly (gain is 0 at t0), and a small start can't win by grabbing 2 neighbours. Lowered
+// from 0.2 after measurement: province defection makes holding conquered land harder, so net expansion is
+// harder and 0.2 was nearly unreachable under headless policies. SP3-tunable.
+const DOMINATION_GAIN_FRAC = 0.15;
 const CONSOLIDATE_MAX = 2; // a consolidate turn can shore up at most this many provinces — you can't shield everything
 export function isDomination(prov: number, start: number, land: number): boolean {
   return prov - start >= Math.round(DOMINATION_GAIN_FRAC * land);
@@ -353,8 +355,8 @@ export function mountProvinceApp(root: HTMLElement, opts: { seed?: number } = {}
     hint.className = "prov-hint";
     hint.textContent = ui
       ? (lang === "ko"
-          ? `${ui.world.polities[ui.playerId]?.name ?? ""} — 세계의 1/5을 새로 정복하거나 50턴 생존`
-          : `${ui.world.polities[ui.playerId]?.name ?? ""} — conquer a fifth of the world, or survive 50 turns`)
+          ? `${ui.world.polities[ui.playerId]?.name ?? ""} — 세계의 1/7을 새로 정복하거나 50턴 생존`
+          : `${ui.world.polities[ui.playerId]?.name ?? ""} — conquer a seventh of the world, or survive 50 turns`)
       : (lang === "ko"
           ? "지도에서 나라를 클릭해 다스릴 제국을 고르세요"
           : "Click a nation on the map to choose your realm");
