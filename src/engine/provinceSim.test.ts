@@ -151,7 +151,7 @@ describe("provinceSim determinism + safety (seed 1)", () => {
     expect(fnv(s.provOwner)).toBe(226648593); // pinned golden hash — initial state (seed 1)
     for (let t = 0; t < PROVINCE_SIM_TICKS; t++) stepProvinceSim(s);
     expect(s.tick).toBe(PROVINCE_SIM_TICKS);
-    expect(fnv(s.provOwner)).toBe(3421423712); // pinned golden hash — after 50 ticks (seed 1) — re-pinned with sea lanes — re-pinned with defection
+    expect(fnv(s.provOwner)).toBe(4205818895); // pinned golden hash — after 50 ticks (seed 1) — re-pinned with sea lanes — re-pinned with defection (no-rival fix)
   });
   it("is not static — the world is contested and dynamic (nations are eliminated, the leader's share shifts)", () => {
     // sea lanes spread aggression across more simultaneous fronts, so a single hegemon growing every seed-1 run
@@ -304,7 +304,7 @@ describe("stepPlayerTurn determinism + safety (seed 1)", () => {
   it("pins the seed-1 player-path golden hash — deterministic, rng-free", () => {
     const a = runPlayerGame(), b = runPlayerGame();
     expect(fnv(a.provOwner)).toBe(fnv(b.provOwner)); // two runs identical (determinism)
-    expect(fnv(a.provOwner)).toBe(670164119); // pinned golden — seed-1 player-path (all-armable policy); re-pinned at ATTACK_EXHAUST 0.1 — re-pinned with sea lanes — re-pinned with defection
+    expect(fnv(a.provOwner)).toBe(2143822576); // pinned golden — seed-1 player-path (all-armable policy); re-pinned at ATTACK_EXHAUST 0.1 — re-pinned with sea lanes — re-pinned with defection (no-rival fix)
   });
   it("does not perturb Version A's world-gen golden hash (fork is isolated)", () => {
     const world = generateWorld({ ...DEFAULT_PARAMS, seed: 1 }).world;
@@ -636,6 +636,32 @@ describe("defection — countdown and flip", () => {
     expect(s.provOwner[2]).toBe(0);   // …and KEPT it — the clock restarted instead of firing
     expect(s.unrest![2]).toBe(1);     // one fresh turn of pressure, not the inherited 2
     expect(ev.defections).toEqual([]);
+  });
+
+  it("never defects a province with NO hostile land neighbours, even when far from its capital (hold < 0)", () => {
+    // prov 1 is owned by nation 0, isolated (its only land neighbour, prov 2, is unowned wilderness) and
+    // FAR from nation 0's capital (prov 0): centroid distance 2000, so REVOLT_DIST*dist = 6. With
+    // ownN=0 and provSol=0, hold = 0 + 2*0 - 6 = -6 (genuinely negative). Before the no-rival guard,
+    // foeN=0 > hold(-6) was treated as "pressed" even though rival=-1 (nobody is actually pressing it) —
+    // revoltPass would flip it to owner -1 (unowned) after UNREST_FLIP ticks. It must instead never move.
+    const provinces: Province[] = [
+      { id: 0, name: "0", cells: 10, centroid: [0, 0], seedCell: 0, biome: 4 },
+      { id: 1, name: "1", cells: 10, centroid: [2000, 0], seedCell: 1, biome: 4 },
+      { id: 2, name: "2", cells: 10, centroid: [2010, 0], seedCell: 2, biome: 4 },
+    ];
+    const s = {
+      provinces, n: 3,
+      provOwner: Int32Array.from([0, 0, -1]),
+      provSol: Float32Array.from([0.5, 0, 0]),
+      adj: [[], [2], [1]],
+      laneAdj: [[], [], []],
+      capitalProv: Int32Array.from([0]),
+      alive: [true], unrest: new Int32Array(3), tick: 0,
+    } as ProvinceSimState;
+    expect(defectionRisk(s, 1)).toBeNull(); // no rival pressing it → not at risk at all
+    for (let t = 0; t < 5; t++) stepProvinceSim(s); // UNREST_FLIP(3) + 2 more, to be sure
+    expect(s.provOwner[1]).toBe(0);   // still owned by nation 0
+    expect(s.unrest![1]).toBe(0);     // clock never moved
   });
 
   it("stepPlayerTurn reports defections as events", () => {

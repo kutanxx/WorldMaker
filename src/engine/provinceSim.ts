@@ -235,6 +235,7 @@ function pressureOf(s: ProvinceSimState, p: number):
   }
   let rival = -1, foeN = 0;
   for (const [r, k] of byRival) if (k > foeN || (k === foeN && r < rival)) { foeN = k; rival = r; }
+  if (foeN === 0) return null; // nobody is pressing this province — it can never defect, however negative hold is
   const cap = s.capitalProv[o];
   const dist = cap >= 0 ? centroidDist(s.provinces[p], s.provinces[cap]) : 0;
   const hold = ownN + REVOLT_SELF * s.provSol[p] - REVOLT_DIST * dist;
