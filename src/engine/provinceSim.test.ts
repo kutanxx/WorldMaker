@@ -151,7 +151,7 @@ describe("provinceSim determinism + safety (seed 1)", () => {
     expect(fnv(s.provOwner)).toBe(226648593); // pinned golden hash — initial state (seed 1)
     for (let t = 0; t < PROVINCE_SIM_TICKS; t++) stepProvinceSim(s);
     expect(s.tick).toBe(PROVINCE_SIM_TICKS);
-    expect(fnv(s.provOwner)).toBe(2803010495); // pinned golden hash — after 50 ticks (seed 1) — re-pinned with sea lanes
+    expect(fnv(s.provOwner)).toBe(3421423712); // pinned golden hash — after 50 ticks (seed 1) — re-pinned with sea lanes — re-pinned with defection
   });
   it("is not static — the world is contested and dynamic (nations are eliminated, the leader's share shifts)", () => {
     // sea lanes spread aggression across more simultaneous fronts, so a single hegemon growing every seed-1 run
@@ -304,7 +304,7 @@ describe("stepPlayerTurn determinism + safety (seed 1)", () => {
   it("pins the seed-1 player-path golden hash — deterministic, rng-free", () => {
     const a = runPlayerGame(), b = runPlayerGame();
     expect(fnv(a.provOwner)).toBe(fnv(b.provOwner)); // two runs identical (determinism)
-    expect(fnv(a.provOwner)).toBe(2070567107); // pinned golden — seed-1 player-path (all-armable policy); re-pinned at ATTACK_EXHAUST 0.1 — re-pinned with sea lanes
+    expect(fnv(a.provOwner)).toBe(670164119); // pinned golden — seed-1 player-path (all-armable policy); re-pinned at ATTACK_EXHAUST 0.1 — re-pinned with sea lanes — re-pinned with defection
   });
   it("does not perturb Version A's world-gen golden hash (fork is isolated)", () => {
     const world = generateWorld({ ...DEFAULT_PARAMS, seed: 1 }).world;
@@ -561,5 +561,110 @@ describe("defection pressure", () => {
       capitalProv: Int32Array.from([0, 2]),
     }), 1);
     expect(shaky?.reason).toBe("shaky");
+  });
+});
+
+describe("defection — countdown and flip", () => {
+  // prov 1 belongs to nation 0 but is surrounded by nation 1's provinces 0 and 2. Nation 0's capital is
+  // prov 3 (which nation 1 also holds — irrelevant here; what matters is prov 1 is not a capital).
+  function salient(over: Record<string, unknown> = {}): ProvinceSimState {
+    const provinces: Province[] = [0, 1, 2, 3].map((i) => ({
+      id: i, name: String(i), cells: 10, centroid: [i * 10, 0], seedCell: i, biome: 4,
+    }));
+    return {
+      provinces, n: 4,
+      provOwner: Int32Array.from([1, 0, 1, 0]),
+      provSol: Float32Array.from([0.5, 0.5, 0.5, 0.5]),
+      adj: [[1], [0, 2], [1, 3], [2]],
+      laneAdj: [[], [], [], []],
+      capitalProv: Int32Array.from([3, 0]),
+      alive: [true, true], unrest: new Int32Array(4), tick: 0, ...over,
+    } as ProvinceSimState;
+  }
+
+  it("counts up while pressed and flips to the pressing rival at UNREST_FLIP", () => {
+    const s = salient();
+    stepProvinceSim(s);
+    expect(s.provOwner[1]).toBe(0); expect(s.unrest![1]).toBe(1); // pressed, not yet gone
+    stepProvinceSim(s);
+    expect(s.provOwner[1]).toBe(0); expect(s.unrest![1]).toBe(2);
+    stepProvinceSim(s);
+    expect(s.provOwner[1]).toBe(1);  // defected to nation 1
+    expect(s.unrest![1]).toBe(0);    // clock reset for the new owner
+  });
+
+  it("resets the clock the moment the pressure lifts", () => {
+    const s = salient();
+    stepProvinceSim(s);
+    expect(s.unrest![1]).toBe(1);
+    s.provOwner[0] = 0; s.provOwner[2] = 0; // its neighbours become friendly
+    stepProvinceSim(s);
+    expect(s.unrest![1]).toBe(0);
+  });
+
+  it("never defects a capital province", () => {
+    // make prov 1 nation 0's capital: same hostile surroundings, but it must never flip.
+    const s = salient({ capitalProv: Int32Array.from([1, 0]) });
+    for (let t = 0; t < 10; t++) stepProvinceSim(s);
+    expect(s.provOwner[1]).toBe(0);
+    expect(s.alive[0]).toBe(true); // and so nation 0 is never eliminated without combat
+  });
+
+  it("a conquest resets the defection clock, so fresh land gets its FULL grace period", () => {
+    // A(0) holds prov 0 (capital) + prov 1 and is cohesive; B(1) holds prov 2 (weak) plus 3, 4 and its
+    // capital 5. Prov 2 already has 2 turns of unrest on the clock from B's side. A conquers prov 2.
+    // Prov 2 is genuinely pressed afterwards (1 friendly vs 3 hostile land neighbours), so:
+    //   - WITH the conquest reset: clock 0 → 1, and A keeps the province.
+    //   - WITHOUT it: clock 2 → 3 = UNREST_FLIP, and it would defect straight back to B the same tick.
+    // Asserting A still owns it therefore tests the reset, not a tautology.
+    const provinces: Province[] = [0, 1, 2, 3, 4, 5].map((i) => ({
+      id: i, name: String(i), cells: 20, centroid: [i * 10, 0], seedCell: i, biome: 4,
+    }));
+    const s = {
+      provinces, n: 6,
+      provOwner: Int32Array.from([0, 0, 1, 1, 1, 1]),
+      provSol: Float32Array.from([0.9, 0.9, 0.1, 0.1, 0.1, 0.1]),
+      adj: [[1], [0, 2], [1, 3, 4, 5], [2], [2], [2]],
+      laneAdj: [[], [], [], [], [], []],
+      capitalProv: Int32Array.from([0, 5]),
+      alive: [true, true],
+      unrest: Int32Array.from([0, 0, 2, 0, 0, 0]), // prov 2 was already wavering under B
+      tick: 0,
+    } as ProvinceSimState;
+    const ev = stepPlayerTurn(s, 0, new Set([2]));
+    expect(ev.conquests).toContainEqual({ prov: 2, from: 1, to: 0 }); // A took it
+    expect(s.provOwner[2]).toBe(0);   // …and KEPT it — the clock restarted instead of firing
+    expect(s.unrest![2]).toBe(1);     // one fresh turn of pressure, not the inherited 2
+    expect(ev.defections).toEqual([]);
+  });
+
+  it("stepPlayerTurn reports defections as events", () => {
+    // the player is nation 0 and loses its salient after UNREST_FLIP quiet turns.
+    // NOTE: the brief's literal `salient()` fixture is a symmetric checkerboard (prov1 owned by 0 pressed
+    // by 1 on both sides; prov2 owned by 1 pressed by 0 on both sides via the SAME neighbours 0 and 3),
+    // so with a bare `salient()` BOTH prov1 and prov2 defect on the same tick (verified empirically:
+    // defections === [{prov:1,from:0,to:1},{prov:2,from:1,to:0}]) — that isn't a bug in revoltPass, it's
+    // the fixture's own math (pressureOf is symmetric under owner-swap here). Since this test's premise is
+    // a SINGLE salient's event, two extra nation-1 interior provinces (4, 5) are added as friendly neighbours
+    // of prov2 so it has real support (ownN=2) and never itself qualifies as pressed, isolating prov1 as the
+    // only defector. prov1's own neighbourhood (adj [0,2]) is untouched, so its countdown is unaffected.
+    const provinces: Province[] = [0, 1, 2, 3, 4, 5].map((i) => ({
+      id: i, name: String(i), cells: 10, centroid: [i * 10, 0], seedCell: i, biome: 4,
+    }));
+    const s = {
+      provinces, n: 6,
+      provOwner: Int32Array.from([1, 0, 1, 0, 1, 1]),
+      provSol: Float32Array.from([0.5, 0.5, 0.5, 0.5, 0.5, 0.5]),
+      adj: [[1], [0, 2], [1, 3, 4, 5], [2], [2], [2]],
+      laneAdj: [[], [], [], [], [], []],
+      capitalProv: Int32Array.from([3, 0]),
+      alive: [true, true], unrest: new Int32Array(6), tick: 0,
+    } as ProvinceSimState;
+    let ev = stepPlayerTurn(s, 0, new Set());
+    expect(ev.defections).toEqual([]);
+    ev = stepPlayerTurn(s, 0, new Set());
+    expect(ev.defections).toEqual([]);
+    ev = stepPlayerTurn(s, 0, new Set());
+    expect(ev.defections).toEqual([{ prov: 1, from: 0, to: 1 }]);
   });
 });

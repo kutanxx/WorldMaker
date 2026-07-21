@@ -377,8 +377,33 @@ function contestPass(s: ProvinceSimState, pick: (p: number, o: number, agg: PAgg
     if (atk > def * CONTEST_THRESH) { nextOwner[p] = chosen.attacker; conquered.push({ prov: p, attacker: chosen.attacker, front: chosen.frontProv }); }
   }
   s.provOwner = nextOwner;
-  for (const c of conquered) s.provSol[c.prov] = CONQUEST_SOL; // a fresh conquest is cohesive
+  const clock = unrestArr(s);
+  for (const c of conquered) { s.provSol[c.prov] = CONQUEST_SOL; clock[c.prov] = 0; } // fresh conquest: cohesive, full grace
   return conquered;
+}
+
+interface Defection { prov: number; from: number; to: number }
+
+// double-buffered defection: every province under dominant foreign pressure ticks its clock up (and
+// resets the instant the pressure lifts); at UNREST_FLIP it flips WHOLE to the rival pressing hardest.
+// Decided from pre-defection ownership so defections cannot cascade within one tick. Capitals are
+// excluded by pressureOf, so no nation is ever eliminated without combat.
+function revoltPass(s: ProvinceSimState): Defection[] {
+  const clock = unrestArr(s);
+  const nextOwner = s.provOwner.slice();
+  const defections: Defection[] = [];
+  for (let p = 0; p < s.n; p++) {
+    const pr = pressureOf(s, p);
+    if (!pr || pr.press <= pr.hold) { clock[p] = 0; continue; }
+    clock[p]++;
+    if (clock[p] >= UNREST_FLIP) {
+      nextOwner[p] = pr.rival;
+      defections.push({ prov: p, from: s.provOwner[p], to: pr.rival });
+    }
+  }
+  s.provOwner = nextOwner;
+  for (const d of defections) { clock[d.prov] = 0; s.provSol[d.prov] = CONQUEST_SOL; } // new owner starts fresh
+  return defections;
 }
 
 function recomputeAlive(s: ProvinceSimState): void {
@@ -409,12 +434,14 @@ function aiAttacker(s: ProvinceSimState, excludePlayer: number) {
 export function stepProvinceSim(s: ProvinceSimState): void {
   stepSolidarity(s);
   contestPass(s, aiAttacker(s, -1)); // -1 = no player; every nation may auto-initiate
+  revoltPass(s);
   recomputeAlive(s);
   s.tick++;
 }
 
 export interface PlayerStepEvents {
   conquests: { prov: number; from: number; to: number }[];
+  defections: { prov: number; from: number; to: number }[];
   eliminated: number[];
 }
 
@@ -466,12 +493,14 @@ export function stepPlayerTurn(
     const v = s.provSol[c.front] - ATTACK_EXHAUST;
     s.provSol[c.front] = v < 0 ? 0 : v;
   }
+  const defected = revoltPass(s);
   recomputeAlive(s);
   s.tick++;
   const conquests = conquered.map((c) => ({ prov: c.prov, from: prevOwner[c.prov], to: s.provOwner[c.prov] }));
+  const defections = defected.map((d) => ({ prov: d.prov, from: d.from, to: d.to }));
   const eliminated: number[] = [];
   for (let id = 0; id < s.alive.length; id++) if (prevAlive[id] && !s.alive[id]) eliminated.push(id);
-  return { conquests, eliminated };
+  return { conquests, defections, eliminated };
 }
 
 // --- Dilemmas: occasional choice cards for texture. rng-FREE — a dilemma appears only when the game STATE
