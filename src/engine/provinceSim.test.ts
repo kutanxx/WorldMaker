@@ -4,6 +4,7 @@ import { buildProvinceAdj, initProvinceSim, pAggregate, stepProvinceSim, PROVINC
 import { buildSeaLanes } from "./provinceSim";
 import { armableTargets, stepPlayerTurn, predictCapture, explainAttack } from "./provinceSim";
 import { offerProvinceDilemma, resolveProvinceDilemma } from "./provinceSim";
+import { defectionRisk } from "./provinceSim";
 import { generateWorld } from "./world";
 import { DEFAULT_PARAMS } from "../types/world";
 
@@ -477,5 +478,88 @@ describe("buildSeaLanes — connectivity fallback", () => {
     ];
     const adj = buildProvinceAdj(provinceOf, provinces, grid);
     expect(buildSeaLanes(provinceOf, provinces, grid, adj, [0, 1])).toEqual([[], []]);
+  });
+});
+
+describe("defection pressure", () => {
+  // 5 provinces in a row. Player 0 owns prov 1 (a lone salient); rival 1 owns 0, 2, 3; prov 4 unowned.
+  // capitals: nation 0 → prov 1?? no — nation 0's capital is prov 1 only in the capital test below.
+  // Here nation 0's capital is a FAR province 4 slot is unowned, so we give nation 0 capital = prov 1's
+  // neighbour-free stand-in: we set capitalProv[0] = 1 only in the "capital never defects" case.
+  function row(over: Record<string, unknown> = {}): ProvinceSimState {
+    const provinces: Province[] = [0, 1, 2, 3, 4].map((i) => ({
+      id: i, name: String(i), cells: 10, centroid: [i * 10, 0], seedCell: i, biome: 4,
+    }));
+    return {
+      provinces, n: 5,
+      provOwner: Int32Array.from([1, 0, 1, 1, -1]),
+      provSol: Float32Array.from([0.5, 0.5, 0.5, 0.5, 0]),
+      adj: [[1], [0, 2], [1, 3], [2, 4], [3]],
+      laneAdj: [[], [], [], [], []],
+      capitalProv: Int32Array.from([3, 0]), // nation 0's capital = prov 3 (NOT owned by it — fine, alive is recomputed elsewhere); nation 1's = prov 0
+      alive: [true, true], unrest: new Int32Array(5), tick: 0, ...over,
+    } as ProvinceSimState;
+  }
+
+  it("flags a lone salient pressed by more hostile land neighbours than friendly ones", () => {
+    // prov 1 is owned by 0; its land neighbours are prov 0 and prov 2, BOTH owned by rival 1.
+    // ownN = 0, foeN = 2 → press(2) > hold(0 + 2*0.5 - dist term) → at risk, rival = 1.
+    const r = defectionRisk(row(), 1)!;
+    expect(r).not.toBeNull();
+    expect(r.rival).toBe(1);
+    expect(r.ownN).toBe(0);
+    expect(r.foeN).toBe(2);
+    expect(r.turnsLeft).toBe(3); // UNREST_FLIP - unrest(0)
+    expect(r.reason).toBe("isolated");
+  });
+
+  it("never flags a deep interior province, however low its solidarity", () => {
+    // nation 1 owns prov 2 and both its neighbours (1 and 3) → foeN = 0 → no pressure at any solidarity.
+    const s = row({
+      provOwner: Int32Array.from([1, 1, 1, 1, -1]),
+      provSol: Float32Array.from([0, 0, 0, 0, 0]), // fully decayed interior
+      capitalProv: Int32Array.from([-1, 0]),
+    });
+    expect(defectionRisk(s, 2)).toBeNull();
+  });
+
+  it("ignores unowned neighbours — wilderness neither supports nor pressures", () => {
+    // prov 3 owned by 1; neighbours are prov 2 (owned by 1 → friendly) and prov 4 (unowned → ignored).
+    const s = row({ capitalProv: Int32Array.from([-1, 0]) });
+    expect(defectionRisk(s, 3)).toBeNull(); // ownN=1, foeN=0
+  });
+
+  it("ignores lane neighbours — pressure is a land-border phenomenon", () => {
+    // give prov 1 a LANE to rival-owned prov 3 as well; the verdict must be unchanged by it.
+    const withLane = defectionRisk(row({ laneAdj: [[], [3], [], [1], []] }), 1)!;
+    const plain = defectionRisk(row(), 1)!;
+    expect(withLane.foeN).toBe(plain.foeN); // lane partner did NOT add pressure
+  });
+
+  it("never flags a capital province", () => {
+    // make prov 1 nation 0's capital — same hostile surroundings, but capitals cannot defect.
+    expect(defectionRisk(row({ capitalProv: Int32Array.from([1, 0]) }), 1)).toBeNull();
+  });
+
+  it("reports 'far' when distance is the dominant term and 'shaky' when the garrison is", () => {
+    // FAR: one friendly + one hostile neighbour (isolated gap = 0), but the capital is far away.
+    const far = defectionRisk(row({
+      provOwner: Int32Array.from([0, 0, 1, 1, -1]),  // prov 1 owned by 0, neighbour 0 friendly, 2 hostile
+      provSol: Float32Array.from([1, 1, 0.5, 0.5, 0]), // full garrison → shaky term 0
+      capitalProv: Int32Array.from([0, 2]),
+      provinces: [0, 1, 2, 3, 4].map((i) => ({
+        id: i, name: String(i), cells: 10, centroid: [i === 0 ? 5000 : i * 10, 0] as [number, number], seedCell: i, biome: 4,
+      })),
+    }), 1);
+    expect(far?.reason).toBe("far");
+
+    // SHAKY: one friendly + one hostile (isolated gap 0), capital adjacent (dist ~10 → far term ~0.03),
+    // but solidarity 0 → the missing garrison (REVOLT_SELF * 1 = 2) dominates.
+    const shaky = defectionRisk(row({
+      provOwner: Int32Array.from([0, 0, 1, 1, -1]),
+      provSol: Float32Array.from([1, 0, 0.5, 0.5, 0]),
+      capitalProv: Int32Array.from([0, 2]),
+    }), 1);
+    expect(shaky?.reason).toBe("shaky");
   });
 });

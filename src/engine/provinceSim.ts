@@ -14,6 +14,9 @@ const W_ASA = 1.0, W_LOCAL = 0.5, W_POWER = 0.03, W_DIST = 0.002, SIZE_CAP = 24,
 const LANE_HOP_CELLS = 3;   // a short-hop lane may cross up to this many cell-spacings of open water
 const LANE_MAX_DEGREE = 3;  // Risk lesson: few connections per territory (chokepoints, not a mesh)
 export const EXPEDITION_MULT = 0.6; // a lane crossing is a costly naval invasion — attacker strength is scaled by this
+const UNREST_FLIP = 3;      // turns a province may sit under dominant foreign pressure before it defects
+const REVOLT_SELF = 2;      // how much a fully-solid garrison counts toward holding a province (in neighbours)
+const REVOLT_DIST = 0.003;  // hold lost per unit of centroid distance from the owner's capital
 
 export const PROVINCE_SIM_TICKS = 50;
 
@@ -24,6 +27,7 @@ export interface ProvinceSimState {
   provSol: Float32Array;   // province → solidarity [0,1]
   adj: number[][];         // province land-adjacency, index-aligned to provinces
   laneAdj?: number[][];    // expedition sea lanes (province → lane partners); optional so land-only fixtures compile
+  unrest?: Int32Array;     // province → consecutive turns under dominant foreign pressure (defection clock)
   capitalProv: Int32Array; // polity id → its capital province id
   alive: boolean[];        // polity id → still holds its capital province
   tick: number;
@@ -205,6 +209,56 @@ export function pAggregate(s: ProvinceSimState): PAgg[] {
 
 function centroidDist(a: Province, b: Province): number {
   return Math.hypot(a.centroid[0] - b.centroid[0], a.centroid[1] - b.centroid[1]);
+}
+
+// the defection clock, allocated on first use so hand-built fixtures without it still work.
+function unrestArr(s: ProvinceSimState): Int32Array {
+  if (!s.unrest || s.unrest.length !== s.n) s.unrest = new Int32Array(s.n);
+  return s.unrest;
+}
+
+// Local political balance around province p: how strongly its owner holds it vs. the strongest rival
+// pressing on it. LAND adjacency only — a sea lane is a military route, not a shared border, so an
+// island (no land neighbours) is never pressured and a deep interior always has press = 0.
+// null when the province is unowned or is its owner's capital (capitals never defect).
+function pressureOf(s: ProvinceSimState, p: number):
+  { hold: number; press: number; rival: number; ownN: number; foeN: number; dist: number } | null {
+  const o = s.provOwner[p];
+  if (o < 0 || s.capitalProv[o] === p) return null;
+  let ownN = 0;
+  const byRival = new Map<number, number>();
+  for (const q of s.adj[p]) {
+    const r = s.provOwner[q];
+    if (r < 0) continue;              // wilderness: no support, no pull
+    if (r === o) ownN++;
+    else byRival.set(r, (byRival.get(r) ?? 0) + 1);
+  }
+  let rival = -1, foeN = 0;
+  for (const [r, k] of byRival) if (k > foeN || (k === foeN && r < rival)) { foeN = k; rival = r; }
+  const cap = s.capitalProv[o];
+  const dist = cap >= 0 ? centroidDist(s.provinces[p], s.provinces[cap]) : 0;
+  const hold = ownN + REVOLT_SELF * s.provSol[p] - REVOLT_DIST * dist;
+  return { hold, press: foeN, rival, ownN, foeN, dist };
+}
+
+// why a province is slipping — the largest term pushing `press` above `hold`, mirroring how
+// explainAttack names its dominant factor.
+export type DefectionReason = "isolated" | "far" | "shaky";
+export interface DefectionRisk { turnsLeft: number; reason: DefectionReason; ownN: number; foeN: number; rival: number }
+
+// Is province p currently slipping away from its owner, and if so why and how long is left?
+// null when it is not under dominant pressure (or cannot defect at all).
+export function defectionRisk(s: ProvinceSimState, p: number): DefectionRisk | null {
+  const pr = pressureOf(s, p);
+  if (!pr || pr.press <= pr.hold) return null;
+  const terms: [DefectionReason, number][] = [
+    ["isolated", pr.foeN - pr.ownN],                   // outnumbered on the ground
+    ["far", REVOLT_DIST * pr.dist],                    // beyond the capital's reach
+    ["shaky", REVOLT_SELF * (1 - s.provSol[p])],       // the garrison it is MISSING
+  ];
+  terms.sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]));
+  const left = UNREST_FLIP - unrestArr(s)[p];
+  return { turnsLeft: left < 0 ? 0 : left, reason: terms[0][0], ownN: pr.ownN, foeN: pr.foeN, rival: pr.rival };
 }
 
 // mirrors the cell sim's contestStrength(polity, distCell, solCell) at province granularity.
