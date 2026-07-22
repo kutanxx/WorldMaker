@@ -1,5 +1,5 @@
 import { generateWorld } from "../engine/world";
-import { DEFAULT_PARAMS } from "../types/world";
+import { DEFAULT_PARAMS, type World } from "../types/world";
 import {
   initProvinceSim, pAggregate, PROVINCE_SIM_TICKS, armableTargets, stepPlayerTurn, explainAttack,
   offerProvinceDilemma, resolveProvinceDilemma, defectionRisk,
@@ -82,6 +82,24 @@ export function defectionReasonText(reason: DefectionReason, ownN: number, foeN:
     : "its garrison is thin";
 }
 
+// clean OUTLINE of a whole province (its boundary against other provinces + ocean), not the jagged
+// per-cell mesh — so a highlight reads as a province, not a pile of cells. Pure + exported so the
+// ping's geometry is directly testable.
+export function provinceOutlinePath(world: World, provId: number): string {
+  const grid = world.grid;
+  const po = world.provinceOf;
+  const segs: Segment[] = [];
+  for (let i = 0; i < grid.count; i++) {
+    if (po[i] !== provId) continue;
+    for (const j of grid.neighbors[i]) {
+      if (po[j] === provId) continue; // internal cell edge — skip
+      const e = sharedEdge(grid.polygons[i], grid.polygons[j]);
+      if (e) segs.push(e);
+    }
+  }
+  return segPath(segs);
+}
+
 export function mountProvinceApp(root: HTMLElement, opts: { seed?: number } = {}): void {
   const lang = detectLang();
   const seed = opts.seed ?? Math.floor(Date.now() % 1_000_000); // non-deterministic seed is fine — UI only
@@ -150,6 +168,30 @@ export function mountProvinceApp(root: HTMLElement, opts: { seed?: number } = {}
     return svg;
   }
 
+  // ephemeral gold flash of a province OUTLINE on the CURRENT map svg — it answers "this name is WHICH
+  // land?". No state, no re-render: a later render() rebuilds the svg and the ping is gone (transient by
+  // design). pointer-events off so it can never block target/fortify clicks.
+  function pingProvince(u: UI, provId: number): void {
+    const svg = root.querySelector(".prov-map");
+    if (!svg) return;
+    const path = svgEl("path", {
+      class: "prov-ping", style: "pointer-events:none", d: provinceOutlinePath(u.world, provId),
+      fill: "none", stroke: "#e8b53a", "stroke-width": 3.4, "stroke-linejoin": "round",
+    });
+    path.addEventListener("animationend", () => path.remove());
+    window.setTimeout(() => path.remove(), 1400); // fallback — jsdom fires no animation events
+    svg.appendChild(path);
+  }
+
+  // mark a row that NAMES a province as click-to-locate. The cursor/underline/tooltip affordance is not
+  // decoration: without it nothing tells the player the row can be clicked.
+  function makePingable(el: HTMLElement, u: UI, provId: number): void {
+    el.classList.add("prov-pingable");
+    el.dataset.province = String(provId);
+    el.title = lang === "ko" ? "지도에서 위치 보기" : "show on map";
+    el.addEventListener("click", () => pingProvince(u, provId));
+  }
+
   function startGame(playerId: number): void {
     const s = initProvinceSim(world);
     if (!s.alive[playerId]) return; // only live nations are playable
@@ -190,7 +232,7 @@ export function mountProvinceApp(root: HTMLElement, opts: { seed?: number } = {}
       if (u.s.provOwner[p] !== u.playerId) continue;
       if (!defectionRisk(u.s, p)) continue;
       g.appendChild(svgEl("path", {
-        class: "prov-risk-ring", d: provinceOutlinePath(u, p),
+        class: "prov-risk-ring", d: provinceOutlinePath(u.world, p),
         fill: "none", stroke: "#d08a1e", "stroke-width": 2.4, "stroke-dasharray": "5 4", "stroke-linejoin": "round",
       }));
     }
@@ -226,23 +268,6 @@ export function mountProvinceApp(root: HTMLElement, opts: { seed?: number } = {}
     return line;
   }
 
-  // clean OUTLINE of a whole province (its boundary against other provinces + ocean), not the jagged
-  // per-cell mesh — so the highlight reads as a province, not a pile of cells.
-  function provinceOutlinePath(u: UI, provId: number): string {
-    const grid = u.world.grid;
-    const po = u.world.provinceOf;
-    const segs: Segment[] = [];
-    for (let i = 0; i < grid.count; i++) {
-      if (po[i] !== provId) continue;
-      for (const j of grid.neighbors[i]) {
-        if (po[j] === provId) continue; // internal cell edge — skip
-        const e = sharedEdge(grid.polygons[i], grid.polygons[j]);
-        if (e) segs.push(e);
-      }
-    }
-    return segPath(segs);
-  }
-
   function targetOverlay(u: UI): SVGGElement {
     const arm = new Set(armableTargets(u.s, u.playerId));
     const byProv: string[] = u.world.provinces.map(() => "");
@@ -272,7 +297,7 @@ export function mountProvinceApp(root: HTMLElement, opts: { seed?: number } = {}
       // armed provinces get a clean gold PROVINCE outline (not the cell mesh) to show the selection.
       if (armed) {
         g.appendChild(svgEl("path", {
-          class: "prov-target-ring", style: "pointer-events:none", d: provinceOutlinePath(u, prov.id),
+          class: "prov-target-ring", style: "pointer-events:none", d: provinceOutlinePath(u.world, prov.id),
           fill: "none", stroke: "#e8b53a", "stroke-width": 2.2, "stroke-linejoin": "round",
         }));
       }
@@ -301,7 +326,7 @@ export function mountProvinceApp(root: HTMLElement, opts: { seed?: number } = {}
       path.appendChild(title);
       g.appendChild(path);
       if (sel) g.appendChild(svgEl("path", {
-        class: "prov-fortify-ring", style: "pointer-events:none", d: provinceOutlinePath(u, prov.id),
+        class: "prov-fortify-ring", style: "pointer-events:none", d: provinceOutlinePath(u.world, prov.id),
         fill: "none", stroke: "#3a6ea5", "stroke-width": 2.2, "stroke-linejoin": "round",
       }));
     }
@@ -429,6 +454,7 @@ export function mountProvinceApp(root: HTMLElement, opts: { seed?: number } = {}
           row.className = "prov-risk-row";
           const turns = lang === "ko" ? `이탈 ${r.turnsLeft}턴` : `defects in ${r.turnsLeft}`;
           row.textContent = `⚠ ${ui.world.provinces[p].name} — ${turns} · ${defectionReasonText(r.reason, r.ownN, r.foeN, lang)}`;
+          makePingable(row, ui, p);
           panel.appendChild(row);
         }
         const hint = document.createElement("div");

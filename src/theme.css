@@ -395,6 +395,18 @@ svg.world .legend { pointer-events: none; }
   max-width: 900px; min-height: 1.3em; margin: 8px auto 0; padding: 2px 12px; text-align: center;
   color: #6a5a3c; font-style: italic; font-size: 13px;
 }
+/* name → map ping: any row that NAMES a province is click-to-locate; clicking flashes that province's
+   outline. Gold SOLID and brief — deliberately distinct from the amber DASHED, persistent defection ring. */
+.prov-pingable { cursor: pointer; }
+.prov-pingable:hover { text-decoration: underline dotted; text-underline-offset: 2px; }
+.prov-ping { pointer-events: none; animation: wm-prov-ping 0.9s ease-out forwards; }
+@keyframes wm-prov-ping {
+  0%   { opacity: 0; }
+  15%  { opacity: 1; }
+  40%  { opacity: .15; }
+  65%  { opacity: 1; }
+  100% { opacity: 0; }
+}
 .prov-over {
   max-width: 900px; margin: 14px auto 0; padding: 16px; text-align: center;
   font-family: 'Cinzel', serif; font-weight: 600; font-size: 22px; color: #3c2f1c;

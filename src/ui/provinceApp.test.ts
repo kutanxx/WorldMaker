@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import {
   mountProvinceApp, provinceCellOwner, isDomination, shakyOpacity, reasonText, survivalGrade, defectionReasonText,
-  sortRisksByUrgency,
+  sortRisksByUrgency, provinceOutlinePath,
 } from "./provinceApp";
 import { generateWorld } from "../engine/world";
 import { DEFAULT_PARAMS } from "../types/world";
@@ -398,5 +398,69 @@ describe("defection warning in play mode", () => {
     expect(row.textContent || "").toMatch(/고립|멂|수비/);              // …and the REASON
     expect(panel.querySelector(".prov-risk-hint")!.textContent || "").toMatch(/내실/); // …and the remedy
     expect(root.querySelectorAll(".prov-map .prov-risk-ring").length).toBeGreaterThan(0); // …and the map ring
+  });
+});
+
+describe("province ping (a named province is click-to-locate on the map)", () => {
+  let root: HTMLElement;
+  beforeEach(() => { root = document.createElement("div"); document.body.appendChild(root); });
+
+  // Drive an all-in blitz until the player holds land under enough pressure to be at risk of defecting —
+  // the same driver the existing risk-panel test uses.
+  function blitzUntilRisk(): Element | null {
+    mountProvinceApp(root, { seed: 1 });
+    (root.querySelector("[data-polity]") as SVGPathElement).dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    for (let t = 0; t < 40 && !root.querySelector(".prov-risk-row"); t++) {
+      const choice = root.querySelector(".prov-choice") as HTMLButtonElement | null;
+      if (choice) { choice.dispatchEvent(new MouseEvent("click", { bubbles: true })); t--; continue; }
+      const adv = root.querySelector(".prov-advance") as HTMLButtonElement | null;
+      if (!adv) break; // game ended
+      let next: Element | null;
+      while ((next = root.querySelector(".prov-target:not(.armed)"))) {
+        next.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      }
+      adv.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    }
+    return root.querySelector(".prov-risk-row");
+  }
+
+  it("flashes the province's own outline when a risk row is clicked", () => {
+    const row = blitzUntilRisk();
+    expect(row).toBeTruthy();                                   // the driver reached a risk state
+    expect(row!.classList.contains("prov-pingable")).toBe(true); // the row advertises itself as clickable
+    expect(root.querySelector(".prov-map .prov-ping")).toBeNull(); // nothing pinged yet
+
+    row!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    const ping = root.querySelector(".prov-map .prov-ping") as SVGPathElement;
+    expect(ping).toBeTruthy();
+    // it is THAT province's outline, not a generic marker
+    const world = generateWorld({ ...DEFAULT_PARAMS, seed: 1 }).world;
+    const provId = Number((row as HTMLElement).dataset.province);
+    expect(ping.getAttribute("d")).toBe(provinceOutlinePath(world, provId));
+    expect(ping.getAttribute("style") || "").toContain("pointer-events:none"); // never blocks target clicks
+  });
+
+  it("removes itself so pings don't pile up", () => {
+    vi.useFakeTimers();
+    try {
+      const row = blitzUntilRisk();
+      row!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      expect(root.querySelector(".prov-ping")).toBeTruthy();
+      vi.advanceTimersByTime(2000); // jsdom fires no animationend — the fallback timer must clean up
+      expect(root.querySelector(".prov-ping")).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe("provinceOutlinePath (pure province boundary)", () => {
+  it("returns a non-empty path per province and differs between provinces", () => {
+    const world = generateWorld({ ...DEFAULT_PARAMS, seed: 1 }).world;
+    const a = provinceOutlinePath(world, 0);
+    const b = provinceOutlinePath(world, 1);
+    expect(a.startsWith("M")).toBe(true);
+    expect(b.startsWith("M")).toBe(true);
+    expect(a).not.toBe(b);
   });
 });
