@@ -2,7 +2,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import {
   mountProvinceApp, provinceCellOwner, isDomination, shakyOpacity, reasonText, survivalGrade, defectionReasonText,
-  sortRisksByUrgency, provinceOutlinePath, badgeScale,
+  sortRisksByUrgency, provinceOutlinePath, badgeScale, provinceSpan,
 } from "./provinceApp";
 import { generateWorld } from "../engine/world";
 import { DEFAULT_PARAMS } from "../types/world";
@@ -723,6 +723,73 @@ describe("verdict marks on the attack map", () => {
       removeSpy.mockRestore();
     }
   });
+});
+
+describe("provinceSpan (fixed viewBox extent, used to cap the ✓ badge per province)", () => {
+  const world = generateWorld({ ...DEFAULT_PARAMS, seed: 1 }).world;
+  it("is positive for every real province and never exceeds the map's own dimensions", () => {
+    const maxDim = Math.max(world.grid.width, world.grid.height);
+    for (const p of world.provinces) {
+      const span = provinceSpan(world, p.id);
+      expect(span).toBeGreaterThan(0);
+      expect(span).toBeLessThanOrEqual(maxDim);
+    }
+  });
+  it("is 0 for a province id that owns no cells", () => {
+    // -1 is NOT a valid "no cells" probe here: it's the ocean/unowned sentinel that plenty of cells carry
+    // (see provinceCellOwner), so it would span the whole map instead. Use an id past the last real province.
+    expect(provinceSpan(world, world.provinces.length + 1000)).toBe(0);
+  });
+});
+
+// the global counter-scale (badgeScale) keeps the badge a constant ON-SCREEN size, but that alone can make
+// the badge bigger than a small province (measured: at a 370px map width badgeScale hits its cap of 2 while
+// a real province there renders smaller than the disc). targetOverlay additionally caps each badge to ~70%
+// of ITS OWN province's smaller viewBox extent — verify that cap actually binds, at both a phone width
+// (where badgeScale alone would swallow small land) and a desktop width (where it must stay a no-op).
+describe("per-province badge cap (the ✓ badge never exceeds ~70% of its own province's smaller extent)", () => {
+  let restoreGBCR: (() => void) | null = null;
+  afterEach(() => { if (restoreGBCR) { restoreGBCR(); restoreGBCR = null; } });
+
+  // jsdom never lays out real geometry, so getBoundingClientRect is always zeros — mock it at the prototype
+  // level (scoped to elements carrying the "prov-map" class) so it applies no matter how many times the map
+  // svg is rebuilt across renders/re-mounts.
+  function mockMapWidthPx(px: number): void {
+    const proto = SVGElement.prototype as unknown as { getBoundingClientRect: (this: Element) => DOMRect };
+    const orig = proto.getBoundingClientRect;
+    const zero = { width: 0, height: 0, top: 0, left: 0, right: 0, bottom: 0, x: 0, y: 0, toJSON() { return {}; } } as DOMRect;
+    proto.getBoundingClientRect = function (this: Element) {
+      return this.classList?.contains("prov-map") ? ({ ...zero, width: px } as DOMRect) : orig.call(this);
+    };
+    restoreGBCR = () => { proto.getBoundingClientRect = orig; };
+  }
+
+  function badgesAtWidth(px: number): { provId: number; scale: number }[] {
+    mockMapWidthPx(px);
+    const root = document.createElement("div");
+    document.body.appendChild(root);
+    mountProvinceApp(root, { seed: 1 });
+    (root.querySelector("[data-polity]") as SVGPathElement).dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    return [...root.querySelectorAll(".prov-verdict")].map((b) => {
+      const m = (b.getAttribute("transform") || "").match(/scale\(([\d.]+)\)/);
+      expect(m).toBeTruthy(); // every badge must carry a scale — otherwise this test is vacuous
+      return { provId: Number(b.getAttribute("data-province")), scale: Number(m![1]) };
+    });
+  }
+
+  function assertCapHolds(px: number): void {
+    const world = generateWorld({ ...DEFAULT_PARAMS, seed: 1 }).world;
+    const badges = badgesAtWidth(px);
+    expect(badges.length).toBeGreaterThan(0); // seed 1 offers at least one takeable target
+    for (const { provId, scale } of badges) {
+      const span = provinceSpan(world, provId);
+      // toFixed(2) rounding on the emitted scale can nudge the product up by a hair — allow a tiny slack.
+      expect(scale * 18).toBeLessThanOrEqual(0.7 * span + 0.05);
+    }
+  }
+
+  it("binds at a phone width (370px), where badgeScale alone would hit its cap of 2", () => assertCapHolds(370));
+  it("holds at a desktop width (900px) too — the cap is a no-op there for large provinces", () => assertCapHolds(900));
 });
 
 describe("hatching marks the provinces you cannot take", () => {

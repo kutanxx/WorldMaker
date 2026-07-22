@@ -93,6 +93,30 @@ export function badgeScale(mapWidthWorld: number, renderedWidthPx: number): numb
   return k < 1 ? 1 : k > 2 ? 2 : k;
 }
 
+// the badge's own diameter in viewBox units at scale 1 (r=9), used to size the PER-PROVINCE cap below.
+export const BADGE_DIAMETER = 18;
+
+// the smaller of a province's bounding-box width/height, in fixed viewBox units (constant regardless of
+// screen size — only the CSS scale that fits the map into its container changes with the viewport). Used to
+// cap the ✓ badge PER PROVINCE, so a global counter-scale can never make the badge bigger than the land it
+// marks. 0 for a province with no cells (defensive; every real province owns at least one).
+export function provinceSpan(world: World, provId: number): number {
+  const grid = world.grid;
+  const po = world.provinceOf;
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  let found = false;
+  for (let c = 0; c < grid.count; c++) {
+    if (po[c] !== provId) continue;
+    found = true;
+    for (const [x, y] of grid.polygons[c]) {
+      if (x < minX) minX = x; if (x > maxX) maxX = x;
+      if (y < minY) minY = y; if (y > maxY) maxY = y;
+    }
+  }
+  if (!found) return 0;
+  return Math.min(maxX - minX, maxY - minY);
+}
+
 // clean OUTLINE of a whole province (its boundary against other provinces + ocean), not the jagged
 // per-cell mesh — so a highlight reads as a province, not a pile of cells. Pure + exported so the
 // ping's geometry is directly testable.
@@ -369,9 +393,17 @@ export function mountProvinceApp(root: HTMLElement, opts: { seed?: number } = {}
       // green/red tint measures at 1.01-1.12 contrast against itself over varying nation colours.
       if (win) {
         const c = u.world.provinces[prov.id].centroid;
+        // the global counter-scale keeps the badge a constant ON-SCREEN size, but on a small province that
+        // can make the badge bigger than the land it marks (measured: at 370px map width badgeK hits its
+        // cap of 2 while a real province there renders smaller than the disc). Cap the badge's DIAMETER to
+        // ~70% of the province's own smaller extent — computed in fixed viewBox units, so it never grows
+        // past the land regardless of viewport.
+        const span = provinceSpan(u.world, prov.id);
+        const fit = span > 0 ? (0.7 * span) / BADGE_DIAMETER : badgeK;
+        const k = Math.min(badgeK, fit);
         const badge = svgEl("g", {
-          class: "prov-verdict", style: "pointer-events:none",
-          transform: `translate(${Math.round(c[0])},${Math.round(c[1])}) scale(${badgeK.toFixed(2)})`,
+          class: "prov-verdict", style: "pointer-events:none", "data-province": prov.id,
+          transform: `translate(${Math.round(c[0])},${Math.round(c[1])}) scale(${k.toFixed(2)})`,
         });
         badge.appendChild(svgEl("circle", {
           cx: 0, cy: 0, r: 9, fill: "#f4ecd8", stroke: "#3c2f1c", "stroke-width": 1.2,
