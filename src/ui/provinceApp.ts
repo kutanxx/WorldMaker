@@ -355,6 +355,7 @@ export function mountProvinceApp(root: HTMLElement, opts: { seed?: number } = {}
     const card = document.createElement("div");
     card.className = "prov-dilemma";
     const h = document.createElement("div"); h.className = "prov-dilemma-title"; h.textContent = T[0];
+    if (d.prov >= 0) makePingable(h, u, d.prov); // muster names no province — nothing to locate
     const body = document.createElement("div"); body.className = "prov-dilemma-body"; body.textContent = T[1];
     const bar = document.createElement("div"); bar.className = "prov-bar";
     for (const [choice, label] of [["a", T[2]], ["b", T[3]]] as const) {

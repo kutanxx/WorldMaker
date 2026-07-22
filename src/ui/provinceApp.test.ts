@@ -464,3 +464,33 @@ describe("provinceOutlinePath (pure province boundary)", () => {
     expect(a).not.toBe(b);
   });
 });
+
+describe("dilemma card title pings its province", () => {
+  let root: HTMLElement;
+  beforeEach(() => { root = document.createElement("div"); document.body.appendChild(root); });
+
+  it("makes a placed dilemma's title click-to-locate, and leaves a placeless one alone", () => {
+    mountProvinceApp(root, { seed: 1 });
+    (root.querySelector("[data-polity]") as SVGPathElement).dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    let title: HTMLElement | null = null;
+    for (let i = 0; i < 25; i++) {
+      title = root.querySelector(".prov-dilemma-title");
+      if (title) break;
+      const adv = root.querySelector(".prov-advance") as HTMLButtonElement | null;
+      if (!adv) break;
+      adv.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    }
+    expect(title).toBeTruthy(); // a dilemma appeared within 25 turns
+
+    if (title!.classList.contains("prov-pingable")) {
+      // a placed dilemma (restless / defector): clicking the title flashes that province
+      title!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      expect(root.querySelector(".prov-map .prov-ping")).toBeTruthy();
+    } else {
+      // the muster dilemma names no province — clicking must not ping anything
+      title!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      expect(root.querySelector(".prov-map .prov-ping")).toBeNull();
+      expect(title!.textContent || "").toMatch(/소집|muster/i);
+    }
+  });
+});
