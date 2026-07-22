@@ -469,28 +469,63 @@ describe("dilemma card title pings its province", () => {
   let root: HTMLElement;
   beforeEach(() => { root = document.createElement("div"); document.body.appendChild(root); });
 
-  it("makes a placed dilemma's title click-to-locate, and leaves a placeless one alone", () => {
+  // seed 1, plain advances (never arming an attack): the player never conquers, so every owned province
+  // stays on the frontier (frontier provinces RISE in solidarity — see computeSteppedSol in provinceSim.ts)
+  // and can never fall below DILEMMA_RESTLESS_MAX; likewise no enemy province adjacent to the player ever
+  // decays low enough for "defector" (adjacency to the player makes IT frontier too, for the same reason).
+  // So with no conquests, "restless"/"defector" are structurally unreachable and the periodic "muster"
+  // (every 12 ticks, rng-free) is the only dilemma this driver can ever surface — confirmed deterministic
+  // by a throwaway seed/driver scan (seeds 1-15, deleted after use).
+  it("leaves the placeless muster dilemma un-pingable", () => {
     mountProvinceApp(root, { seed: 1 });
     (root.querySelector("[data-polity]") as SVGPathElement).dispatchEvent(new MouseEvent("click", { bubbles: true }));
     let title: HTMLElement | null = null;
-    for (let i = 0; i < 25; i++) {
+    for (let i = 0; i < 15; i++) {
       title = root.querySelector(".prov-dilemma-title");
       if (title) break;
       const adv = root.querySelector(".prov-advance") as HTMLButtonElement | null;
       if (!adv) break;
       adv.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     }
-    expect(title).toBeTruthy(); // a dilemma appeared within 25 turns
+    expect(title).toBeTruthy(); // the periodic muster appeared within 15 turns
+    expect(title!.classList.contains("prov-pingable")).toBe(false);
+    title!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    expect(root.querySelector(".prov-map .prov-ping")).toBeNull(); // no province named, nothing to locate
+    expect(title!.textContent || "").toMatch(/소집|muster/i);
+  });
 
-    if (title!.classList.contains("prov-pingable")) {
-      // a placed dilemma (restless / defector): clicking the title flashes that province
-      title!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-      expect(root.querySelector(".prov-map .prov-ping")).toBeTruthy();
-    } else {
-      // the muster dilemma names no province — clicking must not ping anything
-      title!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-      expect(root.querySelector(".prov-map .prov-ping")).toBeNull();
-      expect(title!.textContent || "").toMatch(/소집|muster/i);
+  // seed 4, blitzing every armable target every turn (same all-armable driver as the "defection warning"
+  // and "province ping" describes above): the resulting conquests create an interior province behind the
+  // new frontier, whose solidarity decays below DILEMMA_RESTLESS_MAX, deterministically surfacing a PLACED
+  // "restless" dilemma by turn 8 (found by a throwaway seed scan 1-15, deleted after use; seed 1 itself
+  // ends the game too soon under this driver to reach any dilemma).
+  it("makes a placed (restless/defector) dilemma's title click-to-locate", () => {
+    mountProvinceApp(root, { seed: 4 });
+    (root.querySelector("[data-polity]") as SVGPathElement).dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    let title: HTMLElement | null = null;
+    for (let i = 0; i < 20; i++) {
+      title = root.querySelector(".prov-dilemma-title");
+      if (title) break;
+      const choice = root.querySelector(".prov-choice") as HTMLButtonElement | null;
+      if (choice) { choice.dispatchEvent(new MouseEvent("click", { bubbles: true })); i--; continue; }
+      const adv = root.querySelector(".prov-advance") as HTMLButtonElement | null;
+      if (!adv) break; // game ended
+      let next: Element | null;
+      while ((next = root.querySelector(".prov-target:not(.armed)"))) {
+        next.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      }
+      adv.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     }
+    expect(title).toBeTruthy(); // a placed dilemma appeared within 20 turns of blitzing
+    expect(title!.classList.contains("prov-pingable")).toBe(true);
+    expect(root.querySelector(".prov-map .prov-ping")).toBeNull(); // nothing pinged yet
+
+    title!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    const ping = root.querySelector(".prov-map .prov-ping") as SVGPathElement;
+    expect(ping).toBeTruthy();
+    // it is THAT province's outline, not a generic marker
+    const world = generateWorld({ ...DEFAULT_PARAMS, seed: 4 }).world;
+    const provId = Number(title!.dataset.province);
+    expect(ping.getAttribute("d")).toBe(provinceOutlinePath(world, provId));
   });
 });
