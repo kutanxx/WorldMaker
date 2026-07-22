@@ -529,3 +529,53 @@ describe("dilemma card title pings its province", () => {
     expect(ping.getAttribute("d")).toBe(provinceOutlinePath(world, provId));
   });
 });
+
+describe("chronicle log entries locate themselves on the map", () => {
+  let root: HTMLElement;
+  beforeEach(() => { root = document.createElement("div"); document.body.appendChild(root); });
+
+  function blitz(turns: number): void {
+    mountProvinceApp(root, { seed: 1 });
+    (root.querySelector("[data-polity]") as SVGPathElement).dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    for (let t = 0; t < turns; t++) {
+      const choice = root.querySelector(".prov-choice") as HTMLButtonElement | null;
+      if (choice) { choice.dispatchEvent(new MouseEvent("click", { bubbles: true })); continue; }
+      const adv = root.querySelector(".prov-advance") as HTMLButtonElement | null;
+      if (!adv) break;
+      let next: Element | null;
+      while ((next = root.querySelector(".prov-target:not(.armed)"))) {
+        next.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      }
+      adv.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    }
+  }
+
+  it("renders the log as separate entries, keeping the same one-line text", () => {
+    blitz(6);
+    const items = Array.from(root.querySelectorAll(".prov-log .prov-log-item"));
+    expect(items.length).toBeGreaterThan(0);
+    // regression: the visible text is still the entries joined by " · "
+    expect((root.querySelector(".prov-log")!.textContent || "").trim())
+      .toBe(items.map((i) => i.textContent).join(" · "));
+  });
+
+  it("pings the province a conquest entry names", () => {
+    blitz(6);
+    const item = root.querySelector(".prov-log .prov-log-item.prov-pingable") as HTMLElement;
+    expect(item).toBeTruthy(); // conquests/losses carry a province
+    item.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    const ping = root.querySelector(".prov-map .prov-ping") as SVGPathElement;
+    expect(ping).toBeTruthy();
+    const world = generateWorld({ ...DEFAULT_PARAMS, seed: 1 }).world;
+    expect(ping.getAttribute("d")).toBe(provinceOutlinePath(world, Number(item.dataset.province)));
+  });
+
+  it("leaves placeless entries (an eliminated nation) non-pingable", () => {
+    blitz(30);
+    const items = Array.from(root.querySelectorAll(".prov-log .prov-log-item")) as HTMLElement[];
+    for (const it of items) {
+      const placeless = /멸망|eliminated|결정|chose/.test(it.textContent || "");
+      if (placeless) expect(it.classList.contains("prov-pingable")).toBe(false);
+    }
+  });
+});

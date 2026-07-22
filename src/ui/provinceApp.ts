@@ -106,7 +106,9 @@ export function mountProvinceApp(root: HTMLElement, opts: { seed?: number } = {}
   const world = generateWorld({ ...DEFAULT_PARAMS, seed }).world;
   let ui: UI | null = null; // null = picker mode
   const targets = new Set<number>();
-  const log: string[] = [];
+  // a chronicle entry optionally carries the province it happened in, so the row can locate itself on the map
+  type LogEntry = { text: string; prov?: number };
+  const log: LogEntry[] = [];
   let mode: "conquer" | "consolidate" = "conquer"; // this turn: expand, or shore up my realm
   let pendingDilemma: ProvinceDilemma | null = null; // a choice card awaiting the player
   let lastDilemmaTick = -99;
@@ -190,6 +192,22 @@ export function mountProvinceApp(root: HTMLElement, opts: { seed?: number } = {}
     el.dataset.province = String(provId);
     el.title = lang === "ko" ? "지도에서 위치 보기" : "show on map";
     el.addEventListener("click", () => pingProvince(u, provId));
+  }
+
+  // the chronicle strip — the SAME one centred line as before (entries joined by " · "), except each entry
+  // is its own span so a placed one can be clicked to locate it. Was copy-pasted in three render branches.
+  function logEl(): HTMLElement {
+    const el = document.createElement("div");
+    el.className = "prov-log";
+    log.slice(0, 8).forEach((e, i) => {
+      if (i > 0) el.appendChild(document.createTextNode(" · "));
+      const span = document.createElement("span");
+      span.className = "prov-log-item";
+      span.textContent = e.text;
+      if (typeof e.prov === "number" && ui) makePingable(span, ui, e.prov);
+      el.appendChild(span);
+    });
+    return el;
   }
 
   function startGame(playerId: number): void {
@@ -363,7 +381,7 @@ export function mountProvinceApp(root: HTMLElement, opts: { seed?: number } = {}
       b.className = "prov-choice"; b.dataset.choice = choice; b.textContent = label;
       b.addEventListener("click", () => {
         resolveProvinceDilemma(u.s, u.playerId, d, choice);
-        log.unshift(`${lang === "ko" ? "결정" : "chose"}: ${(choice === "a" ? T[2] : T[3]).split(" (")[0]}`);
+        log.unshift({ text: `${lang === "ko" ? "결정" : "chose"}: ${(choice === "a" ? T[2] : T[3]).split(" (")[0]}` });
         pendingDilemma = null;
         render();
       });
@@ -430,9 +448,7 @@ export function mountProvinceApp(root: HTMLElement, opts: { seed?: number } = {}
         const bar = document.createElement("div"); bar.className = "prov-bar";
         bar.append(again, nw);
         root.append(over, bar);
-        const logEl = document.createElement("div"); logEl.className = "prov-log";
-        logEl.textContent = log.slice(0, 8).join(" · ");
-        root.appendChild(logEl);
+        root.appendChild(logEl());
         return; // no target overlay / advance once the game is over
       }
       const hud = document.createElement("div");
@@ -470,10 +486,7 @@ export function mountProvinceApp(root: HTMLElement, opts: { seed?: number } = {}
       // a pending dilemma takes over the turn — resolve it before doing anything else
       if (pendingDilemma) {
         root.appendChild(dilemmaCard(ui, pendingDilemma));
-        const logEl = document.createElement("div");
-        logEl.className = "prov-log";
-        logEl.textContent = log.slice(0, 8).join(" · ");
-        root.appendChild(logEl);
+        root.appendChild(logEl());
         return;
       }
 
@@ -553,14 +566,14 @@ export function mountProvinceApp(root: HTMLElement, opts: { seed?: number } = {}
         const ev = stepPlayerTurn(ui!.s, pid, targets, { consolidate: mode === "consolidate" });
         // categorise flips from the PLAYER's view: land I took vs land I lost (ignore AI-vs-AI flips)
         for (const c of ev.conquests) {
-          if (c.to === pid) log.unshift(`${lang === "ko" ? "정복" : "took"} ${ui!.world.provinces[c.prov].name}`);
-          else if (c.from === pid) log.unshift(`${lang === "ko" ? "상실" : "lost"} ${ui!.world.provinces[c.prov].name}`);
+          if (c.to === pid) log.unshift({ text: `${lang === "ko" ? "정복" : "took"} ${ui!.world.provinces[c.prov].name}`, prov: c.prov });
+          else if (c.from === pid) log.unshift({ text: `${lang === "ko" ? "상실" : "lost"} ${ui!.world.provinces[c.prov].name}`, prov: c.prov });
         }
         for (const d of ev.defections) {
-          if (d.from === pid) log.unshift(`${lang === "ko" ? "이탈" : "defected"} ${ui!.world.provinces[d.prov].name}`);
-          else if (d.to === pid) log.unshift(`${lang === "ko" ? "귀순" : "joined you"} ${ui!.world.provinces[d.prov].name}`);
+          if (d.from === pid) log.unshift({ text: `${lang === "ko" ? "이탈" : "defected"} ${ui!.world.provinces[d.prov].name}`, prov: d.prov });
+          else if (d.to === pid) log.unshift({ text: `${lang === "ko" ? "귀순" : "joined you"} ${ui!.world.provinces[d.prov].name}`, prov: d.prov });
         }
-        for (const id of ev.eliminated) log.unshift(`${ui!.world.polities[id]?.name ?? id} ${lang === "ko" ? "멸망" : "eliminated"}`);
+        for (const id of ev.eliminated) log.unshift({ text: `${ui!.world.polities[id]?.name ?? id} ${lang === "ko" ? "멸망" : "eliminated"}` });
         targets.clear();
         // a dilemma may arise from the new state (cooldown-gated, deterministic)
         if (!pendingDilemma && ui!.s.tick - lastDilemmaTick >= DILEMMA_COOLDOWN) {
@@ -571,10 +584,7 @@ export function mountProvinceApp(root: HTMLElement, opts: { seed?: number } = {}
       });
       bar.appendChild(advance);
       root.appendChild(bar);
-      const logEl = document.createElement("div");
-      logEl.className = "prov-log";
-      logEl.textContent = log.slice(0, 8).join(" · ");
-      root.appendChild(logEl);
+      root.appendChild(logEl());
     }
   }
   render();
