@@ -2,7 +2,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import {
   mountProvinceApp, provinceCellOwner, isDomination, shakyOpacity, reasonText, survivalGrade, defectionReasonText,
-  sortRisksByUrgency, provinceOutlinePath,
+  sortRisksByUrgency, provinceOutlinePath, badgeScale,
 } from "./provinceApp";
 import { generateWorld } from "../engine/world";
 import { DEFAULT_PARAMS } from "../types/world";
@@ -620,5 +620,61 @@ describe("chronicle log entries locate themselves on the map", () => {
     expect(ping).toBeTruthy();
     const world = generateWorld({ ...DEFAULT_PARAMS, seed: 4 }).world;
     expect(ping.getAttribute("d")).toBe(provinceOutlinePath(world, provId));
+  });
+});
+
+describe("badgeScale (a verdict badge keeps a constant on-screen size)", () => {
+  it("is 1 when the rendered width is unknown (jsdom / before layout)", () => {
+    expect(badgeScale(1000, 0)).toBe(1);
+    expect(badgeScale(1000, -5)).toBe(1);
+  });
+  it("counter-scales as the map is fitted into a narrower box", () => {
+    expect(badgeScale(1000, 900)).toBeCloseTo(1.111, 2); // desktop ~900px
+    expect(badgeScale(1000, 500)).toBe(2);               // already at the cap
+  });
+  it("clamps to [1, 2] — never shrinks below 1, never swallows a province on a phone", () => {
+    expect(badgeScale(1000, 2000)).toBe(1); // map larger than its own viewBox
+    expect(badgeScale(1000, 360)).toBe(2);  // phone: uncapped would be 2.8
+  });
+});
+
+describe("verdict marks on the attack map", () => {
+  let root: HTMLElement;
+  beforeEach(() => { root = document.createElement("div"); document.body.appendChild(root); });
+
+  function start(): void {
+    mountProvinceApp(root, { seed: 1 });
+    (root.querySelector("[data-polity]") as SVGPathElement)
+      .dispatchEvent(new MouseEvent("click", { bubbles: true }));
+  }
+
+  it("puts exactly one ✓ badge on each province you can take, and none on the rest", () => {
+    start();
+    const winnable = root.querySelectorAll(".prov-target.winnable").length;
+    const badges = root.querySelectorAll(".prov-targets .prov-verdict");
+    expect(winnable).toBeGreaterThan(0);          // seed 1 offers at least one takeable target
+    expect(badges.length).toBe(winnable);
+    for (const b of badges) expect(b.textContent).toContain("✓");
+  });
+
+  it("never blocks the click layer", () => {
+    start();
+    for (const b of root.querySelectorAll(".prov-verdict")) {
+      expect(b.getAttribute("style") || "").toContain("pointer-events:none");
+    }
+  });
+
+  it("registers exactly ONE resize listener no matter how many times the map re-renders", () => {
+    const spy = vi.spyOn(window, "addEventListener");
+    start();
+    for (let i = 0; i < 3; i++) {
+      const adv = root.querySelector(".prov-advance") as HTMLButtonElement | null;
+      const choice = root.querySelector(".prov-choice") as HTMLButtonElement | null;
+      if (choice) { choice.dispatchEvent(new MouseEvent("click", { bubbles: true })); continue; }
+      if (adv) adv.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    }
+    const resizeRegistrations = spy.mock.calls.filter((c) => c[0] === "resize").length;
+    expect(resizeRegistrations).toBe(1); // render() runs per turn — per-render registration would stack
+    spy.mockRestore();
   });
 });

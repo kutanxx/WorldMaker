@@ -82,6 +82,17 @@ export function defectionReasonText(reason: DefectionReason, ownN: number, foeN:
     : "its garrison is thin";
 }
 
+// The map is a fixed 1000x700 viewBox fitted to its container, so anything drawn in viewBox units shrinks
+// with the map: at ~360px phone width an r=9 badge would land at ~3 screen px. Counter-scale the badge so it
+// keeps a roughly constant ON-SCREEN size. Capped at 2 — a constant-size badge and a shrinking province pull
+// opposite ways, and on a phone a province is only ~24px across, so an uncapped badge would swallow it.
+// Returns 1 when the width is unknown (jsdom, or before first layout).
+export function badgeScale(mapWidthWorld: number, renderedWidthPx: number): number {
+  if (!renderedWidthPx || renderedWidthPx <= 0) return 1;
+  const k = mapWidthWorld / renderedWidthPx;
+  return k < 1 ? 1 : k > 2 ? 2 : k;
+}
+
 // clean OUTLINE of a whole province (its boundary against other provinces + ocean), not the jagged
 // per-cell mesh — so a highlight reads as a province, not a pile of cells. Pure + exported so the
 // ping's geometry is directly testable.
@@ -119,6 +130,13 @@ export function mountProvinceApp(root: HTMLElement, opts: { seed?: number } = {}
   }
   function totalLandProvinces(u: UI): number { return u.s.n; }
   function liveRivals(u: UI): number { return u.s.alive.filter((a, id) => a && id !== u.playerId).length; }
+
+  // width of the rendered map in CSS pixels; 0 in jsdom (no layout) so badgeScale falls back to 1
+  function mapWidthPx(): number {
+    const el = root.querySelector(".prov-map");
+    if (!el) return 0;
+    try { return el.getBoundingClientRect().width; } catch { return 0; }
+  }
 
   type Outcome = { kind: "defeat"; by: string } | { kind: "domination" } | { kind: "survival" } | null;
   function outcome(u: UI): Outcome {
@@ -318,6 +336,25 @@ export function mountProvinceApp(root: HTMLElement, opts: { seed?: number } = {}
           class: "prov-target-ring", style: "pointer-events:none", d: provinceOutlinePath(u.world, prov.id),
           fill: "none", stroke: "#e8b53a", "stroke-width": 2.2, "stroke-linejoin": "round",
         }));
+      }
+      // "You can take this" rides SHAPE, not hue — the fill hue already belongs to ownership, and the
+      // green/red tint measures at 1.01-1.12 contrast against itself over varying nation colours.
+      if (win) {
+        const c = u.world.provinces[prov.id].centroid;
+        const k = badgeScale(u.world.grid.width, mapWidthPx());
+        const badge = svgEl("g", {
+          class: "prov-verdict", style: "pointer-events:none",
+          transform: `translate(${Math.round(c[0])},${Math.round(c[1])}) scale(${k.toFixed(2)})`,
+        });
+        badge.appendChild(svgEl("circle", {
+          cx: 0, cy: 0, r: 9, fill: "#f4ecd8", stroke: "#3c2f1c", "stroke-width": 1.2,
+        }));
+        const mark = svgEl("text", {
+          x: 0, y: 4.2, "text-anchor": "middle", "font-size": 12, "font-weight": 700, fill: "#1f6b3a",
+        });
+        mark.textContent = "✓";
+        badge.appendChild(mark);
+        g.appendChild(badge);
       }
     }
     return g;
@@ -590,5 +627,13 @@ export function mountProvinceApp(root: HTMLElement, opts: { seed?: number } = {}
       root.appendChild(logEl());
     }
   }
+  // ONE debounced resize listener for the whole app — registered here, never inside render(), which runs
+  // every turn (per-render registration would stack listeners). A resize changes the map's fitted width,
+  // so the verdict badges must recompute their counter-scale.
+  let resizeTimer = 0;
+  window.addEventListener("resize", () => {
+    window.clearTimeout(resizeTimer);
+    resizeTimer = window.setTimeout(() => { if (ui) render(); }, 150);
+  });
   render();
 }
