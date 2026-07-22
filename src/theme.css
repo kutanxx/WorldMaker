@@ -379,6 +379,7 @@ svg.world .legend { pointer-events: none; }
 /* verdict marks: the ✓ badge answers "can I take this?" by SHAPE, because hue already means ownership.
    Never interactive — the tinted .prov-target underneath stays the click target. */
 .prov-verdict { pointer-events: none; }
+.prov-hatch { pointer-events: none; }
 .prov-preview { max-width: 900px; margin: 8px auto 0; font-size: 13px; }
 .prov-preview:empty { display: none; }
 .prov-preview-row { padding: 3px 10px; border-radius: 4px; margin: 3px auto; max-width: 640px; text-align: left; }

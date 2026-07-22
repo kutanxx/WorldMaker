@@ -724,3 +724,45 @@ describe("verdict marks on the attack map", () => {
     }
   });
 });
+
+describe("hatching marks the provinces you cannot take", () => {
+  let root: HTMLElement;
+  beforeEach(() => { root = document.createElement("div"); document.body.appendChild(root); });
+
+  function start(): void {
+    mountProvinceApp(root, { seed: 1 });
+    (root.querySelector("[data-polity]") as SVGPathElement)
+      .dispatchEvent(new MouseEvent("click", { bubbles: true }));
+  }
+
+  it("hatches every too-strong target and leaves takeable ones clear", () => {
+    start();
+    const tooStrong = root.querySelectorAll(".prov-target.too-strong").length;
+    const hatches = root.querySelectorAll(".prov-targets .prov-hatch");
+    expect(tooStrong).toBeGreaterThan(0);
+    expect(hatches.length).toBe(tooStrong);
+    for (const h of hatches) expect(h.getAttribute("fill")).toBe("url(#prov-hatch)");
+  });
+
+  it("defines the hatch pattern ONCE per render, not once per province", () => {
+    start();
+    expect(root.querySelectorAll("pattern#prov-hatch").length).toBe(1);
+  });
+
+  it("never blocks the click layer, and an unwinnable province stays selectable", () => {
+    start();
+    for (const h of root.querySelectorAll(".prov-hatch")) {
+      expect(h.getAttribute("style") || "").toContain("pointer-events:none");
+    }
+    const hard = root.querySelector(".prov-target.too-strong") as SVGPathElement;
+    hard.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    expect(root.querySelectorAll(".prov-target.armed").length).toBe(1); // you may still attack and fail
+  });
+
+  it("the legend describes both marks, not the colours", () => {
+    start();
+    const legend = root.querySelector(".prov-legend")!.textContent || "";
+    expect(legend).toMatch(/✓/);
+    expect(legend).toMatch(/빗금|hatched/);
+  });
+});

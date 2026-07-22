@@ -318,6 +318,19 @@ export function mountProvinceApp(root: HTMLElement, opts: { seed?: number } = {}
       if (p >= 0 && arm.has(p)) byProv[p] += cellPath(u.world.grid.polygons[c]);
     }
     const g = svgEl("g", { class: "prov-targets" }) as SVGGElement;
+    // ONE pattern per rendered overlay (not per province). 45° so it never reads as another region
+    // boundary — the borders here run mostly horizontal/vertical — and low contrast so ~100 small
+    // provinces don't moiré. Pattern is the channel to use when hue is already taken.
+    const defs = svgEl("defs");
+    const hatch = svgEl("pattern", {
+      id: "prov-hatch", width: 7, height: 7,
+      patternUnits: "userSpaceOnUse", patternTransform: "rotate(45)",
+    });
+    hatch.appendChild(svgEl("line", {
+      x1: 0, y1: 0, x2: 0, y2: 7, stroke: "#3c2f1c", "stroke-width": 1.6, "stroke-opacity": 0.28,
+    }));
+    defs.appendChild(hatch);
+    g.appendChild(defs);
     // both are the same for every province this render — a whole-map layout read plus a pure function of it —
     // so compute once outside the loop rather than once per winnable province.
     const badgeK = badgeScale(u.world.grid.width, mapWidthPx());
@@ -339,6 +352,12 @@ export function mountProvinceApp(root: HTMLElement, opts: { seed?: number } = {}
       title.textContent = attackLine(u, prov.id);
       path.appendChild(title);
       g.appendChild(path);
+      // "Too strong" rides PATTERN: it scales with the province instead of sitting at a fixed footprint,
+      // so it holds up on a small province and on a phone, where a glyph would not.
+      if (!win) g.appendChild(svgEl("path", {
+        class: "prov-hatch", style: "pointer-events:none",
+        d: byProv[prov.id], fill: "url(#prov-hatch)",
+      }));
       // armed provinces get a clean gold PROVINCE outline (not the cell mesh) to show the selection.
       if (armed) {
         g.appendChild(svgEl("path", {
@@ -555,8 +574,8 @@ export function mountProvinceApp(root: HTMLElement, opts: { seed?: number } = {}
         const legend = document.createElement("div");
         legend.className = "prov-legend";
         legend.textContent = lang === "ko"
-          ? "✓ 초록 = 점령 가능  ·  ✕ 빨강 = 너무 강함  ·  ⚓ = 바다 건너 원정 — 지역에 마우스를 올리면 이유가 나와요"
-          : "✓ green = you can take  ·  ✕ red = too strong  ·  ⚓ = sea expedition — hover a province for the reason";
+          ? "✓ = 점령 가능  ·  빗금 = 너무 강함  ·  ⚓ = 바다 건너 원정 — 지역에 마우스를 올리면 이유가 나와요"
+          : "✓ = you can take  ·  hatched = too strong  ·  ⚓ = sea expedition — hover a province for the reason";
         root.appendChild(legend);
         map.appendChild(targetOverlay(ui));
         map.addEventListener("click", (e) => {
