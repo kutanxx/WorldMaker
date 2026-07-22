@@ -107,6 +107,28 @@ A single debounced `resize` listener is registered **once in `mountProvinceApp`*
 render — `render()` runs many times per game and per-render registration would stack
 listeners.
 
+**Per-province cap.** The global counter-scale above keeps the badge a constant ON-SCREEN
+size, but that alone can make the badge bigger than the land it marks: measured at a 370px
+map width, the global cap of `k=2` produced a 13.2px disc (`r=9 * (370/1000) * 2`) over a
+17.5×12.1px province — a coverage ratio of 1.09, the badge literally bigger than the
+province. So `targetOverlay` additionally caps each badge's diameter to `0.7 × span / 18`,
+where `span` (`provinceSpan()`) is that province's own smaller bounding-box extent in fixed
+viewBox units (`BADGE_DIAMETER = 18` is the badge's authored diameter at scale 1). The
+final scale is `k = min(badgeK, fit)` — never bigger than the global counter-scale, never
+bigger than 70% of the land it sits on.
+
+That cap alone has no floor, though, and is a pure downscale: on a 1–2 cell province
+(routine on coastal/leftover land, `span` as low as ~14 viewBox units against a ~13-unit
+cell), `fit` drops to roughly 0.5 — a badge under 5px on a 900px map. Since the ✓ badge is
+the **only** non-colour cue for "you can take this" (hatching marks only the negative
+case), an illegible badge silently drops the player back onto the colour-only reading this
+design exists to fix. The final scale is therefore floored at 1:
+`k = max(1, min(badgeK, fit))` — the badge is never drawn smaller than its authored size.
+The deliberate consequence: on a province too small to contain it, the ✓ overflows that
+province's own borders slightly. That trade is intentional — the badge stays centred on
+the right land and stays legible; a hair of visual overflow on rare tiny provinces is
+cheaper than an unreadable decision-critical mark.
+
 ### Legend
 
 The conquer-mode legend clause becomes "✓ 점령 가능 · 빗금 = 너무 강함" / "✓ = you can take

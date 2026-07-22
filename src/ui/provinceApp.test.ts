@@ -723,6 +723,34 @@ describe("verdict marks on the attack map", () => {
       removeSpy.mockRestore();
     }
   });
+
+  // A re-mount removes the OLD listener but, before this fix, left any setTimeout it had already scheduled
+  // running — so: resize, then re-mount within the 150ms debounce window (e.g. "New world" clicked fast),
+  // and the stale timer's render() fires AFTER the new game mounts, repainting the DISCARDED world over it.
+  // Distinguish the two mounts by whether a game was actually started (".prov-hud" only exists mid-game) —
+  // mount A starts a game, mount B stays on the picker, so a stale A-render would visibly resurrect the HUD.
+  it("cancels a pending debounce timer on re-mount — a stale resize render can't clobber the new game", () => {
+    vi.useFakeTimers();
+    try {
+      mountProvinceApp(root, { seed: 1 });
+      (root.querySelector("[data-polity]") as SVGPathElement).dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      expect(root.querySelector(".prov-hud")).toBeTruthy(); // confirm mount A actually started a game
+
+      window.dispatchEvent(new Event("resize")); // schedules mount A's debounced render(), ~150ms out
+      vi.advanceTimersByTime(50); // well under the delay — A's timer is still pending
+
+      mountProvinceApp(root, { seed: 2 }); // re-mount before the debounce elapses — fresh picker, no game yet
+      expect(root.querySelector(".prov-hud")).toBeFalsy(); // mount B is on the picker, not mid-game
+
+      vi.advanceTimersByTime(150); // past mount A's original 150ms delay
+
+      // if A's timer had NOT been cancelled, its callback would fire here and repaint A's started-game HUD
+      // over mount B's picker. It must still read as the picker.
+      expect(root.querySelector(".prov-hud")).toBeFalsy();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
 
 describe("provinceSpan (fixed viewBox extent, used to cap the ✓ badge per province)", () => {
@@ -777,19 +805,47 @@ describe("per-province badge cap (the ✓ badge never exceeds ~70% of its own pr
     });
   }
 
+  // The cap is now conditional: it binds ONLY where 0.7*span/18 is still >= 1 (Finding 1's floor takes over
+  // below that). So the honest invariant is two-part: (a) the badge is NEVER drawn smaller than its authored
+  // size (scale >= 1, on every province, however small), and (b) where the raw per-province fit is >= 1, the
+  // cap still binds exactly as before. A cap-removed regression would fail (b); a floor-removed regression
+  // would fail (a) — so neither half is checkable-away.
   function assertCapHolds(px: number): void {
     const world = generateWorld({ ...DEFAULT_PARAMS, seed: 1 }).world;
     const badges = badgesAtWidth(px);
     expect(badges.length).toBeGreaterThan(0); // seed 1 offers at least one takeable target
     for (const { provId, scale } of badges) {
       const span = provinceSpan(world, provId);
+      // (a) floor: the badge is never smaller than its authored size, even on a 1-cell province.
+      expect(scale).toBeGreaterThanOrEqual(1);
+      // (b) cap: where the raw fit is at least 1, the emitted scale must not exceed it.
       // toFixed(2) rounding on the emitted scale can nudge the product up by a hair — allow a tiny slack.
-      expect(scale * 18).toBeLessThanOrEqual(0.7 * span + 0.05);
+      const cap = Math.max(1, (0.7 * span) / 18);
+      expect(scale * 18).toBeLessThanOrEqual(Math.max(18, 0.7 * span) + 0.05);
+      expect(scale).toBeLessThanOrEqual(cap + 0.01);
     }
   }
 
   it("binds at a phone width (370px), where badgeScale alone would hit its cap of 2", () => assertCapHolds(370));
   it("holds at a desktop width (900px) too — the cap is a no-op there for large provinces", () => assertCapHolds(900));
+
+  it("floors the badge scale at 1 for a tiny province, even where the raw fit would shrink it below 1", () => {
+    // A synthetic 1-2 cell province (as engine/provinces.ts routinely leaves on coastal/leftover land) has a
+    // span well under BADGE_DIAMETER (18), so an un-floored fit would be well under 1 — an illegible badge on
+    // the ONLY non-colour cue for "you can take this". Assert directly against the real seed-1 world: find the
+    // smallest-span winnable province and confirm its badge scale is still exactly floored at >= 1.
+    const world = generateWorld({ ...DEFAULT_PARAMS, seed: 1 }).world;
+    const badges = badgesAtWidth(370);
+    expect(badges.length).toBeGreaterThan(0);
+    const smallest = badges.reduce((a, b) => (provinceSpan(world, a.provId) <= provinceSpan(world, b.provId) ? a : b));
+    const span = provinceSpan(world, smallest.provId);
+    if (span < 18 / 0.7) {
+      // this province's raw per-province fit is below 1 — the floor MUST be the thing holding the line.
+      expect(smallest.scale).toBe(1);
+    }
+    // regardless of which province is smallest, the floor invariant holds unconditionally.
+    for (const { scale } of badges) expect(scale).toBeGreaterThanOrEqual(1);
+  });
 });
 
 describe("hatching marks the provinces you cannot take", () => {

@@ -138,8 +138,11 @@ export function provinceOutlinePath(world: World, provId: number): string {
 // one province app lives on the page at a time (picker → play → "New world" all reuse the same root),
 // but mountProvinceApp itself is re-invoked on every "New world" click — so the resize listener it
 // registers must be de-duped at module scope, or each click leaks another permanent window listener
-// closing over the discarded game's state.
-let activeResize: (() => void) | null = null;
+// closing over the discarded game's state. The disposer removes the listener AND clears whatever
+// debounce timer it had pending — otherwise a resize fired just before a re-mount can fire its stale
+// render() AFTER the new game mounts (a resize, then "New world" within the debounce delay), silently
+// repainting the discarded world over the new one.
+let disposeActiveResize: (() => void) | null = null;
 
 export function mountProvinceApp(root: HTMLElement, opts: { seed?: number } = {}): void {
   const lang = detectLang();
@@ -147,6 +150,15 @@ export function mountProvinceApp(root: HTMLElement, opts: { seed?: number } = {}
   const world = generateWorld({ ...DEFAULT_PARAMS, seed }).world;
   let ui: UI | null = null; // null = picker mode
   const targets = new Set<number>();
+  // provinceSpan is constant for the life of the world (it only reads cell geometry, never sim state) but
+  // walks all ~4000 cells per call — memoise per province id, lazily filled on first ask, so a render with N
+  // winnable targets costs N cache hits instead of N full cell scans.
+  const spanCache: number[] = [];
+  function provinceSpanOf(provId: number): number {
+    let v = spanCache[provId];
+    if (v === undefined) { v = provinceSpan(world, provId); spanCache[provId] = v; }
+    return v;
+  }
   // a chronicle entry optionally carries the province it happened in, so the row can locate itself on the map
   type LogEntry = { text: string; prov?: number };
   const log: LogEntry[] = [];
@@ -398,9 +410,14 @@ export function mountProvinceApp(root: HTMLElement, opts: { seed?: number } = {}
         // cap of 2 while a real province there renders smaller than the disc). Cap the badge's DIAMETER to
         // ~70% of the province's own smaller extent — computed in fixed viewBox units, so it never grows
         // past the land regardless of viewport.
-        const span = provinceSpan(u.world, prov.id);
+        const span = provinceSpanOf(prov.id);
         const fit = span > 0 ? (0.7 * span) / BADGE_DIAMETER : badgeK;
-        const k = Math.min(badgeK, fit);
+        // Floored at 1: the cap above is a pure downscale with no lower bound, and on a 1-2 cell province
+        // (routine on coastal/leftover land) fit alone would shrink the badge to a near-invisible ~4px disc —
+        // the ONLY non-colour cue for "you can take this" (hatching marks only the negative case). Never draw
+        // the badge smaller than its authored size; on a tiny province it may overflow the province's own
+        // borders instead, which is the correct trade (still centred on the right land, still legible).
+        const k = Math.max(1, Math.min(badgeK, fit));
         const badge = svgEl("g", {
           class: "prov-verdict", style: "pointer-events:none", "data-province": prov.id,
           transform: `translate(${Math.round(c[0])},${Math.round(c[1])}) scale(${k.toFixed(2)})`,
@@ -691,12 +708,16 @@ export function mountProvinceApp(root: HTMLElement, opts: { seed?: number } = {}
   // so the verdict badges must recompute their counter-scale. mountProvinceApp itself can be re-invoked
   // (the "New world" button calls it again on the same root), so drop any previous mount's listener first —
   // otherwise every re-mount leaves another permanent window-scoped listener behind.
-  if (activeResize) window.removeEventListener("resize", activeResize);
+  if (disposeActiveResize) disposeActiveResize();
   let resizeTimer = 0;
-  activeResize = () => {
+  const onResize = () => {
     window.clearTimeout(resizeTimer);
     resizeTimer = window.setTimeout(() => { if (ui) render(); }, 150);
   };
-  window.addEventListener("resize", activeResize);
+  disposeActiveResize = () => {
+    window.clearTimeout(resizeTimer);
+    window.removeEventListener("resize", onResize);
+  };
+  window.addEventListener("resize", onResize);
   render();
 }
