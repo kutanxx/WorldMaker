@@ -381,7 +381,10 @@ export function mountProvinceApp(root: HTMLElement, opts: { seed?: number } = {}
       b.className = "prov-choice"; b.dataset.choice = choice; b.textContent = label;
       b.addEventListener("click", () => {
         resolveProvinceDilemma(u.s, u.playerId, d, choice);
-        log.unshift({ text: `${lang === "ko" ? "결정" : "chose"}: ${(choice === "a" ? T[2] : T[3]).split(" (")[0]}` });
+        log.unshift({
+          text: `${lang === "ko" ? "결정" : "chose"}: ${(choice === "a" ? T[2] : T[3]).split(" (")[0]}`,
+          ...(d.prov >= 0 ? { prov: d.prov } : {}),
+        });
         pendingDilemma = null;
         render();
       });

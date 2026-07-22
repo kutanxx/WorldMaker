@@ -571,11 +571,54 @@ describe("chronicle log entries locate themselves on the map", () => {
   });
 
   it("leaves placeless entries (an eliminated nation) non-pingable", () => {
-    blitz(30);
+    // pinned: seed 1 under the all-armable driver is defeated by turn ~8 (confirmed by a throwaway
+    // turn-count scan, deleted after use), which lands TWO "eliminated" entries inside the 8-entry log
+    // window every time — a hard guarantee, not a maybe. This driver never reaches a dilemma before
+    // defeat, so no "결정/chose" entries appear here at all: a placed dilemma's decision line is now
+    // legitimately pingable (see the "carries the province" test below), so it must NOT be lumped in
+    // with the placeless check below — only "eliminated" text is unambiguously placeless.
+    blitz(8);
     const items = Array.from(root.querySelectorAll(".prov-log .prov-log-item")) as HTMLElement[];
-    for (const it of items) {
-      const placeless = /멸망|eliminated|결정|chose/.test(it.textContent || "");
-      if (placeless) expect(it.classList.contains("prov-pingable")).toBe(false);
+    const placeless = items.filter((it) => /멸망|eliminated/.test(it.textContent || ""));
+    expect(placeless.length).toBeGreaterThan(0); // guarantee the window actually contains a placeless entry
+    for (const it of placeless) expect(it.classList.contains("prov-pingable")).toBe(false);
+  });
+
+  it("carries the province into a resolved placed dilemma's decision log entry", () => {
+    // same seed-4 all-armable driver as "makes a placed (restless/defector) dilemma's title click-to-locate"
+    // above: reliably surfaces a PLACED "restless" dilemma by turn 8. Unlike muster (prov -1, no province
+    // to name), a placed dilemma's decision must carry its province once resolved — this is Finding 2.
+    mountProvinceApp(root, { seed: 4 });
+    (root.querySelector("[data-polity]") as SVGPathElement).dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    let title: HTMLElement | null = null;
+    for (let i = 0; i < 20; i++) {
+      title = root.querySelector(".prov-dilemma-title");
+      if (title) break;
+      const choice = root.querySelector(".prov-choice") as HTMLButtonElement | null;
+      if (choice) { choice.dispatchEvent(new MouseEvent("click", { bubbles: true })); i--; continue; }
+      const adv = root.querySelector(".prov-advance") as HTMLButtonElement | null;
+      if (!adv) break; // game ended
+      let next: Element | null;
+      while ((next = root.querySelector(".prov-target:not(.armed)"))) {
+        next.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      }
+      adv.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     }
+    expect(title).toBeTruthy(); // a placed dilemma appeared within 20 turns of blitzing
+    const provId = Number(title!.dataset.province);
+
+    (root.querySelector(".prov-choice") as HTMLButtonElement).dispatchEvent(new MouseEvent("click", { bubbles: true }));
+
+    // the decision was just unshift()'d, so it is the newest (first) entry in the log
+    const item = root.querySelectorAll(".prov-log .prov-log-item")[0] as HTMLElement;
+    expect(item.textContent || "").toMatch(/결정|chose/);
+    expect(item.classList.contains("prov-pingable")).toBe(true);
+    expect(Number(item.dataset.province)).toBe(provId);
+
+    item.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    const ping = root.querySelector(".prov-map .prov-ping") as SVGPathElement;
+    expect(ping).toBeTruthy();
+    const world = generateWorld({ ...DEFAULT_PARAMS, seed: 4 }).world;
+    expect(ping.getAttribute("d")).toBe(provinceOutlinePath(world, provId));
   });
 });
