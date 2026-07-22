@@ -659,7 +659,9 @@ describe("verdict marks on the attack map", () => {
 
   it("never blocks the click layer", () => {
     start();
-    for (const b of root.querySelectorAll(".prov-verdict")) {
+    const badges = root.querySelectorAll(".prov-verdict");
+    expect(badges.length).toBeGreaterThan(0); // otherwise this loop is vacuous and can't catch a regression
+    for (const b of badges) {
       expect(b.getAttribute("style") || "").toContain("pointer-events:none");
     }
   });
@@ -676,5 +678,49 @@ describe("verdict marks on the attack map", () => {
     const resizeRegistrations = spy.mock.calls.filter((c) => c[0] === "resize").length;
     expect(resizeRegistrations).toBe(1); // render() runs per turn — per-render registration would stack
     spy.mockRestore();
+  });
+
+  // "New world" (`.prov-new`) calls mountProvinceApp(root, {}) again on the SAME root — a real re-mount,
+  // not just a re-render. Left unguarded, every click leaks another permanent window-scoped resize listener
+  // closing over the discarded game. Spy on BOTH add and remove so a fix that only stops future adds (without
+  // removing the stale one) can't pass vacuously.
+  //
+  // mountProvinceApp's de-dup handle (`activeResize`) is module-scope state that persists across tests in
+  // this file, so counting raw addEventListener/removeEventListener calls against a spy started mid-stream
+  // would double-count whatever an earlier test already left behind. vi.resetModules() + a fresh dynamic
+  // import gives this test its OWN module instance starting from a clean (no listener) baseline, so
+  // adds-removes here reflects only THIS test's mounts.
+  it("re-mounting via 'New world' leaves exactly one live resize listener, never a growing pile", async () => {
+    vi.resetModules();
+    const fresh = await import("./provinceApp");
+    const addSpy = vi.spyOn(window, "addEventListener");
+    const removeSpy = vi.spyOn(window, "removeEventListener");
+    function playToOutcome(): void {
+      (root.querySelector("[data-polity]") as SVGPathElement).dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      for (let i = 0; i < 70; i++) {
+        const choice = root.querySelector(".prov-choice") as HTMLButtonElement | null;
+        if (choice) { choice.dispatchEvent(new MouseEvent("click", { bubbles: true })); i--; continue; }
+        const adv = root.querySelector(".prov-advance") as HTMLButtonElement | null;
+        if (!adv) break; // outcome overlay reached (defeat/domination/survival)
+        adv.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      }
+    }
+    try {
+      fresh.mountProvinceApp(root, { seed: 1 }); // initial mount, as the page does on load
+      playToOutcome();
+      for (let n = 0; n < 2; n++) {
+        const nw = root.querySelector(".prov-new") as HTMLButtonElement | null;
+        expect(nw).toBeTruthy(); // the game actually reached an outcome screen with a "New world" button
+        nw!.dispatchEvent(new MouseEvent("click", { bubbles: true })); // re-invokes mountProvinceApp on the SAME root
+        playToOutcome(); // drive the fresh (random-seed) game to its own outcome for the next iteration
+      }
+      const adds = addSpy.mock.calls.filter((c) => c[0] === "resize").length;
+      const removes = removeSpy.mock.calls.filter((c) => c[0] === "resize").length;
+      // 3 mounts total (1 initial + 2 "New world" clicks) must net to exactly ONE live listener.
+      expect(adds - removes).toBe(1);
+    } finally {
+      addSpy.mockRestore();
+      removeSpy.mockRestore();
+    }
   });
 });

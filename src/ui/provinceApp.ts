@@ -111,6 +111,12 @@ export function provinceOutlinePath(world: World, provId: number): string {
   return segPath(segs);
 }
 
+// one province app lives on the page at a time (picker → play → "New world" all reuse the same root),
+// but mountProvinceApp itself is re-invoked on every "New world" click — so the resize listener it
+// registers must be de-duped at module scope, or each click leaks another permanent window listener
+// closing over the discarded game's state.
+let activeResize: (() => void) | null = null;
+
 export function mountProvinceApp(root: HTMLElement, opts: { seed?: number } = {}): void {
   const lang = detectLang();
   const seed = opts.seed ?? Math.floor(Date.now() % 1_000_000); // non-deterministic seed is fine — UI only
@@ -312,6 +318,9 @@ export function mountProvinceApp(root: HTMLElement, opts: { seed?: number } = {}
       if (p >= 0 && arm.has(p)) byProv[p] += cellPath(u.world.grid.polygons[c]);
     }
     const g = svgEl("g", { class: "prov-targets" }) as SVGGElement;
+    // both are the same for every province this render — a whole-map layout read plus a pure function of it —
+    // so compute once outside the loop rather than once per winnable province.
+    const badgeK = badgeScale(u.world.grid.width, mapWidthPx());
     for (const prov of u.world.provinces) {
       if (!byProv[prov.id]) continue;
       const armed = targets.has(prov.id);
@@ -341,10 +350,9 @@ export function mountProvinceApp(root: HTMLElement, opts: { seed?: number } = {}
       // green/red tint measures at 1.01-1.12 contrast against itself over varying nation colours.
       if (win) {
         const c = u.world.provinces[prov.id].centroid;
-        const k = badgeScale(u.world.grid.width, mapWidthPx());
         const badge = svgEl("g", {
           class: "prov-verdict", style: "pointer-events:none",
-          transform: `translate(${Math.round(c[0])},${Math.round(c[1])}) scale(${k.toFixed(2)})`,
+          transform: `translate(${Math.round(c[0])},${Math.round(c[1])}) scale(${badgeK.toFixed(2)})`,
         });
         badge.appendChild(svgEl("circle", {
           cx: 0, cy: 0, r: 9, fill: "#f4ecd8", stroke: "#3c2f1c", "stroke-width": 1.2,
@@ -629,11 +637,15 @@ export function mountProvinceApp(root: HTMLElement, opts: { seed?: number } = {}
   }
   // ONE debounced resize listener for the whole app — registered here, never inside render(), which runs
   // every turn (per-render registration would stack listeners). A resize changes the map's fitted width,
-  // so the verdict badges must recompute their counter-scale.
+  // so the verdict badges must recompute their counter-scale. mountProvinceApp itself can be re-invoked
+  // (the "New world" button calls it again on the same root), so drop any previous mount's listener first —
+  // otherwise every re-mount leaves another permanent window-scoped listener behind.
+  if (activeResize) window.removeEventListener("resize", activeResize);
   let resizeTimer = 0;
-  window.addEventListener("resize", () => {
+  activeResize = () => {
     window.clearTimeout(resizeTimer);
     resizeTimer = window.setTimeout(() => { if (ui) render(); }, 150);
-  });
+  };
+  window.addEventListener("resize", activeResize);
   render();
 }
