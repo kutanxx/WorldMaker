@@ -2,7 +2,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import {
   mountProvinceApp, provinceCellOwner, isDomination, shakyOpacity, reasonText, survivalGrade, defectionReasonText,
-  sortRisksByUrgency, provinceOutlinePath, badgeScale, provinceSpan, dominationProgress,
+  sortRisksByUrgency, provinceOutlinePath, badgeScale, provinceSpan, dominationProgress, renderedMapWidth,
 } from "./provinceApp";
 import { generateWorld } from "../engine/world";
 import { DEFAULT_PARAMS } from "../types/world";
@@ -965,5 +965,19 @@ describe("empty conquer state notice (fires on zero WINNABLE targets, not zero t
       .find((b) => b.dataset.mode === "consolidate")!
       .dispatchEvent(new MouseEvent("click", { bubbles: true }));
     expect(root.querySelector(".prov-empty")).toBeNull();
+  });
+});
+
+describe("renderedMapWidth (letterboxed width once height is the binding dimension)", () => {
+  it("is the box width when width is the binding dimension (wide, short box)", () => {
+    // box 900x400: height*1000/700 = 571 < 900, so height binds → rendered width 571
+    expect(renderedMapWidth(900, 400)).toBeCloseTo(571.43, 1);
+  });
+  it("is the box width when the box matches the 1000x700 aspect or is taller", () => {
+    expect(renderedMapWidth(900, 900)).toBe(900); // height*1000/700 = 1286 > 900 → width binds
+  });
+  it("is 0 when unmeasured (jsdom), preserving the badge fallback to scale 1", () => {
+    expect(renderedMapWidth(0, 0)).toBe(0);
+    expect(renderedMapWidth(0, 500)).toBe(0);
   });
 });

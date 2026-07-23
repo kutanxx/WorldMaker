@@ -100,6 +100,16 @@ export function badgeScale(mapWidthWorld: number, renderedWidthPx: number): numb
   return k < 1 ? 1 : k > 2 ? 2 : k;
 }
 
+// The map svg keeps a fixed 1000x700 viewBox with preserveAspectRatio "meet", so when its box is capped in
+// HEIGHT the drawing letterboxes and the box WIDTH overstates the rendered width. The badge counter-scale must
+// see the width actually drawn: the smaller of the box width and the width implied by the box height at 1000:700.
+// Returns 0 when unmeasured (jsdom) so badgeScale still falls back to 1.
+export function renderedMapWidth(boxWidth: number, boxHeight: number): number {
+  if (!boxWidth || boxWidth <= 0) return 0;
+  const fromHeight = boxHeight * (1000 / 700);
+  return fromHeight > 0 && fromHeight < boxWidth ? fromHeight : boxWidth;
+}
+
 // the badge's own diameter in viewBox units at scale 1 (r=9), used to size the PER-PROVINCE cap below.
 export const BADGE_DIAMETER = 18;
 
@@ -180,11 +190,11 @@ export function mountProvinceApp(root: HTMLElement, opts: { seed?: number } = {}
   function totalLandProvinces(u: UI): number { return u.s.n; }
   function liveRivals(u: UI): number { return u.s.alive.filter((a, id) => a && id !== u.playerId).length; }
 
-  // width of the rendered map in CSS pixels; 0 in jsdom (no layout) so badgeScale falls back to 1
+  // width of the RENDERED map in CSS px (letterboxed if height-capped); 0 in jsdom so badgeScale falls back to 1
   function mapWidthPx(): number {
     const el = root.querySelector(".prov-map");
     if (!el) return 0;
-    try { return el.getBoundingClientRect().width; } catch { return 0; }
+    try { const r = el.getBoundingClientRect(); return renderedMapWidth(r.width, r.height); } catch { return 0; }
   }
 
   type Outcome = { kind: "defeat"; by: string } | { kind: "domination" } | { kind: "survival" } | null;
@@ -641,7 +651,6 @@ export function mountProvinceApp(root: HTMLElement, opts: { seed?: number } = {}
         b.addEventListener("click", () => { if (mode !== m) { mode = m; targets.clear(); render(); } }); // attack vs fortify selections don't carry over
         stance.appendChild(b);
       }
-      root.appendChild(stance);
 
       if (mode === "conquer") {
         const legend = document.createElement("div");
@@ -733,7 +742,10 @@ export function mountProvinceApp(root: HTMLElement, opts: { seed?: number } = {}
         render();
       });
       bar.appendChild(advance);
-      root.appendChild(bar);
+      const commandbar = document.createElement("div");
+      commandbar.className = "prov-commandbar";
+      commandbar.append(stance, bar);
+      root.appendChild(commandbar);
       root.appendChild(logEl());
     }
   }

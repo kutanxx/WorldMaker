@@ -352,6 +352,7 @@ svg.world .legend { pointer-events: none; }
 .prov-map {
   display: block; width: 100%; max-width: 900px; margin: 10px auto 0; background: #eadfc2;
   border: 1px solid #cbb784; border-radius: 5px; box-shadow: 0 2px 12px rgba(60, 47, 28, 0.16);
+  max-height: 58vh;
 }
 /* the global `.political .territory { pointer-events: none }` (for the cell game's attack overlay) would
    otherwise make the province picker's nation fills un-clickable — re-enable them here, and make the
@@ -380,6 +381,13 @@ svg.world .legend { pointer-events: none; }
 .prov-stance-btn:first-child { border-radius: 4px 0 0 4px; }
 .prov-stance-btn:last-child { border-radius: 0 4px 4px 0; border-left: none; }
 .prov-stance-btn.active { background: #d8b25a; font-weight: 600; border-color: #b9923f; }
+/* keep the per-turn commands (stance + advance) reachable without scrolling, however tall the panels grow */
+.prov-commandbar {
+  position: sticky; bottom: 0; z-index: 4;
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  padding: 8px 0 10px; margin-top: 8px;
+  background: linear-gradient(transparent, #efe6cf 22%);
+}
 .prov-legend { max-width: 900px; margin: 8px auto 0; text-align: center; font-size: 13px; color: #6a5a3c; }
 .prov-target, .prov-fortify { transition: fill-opacity .1s; cursor: pointer; }
 /* verdict marks: the ✓ badge answers "can I take this?" by SHAPE, because hue already means ownership.
