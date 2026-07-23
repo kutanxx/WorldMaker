@@ -424,6 +424,12 @@ svg.world .legend { pointer-events: none; }
   color: #6a5a3c; font-style: italic; font-size: 13px;
 }
 .prov-log-item { white-space: nowrap; }
+.prov-log-turn { display: block; }
+.prov-log-turn:first-child { font-weight: 500; } /* newest turn emphasised */
+.prov-log-turn-head { color: #8a7a5c; font-variant-numeric: tabular-nums; margin-right: 4px; }
+.prov-log-item.gain { color: #2f6b3f; }
+.prov-log-item.loss { color: #b23a3a; }
+.prov-fortify.protected { }  /* selection ring already shows; title carries the 🛡 explanation */
 /* name → map ping: any row that NAMES a province is click-to-locate; clicking flashes that province's
    outline. Gold SOLID and brief — deliberately distinct from the amber DASHED, persistent defection ring. */
 .prov-pingable { cursor: pointer; }

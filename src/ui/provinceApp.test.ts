@@ -565,13 +565,21 @@ describe("chronicle log entries locate themselves on the map", () => {
     }
   }
 
-  it("renders the log as separate entries, keeping the same one-line text", () => {
+  it("renders the log as separate entries grouped by turn, keeping each entry's text intact", () => {
+    // P2 Task 5: the log is now grouped into per-turn blocks headed by "T{tick}" (newest turn first),
+    // but within a turn entries are still joined by " · " and each entry's own text is untouched —
+    // rebuild the expected string from the rendered groups and require it to match exactly (no weakening).
     blitz(6);
     const items = Array.from(root.querySelectorAll(".prov-log .prov-log-item"));
     expect(items.length).toBeGreaterThan(0);
-    // regression: the visible text is still the entries joined by " · "
-    expect((root.querySelector(".prov-log")!.textContent || "").trim())
-      .toBe(items.map((i) => i.textContent).join(" · "));
+    const turns = Array.from(root.querySelectorAll(".prov-log .prov-log-turn"));
+    expect(turns.length).toBeGreaterThan(0); // at least one T{tick} group header rendered
+    const rebuilt = turns.map((t) => {
+      const head = t.querySelector(".prov-log-turn-head")?.textContent || "";
+      const rowText = Array.from(t.querySelectorAll(".prov-log-item")).map((i) => i.textContent).join(" · ");
+      return head ? `${head} ${rowText}` : rowText;
+    }).join("");
+    expect((root.querySelector(".prov-log")!.textContent || "").trim()).toBe(rebuilt.trim());
   });
 
   it("pings the province a conquest entry names", () => {
@@ -995,6 +1003,56 @@ describe("empty conquer state notice (fires on zero WINNABLE targets, not zero t
       .find((b) => b.dataset.mode === "consolidate")!
       .dispatchEvent(new MouseEvent("click", { bubbles: true }));
     expect(root.querySelector(".prov-empty")).toBeNull();
+  });
+});
+
+describe("P2 log + consolidate polish", () => {
+  let root: HTMLElement;
+  beforeEach(() => { root = document.createElement("div"); document.body.appendChild(root); });
+  function start(seed: number, nation: number): void {
+    mountProvinceApp(root, { seed });
+    (root.querySelectorAll("[data-polity]")[nation] as SVGPathElement).dispatchEvent(new MouseEvent("click", { bubbles: true }));
+  }
+
+  it("names the attacker on a loss log entry", () => {
+    // advance until a `상실`/`lost` entry appears, assert it also contains a nation name in parens
+    start(1, 3);
+    let found = "";
+    for (let t = 0; t < 20 && !found; t++) {
+      const adv = root.querySelector(".prov-advance") as HTMLButtonElement | null;
+      const choice = root.querySelector(".prov-choice") as HTMLButtonElement | null;
+      if (choice) { choice.dispatchEvent(new MouseEvent("click", { bubbles: true })); continue; }
+      if (!adv) break; adv.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      const lost = [...root.querySelectorAll(".prov-log-item")].map((e) => e.textContent || "")
+        .find((t2) => /상실|lost/.test(t2));
+      if (lost) found = lost;
+    }
+    expect(found).toMatch(/\(.+\)/); // "lost X (to Y)" / "상실 X (Y에게)" — a culprit in parens
+  });
+
+  it("groups the log by turn with T{tick} headers", () => {
+    start(1, 3);
+    for (let t = 0; t < 4; t++) {
+      const adv = root.querySelector(".prov-advance") as HTMLButtonElement | null;
+      const choice = root.querySelector(".prov-choice") as HTMLButtonElement | null;
+      if (choice) { choice.dispatchEvent(new MouseEvent("click", { bubbles: true })); continue; }
+      if (adv) adv.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    }
+    expect(root.querySelector(".prov-log-turn")).toBeTruthy(); // a per-turn group header exists
+  });
+
+  it("defection hint explains that neighbours dominate, not stability", () => {
+    // reach a defection risk, assert the hint text mentions neighbours / 이웃
+    start(1, 3);
+    for (let t = 0; t < 20; t++) {
+      if (root.querySelector(".prov-threat-hint")) break;
+      const adv = root.querySelector(".prov-advance") as HTMLButtonElement | null;
+      const choice = root.querySelector(".prov-choice") as HTMLButtonElement | null;
+      if (choice) { choice.dispatchEvent(new MouseEvent("click", { bubbles: true })); continue; }
+      if (!adv) break; adv.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    }
+    const hint = root.querySelector(".prov-threat-hint")?.textContent || "";
+    expect(hint).toMatch(/이웃|neighbour/);
   });
 });
 

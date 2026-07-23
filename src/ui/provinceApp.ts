@@ -179,7 +179,7 @@ export function mountProvinceApp(root: HTMLElement, opts: { seed?: number } = {}
     return v;
   }
   // a chronicle entry optionally carries the province it happened in, so the row can locate itself on the map
-  type LogEntry = { text: string; prov?: number };
+  type LogEntry = { text: string; prov?: number; tick?: number };
   const log: LogEntry[] = [];
   let mode: "conquer" | "consolidate" = "conquer"; // this turn: expand, or shore up my realm
   let pendingDilemma: ProvinceDilemma | null = null; // a choice card awaiting the player
@@ -278,14 +278,32 @@ export function mountProvinceApp(root: HTMLElement, opts: { seed?: number } = {}
   function logEl(): HTMLElement {
     const el = document.createElement("div");
     el.className = "prov-log";
-    log.slice(0, 8).forEach((e, i) => {
-      if (i > 0) el.appendChild(document.createTextNode(" · "));
-      const span = document.createElement("span");
-      span.className = "prov-log-item";
-      span.textContent = e.text;
-      if (typeof e.prov === "number" && ui) makePingable(span, ui, e.prov);
-      el.appendChild(span);
-    });
+    // group the most recent entries by the turn they happened on, newest turn first
+    const groups: { tick: number; items: LogEntry[] }[] = [];
+    for (const e of log.slice(0, 12)) {
+      const t = e.tick ?? -1;
+      let g = groups.find((x) => x.tick === t);
+      if (!g) { g = { tick: t, items: [] }; groups.push(g); }
+      g.items.push(e);
+    }
+    for (const g of groups) {
+      const turn = document.createElement("div");
+      turn.className = "prov-log-turn";
+      const head = document.createElement("span");
+      head.className = "prov-log-turn-head";
+      head.textContent = g.tick >= 0 ? `T${g.tick}` : "";
+      turn.appendChild(head);
+      g.items.forEach((e, i) => {
+        if (i > 0) turn.appendChild(document.createTextNode(" · "));
+        else if (head.textContent) turn.appendChild(document.createTextNode(" "));
+        const span = document.createElement("span");
+        span.className = "prov-log-item" + (/정복|took|귀순|joined/.test(e.text) ? " gain" : /상실|lost|이탈|defected|멸망|eliminated/.test(e.text) ? " loss" : "");
+        span.textContent = e.text;
+        if (typeof e.prov === "number" && ui) makePingable(span, ui, e.prov);
+        turn.appendChild(span);
+      });
+      el.appendChild(turn);
+    }
     return el;
   }
 
@@ -475,16 +493,21 @@ export function mountProvinceApp(root: HTMLElement, opts: { seed?: number } = {}
       const p = u.world.provinceOf[c];
       if (p >= 0 && u.s.provOwner[p] === u.playerId) byProv[p] += cellPath(u.world.grid.polygons[c]);
     }
+    // provinces that WOULD be lost if we did nothing — selecting one to consolidate "protects" it
+    const wouldLose = new Set(forecastIncoming(u.s, u.playerId).map((f) => f.prov));
     const g = svgEl("g", { class: "prov-fortifies" }) as SVGGElement;
     for (const prov of u.world.provinces) {
       if (!byProv[prov.id]) continue;
       const sel = targets.has(prov.id);
+      const protectedSel = sel && wouldLose.has(prov.id);
       const path = svgEl("path", {
-        class: "prov-fortify" + (sel ? " armed" : ""), "data-province": prov.id, d: byProv[prov.id],
+        class: "prov-fortify" + (sel ? " armed" : "") + (protectedSel ? " protected" : ""), "data-province": prov.id, d: byProv[prov.id],
         fill: sel ? "#3a6ea5" : "transparent", "fill-opacity": sel ? 0.34 : 0, stroke: "none",
       });
       const title = svgEl("title");
-      title.textContent = `${prov.name} — ${lang === "ko" ? "안정도" : "stability"} ${Math.round(u.s.provSol[prov.id] * 100)}%`;
+      title.textContent = protectedSel
+        ? (lang === "ko" ? "🛡 이 턴 이탈/정복을 막습니다" : "🛡 shielded from loss this turn")
+        : `${prov.name} — ${lang === "ko" ? "안정도" : "stability"} ${Math.round(u.s.provSol[prov.id] * 100)}%`;
       path.appendChild(title);
       g.appendChild(path);
       if (sel) g.appendChild(svgEl("path", {
@@ -528,6 +551,7 @@ export function mountProvinceApp(root: HTMLElement, opts: { seed?: number } = {}
         log.unshift({
           text: `${lang === "ko" ? "결정" : "chose"}: ${(choice === "a" ? T[2] : T[3]).split(" (")[0]}`,
           ...(d.prov >= 0 ? { prov: d.prov } : {}),
+          tick: u.s.tick,
         });
         pendingDilemma = null;
         render();
@@ -671,8 +695,8 @@ export function mountProvinceApp(root: HTMLElement, opts: { seed?: number } = {}
         const hint = document.createElement("div");
         hint.className = "prov-threat-hint";
         hint.textContent = lang === "ko"
-          ? "🏳 이탈 · ⚔ 정복 — 내실로 다지거나, 압박하는 땅을 치세요"
-          : "🏳 defection · ⚔ conquest — consolidate it, or take the province pressing it";
+          ? "🏳 이탈(이웃 수로 결정 — 고립되면 안정도 높아도 넘어감) · ⚔ 정복 — 내실로 다지거나 압박하는 땅을 치세요"
+          : "🏳 defection (decided by neighbours — an isolated province flips even at high stability) · ⚔ conquest — consolidate or take the pressing province";
         panel.appendChild(hint);
         root.appendChild(panel);
       }
@@ -771,14 +795,17 @@ export function mountProvinceApp(root: HTMLElement, opts: { seed?: number } = {}
         const ev = stepPlayerTurn(ui!.s, pid, targets, { consolidate: mode === "consolidate" });
         // categorise flips from the PLAYER's view: land I took vs land I lost (ignore AI-vs-AI flips)
         for (const c of ev.conquests) {
-          if (c.to === pid) log.unshift({ text: `${lang === "ko" ? "정복" : "took"} ${ui!.world.provinces[c.prov].name}`, prov: c.prov });
-          else if (c.from === pid) log.unshift({ text: `${lang === "ko" ? "상실" : "lost"} ${ui!.world.provinces[c.prov].name}`, prov: c.prov });
+          if (c.to === pid) log.unshift({ text: `${lang === "ko" ? "정복" : "took"} ${ui!.world.provinces[c.prov].name}`, prov: c.prov, tick: ui!.s.tick });
+          else if (c.from === pid) {
+            const by = ui!.world.polities[c.to]?.name ?? "?";
+            log.unshift({ text: `${lang === "ko" ? "상실" : "lost"} ${ui!.world.provinces[c.prov].name} ${lang === "ko" ? `(${by}에게)` : `(to ${by})`}`, prov: c.prov, tick: ui!.s.tick });
+          }
         }
         for (const d of ev.defections) {
-          if (d.from === pid) log.unshift({ text: `${lang === "ko" ? "이탈" : "defected"} ${ui!.world.provinces[d.prov].name}`, prov: d.prov });
-          else if (d.to === pid) log.unshift({ text: `${lang === "ko" ? "귀순" : "joined you"} ${ui!.world.provinces[d.prov].name}`, prov: d.prov });
+          if (d.from === pid) log.unshift({ text: `${lang === "ko" ? "이탈" : "defected"} ${ui!.world.provinces[d.prov].name}`, prov: d.prov, tick: ui!.s.tick });
+          else if (d.to === pid) log.unshift({ text: `${lang === "ko" ? "귀순" : "joined you"} ${ui!.world.provinces[d.prov].name}`, prov: d.prov, tick: ui!.s.tick });
         }
-        for (const id of ev.eliminated) log.unshift({ text: `${ui!.world.polities[id]?.name ?? id} ${lang === "ko" ? "멸망" : "eliminated"}` });
+        for (const id of ev.eliminated) log.unshift({ text: `${ui!.world.polities[id]?.name ?? id} ${lang === "ko" ? "멸망" : "eliminated"}`, tick: ui!.s.tick });
         targets.clear();
         // a dilemma may arise from the new state (cooldown-gated, deterministic)
         if (!pendingDilemma && ui!.s.tick - lastDilemmaTick >= DILEMMA_COOLDOWN) {
