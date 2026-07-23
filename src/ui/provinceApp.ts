@@ -1,5 +1,4 @@
 import { generateWorld } from "../engine/world";
-import { OCEAN } from "../engine/terrain";
 import { DEFAULT_PARAMS, type World } from "../types/world";
 import {
   initProvinceSim, pAggregate, PROVINCE_SIM_TICKS, armableTargets, stepPlayerTurn, explainAttack,
@@ -234,11 +233,14 @@ export function mountProvinceApp(root: HTMLElement, opts: { seed?: number } = {}
       { fills: true, labels: true, legend: false, ...(ui ? { playerPolity: ui.playerId, playerColor: PLAYER_COLOR } : {}) },
     );
     svg.appendChild(layer);
-    // land clip: the union of every land cell's polygon — exactly the drawn landmass. Border strokes are
-    // clipped to this so a province/nation line that a strait's Voronoi edge drags across open water is cut
-    // at the coastline (its on-land part still shows). Built once per render.
+    // land clip: the union of every OWNED cell's polygon — exactly the painted land, the same region
+    // politicalLayer's ".territory" fills cover (NOT "every non-ocean cell": a non-ocean cell's Voronoi
+    // polygon can still span a narrow strait, so clipping to non-ocean cells masks none of the water a
+    // border line crosses). Border strokes are clipped to this so a province/nation line that a strait's
+    // Voronoi edge drags across open water is cut at the painted coastline (its on-land part still shows).
+    // Built once per render.
     let landD = "";
-    for (let c = 0; c < world.grid.count; c++) if (world.terrain[c] !== OCEAN) landD += cellPath(world.grid.polygons[c]);
+    for (let c = 0; c < world.grid.count; c++) if (owner[c] >= 0) landD += cellPath(world.grid.polygons[c]);
     const clip = svgEl("clipPath", { id: "prov-land" });
     clip.appendChild(svgEl("path", { d: landD }));
     svg.appendChild(clip);

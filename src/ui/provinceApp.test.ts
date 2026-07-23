@@ -1289,16 +1289,22 @@ describe("borders are clipped to land (no lines over the sea)", () => {
     expect(svg.querySelector(".nation-border")!.getAttribute("clip-path")).toBe("url(#prov-land)");
   });
 
-  it("the land clip has a subpath for each non-ocean cell and none for ocean", () => {
+  it("the land clip has a subpath for each OWNED cell and none for unowned/ocean", () => {
+    // the clip must match the painted land exactly (what politicalLayer's ".territory" fills cover), not
+    // merely "non-ocean" — a non-ocean cell's Voronoi polygon can span a narrow strait, so "non-ocean" masks
+    // none of the water a border crosses. Derive the expected count the same way buildMap does: owner[c] is
+    // the owning polity for a cell whose province is owned, or -1 for ocean/unowned.
     const world = generateWorld({ ...DEFAULT_PARAMS, seed: 1 }).world;
-    const landCells = world.terrain.filter((t) => t !== 0).length; // OCEAN === 0
+    const s = initProvinceSim(world);
+    const owner = provinceCellOwner(world.grid.count, world.provinceOf, s.provOwner);
+    const ownedCells = Array.from(owner).filter((o) => o >= 0).length;
     mountProvinceApp(root, { seed: 1 });
     (root.querySelector("[data-polity]") as SVGPathElement).dispatchEvent(new MouseEvent("click", { bubbles: true }));
     const clip = root.querySelector("clipPath#prov-land")!;
-    // the clip is built by concatenating cellPath() for every land cell → count "M" subpath starts
+    // the clip is built by concatenating cellPath() for every owned cell → count "M" subpath starts
     const d = clip.querySelector("path")!.getAttribute("d") || "";
     const subpaths = (d.match(/M/g) || []).length;
-    expect(subpaths).toBe(landCells); // one subpath per land cell, zero for ocean
+    expect(subpaths).toBe(ownedCells); // one subpath per owned cell, zero for ocean/unowned
   });
 });
 
