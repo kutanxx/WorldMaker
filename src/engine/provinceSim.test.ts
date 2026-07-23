@@ -153,6 +153,20 @@ describe("provinceSim determinism + safety (seed 1)", () => {
     expect(s.tick).toBe(PROVINCE_SIM_TICKS);
     expect(fnv(s.provOwner)).toBe(2503300448); // pinned golden hash — after 50 ticks (seed 1) — re-pinned with sea lanes — re-pinned with defection (no-rival fix) — re-pinned (no-resurrect)
   });
+  it("the P2 predictors do not perturb the golden simulation path", () => {
+    // run the SAME golden scenario that produces 226648593 / 2503300448, but call
+    // forecastIncoming and explainAttack in between the steps, and assert the final
+    // hashes are byte-identical — proving the predictors are side-effect-free.
+    const world = generateWorld({ ...DEFAULT_PARAMS, seed: 1 }).world;
+    const s = initProvinceSim(world);
+    expect(fnv(s.provOwner)).toBe(226648593); // initial golden, unchanged
+    for (let t = 0; t < PROVINCE_SIM_TICKS; t++) {
+      forecastIncoming(s, 0);                  // call the predictor between steps
+      explainAttack(s, 0, armableTargets(s, 0)[0] ?? 0); // any armable target
+      stepProvinceSim(s);
+    }
+    expect(fnv(s.provOwner)).toBe(2503300448); // 50-tick golden, unchanged despite predictor calls
+  });
   it("is not static — the world is contested and dynamic (nations are eliminated, the leader's share shifts)", () => {
     // sea lanes spread aggression across more simultaneous fronts, so a single hegemon growing every seed-1 run
     // is no longer guaranteed (a 20-seed probe still shows a hegemon emerging in most seeds) — what's invariant
