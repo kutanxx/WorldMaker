@@ -84,6 +84,16 @@ export function battleMargin(atk: number, def: number, win: boolean): { side: "a
   return { side: win ? "atk" : "def", mag: Math.max(1, Math.round(Math.abs(m) * 100)) };
 }
 
+// The consolidate action adds CONSOLIDATE_BONUS to a province's solidarity. Shown at decision time so the
+// player SEES the gain their pick buys (playtest: "consolidating doesn't visibly raise stability"). DISPLAY
+// only — never feeds a contest, so this local 0.1 just has to match the engine's CONSOLIDATE_BONUS for the
+// label to read right.
+const CONSOLIDATE_BONUS_DISPLAY = 0.1; // MUST match the engine's CONSOLIDATE_BONUS (not exported)
+export function consolidatedStability(sol: number): number {
+  const v = sol + CONSOLIDATE_BONUS_DISPLAY;
+  return v > 1 ? 1 : v;
+}
+
 // risk-panel ordering: most-urgent (fewest turns left) first, ties broken by province id — so a province
 // flipping NEXT TURN is never buried below one with turns to spare. Pure + exported so it's directly testable.
 export function sortRisksByUrgency<T extends { p: number; r: { turnsLeft: number } }>(risks: T[]): T[] {
@@ -428,8 +438,8 @@ export function mountProvinceApp(root: HTMLElement, opts: { seed?: number } = {}
       ? (lang === "ko" ? `⚔ 우세 +${mag}` : `⚔ ahead by ${mag}`)
       : (lang === "ko" ? `🛡 우세 +${mag}` : `🛡 defender ahead by ${mag}`);
     let line = `${name} — ${marginText} · ${verdict} (${reasonText(od.reason, lang)})`;
-    if (!od.win) line += od.breakable // a losing attack: does building up (consolidate) open it, or is it too tough for now?
-      ? (lang === "ko" ? " · 🛡 내실하면 뚫림" : " · consolidate to break through")
+    if (!od.win) line += od.breakable // building up (consolidate) opens it EVENTUALLY, vs too tough for now
+      ? (lang === "ko" ? " · 🔓 내실로 힘을 키우면 뚫려요" : " · 🔓 build up your strength to break through")
       : (lang === "ko" ? " · 지금은 벅참 (상대가 약해지길)" : " · too tough for now (wait for it to weaken)");
     return line;
   }
@@ -557,6 +567,17 @@ export function mountProvinceApp(root: HTMLElement, opts: { seed?: number } = {}
         class: "prov-fortify-ring", style: "pointer-events:none", d: provinceOutlinePath(u.world, prov.id),
         fill: "none", stroke: "#3a6ea5", "stroke-width": 2.2, "stroke-linejoin": "round",
       }));
+      if (sel) {
+        const cur = Math.round(u.s.provSol[prov.id] * 100);
+        const after = Math.round(consolidatedStability(u.s.provSol[prov.id]) * 100);
+        const c = u.world.provinces[prov.id].centroid;
+        const label = svgEl("text", {
+          class: "prov-fortify-gain", style: "pointer-events:none",
+          x: Math.round(c[0]), y: Math.round(c[1]) - 6, "text-anchor": "middle",
+        });
+        label.textContent = lang === "ko" ? `안정도 ${cur}% → ${after}%` : `stability ${cur}% → ${after}%`;
+        g.appendChild(label);
+      }
     }
     return g;
   }
@@ -790,7 +811,8 @@ export function mountProvinceApp(root: HTMLElement, opts: { seed?: number } = {}
           for (const p of [...targets].sort((a, b) => a - b)) {
             const od = explainAttack(ui.s, ui.playerId, p);
             const row = document.createElement("div");
-            row.className = "prov-preview-row " + (od?.win ? "winnable" : "too-strong");
+            const cls = od?.win ? "winnable" : (od?.breakable ? "too-strong breakable" : "too-strong");
+            row.className = "prov-preview-row " + cls;
             row.textContent = (od?.win ? "✓ " : "✕ ") + attackLine(ui, p);
             preview.appendChild(row);
           }

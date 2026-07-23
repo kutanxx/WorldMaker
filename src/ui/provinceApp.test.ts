@@ -3,6 +3,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import {
   mountProvinceApp, provinceCellOwner, isDomination, shakyOpacity, reasonText, survivalGrade, defectionReasonText,
   sortRisksByUrgency, provinceOutlinePath, badgeScale, provinceSpan, dominationProgress, renderedMapWidth, battleMargin,
+  consolidatedStability,
 } from "./provinceApp";
 import { generateWorld } from "../engine/world";
 import { DEFAULT_PARAMS } from "../types/world";
@@ -1331,5 +1332,63 @@ describe("sea lanes: only the turn-relevant expedition routes are drawn", () => 
       .find((b) => b.dataset.mode === "consolidate")!
       .dispatchEvent(new MouseEvent("click", { bubbles: true }));
     expect(root.querySelectorAll(".prov-lane").length).toBe(0);
+  });
+});
+
+describe("consolidatedStability (the +0.1 the consolidate action adds, for display)", () => {
+  it("adds the consolidate bonus and clamps at 1", () => {
+    expect(consolidatedStability(0.55)).toBeCloseTo(0.65, 5);
+    expect(consolidatedStability(0.95)).toBeCloseTo(1.0, 5);
+    expect(consolidatedStability(1.0)).toBe(1.0);
+    expect(consolidatedStability(0)).toBeCloseTo(0.1, 5);
+  });
+});
+
+describe("consolidate mode shows the stability gain on a selected province", () => {
+  let root: HTMLElement;
+  beforeEach(() => { root = document.createElement("div"); document.body.appendChild(root); });
+
+  function startConsolidate(): void {
+    mountProvinceApp(root, { seed: 1 });
+    (root.querySelector("[data-polity]") as SVGPathElement).dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    (Array.from(root.querySelectorAll(".prov-stance-btn")) as HTMLButtonElement[])
+      .find((b) => b.dataset.mode === "consolidate")!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+  }
+
+  it("shows a X% → Y% gain label on a province the player selects to consolidate, not on unselected ones", () => {
+    startConsolidate();
+    expect(root.querySelector(".prov-fortify-gain")).toBeNull(); // nothing selected yet
+    (root.querySelector(".prov-fortify") as SVGPathElement).dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    const gain = root.querySelector(".prov-fortify-gain");
+    expect(gain).toBeTruthy();
+    // "안정도 X% → Y%" with Y = X + 10 (clamped) — assert the arrow and a +10 relationship
+    const m = (gain!.textContent || "").match(/(\d+)%\s*→\s*(\d+)%/);
+    expect(m).toBeTruthy();
+    const x = Number(m![1]), y = Number(m![2]);
+    expect(y).toBe(Math.min(100, x + 10));
+  });
+});
+
+describe("breakable too-strong rows get a prominent 🔓 build-up cue", () => {
+  let root: HTMLElement;
+  beforeEach(() => { root = document.createElement("div"); document.body.appendChild(root); });
+
+  it("marks a breakable too-strong armed target with 🔓 and the .breakable class; a non-breakable one keeps 'too tough'", () => {
+    // drive seed 1 to a turn with too-strong targets, arm them all, then inspect the preview rows.
+    mountProvinceApp(root, { seed: 1 });
+    (root.querySelector("[data-polity]") as SVGPathElement).dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    for (const t of root.querySelectorAll(".prov-target")) t.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    const tooStrong = [...root.querySelectorAll(".prov-preview-row.too-strong")];
+    expect(tooStrong.length).toBeGreaterThan(0);
+    for (const row of tooStrong) {
+      const txt = row.textContent || "";
+      if (row.classList.contains("breakable")) {
+        expect(txt).toContain("🔓");
+        expect(txt).toMatch(/뚫려|break through/);
+      } else {
+        expect(txt).toMatch(/벅참|too tough/);
+        expect(txt).not.toContain("🔓");
+      }
+    }
   });
 });

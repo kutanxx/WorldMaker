@@ -409,6 +409,11 @@ svg.world .legend { pointer-events: none; }
 .prov-preview-row { padding: 3px 10px; border-radius: 4px; margin: 3px auto; max-width: 640px; text-align: left; }
 .prov-preview-row.winnable { background: rgba(47, 143, 78, .12); color: #256b3b; }
 .prov-preview-row.too-strong { background: rgba(178, 58, 58, .12); color: #8f2f2f; }
+/* consolidate gain label: the stability a pick buys, shown on the map at decision time */
+.prov-fortify-gain { font-size: 9px; font-weight: 600; fill: #3a6ea5; paint-order: stroke;
+  stroke: #f7f2e6; stroke-width: 2.4px; stroke-linejoin: round; }
+/* a too-strong target that consolidation can open reads as an opportunity, not a dead end */
+.prov-preview-row.breakable { color: #7a5a1e; }
 .prov-dilemma { max-width: 640px; margin: 12px auto 0; padding: 14px 18px; text-align: center; background: #f3ead2; border: 2px solid #cbb784; border-radius: 10px; box-shadow: 0 3px 14px rgba(60, 47, 28, 0.16); }
 .prov-dilemma-title { font-family: 'Cinzel', serif; font-weight: 600; font-size: 18px; color: #3c2f1c; }
 .prov-dilemma-body { font-style: italic; color: #6a5a3c; margin: 6px 0 10px; }
