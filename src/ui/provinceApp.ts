@@ -388,13 +388,23 @@ export function mountProvinceApp(root: HTMLElement, opts: { seed?: number } = {}
     return g;
   }
 
-  // expedition sea lanes: a dashed route between each linked province pair's centroids. Play mode only;
-  // pointer-events off so it never blocks target clicks. Deduped by p < q.
+  // expedition sea lanes: draw ONLY the routes the player can act on THIS turn — a dashed line from one of the
+  // player's provinces to a province it can attack ACROSS that lane (an armable target whose chosen front is a
+  // lane). Drawing all lanes every turn strews dashes across the sea; this way a visible lane MEANS "strike
+  // across here". No lanes in consolidate mode. pointer-events off so it never blocks target clicks.
   function seaLaneLayer(u: UI): SVGGElement {
     const g = svgEl("g", { class: "prov-lanes", style: "pointer-events:none" }) as SVGGElement;
+    if (mode !== "conquer") return g; // consolidate/other: no lanes
     const laneAdj = u.s.laneAdj ?? [];
+    const arm = new Set(armableTargets(u.s, u.playerId));
     for (let p = 0; p < laneAdj.length; p++) for (const q of laneAdj[p]) {
-      if (q <= p) continue; // draw each undirected lane once
+      if (q <= p) continue; // each undirected lane once
+      // one endpoint mine, the other an armable target reached BY LANE (explainAttack marks the chosen route)
+      const mineP = u.s.provOwner[p] === u.playerId, mineQ = u.s.provOwner[q] === u.playerId;
+      if (mineP === mineQ) continue;       // need exactly one player endpoint
+      const target = mineP ? q : p;
+      if (!arm.has(target)) continue;      // the other end must be attackable this turn
+      if (explainAttack(u.s, u.playerId, target)?.lane !== true) continue; // and via the LANE (not a land front)
       const a = u.world.provinces[p].centroid, b = u.world.provinces[q].centroid;
       g.appendChild(svgEl("line", {
         class: "prov-lane", x1: a[0], y1: a[1], x2: b[0], y2: b[1],

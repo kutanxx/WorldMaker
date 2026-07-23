@@ -205,22 +205,6 @@ describe("province turn loop (seed 1)", () => {
   });
 });
 
-describe("sea lanes (play mode)", () => {
-  let root: HTMLElement;
-  beforeEach(() => { root = document.createElement("div"); document.body.appendChild(root); });
-
-  it("draws a dashed sea-lane for each expedition route in play mode", () => {
-    mountProvinceApp(root, { seed: 1 });
-    // pick the first live polity territory to start (mirrors how other tests in this file start a game).
-    const terr = root.querySelector<SVGElement>("[data-polity]");
-    terr?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    const lanes = root.querySelectorAll(".prov-map .prov-lane");
-    // seed 1 has ≥1 lane by construction (connectivity fallback guarantees reachability); each is a dashed <line>.
-    expect(lanes.length).toBeGreaterThan(0);
-    expect(lanes[0].getAttribute("stroke-dasharray")).toBeTruthy();
-  });
-});
-
 describe("stance toggle (conquer vs consolidate)", () => {
   let root: HTMLElement;
   beforeEach(() => { root = document.createElement("div"); document.body.appendChild(root); });
@@ -1315,5 +1299,31 @@ describe("borders are clipped to land (no lines over the sea)", () => {
     const d = clip.querySelector("path")!.getAttribute("d") || "";
     const subpaths = (d.match(/M/g) || []).length;
     expect(subpaths).toBe(landCells); // one subpath per land cell, zero for ocean
+  });
+});
+
+describe("sea lanes: only the turn-relevant expedition routes are drawn", () => {
+  let root: HTMLElement;
+  beforeEach(() => { root = document.createElement("div"); document.body.appendChild(root); });
+
+  it("draws a lane only for a player province ↔ an armable lane target (not the whole lane mesh)", () => {
+    // seed 29, first polity, turn 0: found via a throwaway probe to have exactly 2 lane-reachable armable
+    // targets, stable across turns 0-9 (deterministic, rng-free sim) — pinned to an exact count rather than
+    // the weaker "less than 22" bound, since this (seed, turn) reliably reaches a lane target.
+    mountProvinceApp(root, { seed: 29 });
+    (root.querySelector("[data-polity]") as SVGPathElement).dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    const lanes = root.querySelectorAll(".prov-lane");
+    expect(lanes.length).toBe(2); // pinned: seed 29, turn 0 — 2 armable lane targets touch the player
+    // never the full mesh (22ish undirected lanes for this world)
+    expect(lanes.length).toBeLessThan(22);
+  });
+
+  it("draws no lanes in consolidate mode", () => {
+    mountProvinceApp(root, { seed: 1 });
+    (root.querySelector("[data-polity]") as SVGPathElement).dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    (Array.from(root.querySelectorAll(".prov-stance-btn")) as HTMLButtonElement[])
+      .find((b) => b.dataset.mode === "consolidate")!
+      .dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    expect(root.querySelectorAll(".prov-lane").length).toBe(0);
   });
 });
