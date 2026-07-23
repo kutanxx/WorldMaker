@@ -1,4 +1,5 @@
 import { generateWorld } from "../engine/world";
+import { OCEAN } from "../engine/terrain";
 import { DEFAULT_PARAMS, type World } from "../types/world";
 import {
   initProvinceSim, pAggregate, PROVINCE_SIM_TICKS, armableTargets, stepPlayerTurn, explainAttack,
@@ -233,6 +234,14 @@ export function mountProvinceApp(root: HTMLElement, opts: { seed?: number } = {}
       { fills: true, labels: true, legend: false, ...(ui ? { playerPolity: ui.playerId, playerColor: PLAYER_COLOR } : {}) },
     );
     svg.appendChild(layer);
+    // land clip: the union of every land cell's polygon — exactly the drawn landmass. Border strokes are
+    // clipped to this so a province/nation line that a strait's Voronoi edge drags across open water is cut
+    // at the coastline (its on-land part still shows). Built once per render.
+    let landD = "";
+    for (let c = 0; c < world.grid.count; c++) if (world.terrain[c] !== OCEAN) landD += cellPath(world.grid.polygons[c]);
+    const clip = svgEl("clipPath", { id: "prov-land" });
+    clip.appendChild(svgEl("path", { d: landD }));
+    svg.appendChild(clip);
     // solidarity wash: pale-out fragile provinces so stability is a THING YOU SEE on the map, not just a
     // HUD number. Play mode only (in the picker every province is a uniform 0.5). Under the borders/labels.
     if (ui) svg.appendChild(solidarityWash(ui));
@@ -242,6 +251,7 @@ export function mountProvinceApp(root: HTMLElement, opts: { seed?: number } = {}
     svg.appendChild(svgEl("path", {
       class: "province-border", d: segPath(politicalBorders(world.grid, world.provinceOf)),
       fill: "none", stroke: "#3c2f1c", "stroke-width": 0.5, "stroke-opacity": 0.5,
+      "clip-path": "url(#prov-land)",
     }));
     // politicalLayer's own border path is unclassed as "nation-border" (that class belongs to
     // provinceLayer's owner overlay) — since `owner` here is already province-snapped, draw the same
@@ -249,6 +259,7 @@ export function mountProvinceApp(root: HTMLElement, opts: { seed?: number } = {}
     svg.appendChild(svgEl("path", {
       class: "nation-border", d: segPath(politicalBorders(world.grid, owner)),
       fill: "none", stroke: "#161009", "stroke-width": 2, "stroke-opacity": 0.95, "stroke-linejoin": "round",
+      "clip-path": "url(#prov-land)",
     }));
     // politicalLayer nests its name labels INSIDE its own group, which we just painted the border meshes
     // on top of — so the province lines were crossing the text. Lift the label/marker groups to the end of

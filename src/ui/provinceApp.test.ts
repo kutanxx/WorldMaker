@@ -1290,3 +1290,30 @@ describe("attackLine as a single margin (no raw negative attack number)", () => 
     }
   });
 });
+
+describe("borders are clipped to land (no lines over the sea)", () => {
+  let root: HTMLElement;
+  beforeEach(() => { root = document.createElement("div"); document.body.appendChild(root); });
+
+  it("emits one clipPath#prov-land and clips both border paths to it", () => {
+    mountProvinceApp(root, { seed: 1 });
+    (root.querySelector("[data-polity]") as SVGPathElement).dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    const svg = root.querySelector(".prov-map")!;
+    const clips = svg.querySelectorAll("clipPath#prov-land");
+    expect(clips.length).toBe(1);                                   // exactly one land clip per map
+    expect(svg.querySelector(".province-border")!.getAttribute("clip-path")).toBe("url(#prov-land)");
+    expect(svg.querySelector(".nation-border")!.getAttribute("clip-path")).toBe("url(#prov-land)");
+  });
+
+  it("the land clip has a subpath for each non-ocean cell and none for ocean", () => {
+    const world = generateWorld({ ...DEFAULT_PARAMS, seed: 1 }).world;
+    const landCells = world.terrain.filter((t) => t !== 0).length; // OCEAN === 0
+    mountProvinceApp(root, { seed: 1 });
+    (root.querySelector("[data-polity]") as SVGPathElement).dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    const clip = root.querySelector("clipPath#prov-land")!;
+    // the clip is built by concatenating cellPath() for every land cell → count "M" subpath starts
+    const d = clip.querySelector("path")!.getAttribute("d") || "";
+    const subpaths = (d.match(/M/g) || []).length;
+    expect(subpaths).toBe(landCells); // one subpath per land cell, zero for ocean
+  });
+});
