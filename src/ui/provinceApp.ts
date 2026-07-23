@@ -62,11 +62,13 @@ export function reasonText(reason: AttackReason, lang: "ko" | "en"): string {
     "realm-strong": "내 나라가 강함", "realm-weak": "내 나라가 불안정함",
     "target-shaky": "그 지역이 흔들림", "target-stable": "그 지역이 굳건함",
     "near": "수도에서 가까움", "too-far": "수도에서 멀어 원정 페널티", "even": "막상막하",
+    "expedition": "바다 건너 원정이라 군대가 약해짐",
   };
   const en: Record<AttackReason, string> = {
     "realm-strong": "your realm is strong", "realm-weak": "your realm is unstable",
     "target-shaky": "the province is shaky", "target-stable": "the province is well-held",
     "near": "close to your capital", "too-far": "far from your capital", "even": "an even match",
+    "expedition": "the sea crossing weakens the attack",
   };
   return (lang === "ko" ? ko : en)[reason];
 }

@@ -314,7 +314,7 @@ function attackFront(s: ProvinceSimState, attacker: number, target: number, sol:
 }
 
 // why an attack turns out the way it does — the dominant factor separating attacker from defender.
-export type AttackReason = "realm-strong" | "realm-weak" | "target-shaky" | "target-stable" | "near" | "too-far" | "even";
+export type AttackReason = "realm-strong" | "realm-weak" | "target-shaky" | "target-stable" | "near" | "too-far" | "even" | "expedition";
 export interface AttackOdds { win: boolean; atk: number; def: number; reason: AttackReason; breakable: boolean; lane: boolean; }
 
 // Full breakdown of the player attacking `targetProv` this turn: attacker vs defender strength and the dominant
@@ -328,7 +328,8 @@ export function explainAttack(s: ProvinceSimState, playerId: number, targetProv:
   const agg = pAggregate(tmp);
   const o = s.provOwner[targetProv];
   const mult = lane ? EXPEDITION_MULT : 1;
-  const atk = strength(tmp, agg, playerId, targetProv, front) * mult;
+  const atkUnmult = strength(tmp, agg, playerId, targetProv, front);
+  const atk = atkUnmult * mult;
   const def = o < 0 ? 0 : strength(tmp, agg, o, targetProv, targetProv);
   const win = atk > def * CONTEST_THRESH;
   // decompose attacker-minus-defender into named terms; the largest-magnitude one explains the verdict
@@ -342,6 +343,9 @@ export function explainAttack(s: ProvinceSimState, playerId: number, targetProv:
     ["target-shaky", "target-stable", W_LOCAL * (stepped[front] - defSol)],
     ["near", "too-far", -W_DIST * (myDist - theirDist)],
   ];
+  // the sea crossing weakens the attacker by atkUnmult*(1-mult); include it so a lane attack that fails
+  // DESPITE a strong realm blames the crossing, not the realm (fixes "realm strong yet fails").
+  if (lane) terms.push(["expedition", "expedition", -atkUnmult * (1 - mult)]);
   terms.sort((a, b) => Math.abs(b[2]) - Math.abs(a[2]));
   const [pos, neg, val] = terms[0];
   const reason: AttackReason = Math.abs(val) < 1e-6 ? "even" : val >= 0 ? pos : neg;

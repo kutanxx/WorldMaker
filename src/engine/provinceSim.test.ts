@@ -818,3 +818,50 @@ describe("forecastIncoming (which of my provinces an enemy takes next turn)", ()
     void before;
   });
 });
+
+describe("explainAttack expedition reason", () => {
+  // Two lone-nation island provinces linked ONLY by a lane. Both share centroid [0,0] (zeroes the near/too-far
+  // term — see the "same centroid as A's" trick already used in the aiAttacker tie-break fixture above), so the
+  // realm-strong and target-shaky terms stay small while the expedition penalty (atkUnmult * 0.4) — which scales
+  // with the attacker's OWN raw strength, not the gap to the defender — dominates them despite being real (> 0).
+  function makeLaneAttackFixture(): ProvinceSimState {
+    const provinces: Province[] = [0, 1].map((i) => ({ id: i, name: String(i), cells: 10, centroid: [0, 0], seedCell: i, biome: 4 }));
+    return {
+      provinces, n: 2, provOwner: Int32Array.from([0, 1]), provSol: Float32Array.from([0.9, 0.5]),
+      adj: [[], []], laneAdj: [[1], [0]], capitalProv: Int32Array.from([0, 1]), alive: [true, true], tick: 0,
+    } as ProvinceSimState;
+  }
+  // Plain land fixture mirroring the "stepPlayerTurn" describe block's fixture() above: A(0) has a strong,
+  // cohesive realm (prov 0 capital + prov 1) and takes B(1)'s weak lone province 2 via the land-adjacent route.
+  function makeLandFixture(): ProvinceSimState {
+    const provinces: Province[] = [0, 1, 2].map((i) => ({ id: i, name: String(i), cells: 20, centroid: [i * 10, 0], seedCell: i, biome: 4 }));
+    return {
+      provinces, n: 3, provOwner: Int32Array.from([0, 0, 1]), provSol: Float32Array.from([0.9, 0.9, 0.1]),
+      adj: [[1], [0, 2], [1]], capitalProv: Int32Array.from([0, 2]), alive: [true, true], tick: 0,
+    } as ProvinceSimState;
+  }
+
+  it("blames the sea crossing when a lane attack's expedition penalty is the dominant factor", () => {
+    // Worked arithmetic (see task-2-report.md for the full derivation): after the frontier-driven solidarity
+    // step, agg[0].avg=0.93 vs agg[1].avg=0.53 → realm-strong term = +0.4; target-shaky term = +0.2; the
+    // near/too-far term is exactly 0 (equal centroids). atkUnmult ≈1.4899, so the expedition penalty is
+    // -atkUnmult*0.4 ≈ -0.596 — bigger in magnitude than both positive terms, so it wins the sort AND the
+    // attack fails (atk≈0.894 < def*1.03≈0.917) even though the realm genuinely is stronger (realm-strong > 0).
+    const s = makeLaneAttackFixture();
+    const od = explainAttack(s, 0, 1)!;
+    expect(od.lane).toBe(true);
+    expect(od.win).toBe(false); // fails DESPITE the realm-strong term being positive — the crossing, not the realm
+    expect(od.reason).toBe("expedition");
+  });
+
+  it("is reason-only: a non-lane attack's win/atk/def are unchanged by this addition", () => {
+    const s = makeLandFixture();
+    const od = explainAttack(s, 0, 2)!;
+    expect(od.lane).toBe(false);
+    expect(typeof od.win).toBe("boolean");
+    expect(od.win).toBe(true);
+    expect(od.atk).toBeGreaterThan(0);
+    expect(od.reason).toBe("realm-strong"); // same verdict as the pre-existing "stepPlayerTurn" fixture test
+    expect(od.reason).not.toBe("expedition"); // land attacks never blame the crossing
+  });
+});
