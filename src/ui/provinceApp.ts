@@ -73,6 +73,17 @@ export function reasonText(reason: AttackReason, lang: "ko" | "en"): string {
   return (lang === "ko" ? ko : en)[reason];
 }
 
+// The battle line shows ONE signed contest margin instead of two raw numbers, so the reader doesn't have to
+// compute `atk > def×1.03` themselves — and a negative attack strength (a far target's honest formula output)
+// never appears. The margin is m = atk − def×CONTEST_THRESH, so m>0 is exactly `win`; the SIDE is taken from
+// `win` (never from the rounded magnitude, which can be 0 for a razor-thin margin and would otherwise flip the
+// side and contradict the ✓/✕ verdict). Magnitude is floored at 1 so a decisive-but-tiny margin never prints +0.
+const CONTEST_THRESH_DISPLAY = 1.03; // MUST match the engine's CONTEST_THRESH (not exported); used for display only
+export function battleMargin(atk: number, def: number, win: boolean): { side: "atk" | "def"; mag: number } {
+  const m = atk - def * CONTEST_THRESH_DISPLAY;
+  return { side: win ? "atk" : "def", mag: Math.max(1, Math.round(Math.abs(m) * 100)) };
+}
+
 // risk-panel ordering: most-urgent (fewest turns left) first, ties broken by province id — so a province
 // flipping NEXT TURN is never buried below one with turns to spare. Pure + exported so it's directly testable.
 export function sortRisksByUrgency<T extends { p: number; r: { turnsLeft: number } }>(risks: T[]): T[] {
@@ -382,13 +393,18 @@ export function mountProvinceApp(root: HTMLElement, opts: { seed?: number } = {}
     return g;
   }
 
-  // one readable line for a target: "Name — ⚔ 72 vs 🛡 60 · you can take (the province is shaky)"
+  // one readable line for a target: "Name — ⚔ ahead by 21 · you can take (the province is shaky)"
   function attackLine(u: UI, prov: number): string {
     const od = explainAttack(u.s, u.playerId, prov);
     const name = (od?.lane ? "⚓ " : "") + u.world.provinces[prov].name;
     if (!od) return u.world.provinces[prov].name;
     const verdict = od.win ? (lang === "ko" ? "점령 가능" : "you can take") : (lang === "ko" ? "실패" : "too strong");
-    let line = `${name} — ⚔ ${Math.round(od.atk * 100)} ${lang === "ko" ? "대" : "vs"} 🛡 ${Math.round(od.def * 100)} · ${verdict} (${reasonText(od.reason, lang)})`;
+    // one signed margin, side taken from the verdict (od.win), so the number can never contradict the ✓/✕
+    const { side, mag } = battleMargin(od.atk, od.def, od.win);
+    const marginText = side === "atk"
+      ? (lang === "ko" ? `⚔ 우세 +${mag}` : `⚔ ahead by ${mag}`)
+      : (lang === "ko" ? `🛡 우세 +${mag}` : `🛡 defender ahead by ${mag}`);
+    let line = `${name} — ${marginText} · ${verdict} (${reasonText(od.reason, lang)})`;
     if (!od.win) line += od.breakable // a losing attack: does building up (consolidate) open it, or is it too tough for now?
       ? (lang === "ko" ? " · 🛡 내실하면 뚫림" : " · consolidate to break through")
       : (lang === "ko" ? " · 지금은 벅참 (상대가 약해지길)" : " · too tough for now (wait for it to weaken)");

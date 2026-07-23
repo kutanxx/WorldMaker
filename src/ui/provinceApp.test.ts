@@ -2,7 +2,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import {
   mountProvinceApp, provinceCellOwner, isDomination, shakyOpacity, reasonText, survivalGrade, defectionReasonText,
-  sortRisksByUrgency, provinceOutlinePath, badgeScale, provinceSpan, dominationProgress, renderedMapWidth,
+  sortRisksByUrgency, provinceOutlinePath, badgeScale, provinceSpan, dominationProgress, renderedMapWidth, battleMargin,
 } from "./provinceApp";
 import { generateWorld } from "../engine/world";
 import { DEFAULT_PARAMS } from "../types/world";
@@ -191,7 +191,7 @@ describe("province turn loop (seed 1)", () => {
     (root.querySelector(".prov-target") as SVGPathElement).dispatchEvent(new MouseEvent("click", { bubbles: true }));
     const rows = root.querySelectorAll(".prov-preview-row");
     expect(rows.length).toBe(1);
-    expect(rows[0].textContent || "").toMatch(/⚔.*🛡/);                       // attacker vs defender numbers
+    expect(rows[0].textContent || "").toMatch(/(⚔|🛡).*(우세|ahead|defender)/);  // one signed margin with side marker
     expect(rows[0].textContent || "").toMatch(/[()]/);                        // a parenthesised reason
     expect(rows[0].classList.contains("winnable") || rows[0].classList.contains("too-strong")).toBe(true);
   });
@@ -1240,5 +1240,53 @@ describe("fortify 'protected' mark is truthful (only claims 🛡 when consolidat
     expect(root.querySelector(`.prov-fortify[data-province="${stuck}"]`)!.classList.contains("protected")).toBe(false);
     // truthful: still doomed per the reactive panel/ring — the conquest row for it is still there
     expect(root.querySelector(`.prov-threat-row.conquest[data-province="${stuck}"]`)).toBeTruthy();
+  });
+});
+
+describe("battleMargin (one signed contest margin, consistent with the verdict)", () => {
+  it("takes the SIDE from win, not from the rounded magnitude", () => {
+    // a razor-thin WIN whose |margin|*100 rounds to 0 must still read as the attacker's side
+    // atk = 0.515, def = 0.5 → margin = 0.515 - 0.5*1.03 = 0.000; win passed as true
+    expect(battleMargin(0.515, 0.5, true).side).toBe("atk");
+    // same magnitude, but a loss → defender's side
+    expect(battleMargin(0.515, 0.5, false).side).toBe("def");
+  });
+  it("floors the magnitude at 1 so a decisive-but-tiny margin never prints +0", () => {
+    expect(battleMargin(0.515, 0.5, true).mag).toBeGreaterThanOrEqual(1);
+  });
+  it("reports the real contest margin magnitude for a clear case", () => {
+    // atk 0.72, def 0.50 → m = 0.72 - 0.515 = 0.205 → round(20.5) = 21 (or 20; assert >= 1 and the win side)
+    const r = battleMargin(0.72, 0.50, true);
+    expect(r.side).toBe("atk");
+    expect(r.mag).toBeGreaterThanOrEqual(20);
+  });
+  it("never yields a negative magnitude even when atk is negative (the far-target case)", () => {
+    // atk = -0.05 (the old "⚔ -5"), def 0.17, loss
+    const r = battleMargin(-0.05, 0.17, false);
+    expect(r.side).toBe("def");
+    expect(r.mag).toBeGreaterThanOrEqual(1);
+    expect(Number.isFinite(r.mag)).toBe(true);
+  });
+});
+
+describe("attackLine as a single margin (no raw negative attack number)", () => {
+  let root: HTMLElement;
+  beforeEach(() => { root = document.createElement("div"); document.body.appendChild(root); });
+
+  it("shows a signed margin whose side agrees with the ✓/✕ verdict, never a negative number", () => {
+    mountProvinceApp(root, { seed: 1 });
+    (root.querySelector("[data-polity]") as SVGPathElement).dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    // arm every target so the preview panel renders a row per target, then read the rows' text
+    for (const t of root.querySelectorAll(".prov-target")) t.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    const rows = [...root.querySelectorAll(".prov-preview-row")];
+    expect(rows.length).toBeGreaterThan(0);
+    for (const row of rows) {
+      const text = row.textContent || "";
+      // no "⚔ -5" style negative number anywhere
+      expect(text).not.toMatch(/-\d/);
+      // winnable rows lead with ⚔, too-strong rows lead with 🛡 — side matches the row's own class
+      if (row.classList.contains("winnable")) expect(text).toContain("⚔");
+      else expect(text).toContain("🛡");
+    }
   });
 });
