@@ -33,6 +33,13 @@ export function isDomination(prov: number, start: number, land: number): boolean
   return prov - start >= Math.round(DOMINATION_GAIN_FRAC * land);
 }
 
+// The HUD counter exposes EXACTLY what isDomination counts, so it can never disagree with the win: you have
+// gained (prov - start) provinces toward a goal of round(0.15 * land). gained is reported even when negative —
+// a realm shrinking below its start is the losing state the player most needs to see, so it is not clamped.
+export function dominationProgress(prov: number, start: number, land: number): { gained: number; goal: number } {
+  return { gained: prov - start, goal: Math.round(DOMINATION_GAIN_FRAC * land) };
+}
+
 // how strongly to wash a province toward parchment given its solidarity: stable land (≳0.55) stays full
 // colour, fragile land fades pale so the player SEES where their realm (and the enemy's) is shaky. Tunable.
 export function shakyOpacity(sol: number): number {
@@ -571,6 +578,23 @@ export function mountProvinceApp(root: HTMLElement, opts: { seed?: number } = {}
       hud.className = "prov-hud";
       hud.textContent = hudText(ui);
       root.appendChild(hud);
+
+      // win-progress: the same fact as the victory check, shown as a number + bar so "am I winning?" is legible
+      const { gained, goal } = dominationProgress(playerProvinceCount(ui), ui.startProvinces, ui.s.n);
+      const prog = document.createElement("div");
+      prog.className = "prov-progress";
+      const label = document.createElement("span");
+      label.className = "prov-progress-label";
+      label.textContent = lang === "ko" ? `정복 ${gained} / ${goal}` : `conquered ${gained} / ${goal}`;
+      const track = document.createElement("div");
+      track.className = "prov-progress-track";
+      const fill = document.createElement("div");
+      fill.className = "prov-progress-bar";
+      const frac = goal > 0 ? gained / goal : 0;
+      fill.style.width = `${Math.max(0, Math.min(1, frac)) * 100}%`; // bar clamps at empty; the NUMBER can go negative
+      track.appendChild(fill);
+      prog.append(label, track);
+      root.appendChild(prog);
 
       map.appendChild(defectionOverlay(ui));
       const risks: { p: number; r: NonNullable<ReturnType<typeof defectionRisk>> }[] = [];

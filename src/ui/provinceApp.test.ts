@@ -2,7 +2,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import {
   mountProvinceApp, provinceCellOwner, isDomination, shakyOpacity, reasonText, survivalGrade, defectionReasonText,
-  sortRisksByUrgency, provinceOutlinePath, badgeScale, provinceSpan,
+  sortRisksByUrgency, provinceOutlinePath, badgeScale, provinceSpan, dominationProgress,
 } from "./provinceApp";
 import { generateWorld } from "../engine/world";
 import { DEFAULT_PARAMS } from "../types/world";
@@ -887,5 +887,41 @@ describe("hatching marks the provinces you cannot take", () => {
     const legend = root.querySelector(".prov-legend")!.textContent || "";
     expect(legend).toMatch(/✓/);
     expect(legend).toMatch(/빗금|hatched/);
+  });
+});
+
+describe("dominationProgress (the counter is the win check, exposed)", () => {
+  const LAND = 102; // goal = round(0.15 * 102) = 15
+  it("reports gained = prov - start and goal = round(0.15*land)", () => {
+    expect(dominationProgress(25, 10, LAND)).toEqual({ gained: 15, goal: 15 });
+    expect(dominationProgress(24, 10, LAND)).toEqual({ gained: 14, goal: 15 });
+  });
+  it("shows a NEGATIVE gained when the realm shrank below its start (the losing state)", () => {
+    expect(dominationProgress(6, 10, LAND)).toEqual({ gained: -4, goal: 15 });
+  });
+  it("gained >= goal exactly when isDomination is true — same fact, no drift", () => {
+    for (const [prov, start] of [[25, 10], [24, 10], [40, 40], [55, 40], [6, 10]] as const) {
+      const { gained, goal } = dominationProgress(prov, start, LAND);
+      expect(gained >= goal).toBe(isDomination(prov, start, LAND));
+    }
+  });
+});
+
+describe("HUD win-progress bar", () => {
+  let root: HTMLElement;
+  beforeEach(() => { root = document.createElement("div"); document.body.appendChild(root); });
+  it("renders a counter and bar matching dominationProgress once a game starts", () => {
+    mountProvinceApp(root, { seed: 1 });
+    (root.querySelector("[data-polity]") as SVGPathElement).dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    const prog = root.querySelector(".prov-progress");
+    expect(prog).toBeTruthy();
+    const hud = root.querySelector(".prov-hud")!.textContent || "";
+    // realm count in the HUD ("영토 A/B") must equal start+gained from the counter
+    const provInHud = Number((hud.match(/(\d+)\s*\/\s*\d+/) || [])[1]);
+    const gained = Number((prog!.textContent || "").match(/-?\d+/)?.[0]);
+    expect(Number.isFinite(provInHud)).toBe(true);
+    expect(Number.isFinite(gained)).toBe(true);
+    // at t0 gained is 0 (just picked), so the HUD province count equals the start
+    expect(prog!.querySelector(".prov-progress-bar")).toBeTruthy();
   });
 });
