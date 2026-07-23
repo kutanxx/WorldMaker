@@ -650,7 +650,12 @@ export function mountProvinceApp(root: HTMLElement, opts: { seed?: number } = {}
       }
       for (const f of forecast) {
         const by = ui.world.polities[f.attacker]?.name ?? "?";
-        rows.push({ p: f.prov, turnsLeft: 0, kind: "conquest", // conquest is always "next turn" → sorts first
+        // turnsLeft: -1 (not 0) is deliberate: defectionRisk can ALSO report turnsLeft 0 for an imminent
+        // defection, and conquest must strictly outrank that tie in sortRisksByUrgency, not fall to the
+        // province-id tiebreak. -1 is purely a sort key — the displayed text never shows turnsLeft for conquest.
+        // Note: the capital, if forecast-lost, appears here too AND in the .prov-capital-alarm banner above —
+        // that duplication is deliberate (banner = unmissable, row = pingable/sortable like any other threat).
+        rows.push({ p: f.prov, turnsLeft: -1, kind: "conquest",
           text: `⚔ ${ui.world.provinces[f.prov].name} — ${lang === "ko" ? `${by}에게 넘어감` : `falls to ${by}`}` });
       }
       if (rows.length) {

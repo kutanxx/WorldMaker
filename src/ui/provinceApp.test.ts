@@ -6,7 +6,9 @@ import {
 } from "./provinceApp";
 import { generateWorld } from "../engine/world";
 import { DEFAULT_PARAMS } from "../types/world";
-import { initProvinceSim } from "../engine/provinceSim";
+import {
+  initProvinceSim, stepPlayerTurn, forecastIncoming, offerProvinceDilemma, resolveProvinceDilemma,
+} from "../engine/provinceSim";
 
 describe("provinceCellOwner", () => {
   it("maps each cell to its province's owner, ocean/unowned to -1", () => {
@@ -324,6 +326,19 @@ describe("sortRisksByUrgency (risk panel orders most-urgent first)", () => {
     expect(sorted.map((x) => x.p)).toEqual([1, 0, 2, 5]); // turnsLeft 0, then the tie (0 < 2) at turnsLeft 1, then 3
     // input array is untouched (pure function)
     expect(risks.map((x) => x.p)).toEqual([5, 1, 2, 0]);
+  });
+
+  // A conquest row is built with turnsLeft: -1 (see the merged-panel row-building in provinceApp.ts) precisely
+  // so it can never tie with a defection's turnsLeft: 0 — an imminent defection (defectionRisk's
+  // `left < 0 ? 0 : left` clamp) — and lose the province-id tiebreak. Pin that -1 always outranks a 0, even
+  // when the 0-turnsLeft defection has the SMALLER province id (which would otherwise win the tie).
+  it("a conquest row's turnsLeft:-1 sort key always leads a tied turnsLeft:0 defection, even at a smaller province id", () => {
+    const rows = [
+      { p: 1, r: { turnsLeft: 0 } },  // defection-shaped: imminent (turnsLeft clamped to 0), smaller id
+      { p: 9, r: { turnsLeft: -1 } }, // conquest-shaped: always "next turn", larger id
+    ];
+    const sorted = sortRisksByUrgency(rows);
+    expect(sorted.map((x) => x.p)).toEqual([9, 1]); // conquest (9) leads despite the larger id
   });
 });
 
@@ -1033,18 +1048,48 @@ describe("merged threat section (defection + incoming conquest)", () => {
     expect(root.querySelectorAll(".prov-map .prov-threat-ring").length).toBeGreaterThan(0); // …and the map ring
   });
 
-  it("raises the capital alarm banner when the capital is forecast-lost", () => {
+  it("raises the capital alarm banner naming the REAL attacking nation, not the '?' fallback", () => {
     mountProvinceApp(root, { seed: SEED });
     (root.querySelectorAll("[data-polity]")[NATION] as SVGPathElement)
       .dispatchEvent(new MouseEvent("click", { bubbles: true }));
+
+    // Shadow state: the engine is rng-free, so replaying the EXACT same deterministic sequence of turns
+    // step() drives (never arms a target; the first dilemma option — "a" — whenever one is offered, gated
+    // by the same DILEMMA_COOLDOWN the UI uses) reaches byte-identical state to ui.s at every tick. That
+    // lets the test look up the REAL forecast attacker for the capital independently of the UI's internals
+    // (mountProvinceApp exposes no handle to ui.s), so the assertion can't pass on the "?" fallback name.
+    const world = generateWorld({ ...DEFAULT_PARAMS, seed: SEED }).world;
+    const shadow = initProvinceSim(world);
+    const DILEMMA_COOLDOWN = 4;
+    let lastDilemmaTick = -99;
+    let pending = offerProvinceDilemma(shadow, NATION);
+    if (pending) lastDilemmaTick = shadow.tick;
+
     let alarm = root.querySelector(".prov-capital-alarm");
     for (let t = 0; t < 15 && !alarm; t++) {
       if (!root.querySelector(".prov-advance") && !root.querySelector(".prov-choice")) break; // game ended
+      if (pending) {
+        resolveProvinceDilemma(shadow, NATION, pending, "a");
+        pending = null;
+      } else {
+        stepPlayerTurn(shadow, NATION, new Set());
+        if (shadow.tick - lastDilemmaTick >= DILEMMA_COOLDOWN) {
+          const d = offerProvinceDilemma(shadow, NATION);
+          if (d) { pending = d; lastDilemmaTick = shadow.tick; }
+        }
+      }
       step();
       alarm = root.querySelector(".prov-capital-alarm");
     }
     expect(alarm).toBeTruthy();                                // the alarm actually fired
     expect(alarm!.textContent || "").toMatch(/⚠/);               // names the threat
-    expect(alarm!.textContent || "").toMatch(/\S/);              // …and names an attacker (non-empty)
+
+    const capProv = shadow.capitalProv[NATION];
+    const forecast = forecastIncoming(shadow, NATION, {});
+    const capThreat = forecast.find((f) => f.prov === capProv);
+    expect(capThreat).toBeTruthy();                            // the shadow reached the same forecast-lost capital
+    const attackerName = world.polities[capThreat!.attacker].name;
+    expect(attackerName).not.toBe("?");                        // never the fallback
+    expect(alarm!.textContent || "").toContain(attackerName);  // …and it's the name the banner actually shows
   });
 });
