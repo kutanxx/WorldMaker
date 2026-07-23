@@ -925,3 +925,48 @@ describe("HUD win-progress bar", () => {
     expect(prog!.querySelector(".prov-progress-bar")).toBeTruthy();
   });
 });
+
+describe("empty conquer state notice", () => {
+  let root: HTMLElement;
+  beforeEach(() => { root = document.createElement("div"); document.body.appendChild(root); });
+
+  it("shows a notice only when conquer mode has zero attackable provinces", () => {
+    // seed 1, as specced. A headless graph-connectivity proof plus an exhaustive scan (seeds 1-60,
+    // every polity, passive/aggressive/all-consolidate strategies, up to 150 ticks) found that
+    // armableTargets() can only be empty while the player is alive and the game hasn't ended when the
+    // player owns its ENTIRE land+sea-lane-reachable component (a cut-edge argument: any proper
+    // nonempty subset of a connected component has a border edge out). Every seed/polity checked has
+    // that full-local-conquest gain exceeding the 15%-of-map domination goal, so domination always
+    // fires first (.prov-over) before armableTargets can hit zero. So the truthy branch below never
+    // actually fires for any reachable seed under DEFAULT_PARAMS — this test still exercises the "has
+    // targets → no notice" branch every turn (real regression coverage), and the trailing assertion
+    // documents that the sawEmpty branch is intentionally unreached (matches the brief's own fallback:
+    // "if the 30-turn driver never hits a zero-target conquer turn... the first test still passes via
+    // sawTargets"). See task-2-report.md for the full research trail.
+    mountProvinceApp(root, { seed: 1 });
+    (root.querySelector("[data-polity]") as SVGPathElement).dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    let sawEmpty = false, sawTargets = false;
+    for (let t = 0; t < 30; t++) {
+      const choice = root.querySelector(".prov-choice") as HTMLButtonElement | null;
+      if (choice) { choice.dispatchEvent(new MouseEvent("click", { bubbles: true })); continue; }
+      if (root.querySelector(".prov-over")) break; // game ended — nothing left to check
+      const targets = root.querySelectorAll(".prov-target").length;
+      const empty = root.querySelector(".prov-empty");
+      if (targets === 0) { expect(empty).toBeTruthy(); sawEmpty = true; }   // no targets → notice present
+      else { expect(empty).toBeNull(); sawTargets = true; }                 // targets → no notice
+      const adv = root.querySelector(".prov-advance") as HTMLButtonElement | null;
+      if (!adv) break;
+      adv.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    }
+    expect(sawEmpty || sawTargets).toBe(true); // the game reached at least one conquer turn to check
+  });
+
+  it("never shows the notice in consolidate mode", () => {
+    mountProvinceApp(root, { seed: 1 });
+    (root.querySelector("[data-polity]") as SVGPathElement).dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    (Array.from(root.querySelectorAll(".prov-stance-btn")) as HTMLButtonElement[])
+      .find((b) => b.dataset.mode === "consolidate")!
+      .dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    expect(root.querySelector(".prov-empty")).toBeNull();
+  });
+});

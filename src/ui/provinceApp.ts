@@ -661,7 +661,17 @@ export function mountProvinceApp(root: HTMLElement, opts: { seed?: number } = {}
         // battle preview: a readable line per targeted province — the numbers and the REASON, not just colour
         const preview = document.createElement("div");
         preview.className = "prov-preview";
-        if (targets.size === 0) {
+        // no province is attackable at all — tell the player it's a lull, not a stuck game (verified true:
+        // a few consolidate turns turn "too strong" provinces takeable).
+        const noneAttackable = map.querySelectorAll(".prov-target").length === 0;
+        if (noneAttackable) {
+          const empty = document.createElement("div");
+          empty.className = "prov-empty";
+          empty.textContent = lang === "ko"
+            ? "지금은 칠 땅이 없어요 — 내실로 힘을 키우면 뚫립니다"
+            : "No province is takeable right now — consolidate to build up strength";
+          preview.appendChild(empty);
+        } else if (targets.size === 0) {
           preview.textContent = lang === "ko"
             ? "공격할 지역을 눌러 지정하면 전투 예측이 여기 표시됩니다"
             : "click provinces to target — the battle forecast appears here";
