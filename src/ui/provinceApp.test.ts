@@ -391,12 +391,12 @@ describe("defection warning in play mode", () => {
       (root.querySelector(".prov-advance") as HTMLButtonElement)
         .dispatchEvent(new MouseEvent("click", { bubbles: true }));
     }
-    const panel = root.querySelector(".prov-risk")!;
+    const panel = root.querySelector(".prov-threat")!;
     expect(panel).toBeTruthy();                                       // the warning renders at all
-    const row = panel.querySelector(".prov-risk-row")!;
+    const row = panel.querySelector(".prov-threat-row.defection")!;
     expect(row.textContent || "").toMatch(/이탈 \d턴/);                // countdown
     expect(row.textContent || "").toMatch(/고립|멂|수비/);              // …and the REASON
-    expect(panel.querySelector(".prov-risk-hint")!.textContent || "").toMatch(/내실/); // …and the remedy
+    expect(panel.querySelector(".prov-threat-hint")!.textContent || "").toMatch(/내실/); // …and the remedy
     expect(root.querySelectorAll(".prov-map .prov-risk-ring").length).toBeGreaterThan(0); // …and the map ring
   });
 });
@@ -410,7 +410,7 @@ describe("province ping (a named province is click-to-locate on the map)", () =>
   function blitzUntilRisk(): Element | null {
     mountProvinceApp(root, { seed: 1 });
     (root.querySelector("[data-polity]") as SVGPathElement).dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    for (let t = 0; t < 40 && !root.querySelector(".prov-risk-row"); t++) {
+    for (let t = 0; t < 40 && !root.querySelector(".prov-threat-row.defection"); t++) {
       const choice = root.querySelector(".prov-choice") as HTMLButtonElement | null;
       if (choice) { choice.dispatchEvent(new MouseEvent("click", { bubbles: true })); t--; continue; }
       const adv = root.querySelector(".prov-advance") as HTMLButtonElement | null;
@@ -421,7 +421,7 @@ describe("province ping (a named province is click-to-locate on the map)", () =>
       }
       adv.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     }
-    return root.querySelector(".prov-risk-row");
+    return root.querySelector(".prov-threat-row.defection");
   }
 
   it("flashes the province's own outline when a risk row is clicked", () => {
@@ -994,5 +994,57 @@ describe("renderedMapWidth (letterboxed width once height is the binding dimensi
   it("is 0 when unmeasured (jsdom), preserving the badge fallback to scale 1", () => {
     expect(renderedMapWidth(0, 0)).toBe(0);
     expect(renderedMapWidth(0, 500)).toBe(0);
+  });
+});
+
+describe("merged threat section (defection + incoming conquest)", () => {
+  let root: HTMLElement;
+  beforeEach(() => { root = document.createElement("div"); document.body.appendChild(root); });
+
+  // advance one turn the same way a player would: resolve a blocking dilemma if one shows, else click Advance.
+  function step(): void {
+    const choice = root.querySelector(".prov-choice") as HTMLButtonElement | null;
+    if (choice) { choice.dispatchEvent(new MouseEvent("click", { bubbles: true })); return; }
+    const adv = root.querySelector(".prov-advance") as HTMLButtonElement | null;
+    if (adv) adv.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+  }
+
+  // found deterministically: seed 1, nation 3, playing passively (no targets ever armed — the same play()
+  // pattern the brief specifies) already has a forecast conquest loss by turn 2, and the SAME realm's
+  // capital shows up in the forecast by turn 11 (throwaway probe scanning seeds 1-40 × nations, deleted
+  // after use). Bounds below are generous so the tests are not brittle to the exact turn.
+  const SEED = 1;
+  const NATION = 3;
+
+  it("renders conquest threat rows (red, ⚔) that ping their province", () => {
+    mountProvinceApp(root, { seed: SEED });
+    (root.querySelectorAll("[data-polity]")[NATION] as SVGPathElement)
+      .dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    let rows = root.querySelectorAll(".prov-threat-row.conquest");
+    for (let t = 0; t < 10 && rows.length === 0; t++) {
+      step();
+      rows = root.querySelectorAll(".prov-threat-row.conquest");
+    }
+    expect(rows.length).toBeGreaterThan(0);            // reached a state with a forecast conquest loss
+    expect(root.querySelector(".prov-threat")).toBeTruthy();
+    const row = rows[0] as HTMLElement;
+    expect(row.textContent || "").toMatch(/⚔/);          // the conquest glyph
+    expect(row.classList.contains("prov-pingable")).toBe(true); // clicking it locates the province
+    expect(root.querySelectorAll(".prov-map .prov-threat-ring").length).toBeGreaterThan(0); // …and the map ring
+  });
+
+  it("raises the capital alarm banner when the capital is forecast-lost", () => {
+    mountProvinceApp(root, { seed: SEED });
+    (root.querySelectorAll("[data-polity]")[NATION] as SVGPathElement)
+      .dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    let alarm = root.querySelector(".prov-capital-alarm");
+    for (let t = 0; t < 15 && !alarm; t++) {
+      if (!root.querySelector(".prov-advance") && !root.querySelector(".prov-choice")) break; // game ended
+      step();
+      alarm = root.querySelector(".prov-capital-alarm");
+    }
+    expect(alarm).toBeTruthy();                                // the alarm actually fired
+    expect(alarm!.textContent || "").toMatch(/⚠/);               // names the threat
+    expect(alarm!.textContent || "").toMatch(/\S/);              // …and names an attacker (non-empty)
   });
 });

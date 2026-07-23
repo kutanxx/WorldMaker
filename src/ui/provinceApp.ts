@@ -2,8 +2,8 @@ import { generateWorld } from "../engine/world";
 import { DEFAULT_PARAMS, type World } from "../types/world";
 import {
   initProvinceSim, pAggregate, PROVINCE_SIM_TICKS, armableTargets, stepPlayerTurn, explainAttack,
-  offerProvinceDilemma, resolveProvinceDilemma, defectionRisk,
-  type ProvinceSimState, type AttackReason, type ProvinceDilemma, type DefectionReason,
+  offerProvinceDilemma, resolveProvinceDilemma, defectionRisk, forecastIncoming,
+  type ProvinceSimState, type AttackReason, type ProvinceDilemma, type DefectionReason, type IncomingThreat,
 } from "../engine/provinceSim";
 import { politicalLayer } from "./politicalLayer";
 import { politicalBorders, sharedEdge, type Segment } from "../engine/borders";
@@ -336,6 +336,18 @@ export function mountProvinceApp(root: HTMLElement, opts: { seed?: number } = {}
     return g;
   }
 
+  // red rings on provinces the enemy will CONQUER next turn — distinct from the amber DASHED defection ring.
+  function threatOverlay(u: UI, forecast: IncomingThreat[]): SVGGElement {
+    const g = svgEl("g", { class: "prov-threats", style: "pointer-events:none" }) as SVGGElement;
+    for (const f of forecast) {
+      g.appendChild(svgEl("path", {
+        class: "prov-threat-ring", d: provinceOutlinePath(u.world, f.prov),
+        fill: "none", stroke: "#c0392b", "stroke-width": 2.6, "stroke-linejoin": "round",
+      }));
+    }
+    return g;
+  }
+
   // expedition sea lanes: a dashed route between each linked province pair's centroids. Play mode only;
   // pointer-events off so it never blocks target clicks. Deduped by p < q.
   function seaLaneLayer(u: UI): SVGGElement {
@@ -609,28 +621,53 @@ export function mountProvinceApp(root: HTMLElement, opts: { seed?: number } = {}
       root.appendChild(prog);
 
       map.appendChild(defectionOverlay(ui));
-      const risks: { p: number; r: NonNullable<ReturnType<typeof defectionRisk>> }[] = [];
+      // incoming CONQUEST forecast — reactive to the current stance (consolidating a province can drop it)
+      const forecast = forecastIncoming(ui.s, ui.playerId,
+        mode === "consolidate" ? { consolidate: true, targets } : {});
+      map.appendChild(threatOverlay(ui, forecast)); // red rings on forecast-lost provinces
+
+      // capital alarm — the sole defeat condition, kept ABOVE the list so it is never buried
+      const capProv = ui.s.capitalProv[ui.playerId];
+      const capThreat = forecast.find((f) => f.prov === capProv);
+      if (capThreat) {
+        const alarm = document.createElement("div");
+        alarm.className = "prov-capital-alarm";
+        const by = ui.world.polities[capThreat.attacker]?.name ?? "?";
+        alarm.textContent = lang === "ko"
+          ? `⚠ 수도가 위협받고 있습니다 — ${by}에게 넘어갈 위기`
+          : `⚠ Your capital is under threat — ${by} will take it`;
+        root.appendChild(alarm);
+      }
+
+      // ONE threat section: defection (amber, 🏳) + incoming conquest (red, ⚔), urgency-sorted, each pingable.
+      type ThreatRow = { p: number; turnsLeft: number; text: string; kind: "defection" | "conquest" };
+      const rows: ThreatRow[] = [];
       for (let p = 0; p < ui.s.n; p++) {
         if (ui.s.provOwner[p] !== ui.playerId) continue;
         const r = defectionRisk(ui.s, p);
-        if (r) risks.push({ p, r });
+        if (r) rows.push({ p, turnsLeft: r.turnsLeft, kind: "defection",
+          text: `🏳 ${ui.world.provinces[p].name} — ${lang === "ko" ? `이탈 ${r.turnsLeft}턴` : `defects in ${r.turnsLeft}`} · ${defectionReasonText(r.reason, r.ownN, r.foeN, lang)}` });
       }
-      if (risks.length) {
+      for (const f of forecast) {
+        const by = ui.world.polities[f.attacker]?.name ?? "?";
+        rows.push({ p: f.prov, turnsLeft: 0, kind: "conquest", // conquest is always "next turn" → sorts first
+          text: `⚔ ${ui.world.provinces[f.prov].name} — ${lang === "ko" ? `${by}에게 넘어감` : `falls to ${by}`}` });
+      }
+      if (rows.length) {
         const panel = document.createElement("div");
-        panel.className = "prov-risk";
-        for (const { p, r } of sortRisksByUrgency(risks)) {
-          const row = document.createElement("div");
-          row.className = "prov-risk-row";
-          const turns = lang === "ko" ? `이탈 ${r.turnsLeft}턴` : `defects in ${r.turnsLeft}`;
-          row.textContent = `⚠ ${ui.world.provinces[p].name} — ${turns} · ${defectionReasonText(r.reason, r.ownN, r.foeN, lang)}`;
-          makePingable(row, ui, p);
-          panel.appendChild(row);
+        panel.className = "prov-threat";
+        for (const row of sortRisksByUrgency(rows.map((r) => ({ ...r, r: { turnsLeft: r.turnsLeft } })))) {
+          const el = document.createElement("div");
+          el.className = "prov-threat-row " + row.kind;
+          el.textContent = row.text;
+          makePingable(el, ui, row.p);
+          panel.appendChild(el);
         }
         const hint = document.createElement("div");
-        hint.className = "prov-risk-hint";
+        hint.className = "prov-threat-hint";
         hint.textContent = lang === "ko"
-          ? "내실로 다지거나, 압박하는 땅을 치세요"
-          : "consolidate it, or take the province pressing it";
+          ? "🏳 이탈 · ⚔ 정복 — 내실로 다지거나, 압박하는 땅을 치세요"
+          : "🏳 defection · ⚔ conquest — consolidate it, or take the province pressing it";
         panel.appendChild(hint);
         root.appendChild(panel);
       }

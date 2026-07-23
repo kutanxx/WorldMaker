@@ -361,9 +361,19 @@ svg.world .legend { pointer-events: none; }
 .prov-map .province-border, .prov-map .nation-border, .prov-map .nation-labels { pointer-events: none; }
 .prov-map .prov-lane { pointer-events: none; }
 .prov-map .prov-risk-ring { pointer-events: none; }
-.prov-risk { max-width: 900px; margin: 8px auto 0; padding: 6px 10px; border: 1px solid #d08a1e; border-radius: 6px; background: rgba(208,138,30,.08); }
-.prov-risk-row { font-size: 13px; color: #7a4a10; }
-.prov-risk-hint { font-size: 12px; color: #6a5a3c; margin-top: 4px; }
+.prov-map .prov-threat-ring { pointer-events: none; }
+.prov-threat { max-width: 900px; margin: 6px auto 0; }
+.prov-threat-row { font-size: 13px; padding: 2px 12px; cursor: pointer; }
+.prov-threat-row.defection { color: #9a6a1e; }
+.prov-threat-row.conquest { color: #b23a3a; font-weight: 600; }
+.prov-threat-row:hover { text-decoration: underline dotted; text-underline-offset: 2px; }
+.prov-threat-hint { max-width: 900px; margin: 2px auto 0; text-align: center; font-size: 12px; color: #6a5a3c; font-style: italic; }
+.prov-capital-alarm {
+  max-width: 900px; margin: 8px auto 0; padding: 8px 14px; text-align: center;
+  font-weight: 700; color: #7a1f14; background: #f6e2dd; border: 2px solid #c0392b; border-radius: 8px;
+}
+.prov-threat-ring { animation: wm-threat-pulse 1.3s ease-in-out infinite; }
+@keyframes wm-threat-pulse { 0%,100% { opacity: .55; } 50% { opacity: 1; } }
 .prov-target { cursor: pointer; }
 .prov-hud {
   max-width: 900px; margin: 10px auto 0; padding: 8px 16px; text-align: center;
