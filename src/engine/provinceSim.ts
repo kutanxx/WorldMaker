@@ -510,6 +510,44 @@ export function stepPlayerTurn(
   return { conquests, defections, eliminated };
 }
 
+export interface IncomingThreat { prov: number; attacker: number }
+
+// PURE forecast: which of the player's provinces an enemy would CONQUER on the next advance, and who takes
+// each. Mirrors the first half of stepPlayerTurn read-only — it clones the buffers it steps and never mutates
+// `s`. Faithful by construction: it reuses the same computeSteppedSol / aiAttacker / strength / CONTEST_THRESH
+// the real contest runs. Scope is conquest only (defection is forewarned by the risk panel). This turn's
+// incoming losses depend only on the solidarity step + the consolidate bonus, not on the player's own attack
+// targets (a player province is always AI-contested, and attack-exhaustion applies only to NEXT turn), so opts
+// carries just the consolidate selection.
+export function forecastIncoming(
+  s: ProvinceSimState, playerId: number,
+  opts: { consolidate?: boolean; targets?: ReadonlySet<number> } = {},
+): IncomingThreat[] {
+  // step solidarity into a fresh buffer, then apply the same consolidate bonus stepPlayerTurn would
+  const stepped = computeSteppedSol(s);
+  if (opts.consolidate && opts.targets) {
+    for (const p of opts.targets) {
+      if (p >= 0 && p < s.n && s.provOwner[p] === playerId) {
+        const v = stepped[p] + CONSOLIDATE_BONUS;
+        stepped[p] = v > 1 ? 1 : v;
+      }
+    }
+  }
+  const tmp: ProvinceSimState = { ...s, provSol: stepped }; // shallow clone; provOwner shared but never written
+  const agg = pAggregate(tmp);
+  const ai = aiAttacker(tmp, playerId); // AI excludes the player from initiating
+  const out: IncomingThreat[] = [];
+  for (let p = 0; p < s.n; p++) {
+    if (s.provOwner[p] !== playerId) continue;             // only MY provinces can be lost to conquest
+    const chosen = ai(p, playerId, agg);
+    if (!chosen) continue;
+    const atk = strength(tmp, agg, chosen.attacker, p, chosen.frontProv) * (chosen.lane ? EXPEDITION_MULT : 1);
+    const def = strength(tmp, agg, playerId, p, p);
+    if (atk > def * CONTEST_THRESH) out.push({ prov: p, attacker: chosen.attacker });
+  }
+  return out;
+}
+
 // --- Dilemmas: occasional choice cards for texture. rng-FREE — a dilemma appears only when the game STATE
 // triggers it (a shaky province, a wavering neighbour, a periodic muster), so the sequence is deterministic.
 // The engine golden tests never call these, so they stay untouched. The UI enforces a cooldown between offers.

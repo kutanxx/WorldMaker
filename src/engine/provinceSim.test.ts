@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import type { Province } from "./provinces";
 import { buildProvinceAdj, initProvinceSim, pAggregate, stepProvinceSim, PROVINCE_SIM_TICKS, type ProvinceSimState } from "./provinceSim";
 import { buildSeaLanes } from "./provinceSim";
-import { armableTargets, stepPlayerTurn, predictCapture, explainAttack } from "./provinceSim";
+import { armableTargets, stepPlayerTurn, predictCapture, explainAttack, forecastIncoming } from "./provinceSim";
 import { offerProvinceDilemma, resolveProvinceDilemma } from "./provinceSim";
 import { defectionRisk } from "./provinceSim";
 import { generateWorld } from "./world";
@@ -780,5 +780,41 @@ describe("defection — countdown and flip", () => {
     for (let t = 0; t < 5; t++) stepPlayerTurn(held, 0, new Set([1]), { consolidate: true });
     expect(held.provOwner[1]).toBe(0);   // still the player's — the clock never reached UNREST_FLIP
     expect(held.unrest![1]).toBe(0);     // reset every turn by the consolidate block
+  });
+});
+
+describe("forecastIncoming (which of my provinces an enemy takes next turn)", () => {
+  // seed-1, turn 0, playerId=2: with empty targets, a real player turn conquers province 32 away from
+  // polity 2 to polity 6 — non-vacuous pin found via a throwaway probe scan (id x turns), then deleted.
+  function makeSeed1(): ProvinceSimState {
+    const world = generateWorld({ ...DEFAULT_PARAMS, seed: 1 }).world;
+    return initProvinceSim(world);
+  }
+  function pickPlayer(_s: ProvinceSimState): number { return 2; }
+
+  it("does not mutate the state it reads", () => {
+    const s = makeSeed1();
+    const owner0 = s.provOwner.slice(), sol0 = s.provSol.slice();
+    const unrest0 = s.unrest ? s.unrest.slice() : null;
+    forecastIncoming(s, pickPlayer(s));
+    expect(Array.from(s.provOwner)).toEqual(Array.from(owner0));
+    expect(Array.from(s.provSol)).toEqual(Array.from(sol0));
+    if (unrest0) expect(Array.from(s.unrest!)).toEqual(Array.from(unrest0));
+  });
+
+  it("predicts exactly the conquest losses a real player turn produces (no attacks armed)", () => {
+    const s = makeSeed1();
+    const playerId = pickPlayer(s);
+    const forecast = forecastIncoming(s, playerId); // conquer stance, nothing armed
+    // run the REAL turn with no targets and see which player provinces flipped to an enemy
+    const before = s.provOwner.slice();
+    const ev = stepPlayerTurn(s, playerId, new Set());
+    const actualLosses = ev.conquests
+      .filter((c) => c.from === playerId)                 // provinces I lost this turn
+      .map((c) => ({ prov: c.prov, attacker: c.to }))
+      .sort((a, b) => a.prov - b.prov);
+    const predicted = forecast.slice().sort((a, b) => a.prov - b.prov);
+    expect(predicted).toEqual(actualLosses);
+    void before;
   });
 });
