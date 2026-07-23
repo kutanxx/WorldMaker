@@ -831,6 +831,48 @@ describe("forecastIncoming (which of my provinces an enemy takes next turn)", ()
     expect(predicted).toEqual(actualLosses);
     void before;
   });
+
+  // synthetic 2-province fixture (mirrors the makeLaneAttackFixture/makeLandFixture pattern in the
+  // "explainAttack expedition reason" block below): province 0 (playerId 0, capital) is land-adjacent to
+  // province 1 (polity 1, capital), same cells (10) and same centroid [0,0] on both — so the W_POWER and
+  // W_DIST terms are IDENTICAL for attacker and defender and drop out of the comparison entirely. Both
+  // provinces are frontier (owner differs across the adjacency), so computeSteppedSol adds SOL_RISE (0.03)
+  // to both before anything else runs.
+  //
+  // Worked arithmetic (both provinces own exactly one province each, so agg[id].avg === stepped[thatProvince]):
+  //   stepped[0] = 0.47 + 0.03 = 0.50   (defender, province 0)
+  //   stepped[1] = 0.52 + 0.03 = 0.55   (attacker's front, province 1)
+  //   K = W_POWER * sqrt(min(10,24)) = 0.03 * sqrt(10) ≈ 0.094868
+  //   atk  = W_ASA*agg[1].avg + W_LOCAL*stepped[1] + K = 1.5*0.55 + K ≈ 0.919868
+  //   def  (no consolidate) = 1.5*stepped[0] + K = 1.5*0.50 + K ≈ 0.844868
+  //   def * CONTEST_THRESH (1.03) ≈ 0.870214  →  atk (0.919868) > that: province 0 is forecast LOST.
+  //   def' (consolidate province 0: stepped[0] += 0.1 → 0.60, feeding BOTH agg[0].avg and the W_LOCAL term)
+  //        = 1.5*0.60 + K ≈ 0.994868
+  //   def' * CONTEST_THRESH ≈ 1.024714  →  atk (0.919868) <= that: province 0 is SAVED.
+  // This proves the consolidate bonus is genuinely applied (not a tautology): without it the province is
+  // lost, and the SAME atk vs a strictly higher def (from the +0.1 bonus alone) flips the verdict to held.
+  function makeConsolidateFixture(): ProvinceSimState {
+    const provinces: Province[] = [0, 1].map((i) => ({ id: i, name: String(i), cells: 10, centroid: [0, 0], seedCell: i, biome: 4 }));
+    return {
+      provinces, n: 2, provOwner: Int32Array.from([0, 1]), provSol: Float32Array.from([0.47, 0.52]),
+      adj: [[1], [0]], capitalProv: Int32Array.from([0, 1]), alive: [true, true], tick: 0,
+    } as ProvinceSimState;
+  }
+
+  it("applies the consolidate bonus: a province forecast-lost unconditionally is saved once it is consolidated", () => {
+    const s = makeConsolidateFixture();
+    const solBefore = s.provSol.slice();
+    const playerId = 0;
+    const bare = forecastIncoming(s, playerId);
+    expect(bare.map((f) => f.prov)).toEqual([0]); // province 0 is lost to polity 1 with no consolidate opts
+    expect(bare[0].attacker).toBe(1);
+
+    const withConsolidate = forecastIncoming(s, playerId, { consolidate: true, targets: new Set([0]) });
+    expect(withConsolidate.map((f) => f.prov)).toEqual([]); // the +0.1 bonus flips this exact contest to a hold
+
+    // the fixture must not have been mutated by either call (forecastIncoming is pure).
+    expect(Array.from(s.provSol)).toEqual(Array.from(solBefore));
+  });
 });
 
 describe("explainAttack expedition reason", () => {

@@ -1151,3 +1151,94 @@ describe("merged threat section (defection + incoming conquest)", () => {
     expect(alarm!.textContent || "").toContain(attackerName);  // …and it's the name the banner actually shows
   });
 });
+
+describe("fortify 'protected' mark is truthful (only claims 🛡 when consolidating actually saves the province)", () => {
+  let root: HTMLElement;
+  beforeEach(() => { root = document.createElement("div"); document.body.appendChild(root); });
+
+  // advance one turn the same way a player would (mirrors `step()` in the merged-threat-section block above).
+  function step(): void {
+    const choice = root.querySelector(".prov-choice") as HTMLButtonElement | null;
+    if (choice) { choice.dispatchEvent(new MouseEvent("click", { bubbles: true })); return; }
+    const adv = root.querySelector(".prov-advance") as HTMLButtonElement | null;
+    if (adv) adv.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+  }
+
+  const SEED = 1, NATION = 3;
+
+  it("marks 🛡 protected when consolidating the province actually flips it out of the reactive forecast", () => {
+    // ground truth from the engine directly, at the very start (tick 0, no stepping needed): deterministically
+    // found via a throwaway probe (seed 1, nation 3) — the +0.1 consolidate bonus alone is enough to flip this
+    // exact contest, so the province is in the unconditional forecast but drops out of the reactive one.
+    const world = generateWorld({ ...DEFAULT_PARAMS, seed: SEED }).world;
+    const shadowInit = initProvinceSim(world);
+    const bare = forecastIncoming(shadowInit, NATION);
+    const flip = bare.map((f) => f.prov).find((p) => {
+      const reactive = forecastIncoming(shadowInit, NATION, { consolidate: true, targets: new Set([p]) });
+      return !reactive.some((x) => x.prov === p);
+    });
+    expect(flip).toBeDefined(); // the fixture genuinely has a province the bonus saves
+
+    mountProvinceApp(root, { seed: SEED });
+    (root.querySelectorAll("[data-polity]")[NATION] as SVGPathElement)
+      .dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    // confirm the UI's own unconditional (conquer-mode) forecast agrees before touching anything
+    expect(root.querySelector(`.prov-threat-row.conquest[data-province="${flip}"]`)).toBeTruthy();
+
+    (Array.from(root.querySelectorAll(".prov-stance-btn")) as HTMLButtonElement[])
+      .find((b) => b.dataset.mode === "consolidate")!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    (root.querySelector(`.prov-fortify[data-province="${flip}"]`) as SVGPathElement)
+      .dispatchEvent(new MouseEvent("click", { bubbles: true }));
+
+    expect(root.querySelector(`.prov-fortify[data-province="${flip}"]`)!.classList.contains("protected")).toBe(true);
+    // truthful: the reactive panel/ring agrees it is saved — the conquest row for it is gone too
+    expect(root.querySelector(`.prov-threat-row.conquest[data-province="${flip}"]`)).toBeNull();
+  });
+
+  it("withholds 🛡 when the +0.1 bonus is NOT enough — the province stays listed as a conquest threat", () => {
+    // shadow replay — byte-identical to ui.s at every tick (same pattern as the capital-alarm test above):
+    // never arms an attack target, resolves any dilemma with choice "a" under the same cooldown gate. Scan
+    // forward (generous bound) for the first forecast-lost province where the consolidate bonus is genuinely
+    // NOT enough to save it — deterministically reachable for seed 1 / nation 3 well within 20 turns (throwaway
+    // probe, deleted after use).
+    const world = generateWorld({ ...DEFAULT_PARAMS, seed: SEED }).world;
+    const shadow = initProvinceSim(world);
+    const DILEMMA_COOLDOWN = 4;
+    let lastDilemmaTick = -99;
+    let pending = offerProvinceDilemma(shadow, NATION);
+    if (pending) lastDilemmaTick = shadow.tick;
+
+    mountProvinceApp(root, { seed: SEED });
+    (root.querySelectorAll("[data-polity]")[NATION] as SVGPathElement)
+      .dispatchEvent(new MouseEvent("click", { bubbles: true }));
+
+    let stuck: number | null = null;
+    for (let t = 0; t < 20 && stuck === null; t++) {
+      const bare = forecastIncoming(shadow, NATION);
+      for (const f of bare) {
+        const reactive = forecastIncoming(shadow, NATION, { consolidate: true, targets: new Set([f.prov]) });
+        if (reactive.some((x) => x.prov === f.prov)) { stuck = f.prov; break; } // bonus did NOT save it
+      }
+      if (stuck !== null) break;
+      if (pending) { resolveProvinceDilemma(shadow, NATION, pending, "a"); pending = null; }
+      else {
+        stepPlayerTurn(shadow, NATION, new Set());
+        if (shadow.tick - lastDilemmaTick >= DILEMMA_COOLDOWN) {
+          const d = offerProvinceDilemma(shadow, NATION);
+          if (d) { pending = d; lastDilemmaTick = shadow.tick; }
+        }
+      }
+      step(); // advance the REAL ui in lockstep
+    }
+    expect(stuck).not.toBeNull(); // the fixture genuinely reaches a case the bonus can't save
+
+    (Array.from(root.querySelectorAll(".prov-stance-btn")) as HTMLButtonElement[])
+      .find((b) => b.dataset.mode === "consolidate")!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    (root.querySelector(`.prov-fortify[data-province="${stuck}"]`) as SVGPathElement)
+      .dispatchEvent(new MouseEvent("click", { bubbles: true }));
+
+    expect(root.querySelector(`.prov-fortify[data-province="${stuck}"]`)!.classList.contains("protected")).toBe(false);
+    // truthful: still doomed per the reactive panel/ring — the conquest row for it is still there
+    expect(root.querySelector(`.prov-threat-row.conquest[data-province="${stuck}"]`)).toBeTruthy();
+  });
+});

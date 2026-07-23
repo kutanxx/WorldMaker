@@ -493,13 +493,17 @@ export function mountProvinceApp(root: HTMLElement, opts: { seed?: number } = {}
       const p = u.world.provinceOf[c];
       if (p >= 0 && u.s.provOwner[p] === u.playerId) byProv[p] += cellPath(u.world.grid.polygons[c]);
     }
-    // provinces that WOULD be lost if we did nothing — selecting one to consolidate "protects" it
-    const wouldLose = new Set(forecastIncoming(u.s, u.playerId).map((f) => f.prov));
+    // provinces that WOULD be lost if we did nothing, vs provinces that are STILL lost once this turn's
+    // consolidate picks (the same `targets` the reactive threat panel uses) are applied. 🛡 must only claim
+    // "protected" when the consolidate bonus actually flips the contest — i.e. present in the former set but
+    // absent from the latter — otherwise the mark contradicts the reactive panel/ring, which still shows it lost.
+    const unconditionalLost = new Set(forecastIncoming(u.s, u.playerId).map((f) => f.prov));
+    const reactiveLost = new Set(forecastIncoming(u.s, u.playerId, { consolidate: true, targets }).map((f) => f.prov));
     const g = svgEl("g", { class: "prov-fortifies" }) as SVGGElement;
     for (const prov of u.world.provinces) {
       if (!byProv[prov.id]) continue;
       const sel = targets.has(prov.id);
-      const protectedSel = sel && wouldLose.has(prov.id);
+      const protectedSel = sel && unconditionalLost.has(prov.id) && !reactiveLost.has(prov.id);
       const path = svgEl("path", {
         class: "prov-fortify" + (sel ? " armed" : "") + (protectedSel ? " protected" : ""), "data-province": prov.id, d: byProv[prov.id],
         fill: sel ? "#3a6ea5" : "transparent", "fill-opacity": sel ? 0.34 : 0, stroke: "none",
