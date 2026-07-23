@@ -661,15 +661,15 @@ export function mountProvinceApp(root: HTMLElement, opts: { seed?: number } = {}
         // battle preview: a readable line per targeted province — the numbers and the REASON, not just colour
         const preview = document.createElement("div");
         preview.className = "prov-preview";
-        // no province is attackable at all — tell the player it's a lull, not a stuck game (verified true:
-        // a few consolidate turns turn "too strong" provinces takeable).
-        const noneAttackable = map.querySelectorAll(".prov-target").length === 0;
-        if (noneAttackable) {
+        // zero WINNABLE targets — whether the map is empty or every target is hatched "too strong" —
+        // is the real "nothing useful to do" state (measured live: 56% of conquer turns land here).
+        const noneWinnable = map.querySelectorAll(".prov-target.winnable").length === 0;
+        if (noneWinnable) {
           const empty = document.createElement("div");
           empty.className = "prov-empty";
           empty.textContent = lang === "ko"
-            ? "지금은 칠 땅이 없어요 — 내실로 힘을 키우면 뚫립니다"
-            : "No province is takeable right now — consolidate to build up strength";
+            ? "지금 칠 수 있는 땅이 없어요 — 내실로 힘을 키우면 뚫립니다"
+            : "Nothing you can take right now — consolidate to build up strength";
           preview.appendChild(empty);
         } else if (targets.size === 0) {
           preview.textContent = lang === "ko"
