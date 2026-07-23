@@ -947,6 +947,21 @@ describe("empty conquer state notice (fires on zero WINNABLE targets, not zero t
     expect(empty!.textContent || "").toMatch(/지금 칠 수 있는 땅이 없어요|Nothing you can take right now/);
   });
 
+  it("shows the forecast (not the empty notice) once a hatched province is armed", () => {
+    // same zero-winnable turn as above, but the player arms a target anyway — they clicked it
+    // precisely to read its odds, so the forecast must win over the empty notice.
+    mountProvinceApp(root, { seed: 2 });
+    (root.querySelector("[data-polity]") as SVGPathElement).dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    expect(root.querySelectorAll(".prov-target.winnable").length).toBe(0); // still the zero-winnable turn
+    const firstTarget = root.querySelector(".prov-target") as SVGPathElement;
+    expect(firstTarget).toBeTruthy();
+    firstTarget.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    expect(root.querySelector(".prov-empty")).toBeNull();
+    const row = root.querySelector(".prov-preview-row.too-strong");
+    expect(row).toBeTruthy();
+    expect(row!.textContent || "").toMatch(/^✕ /);
+  });
+
   it("does not show the notice when at least one target is winnable", () => {
     mountProvinceApp(root, { seed: 1 });
     (root.querySelector("[data-polity]") as SVGPathElement).dispatchEvent(new MouseEvent("click", { bubbles: true }));

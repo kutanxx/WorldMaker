@@ -671,20 +671,11 @@ export function mountProvinceApp(root: HTMLElement, opts: { seed?: number } = {}
         const preview = document.createElement("div");
         preview.className = "prov-preview";
         // zero WINNABLE targets — whether the map is empty or every target is hatched "too strong" —
-        // is the real "nothing useful to do" state (measured live: 56% of conquer turns land here).
+        // is the real "nothing useful to do" state (measured live: 56% of conquer turns land here) —
+        // UNLESS the player has armed something, in which case they clicked precisely to read that
+        // forecast, so the forecast rows win over the empty notice even when every armed target is hatched.
         const noneWinnable = map.querySelectorAll(".prov-target.winnable").length === 0;
-        if (noneWinnable) {
-          const empty = document.createElement("div");
-          empty.className = "prov-empty";
-          empty.textContent = lang === "ko"
-            ? "지금 칠 수 있는 땅이 없어요 — 내실로 힘을 키우면 뚫립니다"
-            : "Nothing you can take right now — consolidate to build up strength";
-          preview.appendChild(empty);
-        } else if (targets.size === 0) {
-          preview.textContent = lang === "ko"
-            ? "공격할 지역을 눌러 지정하면 전투 예측이 여기 표시됩니다"
-            : "click provinces to target — the battle forecast appears here";
-        } else {
+        if (targets.size > 0) {
           for (const p of [...targets].sort((a, b) => a - b)) {
             const od = explainAttack(ui.s, ui.playerId, p);
             const row = document.createElement("div");
@@ -692,6 +683,17 @@ export function mountProvinceApp(root: HTMLElement, opts: { seed?: number } = {}
             row.textContent = (od?.win ? "✓ " : "✕ ") + attackLine(ui, p);
             preview.appendChild(row);
           }
+        } else if (noneWinnable) {
+          const empty = document.createElement("div");
+          empty.className = "prov-empty";
+          empty.textContent = lang === "ko"
+            ? "지금 칠 수 있는 땅이 없어요 — 내실로 힘을 키우면 뚫립니다"
+            : "Nothing you can take right now — consolidate to build up strength";
+          preview.appendChild(empty);
+        } else {
+          preview.textContent = lang === "ko"
+            ? "공격할 지역을 눌러 지정하면 전투 예측이 여기 표시됩니다"
+            : "click provinces to target — the battle forecast appears here";
         }
         root.appendChild(preview);
       } else {
