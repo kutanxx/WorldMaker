@@ -81,6 +81,23 @@ export function objectiveHint(name: string, tier: StartTier, lang: "ko" | "en"):
   return `${name} · survival — hold your borders for 50 turns (15% conquest possible but hard)`;
 }
 
+// the survival end-screen text, reframed for exactly one cell: a LARGE start that merely HELD kept its
+// sprawling borders alive, which is the intended achievement, so it reads as a win — while a small/mid
+// hold stays the unremarkable turtle it is (they had room to grow). grown/great are already celebratory
+// and are untouched for every tier.
+export function survivalEndText(tier: StartTier, grade: "great" | "grown" | "held", lang: "ko" | "en"): string {
+  if (grade === "great") return lang === "ko" ? "강대국 — 왕조가 크게 뻗어나갔다" : "A great power — your realm expanded mightily";
+  if (grade === "grown") return lang === "ko" ? "생존 — 왕국을 넓히며 버텨냈다" : "Endured — you expanded and held on";
+  if (tier === "large") return lang === "ko" ? "생존전 성공 — 넓은 제국을 끝까지 지켜냈다" : "Survival won — you held your sprawling realm to the end";
+  return lang === "ko" ? "겨우 버텨냈다 — 영토는 그대로였다" : "Merely endured — you held your ground, no more";
+}
+
+// does this survival outcome earn the celebratory ".ok" styling? grown/great always do; a bare hold does
+// only for a large start (holding wide borders was the game).
+export function survivalEarned(tier: StartTier, grade: "great" | "grown" | "held"): boolean {
+  return grade !== "held" || tier === "large";
+}
+
 // plain-language reason an attack wins/loses, for the battle preview + tooltips.
 export function reasonText(reason: AttackReason, lang: "ko" | "en"): string {
   const ko: Record<AttackReason, string> = {
@@ -693,10 +710,9 @@ export function mountProvinceApp(root: HTMLElement, opts: { seed?: number } = {}
         const over = document.createElement("div");
         // survival is graded by growth so turtling reads as unremarkable and only expansion/domination feels earned
         const grade = survivalGrade(playerProvinceCount(ui), ui.startProvinces, ui.s.n);
-        const survivalText = grade === "great" ? (lang === "ko" ? "강대국 — 왕조가 크게 뻗어나갔다" : "A great power — your realm expanded mightily")
-          : grade === "grown" ? (lang === "ko" ? "생존 — 왕국을 넓히며 버텨냈다" : "Endured — you expanded and held on")
-          : (lang === "ko" ? "겨우 버텨냈다 — 영토는 그대로였다" : "Merely endured — you held your ground, no more");
-        over.className = "prov-over" + (oc.kind === "domination" ? " win" : oc.kind === "survival" && grade !== "held" ? " ok" : "");
+        const tier = startTier(ui.startProvinces, ui.s.n);
+        const survivalText = survivalEndText(tier, grade, lang);
+        over.className = "prov-over" + (oc.kind === "domination" ? " win" : oc.kind === "survival" && survivalEarned(tier, grade) ? " ok" : "");
         over.textContent =
           oc.kind === "defeat" ? (lang === "ko" ? `패배 — ${oc.by}에게 수도 함락` : `Defeat — capital taken by ${oc.by}`)
           : oc.kind === "domination" ? (lang === "ko" ? "🏆 지배 승리!" : "🏆 Domination victory!")

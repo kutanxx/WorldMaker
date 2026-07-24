@@ -3,7 +3,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import {
   mountProvinceApp, provinceCellOwner, isDomination, shakyOpacity, reasonText, survivalGrade, defectionReasonText,
   sortRisksByUrgency, provinceOutlinePath, badgeScale, provinceSpan, dominationProgress, renderedMapWidth, battleMargin,
-  consolidatedStability, startTier, objectiveHint,
+  consolidatedStability, startTier, objectiveHint, survivalEndText, survivalEarned,
 } from "./provinceApp";
 import { generateWorld } from "../engine/world";
 import { DEFAULT_PARAMS } from "../types/world";
@@ -72,6 +72,21 @@ describe("objectiveHint (tier-aware objective line)", () => {
   it("tags tiers in English too", () => {
     expect(objectiveHint("Aror", "small", "en")).toContain("expansion");
     expect(objectiveHint("Aror", "large", "en")).toContain("survival");
+  });
+});
+
+describe("survivalEndText / survivalEarned (large-start holding is an earned win)", () => {
+  it("credits a large realm that merely held, but not a small one", () => {
+    expect(survivalEndText("large", "held", "ko")).toContain("생존전 성공");
+    expect(survivalEndText("small", "held", "ko")).toContain("겨우 버텨냈다");
+    expect(survivalEarned("large", "held")).toBe(true);   // large + held = earned
+    expect(survivalEarned("small", "held")).toBe(false);  // small + held = unremarkable turtle
+  });
+  it("leaves grown / great celebratory for every tier", () => {
+    expect(survivalEarned("small", "grown")).toBe(true);
+    expect(survivalEarned("small", "great")).toBe(true);
+    expect(survivalEndText("small", "great", "ko")).toContain("강대국");
+    expect(survivalEndText("large", "great", "ko")).toContain("강대국"); // unchanged by tier
   });
 });
 
