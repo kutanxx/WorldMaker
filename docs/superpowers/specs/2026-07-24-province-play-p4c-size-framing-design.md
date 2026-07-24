@@ -51,17 +51,40 @@ thresholds are unchanged).
 All strings follow the surrounding inline `lang === "ko" ? … : …` pattern in `provinceApp.ts`
 (not `i18n.ts`), matching the objective line and survival text already there.
 
-### A. Picker legend — before the pick (static, generic)
+### A. Picker — before the pick (plain copy + static per-nation markers)
 
-The picker (`ui === null`) is click-to-play with no per-nation hover, and the repo's mobile
-picker history makes hover/tap-preview machinery costly. So the before-pick signal is ONE
-static, generic line added under the existing `.prov-hint`:
+A first-timer's only real question at the picker is "which one do I click?", and their prior is
+"big = strong = easy". A generic abstract line ("expansion vs survival") does not subvert that
+prior or point at any specific nation, so it is too weak. Two changes make the before-pick signal
+land, both **static and always-visible (no hover, no tap-to-arm)** so the repo's mobile-picker
+pain is untouched:
 
-> ko: `작은 나라 = 팽창전(유리) · 큰 나라 = 생존전 — 넓은 국경일수록 지키기 벅찹니다`
-> en: `Small realm = expansion (favoured) · Large realm = survival — the wider your borders, the harder to hold`
+**A1. Static per-nation difficulty markers on the picker map (extremes only).** The picker
+(`ui === null`) renders a small marker at a nation's capital seat for the extremes only — mid
+nations stay unmarked, which respects that the bot sweep is a coarse *direction* signal, not a
+precise per-nation difficulty score:
 
-It is not per-nation; it teaches the size↔playstyle relationship the player then reads off the
-map's visibly-different territory sizes.
+- every alive **large**-tier nation → `⚠` (hard / survival),
+- exactly one deterministic recommended starter → `⭐` (a safe first pick).
+
+The recommended starter is a pure helper `recommendedStarter(s, land)`: among alive nations, the
+one with the LARGEST start that is still `small` tier (favoured by the data, but substantial
+rather than a fragile 2-province speck); ties → lowest polity id; if no small-tier nation exists,
+fall back to the smallest-start `mid` nation. Deterministic, rng-free.
+
+The markers are drawn as a **picker-only overlay layer inside `buildMap()`**, positioned from
+each polity's capital cell point; `politicalLayer` (shared with the map tool, golden-adjacent) is
+NOT modified.
+
+**A2. Plain legend line that decodes the markers AND names the misconception**, added under the
+existing `.prov-hint`:
+
+> ko: `⭐ 추천(처음 플레이) · ⚠ 생존전 — 큰 나라는 강해 보여도 넓은 국경은 지키기 어려워요`
+> en: `⭐ Recommended (first play) · ⚠ Survival — a big realm looks strong, but wide borders are hard to hold`
+
+The line does triple duty: decodes both icons, subverts the "big = strong" prior directly ("looks
+strong, but…"), and points a newbie at the ⭐. Together A1+A2 answer "which do I click?" on the
+map itself.
 
 ### B. Objective line — after the pick (tier-aware, `ui.startProvinces`)
 
@@ -96,32 +119,44 @@ achievable (small/mid); `grown`/`great`/domination texts are unchanged for all t
 
 ## Components & boundaries
 
-- `startTier(start, land)` — pure, exported, unit-tested at boundaries.
+- `startTier(start, land)` — pure, exported, unit-tested at boundaries. Shared by A1 (per-nation
+  markers), B, and C.
+- `recommendedStarter(s, land)` — pure, exported: the deterministic ⭐ pick for A1 (largest
+  small-tier alive nation; fallback smallest mid; ties → lowest id).
 - `objectiveHint(name, tier, lang)` — pure text selector for touchpoint B.
 - `survivalEndText(tier, grade, lang)` and its `.ok`-class predicate — pure selectors for C.
   Extracting B and C into pure functions lets them be unit-tested without driving a full game to
   turn 50.
+- Picker marker overlay in `buildMap()` (picker mode only): for each alive nation, `startTier` of
+  its province count → `⚠` if large, plus `⭐` on `recommendedStarter`; placed at the capital cell
+  point. `politicalLayer` untouched.
 - Wiring in `render()` / `buildHeader()` picks the tier from `ui.startProvinces` and `ui.s.n`.
 
 ## Scope & files
 
-- `src/ui/provinceApp.ts` — the helpers + wiring (picker legend line, tier-aware objective,
+- `src/ui/provinceApp.ts` — the helpers (`startTier`, `recommendedStarter`, `objectiveHint`,
+  `survivalEndText`) + wiring (picker marker overlay, picker legend line, tier-aware objective,
   tier-aware end text/class).
-- `src/theme.css` — minimal style for the picker legend line (`.prov-pick-legend`).
-- NO change to `src/engine/**`, no golden re-pin, no measurement artifact (the sweep harness was
-  throwaway and is already deleted).
+- `src/theme.css` — minimal style for the picker legend line (`.prov-pick-legend`) and the map
+  markers (`.prov-pick-mark`).
+- NO change to `src/engine/**`, `politicalLayer`, or any golden; no golden re-pin, no measurement
+  artifact (the sweep harness was throwaway and is already deleted).
 
 ## Testing
 
 - `startTier`: boundary cases (round(0.08·land), round(0.18·land), and the 16–17 fold) return the
   right tier on the default ~100-province land count and a smaller land count (relative-fraction
   robustness).
+- `recommendedStarter`: deterministic on a fixed seed (same nation every run); returns a
+  small-tier nation when one exists; falls back to smallest mid when none; ties → lowest id.
 - `objectiveHint`: each tier yields a string carrying its tier tag and the nation name; large
   still mentions the 15% conquest option (does not falsely claim it is unavailable).
 - `survivalEndText` + class predicate: large+held → the "survival won" copy and `.ok`; small+held
   → the plain "merely endured" copy and no `.ok`; great/domination unchanged across tiers.
-- jsdom smoke: start a large-start nation and a small-start nation on a fixed seed; assert the
-  objective hint text differs by tier tag.
+- jsdom smoke (picker): on a fixed seed, every large-tier nation's seat carries a `⚠` marker and
+  exactly one `⭐` marker exists on `recommendedStarter`'s nation; the legend line is present.
+- jsdom smoke (play): start a large-start nation and a small-start nation on a fixed seed; assert
+  the objective hint text differs by tier tag.
 
 ## Constraints & honesty
 
