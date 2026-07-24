@@ -3,7 +3,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import {
   mountProvinceApp, provinceCellOwner, isDomination, shakyOpacity, reasonText, survivalGrade, defectionReasonText,
   sortRisksByUrgency, provinceOutlinePath, badgeScale, provinceSpan, dominationProgress, renderedMapWidth, battleMargin,
-  consolidatedStability,
+  consolidatedStability, startTier,
 } from "./provinceApp";
 import { generateWorld } from "../engine/world";
 import { DEFAULT_PARAMS } from "../types/world";
@@ -38,6 +38,23 @@ describe("survivalGrade (turtling to turn 50 is a lesser outcome than expanding)
     expect(survivalGrade(19, 15, LAND)).toBe("grown"); // gained 4 → grown
     expect(survivalGrade(15, 15, LAND)).toBe("held");  // no gain → merely endured (turtle)
     expect(survivalGrade(12, 15, LAND)).toBe("held");  // shrank → still just held
+  });
+});
+
+describe("startTier (start size relative to the world's land)", () => {
+  const LAND = 102; // round(0.08*102)=8, round(0.18*102)=18
+  it("classifies small / mid / large at the relative cutoffs", () => {
+    expect(startTier(8, LAND)).toBe("small");   // <= round(0.08*land)
+    expect(startTier(9, LAND)).toBe("mid");     // just above small
+    expect(startTier(17, LAND)).toBe("mid");    // the 16-17 band folds into mid
+    expect(startTier(18, LAND)).toBe("large");  // >= round(0.18*land)
+    expect(startTier(30, LAND)).toBe("large");
+  });
+  it("is relative, so cutoffs scale with a smaller map", () => {
+    const SMALL_LAND = 50; // round(0.08*50)=4, round(0.18*50)=9
+    expect(startTier(4, SMALL_LAND)).toBe("small");
+    expect(startTier(5, SMALL_LAND)).toBe("mid");
+    expect(startTier(9, SMALL_LAND)).toBe("large");
   });
 });
 

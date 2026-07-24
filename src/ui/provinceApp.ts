@@ -56,6 +56,17 @@ export function survivalGrade(prov: number, start: number, land: number): "great
   return "held";                                        // stood still or shrank — the turtle outcome
 }
 
+// The player's STARTING size decides which game they are playing, expressed relative to this world's
+// land so it is robust to map size. small = expansion (favoured), large = survival (wide borders are
+// hard to hold), mid = balanced. Measured cutoffs (P4c sweep): small <=8, large >=18 on the ~100-map.
+// This selects framing TEXT only — the win-condition math (isDomination, survivalGrade) is untouched.
+export type StartTier = "small" | "mid" | "large";
+export function startTier(start: number, land: number): StartTier {
+  if (start <= Math.round(0.08 * land)) return "small";
+  if (start >= Math.round(0.18 * land)) return "large";
+  return "mid";
+}
+
 // plain-language reason an attack wins/loses, for the battle preview + tooltips.
 export function reasonText(reason: AttackReason, lang: "ko" | "en"): string {
   const ko: Record<AttackReason, string> = {
