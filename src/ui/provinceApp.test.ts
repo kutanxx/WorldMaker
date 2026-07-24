@@ -138,6 +138,51 @@ describe("objective line reflects the chosen nation's start tier (jsdom)", () =>
   });
 });
 
+describe("picker before-pick cues (legend + static markers)", () => {
+  let root: HTMLElement;
+  beforeEach(() => {
+    root = document.createElement("div");
+    document.body.appendChild(root);
+    // mountProvinceApp has no lang override — force Korean via the same "wm:lang" key detectLang() reads,
+    // so the KO-specific assertion below is deterministic regardless of the test runner's navigator.language.
+    localStorage.setItem("wm:lang", "ko");
+  });
+  afterEach(() => { root.remove(); localStorage.removeItem("wm:lang"); });
+
+  it("shows a legend and marks every large nation ⚠ plus exactly one ⭐ recommended", () => {
+    const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });
+    const s = initProvinceSim(world);
+    const land = s.n;
+    const startOf = (id: number) => { let k = 0; for (let p = 0; p < s.n; p++) if (s.provOwner[p] === id) k++; return k; };
+    const largeIds = world.polities.filter((pl) => s.alive[pl.id] && startTier(startOf(pl.id), land) === "large").map((pl) => pl.id);
+    const rec = recommendedStarter(s, land);
+
+    mountProvinceApp(root, { seed: 1 }); // stays in picker mode (no click)
+
+    // legend present
+    const legend = root.querySelector(".prov-pick-legend");
+    expect(legend).toBeTruthy();
+    expect(legend!.textContent).toContain("생존전");
+
+    // exactly one star, on the recommended nation
+    const stars = Array.from(root.querySelectorAll('.prov-pick-mark[data-kind="star"]'));
+    expect(stars.length).toBe(1);
+    expect(stars[0].getAttribute("data-polity")).toBe(String(rec));
+
+    // a warn marker for every large nation, and no more
+    const warns = Array.from(root.querySelectorAll('.prov-pick-mark[data-kind="warn"]'));
+    expect(warns.map((w) => Number(w.getAttribute("data-polity"))).sort((a, b) => a - b))
+      .toEqual(largeIds.slice().sort((a, b) => a - b));
+  });
+
+  it("removes the picker cues once a game starts", () => {
+    mountProvinceApp(root, { seed: 1 });
+    (root.querySelector("[data-polity]") as SVGPathElement).dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    expect(root.querySelector(".prov-pick-legend")).toBeNull();
+    expect(root.querySelector(".prov-pick-mark")).toBeNull();
+  });
+});
+
 describe("reasonText (plain-language attack reasons)", () => {
   it("phrases each reason in the chosen language", () => {
     expect(reasonText("realm-weak", "ko")).toContain("불안정");

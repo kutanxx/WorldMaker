@@ -342,6 +342,32 @@ export function mountProvinceApp(root: HTMLElement, opts: { seed?: number } = {}
       const grp = layer.querySelector(cls);
       if (grp) svg.appendChild(grp); // appendChild MOVES the existing node to the top
     }
+    // picker-only difficulty cues: static ⚠ on every large-tier nation and a single ⭐ recommended pick,
+    // placed at each capital's cell point. Always-visible (no hover) so mobile is untouched; drawn last so
+    // they sit above the borders/labels. politicalLayer is not modified.
+    if (!ui) {
+      const k = world.polities.length;
+      const starts: number[] = new Array(k).fill(0);
+      for (let p = 0; p < s.n; p++) { const o = s.provOwner[p]; if (o >= 0 && o < k) starts[o]++; }
+      const rec = recommendedStarter(s, s.n);
+      const marks = svgEl("g", { class: "prov-pick-marks" });
+      for (const pol of world.polities) {
+        if (!s.alive[pol.id]) continue;
+        const isLarge = startTier(starts[pol.id], s.n) === "large";
+        const isRec = pol.id === rec;
+        if (!isLarge && !isRec) continue;
+        const cap = pol.capital;
+        const x = world.grid.points[cap * 2], y = world.grid.points[cap * 2 + 1];
+        const glyph = isRec ? "⭐" : "⚠";
+        const mark = svgEl("text", {
+          class: "prov-pick-mark", "data-polity": String(pol.id), "data-kind": isRec ? "star" : "warn",
+          x: String(x), y: String(y), "text-anchor": "middle", "dominant-baseline": "central",
+        });
+        mark.textContent = glyph;
+        marks.appendChild(mark);
+      }
+      svg.appendChild(marks);
+    }
     return svg;
   }
 
@@ -710,6 +736,14 @@ export function mountProvinceApp(root: HTMLElement, opts: { seed?: number } = {}
           ? "지도에서 나라를 클릭해 다스릴 제국을 고르세요"
           : "Click a nation on the map to choose your realm");
     h.append(home, title, hint);
+    if (!ui) {
+      const legend = document.createElement("div");
+      legend.className = "prov-pick-legend";
+      legend.textContent = lang === "ko"
+        ? "⭐ 추천 · ⚠ 생존전 — 큰 나라는 강해 보여도 넓은 국경은 지키기 어려워요"
+        : "⭐ Recommended · ⚠ Survival — a big realm looks strong, but wide borders are hard to hold";
+      h.append(legend);
+    }
     return h;
   }
 

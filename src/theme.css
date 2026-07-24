@@ -349,6 +349,8 @@ svg.world .legend { pointer-events: none; }
 .prov-title { margin: 0 auto; font-size: 26px; }               /* Cinzel via .app-title; centred between home link and the flex edge */
 .prov-header a.home { position: absolute; left: 0; top: 6px; } /* home link tucked in the corner, title stays optically centred */
 .prov-hint { width: 100%; text-align: center; color: #7a5a2f; font-style: italic; font-size: 14px; margin-top: 2px; }
+.prov-pick-legend { width: 100%; text-align: center; color: #7a5a2f; font-size: 13px; margin-top: 3px; }
+.prov-pick-mark { font-size: 15px; pointer-events: none; paint-order: stroke; stroke: #f6ecd2; stroke-width: 3px; }
 .prov-map {
   display: block; width: 100%; max-width: 900px; margin: 10px auto 0; background: #eadfc2;
   border: 1px solid #cbb784; border-radius: 5px; box-shadow: 0 2px 12px rgba(60, 47, 28, 0.16);
