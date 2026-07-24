@@ -79,8 +79,8 @@ NOT modified.
 **A2. Plain legend line that decodes the markers AND names the misconception**, added under the
 existing `.prov-hint`:
 
-> ko: `⭐ 추천(처음 플레이) · ⚠ 생존전 — 큰 나라는 강해 보여도 넓은 국경은 지키기 어려워요`
-> en: `⭐ Recommended (first play) · ⚠ Survival — a big realm looks strong, but wide borders are hard to hold`
+> ko: `⭐ 추천 · ⚠ 생존전 — 큰 나라는 강해 보여도 넓은 국경은 지키기 어려워요`
+> en: `⭐ Recommended · ⚠ Survival — a big realm looks strong, but wide borders are hard to hold`
 
 The line does triple duty: decodes both icons, subverts the "big = strong" prior directly ("looks
 strong, but…"), and points a newbie at the ⭐. Together A1+A2 answer "which do I click?" on the
