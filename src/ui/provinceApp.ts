@@ -67,6 +67,26 @@ export function startTier(start: number, land: number): StartTier {
   return "mid";
 }
 
+// the single ⭐ "recommended" pick for the picker: among ALIVE nations, the LARGEST start that is still
+// small-tier (favoured by the P4c sweep, but substantial rather than a fragile speck); if no small-tier
+// nation exists, the smallest mid; final fallback the smallest alive start. Ties → lowest polity id.
+// Deterministic, rng-free. `land` is the world's province count (s.n).
+export function recommendedStarter(s: ProvinceSimState, land: number): number {
+  const k = s.capitalProv.length;
+  const starts: number[] = new Array(k).fill(0);
+  for (let p = 0; p < s.n; p++) { const o = s.provOwner[p]; if (o >= 0 && o < k) starts[o]++; }
+  let smallBest = -1, midBest = -1, anyBest = -1;
+  for (let id = 0; id < k; id++) {
+    if (!s.alive[id]) continue;
+    const start = starts[id];
+    if (anyBest < 0 || start < starts[anyBest]) anyBest = id;          // smallest alive (final fallback)
+    const tier = startTier(start, land);
+    if (tier === "small") { if (smallBest < 0 || start > starts[smallBest]) smallBest = id; } // largest small
+    else if (tier === "mid") { if (midBest < 0 || start < starts[midBest]) midBest = id; }    // smallest mid
+  }
+  return smallBest >= 0 ? smallBest : midBest >= 0 ? midBest : anyBest;
+}
+
 // the started-game objective line, reframed by start tier: the WIN CONDITIONS are identical for every
 // tier (dominate 15% OR survive 50 turns) — only the emphasis is reordered, and a large start is never
 // told it cannot dominate (the sweep shows it still does 3-6%), just that it is hard.

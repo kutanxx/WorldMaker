@@ -3,7 +3,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import {
   mountProvinceApp, provinceCellOwner, isDomination, shakyOpacity, reasonText, survivalGrade, defectionReasonText,
   sortRisksByUrgency, provinceOutlinePath, badgeScale, provinceSpan, dominationProgress, renderedMapWidth, battleMargin,
-  consolidatedStability, startTier, objectiveHint, survivalEndText, survivalEarned,
+  consolidatedStability, startTier, recommendedStarter, objectiveHint, survivalEndText, survivalEarned,
 } from "./provinceApp";
 import { generateWorld } from "../engine/world";
 import { DEFAULT_PARAMS } from "../types/world";
@@ -55,6 +55,20 @@ describe("startTier (start size relative to the world's land)", () => {
     expect(startTier(4, SMALL_LAND)).toBe("small");
     expect(startTier(5, SMALL_LAND)).toBe("mid");
     expect(startTier(9, SMALL_LAND)).toBe("large");
+  });
+});
+
+describe("recommendedStarter (the deterministic ⭐ first-pick)", () => {
+  it("is deterministic and picks a favoured small-tier nation on a fixed seed", () => {
+    const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });
+    const s = initProvinceSim(world);
+    const a = recommendedStarter(s, s.n);
+    const b = recommendedStarter(s, s.n);
+    expect(a).toBe(b);                    // deterministic
+    expect(s.alive[a]).toBe(true);        // a live nation
+    const startOf = (id: number) => { let k = 0; for (let p = 0; p < s.n; p++) if (s.provOwner[p] === id) k++; return k; };
+    // seed 1 has small-tier nations, so the pick must be small tier
+    expect(startTier(startOf(a), s.n)).toBe("small");
   });
 });
 
