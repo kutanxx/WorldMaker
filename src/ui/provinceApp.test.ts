@@ -3,7 +3,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import {
   mountProvinceApp, provinceCellOwner, isDomination, shakyOpacity, reasonText, survivalGrade, defectionReasonText,
   sortRisksByUrgency, provinceOutlinePath, badgeScale, provinceSpan, dominationProgress, renderedMapWidth, battleMargin,
-  consolidatedStability, startTier,
+  consolidatedStability, startTier, objectiveHint,
 } from "./provinceApp";
 import { generateWorld } from "../engine/world";
 import { DEFAULT_PARAMS } from "../types/world";
@@ -55,6 +55,57 @@ describe("startTier (start size relative to the world's land)", () => {
     expect(startTier(4, SMALL_LAND)).toBe("small");
     expect(startTier(5, SMALL_LAND)).toBe("mid");
     expect(startTier(9, SMALL_LAND)).toBe("large");
+  });
+});
+
+describe("objectiveHint (tier-aware objective line)", () => {
+  it("tags each tier and keeps the nation name", () => {
+    expect(objectiveHint("Aror", "small", "ko")).toContain("Aror");
+    expect(objectiveHint("Aror", "small", "ko")).toContain("팽창전");
+    expect(objectiveHint("Aror", "mid", "ko")).toContain("균형");
+    expect(objectiveHint("Aror", "large", "ko")).toContain("생존전");
+  });
+  it("never claims a large start CANNOT dominate — only that it is hard", () => {
+    expect(objectiveHint("Aror", "large", "ko")).toContain("15%"); // conquest still offered
+    expect(objectiveHint("Aror", "large", "en")).toMatch(/15%/);
+  });
+  it("tags tiers in English too", () => {
+    expect(objectiveHint("Aror", "small", "en")).toContain("expansion");
+    expect(objectiveHint("Aror", "large", "en")).toContain("survival");
+  });
+});
+
+describe("objective line reflects the chosen nation's start tier (jsdom)", () => {
+  let root: HTMLElement;
+  beforeEach(() => {
+    root = document.createElement("div");
+    document.body.appendChild(root);
+    // mountProvinceApp has no lang override — force Korean via the same "wm:lang" key detectLang() reads,
+    // so the KO-specific assertion below is deterministic regardless of the test runner's navigator.language.
+    localStorage.setItem("wm:lang", "ko");
+  });
+  afterEach(() => { root.remove(); localStorage.removeItem("wm:lang"); });
+
+  it("shows the survival framing for a large start and expansion/balanced for a smaller one", () => {
+    const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });
+    const s = initProvinceSim(world);
+    const land = s.n;
+    const startOf = (id: number) => { let k = 0; for (let p = 0; p < s.n; p++) if (s.provOwner[p] === id) k++; return k; };
+    const large = world.polities.find((pl) => s.alive[pl.id] && startTier(startOf(pl.id), land) === "large");
+    const smaller = world.polities.find((pl) => s.alive[pl.id] && startTier(startOf(pl.id), land) !== "large");
+    expect(large).toBeTruthy(); expect(smaller).toBeTruthy();
+
+    mountProvinceApp(root, { seed: 1 });
+    (root.querySelector(`[data-polity="${large!.id}"]`) as SVGPathElement)
+      .dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    expect(root.querySelector(".prov-hint")!.textContent).toContain("생존전");
+
+    // remount and pick the smaller nation
+    root.innerHTML = "";
+    mountProvinceApp(root, { seed: 1 });
+    (root.querySelector(`[data-polity="${smaller!.id}"]`) as SVGPathElement)
+      .dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    expect(root.querySelector(".prov-hint")!.textContent).not.toContain("생존전");
   });
 });
 

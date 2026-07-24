@@ -67,6 +67,20 @@ export function startTier(start: number, land: number): StartTier {
   return "mid";
 }
 
+// the started-game objective line, reframed by start tier: the WIN CONDITIONS are identical for every
+// tier (dominate 15% OR survive 50 turns) — only the emphasis is reordered, and a large start is never
+// told it cannot dominate (the sweep shows it still does 3-6%), just that it is hard.
+export function objectiveHint(name: string, tier: StartTier, lang: "ko" | "en"): string {
+  if (lang === "ko") {
+    if (tier === "small") return `${name} · 팽창전 — 세계의 15%를 새로 정복하거나 50턴 생존`;
+    if (tier === "mid") return `${name} · 균형 — 15% 정복 또는 50턴 생존`;
+    return `${name} · 생존전 — 50턴 버텨 왕조를 지키세요 (15% 정복도 가능하나 벅참)`;
+  }
+  if (tier === "small") return `${name} · expansion — conquer 15% of the world, or survive 50 turns`;
+  if (tier === "mid") return `${name} · balanced — conquer 15%, or survive 50 turns`;
+  return `${name} · survival — hold your borders for 50 turns (15% conquest possible but hard)`;
+}
+
 // plain-language reason an attack wins/loses, for the battle preview + tooltips.
 export function reasonText(reason: AttackReason, lang: "ko" | "en"): string {
   const ko: Record<AttackReason, string> = {
@@ -650,9 +664,11 @@ export function mountProvinceApp(root: HTMLElement, opts: { seed?: number } = {}
     const hint = document.createElement("div");
     hint.className = "prov-hint";
     hint.textContent = ui
-      ? (lang === "ko"
-          ? `${ui.world.polities[ui.playerId]?.name ?? ""} — 세계의 15%를 새로 정복하거나 50턴 생존`
-          : `${ui.world.polities[ui.playerId]?.name ?? ""} — conquer 15% of the world, or survive 50 turns`)
+      ? objectiveHint(
+          ui.world.polities[ui.playerId]?.name ?? "",
+          startTier(ui.startProvinces, ui.s.n),
+          lang,
+        )
       : (lang === "ko"
           ? "지도에서 나라를 클릭해 다스릴 제국을 고르세요"
           : "Click a nation on the map to choose your realm");
