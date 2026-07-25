@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { generateWorld } from "./world";
 import { DEFAULT_PARAMS } from "../types/world";
-import { basePopOf, initArmySim, BIOME_POP, BIOME_DEF, LEVY_FRAC, UPKEEP_FRAC, REGROW_FRAC, MILITIA_FRAC, WIN_LOSS_MULT, armyAt, maxLevy, levy, applyUpkeep, regrow, militiaOf, defenceOf, previewMove, moveArmy, aiTurn, endTurn, battleRoll, winChance, ODDS_K } from "./armySim";
+import { basePopOf, initArmySim, BIOME_POP, BIOME_DEF, LEVY_FRAC, UPKEEP_FRAC, REGROW_FRAC, MILITIA_FRAC, WIN_LOSS_MULT, DEF_LOSS_MULT, armyAt, maxLevy, levy, applyUpkeep, regrow, militiaOf, defenceOf, previewMove, moveArmy, aiTurn, endTurn, battleRoll, winChance, ODDS_K } from "./armySim";
 import { GRASSLAND, ALPINE } from "./biome";
 
 describe("basePopOf (population comes from the generated world)", () => {
@@ -494,5 +494,53 @@ describe("battle verdict is now a roll against the quoted odds", () => {
     const close = mk(Math.ceil(mk(1).def) + 2);   // barely enough
     const rout = mk(100000);                       // overwhelming
     expect(rout.attackerLosses).toBeLessThan(close.attackerLosses);
+  });
+});
+
+describe("a repelled attack still bleeds the defender (turtling is not free)", () => {
+  it("takes losses from the defending army first", () => {
+    const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });
+    const s = initArmySim(world);
+    const prov = [...Array(world.provinces.length).keys()]
+      .find((p) => s.owner[p] >= 0 && s.adj[p].some((q) => s.owner[q] >= 0 && s.owner[q] !== s.owner[p]))!;
+    const nation = s.owner[prov];
+    const target = s.adj[prov].find((q) => s.owner[q] >= 0 && s.owner[q] !== nation)!;
+    const defender = s.owner[target];
+    s.armies.push({ prov, nation, men: 10, movedOn: -1 });            // hopeless attack
+    s.armies.push({ prov: target, nation: defender, men: 5000, movedOn: -1 }); // huge garrison
+    const r = moveArmy(s, prov, nation, target)!;
+    expect(r.won).toBe(false);
+    expect(armyAt(s, target, defender)!.men).toBe(5000 - Math.round(10 * DEF_LOSS_MULT));
+  });
+
+  // The verdict is now probabilistic (a roll against winChance), so a single fixed turn might have
+  // the attack WIN instead of being repelled. Rather than guard the assertions behind `if (!r.won)`
+  // (which could silently skip them every run), sweep turns — rebuilding a fresh state each time —
+  // until a repelled attack actually happens, so this test always exercises the branch it names.
+  it("spills into the population once the garrison is gone, floored at 0", () => {
+    const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });
+    const base = initArmySim(world);
+    const prov = [...Array(world.provinces.length).keys()]
+      .find((p) => base.owner[p] >= 0 && base.adj[p].some((q) => base.owner[q] >= 0 && base.owner[q] !== base.owner[p]))!;
+    const nation = base.owner[prov];
+    const target = base.adj[prov].find((q) => base.owner[q] >= 0 && base.owner[q] !== nation)!;
+    const defender = base.owner[target];
+
+    let repelled: { s: typeof base; r: NonNullable<ReturnType<typeof moveArmy>> } | null = null;
+    for (let turn = 0; turn < 60 && !repelled; turn++) {
+      const s = initArmySim(world);
+      s.turn = turn;
+      s.pop[target] = 1000;
+      s.armies.push({ prov: target, nation: defender, men: 2, movedOn: -1 });
+      s.armies.push({ prov, nation, men: 100, movedOn: -1 });
+      const r = moveArmy(s, prov, nation, target)!;
+      if (!r.won) repelled = { s, r };
+    }
+    expect(repelled).not.toBeNull(); // if this ever fails, the odds/constants shifted — widen the sweep
+    const { s } = repelled!;
+    const total = Math.round(100 * DEF_LOSS_MULT);
+    expect(armyAt(s, target, defender)).toBeUndefined();          // 2-man garrison wiped
+    expect(s.pop[target]).toBeCloseTo(1000 - (total - 2), 9);     // remainder off the population
+    expect(s.pop[target]).toBeGreaterThanOrEqual(0);
   });
 });

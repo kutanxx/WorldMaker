@@ -13,6 +13,7 @@ export const CITY_BONUS = 0.5;     // population multiplier added per city in th
 export const POP_SCALE = 20;      // people per "cell-unit" — sets the game's numeric scale so levies
                                   // and upkeep survive integer floors and read like real armies
 export const ODDS_K = 3;          // sharpness of the odds curve: 2:1 ~ 89%, 1:1 = 50%
+export const DEF_LOSS_MULT = 0.35; // a repelled attack still bleeds the defender — holding is not free
 
 // population potential by biome: rich plains, empty mountains
 export const BIOME_POP: Record<number, number> = {
@@ -184,8 +185,16 @@ export function moveArmy(s: ArmyState, prov: number, nation: number, target: num
   const r = resolve(s, prov, nation, target);
   if (!r) return null;
   const army = armyAt(s, prov, nation)!;
-  if (!r.won) {                                   // wiped out
+  if (!r.won) {                                   // wiped out — but the defender bleeds too
     s.armies = s.armies.filter((a) => a !== army);
+    let toll = Math.round(r.atk * DEF_LOSS_MULT);
+    for (const d of s.armies) {                   // garrison first
+      if (d.prov !== target || toll <= 0) continue;
+      const hit = Math.min(d.men, toll);
+      d.men -= hit; toll -= hit;
+    }
+    s.armies = s.armies.filter((a) => a.men > 0);
+    if (toll > 0) s.pop[target] = Math.max(0, s.pop[target] - toll); // the militia that died
     return r;
   }
   // losses, then relocate the survivors onto the target
