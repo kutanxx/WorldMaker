@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { generateWorld } from "./world";
 import { DEFAULT_PARAMS } from "../types/world";
-import { basePopOf, initArmySim, BIOME_POP, BIOME_DEF, LEVY_FRAC, UPKEEP_FRAC, REGROW_FRAC, armyAt, maxLevy, levy, applyUpkeep, regrow } from "./armySim";
+import { basePopOf, initArmySim, BIOME_POP, BIOME_DEF, LEVY_FRAC, UPKEEP_FRAC, REGROW_FRAC, MILITIA_FRAC, WIN_LOSS_MULT, armyAt, maxLevy, levy, applyUpkeep, regrow, militiaOf, defenceOf, previewMove, moveArmy } from "./armySim";
 import { GRASSLAND, ALPINE } from "./biome";
 
 describe("basePopOf (population comes from the generated world)", () => {
@@ -95,6 +95,102 @@ describe("upkeep and regrowth", () => {
     s.pop[1] = s.basePop[1];
     regrow(s);
     expect(s.pop[1]).toBe(s.basePop[1]); // capped
+  });
+});
+
+describe("defence (militia + terrain)", () => {
+  it("counts MILITIA_FRAC of the population, multiplied by the biome's defensibility", () => {
+    const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });
+    const s = initArmySim(world);
+    const prov = 0;
+    s.pop[prov] = 100;
+    const expectedMilitia = Math.floor(100 * MILITIA_FRAC);
+    expect(militiaOf(s, prov)).toBe(expectedMilitia);
+    const attacker = s.owner[prov] === 0 ? 1 : 0;
+    const mult = BIOME_DEF[world.provinces[prov].biome];
+    expect(defenceOf(s, prov, attacker)).toBeCloseTo(expectedMilitia * mult, 9);
+  });
+  it("adds an enemy army standing on the province", () => {
+    const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });
+    const s = initArmySim(world);
+    const prov = 0;
+    s.pop[prov] = 100;
+    const defender = s.owner[prov];
+    const attacker = defender === 0 ? 1 : 0;
+    s.armies.push({ prov, nation: defender, men: 50 });
+    const mult = BIOME_DEF[world.provinces[prov].biome];
+    expect(defenceOf(s, prov, attacker)).toBeCloseTo((50 + Math.floor(100 * MILITIA_FRAC)) * mult, 9);
+  });
+});
+
+describe("moveArmy (march, battle, capture)", () => {
+  it("refuses a move to a non-adjacent province or with no army", () => {
+    const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });
+    const s = initArmySim(world);
+    const prov = [...s.owner].findIndex((o) => o >= 0);
+    const nation = s.owner[prov];
+    expect(moveArmy(s, prov, nation, s.adj[prov][0])).toBeNull(); // no army yet
+    levy(s, prov, nation);
+    const far = [...Array(s.n).keys()].find((p) => p !== prov && !s.adj[prov].includes(p))!;
+    expect(moveArmy(s, prov, nation, far)).toBeNull();
+  });
+  it("marches into own land without a battle", () => {
+    const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });
+    const s = initArmySim(world);
+    const prov = [...Array(world.provinces.length).keys()]
+      .find((p) => s.owner[p] >= 0 && s.adj[p].some((q) => s.owner[q] === s.owner[p]))!;
+    const nation = s.owner[prov];
+    const dest = s.adj[prov].find((q) => s.owner[q] === nation)!;
+    const men = levy(s, prov, nation);
+    const r = moveArmy(s, prov, nation, dest)!;
+    expect(r.won).toBe(true);
+    expect(r.attackerLosses).toBe(0);
+    expect(armyAt(s, dest, nation)!.men).toBe(men);
+    expect(armyAt(s, prov, nation)).toBeUndefined();
+  });
+  it("wins, captures and bleeds when the attacker outnumbers the defence", () => {
+    const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });
+    const s = initArmySim(world);
+    const prov = [...Array(world.provinces.length).keys()]
+      .find((p) => s.owner[p] >= 0 && s.adj[p].some((q) => s.owner[q] >= 0 && s.owner[q] !== s.owner[p]))!;
+    const nation = s.owner[prov];
+    const target = s.adj[prov].find((q) => s.owner[q] >= 0 && s.owner[q] !== nation)!;
+    const def = defenceOf(s, target, nation);
+    s.armies.push({ prov, nation, men: Math.ceil(def) + 1000 }); // overwhelming
+    const preview = previewMove(s, prov, nation, target)!;
+    const r = moveArmy(s, prov, nation, target)!;
+    expect(preview.won).toBe(true);
+    expect(r.won).toBe(true);
+    expect(r.captured).toBe(true);
+    expect(s.owner[target]).toBe(nation);
+    expect(r.attackerLosses).toBe(Math.round(def * WIN_LOSS_MULT));
+    expect(armyAt(s, target, nation)!.men).toBe(Math.ceil(def) + 1000 - r.attackerLosses);
+  });
+  it("loses the whole attacking army and captures nothing when outmatched", () => {
+    const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });
+    const s = initArmySim(world);
+    const prov = [...Array(world.provinces.length).keys()]
+      .find((p) => s.owner[p] >= 0 && s.adj[p].some((q) => s.owner[q] >= 0 && s.owner[q] !== s.owner[p]))!;
+    const nation = s.owner[prov];
+    const target = s.adj[prov].find((q) => s.owner[q] >= 0 && s.owner[q] !== nation)!;
+    const ownerBefore = s.owner[target];
+    s.armies.push({ prov, nation, men: 1 }); // hopeless
+    const r = moveArmy(s, prov, nation, target)!;
+    expect(r.won).toBe(false);
+    expect(r.captured).toBe(false);
+    expect(s.owner[target]).toBe(ownerBefore);
+    expect(armyAt(s, prov, nation)).toBeUndefined(); // destroyed
+  });
+  it("previewMove never mutates the state", () => {
+    const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });
+    const s = initArmySim(world);
+    const prov = [...s.owner].findIndex((o) => o >= 0);
+    const nation = s.owner[prov];
+    levy(s, prov, nation);
+    const target = s.adj[prov][0];
+    const before = JSON.stringify({ o: [...s.owner], p: [...s.pop], a: s.armies });
+    previewMove(s, prov, nation, target);
+    expect(JSON.stringify({ o: [...s.owner], p: [...s.pop], a: s.armies })).toBe(before);
   });
 });
 

@@ -112,3 +112,63 @@ export function regrow(s: ArmyState): void {
     s.pop[p] = v > s.basePop[p] ? s.basePop[p] : v;
   }
 }
+
+// the province's own people take up arms when attacked. Computed at battle time, so a province
+// hollowed out by over-levying really is defenceless. Militia cannot move.
+export function militiaOf(s: ArmyState, prov: number): number {
+  if (prov < 0 || prov >= s.n) return 0;
+  return Math.floor(s.pop[prov] * MILITIA_FRAC);
+}
+
+// effective defence of `prov` against `attacker`: every non-attacker army standing there plus the
+// militia, all multiplied by how defensible the terrain is.
+export function defenceOf(s: ArmyState, prov: number, attacker: number): number {
+  let men = 0;
+  for (const a of s.armies) if (a.prov === prov && a.nation !== attacker) men += a.men;
+  const mult = BIOME_DEF[s.world.provinces[prov].biome] ?? 1;
+  return (men + militiaOf(s, prov)) * mult;
+}
+
+export interface BattleResult { won: boolean; atk: number; def: number; attackerLosses: number; captured: boolean }
+
+function resolve(s: ArmyState, prov: number, nation: number, target: number): BattleResult | null {
+  const army = armyAt(s, prov, nation);
+  if (!army || !s.adj[prov]?.includes(target)) return null;
+  if (s.owner[target] === nation) return { won: true, atk: army.men, def: 0, attackerLosses: 0, captured: false };
+  const atk = army.men;
+  const def = defenceOf(s, target, nation);
+  const won = atk > def;
+  const attackerLosses = won ? Math.min(atk - 1 < 0 ? 0 : atk, Math.round(def * WIN_LOSS_MULT)) : atk;
+  return { won, atk, def, attackerLosses, captured: won };
+}
+
+// PURE forecast of a move — same arithmetic the real move runs, so the preview can never lie.
+export function previewMove(s: ArmyState, prov: number, nation: number, target: number): BattleResult | null {
+  return resolve(s, prov, nation, target);
+}
+
+// march or attack. On a win the army occupies the target (and the land, with its population, changes
+// hands — that population is levyable next turn, which is what makes attacking compound).
+export function moveArmy(s: ArmyState, prov: number, nation: number, target: number): BattleResult | null {
+  const r = resolve(s, prov, nation, target);
+  if (!r) return null;
+  const army = armyAt(s, prov, nation)!;
+  if (!r.won) {                                   // wiped out
+    s.armies = s.armies.filter((a) => a !== army);
+    return r;
+  }
+  // losses, then relocate the survivors onto the target
+  army.men -= r.attackerLosses;
+  const militiaLost = r.captured ? militiaOf(s, target) : 0;
+  s.armies = s.armies.filter((a) => a !== army);
+  if (r.captured) {
+    s.armies = s.armies.filter((a) => a.prov !== target);  // the defenders are destroyed
+    s.pop[target] = Math.max(0, s.pop[target] - militiaLost);
+    s.owner[target] = nation;
+  }
+  if (army.men > 0) {
+    const there = armyAt(s, target, nation);
+    if (there) there.men += army.men; else s.armies.push({ prov: target, nation, men: army.men });
+  }
+  return r;
+}
