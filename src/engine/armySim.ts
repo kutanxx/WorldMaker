@@ -78,3 +78,37 @@ export function initArmySim(world: World): ArmyState {
   const adj = buildProvinceAdj(world.provinceOf, world.provinces, world.grid);
   return { world, n, owner, pop, basePop, armies: [], adj, turn: 0 };
 }
+
+export function armyAt(s: ArmyState, prov: number, nation: number): Army | undefined {
+  return s.armies.find((a) => a.prov === prov && a.nation === nation);
+}
+
+// men one levy can raise from a province right now
+export function maxLevy(s: ArmyState, prov: number): number {
+  if (prov < 0 || prov >= s.n) return 0;
+  return Math.floor(s.pop[prov] * LEVY_FRAC);
+}
+
+// raise men from an owned province: the population really leaves the land.
+export function levy(s: ArmyState, prov: number, nation: number): number {
+  if (prov < 0 || prov >= s.n || s.owner[prov] !== nation) return 0;
+  const men = maxLevy(s, prov);
+  if (men <= 0) return 0;
+  s.pop[prov] -= men;
+  const a = armyAt(s, prov, nation);
+  if (a) a.men += men; else s.armies.push({ prov, nation, men });
+  return men;
+}
+
+// a mobilised army bleeds every turn — you must use it or lose it (the anti-turtle force).
+export function applyUpkeep(s: ArmyState): void {
+  for (const a of s.armies) a.men -= Math.max(1, Math.floor(a.men * UPKEEP_FRAC));
+  s.armies = s.armies.filter((a) => a.men > 0);
+}
+
+export function regrow(s: ArmyState): void {
+  for (let p = 0; p < s.n; p++) {
+    const v = s.pop[p] + s.basePop[p] * REGROW_FRAC;
+    s.pop[p] = v > s.basePop[p] ? s.basePop[p] : v;
+  }
+}

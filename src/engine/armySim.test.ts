@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { generateWorld } from "./world";
 import { DEFAULT_PARAMS } from "../types/world";
-import { basePopOf, initArmySim, BIOME_POP, BIOME_DEF } from "./armySim";
+import { basePopOf, initArmySim, BIOME_POP, BIOME_DEF, LEVY_FRAC, UPKEEP_FRAC, REGROW_FRAC, armyAt, maxLevy, levy, applyUpkeep, regrow } from "./armySim";
 import { GRASSLAND, ALPINE } from "./biome";
 
 describe("basePopOf (population comes from the generated world)", () => {
@@ -44,3 +44,57 @@ describe("initArmySim", () => {
     expect([...a.pop]).toEqual([...b.pop]);
   });
 });
+
+describe("levy (men cost population)", () => {
+  it("raises up to LEVY_FRAC of the province's population and removes it from the population", () => {
+    const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });
+    const s = initArmySim(world);
+    const prov = [...s.owner].findIndex((o) => o >= 0);
+    const nation = s.owner[prov];
+    const before = s.pop[prov];
+    const expected = Math.floor(before * LEVY_FRAC);
+    const got = levy(s, prov, nation);
+    expect(got).toBe(expected);
+    expect(s.pop[prov]).toBeCloseTo(before - expected, 9);
+    expect(armyAt(s, prov, nation)!.men).toBe(expected);
+  });
+  it("stacks a second levy into the same army", () => {
+    const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });
+    const s = initArmySim(world);
+    const prov = [...s.owner].findIndex((o) => o >= 0);
+    const nation = s.owner[prov];
+    const a = levy(s, prov, nation);
+    const b = levy(s, prov, nation);
+    expect(armyAt(s, prov, nation)!.men).toBe(a + b);
+    expect(s.armies.filter((x) => x.prov === prov && x.nation === nation).length).toBe(1);
+  });
+  it("refuses to levy from land you do not own", () => {
+    const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });
+    const s = initArmySim(world);
+    const prov = [...s.owner].findIndex((o) => o >= 0);
+    const notOwner = s.owner[prov] === 0 ? 1 : 0;
+    expect(levy(s, prov, notOwner)).toBe(0);
+  });
+});
+
+describe("upkeep and regrowth", () => {
+  it("bleeds every army by UPKEEP_FRAC each turn and removes empty ones", () => {
+    const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });
+    const s = initArmySim(world);
+    s.armies.push({ prov: 0, nation: 0, men: 100 }, { prov: 1, nation: 0, men: 1 });
+    applyUpkeep(s);
+    expect(s.armies.find((a) => a.prov === 0)!.men).toBe(100 - Math.max(1, Math.floor(100 * UPKEEP_FRAC)));
+    expect(s.armies.find((a) => a.prov === 1)).toBeUndefined(); // 1 man army drains away
+  });
+  it("regrows population toward basePop but never past it", () => {
+    const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });
+    const s = initArmySim(world);
+    s.pop[0] = 0;
+    regrow(s);
+    expect(s.pop[0]).toBeCloseTo(s.basePop[0] * REGROW_FRAC, 9);
+    s.pop[1] = s.basePop[1];
+    regrow(s);
+    expect(s.pop[1]).toBe(s.basePop[1]); // capped
+  });
+});
+
