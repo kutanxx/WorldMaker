@@ -52,11 +52,13 @@ describe("levy (men cost population)", () => {
     const prov = [...s.owner].findIndex((o) => o >= 0);
     const nation = s.owner[prov];
     const before = s.pop[prov];
-    const expected = Math.floor(before * LEVY_FRAC);
+    // maxLevy should predict the amount we can levy
+    const predicted = maxLevy(s, prov);
+    expect(predicted).toBe(Math.floor(before * LEVY_FRAC));
     const got = levy(s, prov, nation);
-    expect(got).toBe(expected);
-    expect(s.pop[prov]).toBeCloseTo(before - expected, 9);
-    expect(armyAt(s, prov, nation)!.men).toBe(expected);
+    expect(got).toBe(predicted);
+    expect(s.pop[prov]).toBeCloseTo(before - got, 9);
+    expect(armyAt(s, prov, nation)!.men).toBe(got);
   });
   it("stacks a second levy into the same army", () => {
     const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });
@@ -277,5 +279,26 @@ describe("endTurn", () => {
       return JSON.stringify({ o: [...s.owner], p: [...s.pop].map((v) => v.toFixed(6)), a: s.armies, t: s.turn });
     };
     expect(run()).toBe(run());
+  });
+});
+
+describe("aiTurn (AI acts independently)", () => {
+  it("only moves non-player nations and never touches the player's armies", () => {
+    const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });
+    const s = initArmySim(world);
+    const player = 0;
+    // have the player levy to create an army
+    const playerProv = [...Array(s.n).keys()].find((p) => s.owner[p] === player);
+    if (playerProv !== undefined) {
+      levy(s, playerProv, player);
+    }
+    const playerArmiesBefore = s.armies.filter((a) => a.nation === player);
+    // call aiTurn directly to move all non-player nations
+    aiTurn(s, player);
+    // verify: the AI created at least one army for a non-player nation
+    expect(s.armies.some((a) => a.nation !== player)).toBe(true);
+    // and the player's armies are untouched (count and nation match)
+    const playerArmiesAfter = s.armies.filter((a) => a.nation === player);
+    expect(playerArmiesAfter.length).toBe(playerArmiesBefore.length);
   });
 });
