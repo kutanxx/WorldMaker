@@ -69,6 +69,21 @@ describe("armyApp (prototype loop: levy -> march -> end turn)", () => {
     expect(root.querySelector(".army-log")!.textContent).toBe(logBefore);
   });
 
+  it("draws province and nation boundaries, and the borders do not steal province clicks", () => {
+    mountArmyApp(root, { seed: 1 });
+    pickNation();
+    const provBorder = root.querySelector(".province-border") as SVGPathElement | null;
+    const nationBorder = root.querySelector(".nation-border") as SVGPathElement | null;
+    expect(provBorder).toBeTruthy();
+    expect(nationBorder).toBeTruthy();
+    expect(provBorder!.getAttribute("d")).toBeTruthy();
+    expect(nationBorder!.getAttribute("d")).toBeTruthy();
+    // a province click must still select (borders sit visually on top but must not intercept clicks)
+    const mine = root.querySelector(".army-prov[data-mine='1']") as SVGElement;
+    mine.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    expect(root.querySelector(".army-sel")!.textContent).not.toContain("내 영토를 클릭해 선택하세요");
+  });
+
   it("marches only via a panel button, and a spent army reads as spent and cannot march again", () => {
     mountArmyApp(root, { seed: 1 });
     pickNation();

@@ -6,8 +6,9 @@ import {
   type ArmyState, type Outcome,
 } from "../engine/armySim";
 import { politicalLayer } from "./politicalLayer";
+import { politicalBorders } from "../engine/borders";
 import { svgEl } from "./renderer";
-import { cellPath } from "./svgPaths";
+import { cellPath, segPath } from "./svgPaths";
 
 // PROTOTYPE UI. Click a province of yours to select it; levy and march/attack are both issued from
 // the panel's buttons (never by clicking the map), so a misclick on a hostile neighbour can never
@@ -35,6 +36,31 @@ export function mountArmyApp(root: HTMLElement, opts: { seed?: number } = {}): v
     const owner = new Int32Array(world.grid.count).fill(-1);
     for (let c = 0; c < world.grid.count; c++) { const p = world.provinceOf[c]; if (p >= 0) owner[c] = s.owner[p]; }
     svg.appendChild(politicalLayer(world.grid, owner, world.polities, { fills: true, labels: false, legend: false }));
+
+    // land clip: the union of every OWNED cell's polygon — exactly the painted land (NOT "every
+    // non-ocean cell": a non-ocean cell's Voronoi polygon can still span a narrow strait, so that
+    // would mask nothing). Border strokes are clipped to this so a boundary line whose Voronoi edge
+    // drags across open water is cut at the painted coastline. Id is namespaced ("army-land") so this
+    // page's <clipPath> can never collide with provinceApp's "prov-land" if both are ever on one DOM.
+    let landD = "";
+    for (let c = 0; c < world.grid.count; c++) if (owner[c] >= 0) landD += cellPath(world.grid.polygons[c]);
+    const clip = svgEl("clipPath", { id: "army-land" });
+    clip.appendChild(svgEl("path", { d: landD }));
+    svg.appendChild(clip);
+    // province mesh: EVERY province boundary, including those inside one nation — otherwise same-owner
+    // neighbours merge into one indistinguishable blob and the unit of action (a province) is invisible.
+    // Non-interactive so it never steals the click-area hits appended below.
+    svg.appendChild(svgEl("path", {
+      class: "province-border", d: segPath(politicalBorders(world.grid, world.provinceOf)),
+      fill: "none", stroke: "#3c2f1c", "stroke-width": 0.5, "stroke-opacity": 0.5,
+      "clip-path": "url(#army-land)", "pointer-events": "none",
+    }));
+    // bold nation outline, drawn over the faint mesh so a country's edge still reads at a glance.
+    svg.appendChild(svgEl("path", {
+      class: "nation-border", d: segPath(politicalBorders(world.grid, owner)),
+      fill: "none", stroke: "#161009", "stroke-width": 2, "stroke-opacity": 0.95, "stroke-linejoin": "round",
+      "clip-path": "url(#army-land)", "pointer-events": "none",
+    }));
 
     // one clickable hit area per province + its numbers
     const byProv: string[] = new Array(s.n).fill("");
