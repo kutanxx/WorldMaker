@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { generateWorld } from "./world";
 import { DEFAULT_PARAMS } from "../types/world";
-import { basePopOf, initArmySim, BIOME_POP, BIOME_DEF, LEVY_FRAC, UPKEEP_FRAC, REGROW_FRAC, MILITIA_FRAC, WIN_LOSS_MULT, armyAt, maxLevy, levy, applyUpkeep, regrow, militiaOf, defenceOf, previewMove, moveArmy, aiTurn, endTurn } from "./armySim";
+import { basePopOf, initArmySim, BIOME_POP, BIOME_DEF, LEVY_FRAC, UPKEEP_FRAC, REGROW_FRAC, MILITIA_FRAC, WIN_LOSS_MULT, armyAt, maxLevy, levy, applyUpkeep, regrow, militiaOf, defenceOf, previewMove, moveArmy, aiTurn, endTurn, battleRoll, winChance, ODDS_K } from "./armySim";
 import { GRASSLAND, ALPINE } from "./biome";
 
 describe("basePopOf (population comes from the generated world)", () => {
@@ -370,5 +370,52 @@ describe("aiTurn (AI acts independently)", () => {
     // and the player's armies are untouched (count and nation match)
     const playerArmiesAfter = s.armies.filter((a) => a.nation === player);
     expect(playerArmiesAfter.length).toBe(playerArmiesBefore.length);
+  });
+});
+
+describe("winChance (odds from the strength ratio)", () => {
+  it("is a coin flip at parity and rises with advantage", () => {
+    expect(ODDS_K).toBe(3); // the exact sharpness this whole describe block's numbers assume
+    expect(winChance(100, 100)).toBeCloseTo(0.5, 6);
+    expect(winChance(200, 100)).toBeCloseTo(8 / 9, 6);      // 2:1 with ODDS_K=3 -> 8/9
+    expect(winChance(150, 100)).toBeGreaterThan(0.75);
+    expect(winChance(50, 100)).toBeLessThan(0.15);
+    expect(winChance(120, 100)).toBeGreaterThan(winChance(110, 100)); // monotone
+  });
+  it("is certain against no defence and hopeless with no attackers", () => {
+    expect(winChance(50, 0)).toBe(1);
+    expect(winChance(0, 50)).toBe(0);
+  });
+  it("always returns a probability", () => {
+    for (const [a, d] of [[1, 1], [1, 1000], [1000, 1], [7, 13]]) {
+      const p = winChance(a, d);
+      expect(p).toBeGreaterThanOrEqual(0);
+      expect(p).toBeLessThanOrEqual(1);
+    }
+  });
+});
+
+describe("battleRoll (uncertainty WITHOUT losing determinism)", () => {
+  it("is stable for the same battle identity and in [0,1)", () => {
+    const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });
+    const s = initArmySim(world);
+    const a = battleRoll(s, 5, 2), b = battleRoll(s, 5, 2);
+    expect(a).toBe(b);
+    expect(a).toBeGreaterThanOrEqual(0);
+    expect(a).toBeLessThan(1);
+  });
+  it("differs across target, attacker and turn", () => {
+    const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });
+    const s = initArmySim(world);
+    const base = battleRoll(s, 5, 2);
+    expect(battleRoll(s, 6, 2)).not.toBe(base);   // different target
+    expect(battleRoll(s, 5, 3)).not.toBe(base);   // different attacker
+    s.turn = 1;
+    expect(battleRoll(s, 5, 2)).not.toBe(base);   // different turn
+  });
+  it("does not depend on Math.random", () => {
+    const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 4 });
+    const s1 = initArmySim(world), s2 = initArmySim(world);
+    expect(battleRoll(s1, 9, 1)).toBe(battleRoll(s2, 9, 1));
   });
 });

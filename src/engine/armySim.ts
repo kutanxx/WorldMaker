@@ -1,6 +1,7 @@
 import type { World } from "../types/world";
 import { buildProvinceAdj } from "./provinceSim";
 import { OCEAN, TUNDRA, TAIGA, TEMPERATE_FOREST, GRASSLAND, DESERT, TROPICAL, WETLAND, ALPINE } from "./biome";
+import { mulberry32, deriveSeed } from "./rng";
 
 // --- tunable constants (the whole balance surface of the prototype lives here) ---
 export const LEVY_FRAC = 0.2;      // max share of a province's population one levy takes
@@ -11,6 +12,7 @@ export const WIN_LOSS_MULT = 0.6;  // winner's losses as a share of the loser's 
 export const CITY_BONUS = 0.5;     // population multiplier added per city in the province
 export const POP_SCALE = 20;      // people per "cell-unit" — sets the game's numeric scale so levies
                                   // and upkeep survive integer floors and read like real armies
+export const ODDS_K = 3;          // sharpness of the odds curve: 2:1 ~ 89%, 1:1 = 50%
 
 // population potential by biome: rich plains, empty mountains
 export const BIOME_POP: Record<number, number> = {
@@ -136,6 +138,23 @@ export function defenceOf(s: ArmyState, prov: number, attacker: number): number 
 }
 
 export interface BattleResult { won: boolean; atk: number; def: number; attackerLosses: number; captured: boolean }
+
+// Win probability from the strength ratio, sharpened by ODDS_K so overwhelming force is nearly safe
+// while an even fight is a coin flip. That gamble is the decision the deterministic version lacked.
+export function winChance(atk: number, def: number): number {
+  if (atk <= 0) return 0;
+  if (def <= 0) return 1;
+  const a = Math.pow(atk, ODDS_K), d = Math.pow(def, ODDS_K);
+  return a / (a + d);
+}
+
+// The battle's die. NOT Math.random: a pure hash of (world seed, turn, target, attacker), so the game
+// stays perfectly replayable — the same seed and the same commands reproduce every outcome — while the
+// player cannot predict any single result.
+export function battleRoll(s: ArmyState, target: number, attacker: number): number {
+  const seed = deriveSeed(deriveSeed(deriveSeed(s.world.params.seed, s.turn + 1), target + 1), attacker + 1);
+  return mulberry32(seed)();
+}
 
 function resolve(s: ArmyState, prov: number, nation: number, target: number): BattleResult | null {
   const army = armyAt(s, prov, nation);
