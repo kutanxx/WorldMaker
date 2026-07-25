@@ -62,11 +62,24 @@ export function mountArmyApp(root: HTMLElement, opts: { seed?: number } = {}): v
       "clip-path": "url(#army-land)", "pointer-events": "none",
     }));
 
-    // one clickable hit area per province + its numbers
+    // one clickable hit area per province + its numbers. The label anchor is picked in the SAME
+    // pass over grid cells that builds byProv: for each cell belonging to province p, track the
+    // cell nearest that province's centroid. A raw centroid (arithmetic mean of cell positions)
+    // can fall outside the province's own land for a crescent, a bay-hugging, or a peninsula
+    // province — snapping to the province's own nearest cell guarantees the label sits on land
+    // that actually belongs to it, without a second O(n) scan per province (ties: lower cell
+    // index wins, so the map is stable across renders).
     const byProv: string[] = new Array(s.n).fill("");
+    const anchorCell = new Int32Array(s.n).fill(-1);
+    const anchorDist2 = new Float64Array(s.n).fill(Infinity);
     for (let c = 0; c < world.grid.count; c++) {
       const p = world.provinceOf[c];
-      if (p >= 0) byProv[p] += cellPath(world.grid.polygons[c]);
+      if (p < 0) continue;
+      byProv[p] += cellPath(world.grid.polygons[c]);
+      const [tx, ty] = world.provinces[p].centroid;
+      const dx = world.grid.points[c * 2] - tx, dy = world.grid.points[c * 2 + 1] - ty;
+      const d2 = dx * dx + dy * dy;
+      if (d2 < anchorDist2[p]) { anchorDist2[p] = d2; anchorCell[p] = c; }
     }
     for (let p = 0; p < s.n; p++) {
       if (!byProv[p]) continue;
@@ -82,10 +95,13 @@ export function mountArmyApp(root: HTMLElement, opts: { seed?: number } = {}): v
         onProvClick(p);
       });
       svg.appendChild(hit);
-      const [cx, cy] = world.provinces[p].centroid;
+      const anchor = anchorCell[p] >= 0 ? anchorCell[p] : world.provinces[p].seedCell;
+      const [cx, cy] = anchor >= 0
+        ? [world.grid.points[anchor * 2], world.grid.points[anchor * 2 + 1]]
+        : world.provinces[p].centroid;
       const army = s.armies.find((a) => a.prov === p);
       const label = svgEl("text", {
-        class: "army-num", x: String(cx), y: String(cy), "text-anchor": "middle", "pointer-events": "none",
+        class: "army-num", "data-prov": String(p), x: String(cx), y: String(cy), "text-anchor": "middle", "pointer-events": "none",
       });
       label.textContent = army ? `${Math.round(s.pop[p])}·⚔${army.men}` : `${Math.round(s.pop[p])}`;
       svg.appendChild(label);

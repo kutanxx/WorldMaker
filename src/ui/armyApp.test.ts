@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mountArmyApp } from "./armyApp";
+import { generateWorld } from "../engine/world";
+import { DEFAULT_PARAMS } from "../types/world";
 
 describe("armyApp (prototype loop: levy -> march -> end turn)", () => {
   let root: HTMLElement;
@@ -246,6 +248,48 @@ describe("goal and game over", () => {
     expect(root.querySelector("button.army-end")).toBeTruthy();
     expect(root.querySelector(".army-hud")!.textContent).toContain("턴 0");
     expect(root.querySelector(".army-over")).toBeNull();
+  });
+});
+
+describe("province number labels never float over the sea", () => {
+  let root: HTMLElement;
+  beforeEach(() => { root = document.createElement("div"); document.body.appendChild(root); });
+  afterEach(() => { root.remove(); });
+
+  function pickNation(): void {
+    const label = root.querySelector(".army-pick-label") as HTMLElement;
+    const id = label.getAttribute("data-polity")!;
+    (root.querySelector(`.army-prov[data-polity="${id}"]`) as SVGElement)
+      .dispatchEvent(new MouseEvent("click", { bubbles: true }));
+  }
+
+  // A raw centroid (arithmetic mean of a province's cell positions) can fall outside the
+  // province's own land for a crescent, bay-hugging, or peninsula-straddling province — landing
+  // the label over open water. Every label must instead sit at the exact position of one of the
+  // grid's own cells, and that cell must belong to the very province the label carries.
+  it("anchors every .army-num label on a cell that belongs to its own (non-ocean) province", () => {
+    mountArmyApp(root, { seed: 1 });
+    pickNation();
+    const world = generateWorld({ ...DEFAULT_PARAMS, seed: 1 }).world;
+
+    // index every cell position -> cell index (first cell wins on an exact coincidence, matching
+    // the tie-break the implementation uses: lower cell index wins).
+    const byPos = new Map<string, number>();
+    for (let c = 0; c < world.grid.count; c++) {
+      const key = `${world.grid.points[c * 2]},${world.grid.points[c * 2 + 1]}`;
+      if (!byPos.has(key)) byPos.set(key, c);
+    }
+
+    const labels = [...root.querySelectorAll(".army-num")] as SVGTextElement[];
+    expect(labels.length).toBeGreaterThan(0);
+    for (const label of labels) {
+      const x = label.getAttribute("x")!, y = label.getAttribute("y")!;
+      const cell = byPos.get(`${x},${y}`);
+      expect(cell).not.toBeUndefined();               // exact coordinates of some real cell
+      const prov = Number(label.dataset.prov);
+      expect(world.provinceOf[cell!]).toBe(prov);      // and that cell belongs to THIS province
+      expect(prov).toBeGreaterThanOrEqual(0);          // never ocean
+    }
   });
 });
 
