@@ -57,6 +57,12 @@ export function renderChooser(root: HTMLElement): void {
         <p class="choice-desc">Rule a nation and conquer whole provinces on the map, EU4-style.</p>
         <div class="choice-sub">영토로 플레이</div>
       </a>
+      <a class="choice-card" href="playArmy.html">
+        <div class="choice-icon">⚔</div>
+        <div class="choice-title">Raise an Army</div>
+        <p class="choice-desc">Levy men from your provinces, march them to the border, and take land by force.</p>
+        <div class="choice-sub">군대로 플레이</div>
+      </a>
     </div>
     <div class="landing-name">
       <input class="name-seed" maxlength="40" placeholder="세계의 이름으로 시작 · start from a name (e.g. Narnia)" />

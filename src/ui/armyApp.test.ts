@@ -144,6 +144,22 @@ describe("nation picker", () => {
     expect(root.querySelector(".army-hud")!.textContent).toContain(name);
     expect(root.querySelector("button.army-end")).toBeTruthy();
   });
+
+  // a home link that only exists before a nation is picked would strand the player mid-game
+  // (the province game learned this the hard way) — it must survive into play mode too.
+  it("shows a relative home link back to the landing page, before and after picking a nation", () => {
+    mountArmyApp(root, { seed: 1 });
+    const before = root.querySelector('a.home[href="index.html"]');
+    expect(before).toBeTruthy();
+
+    const label = root.querySelector(".army-pick-label") as HTMLElement;
+    const id = label.getAttribute("data-polity")!;
+    (root.querySelector(`.army-prov[data-polity="${id}"]`) as SVGElement)
+      .dispatchEvent(new MouseEvent("click", { bubbles: true }));
+
+    const after = root.querySelector('a.home[href="index.html"]');
+    expect(after).toBeTruthy();
+  });
 });
 
 describe("odds are quoted, not promised", () => {

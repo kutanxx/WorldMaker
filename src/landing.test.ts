@@ -28,6 +28,15 @@ describe("renderChooser", () => {
     expect(hrefs).toContain("play.html");
     expect(hrefs).toContain("playProvince.html");
   });
+
+  it("renders a card linking to playArmy.html with the Korean sub text", () => {
+    const root = document.createElement("div");
+    renderChooser(root);
+    const card = Array.from(root.querySelectorAll("a.choice-card"))
+      .find((a) => a.getAttribute("href") === "playArmy.html");
+    expect(card).not.toBeUndefined();
+    expect(card!.querySelector(".choice-sub")!.textContent).toBe("군대로 플레이");
+  });
 });
 
 import { nameTargets } from "./landing";

@@ -142,6 +142,19 @@ export function mountArmyApp(root: HTMLElement, opts: { seed?: number } = {}): v
     return svg;
   }
 
+  // back to the landing chooser: rebuilt fresh every render() (this file re-renders by clearing
+  // root.innerHTML wholesale, so nothing here is a one-time DOM node) and prepended in BOTH picker
+  // and play mode — a home link that only exists before a nation is picked would strand the player
+  // once a game is running. Relative href only: the site is served from a GitHub Pages sub-path,
+  // so an absolute "/index.html" would 404 there.
+  function homeLink(): HTMLAnchorElement {
+    const home = document.createElement("a");
+    home.className = "home";
+    home.href = "index.html";
+    home.textContent = "🏠 홈";
+    return home;
+  }
+
   function startGame(nation: number): void {
     if (nation >= 0) { player = nation; startProv = provinceCount(s, nation); sel = null; render(); }
   }
@@ -212,6 +225,7 @@ export function mountArmyApp(root: HTMLElement, opts: { seed?: number } = {}): v
   function render(): void {
     root.innerHTML = "";
     if (player === null) {
+      root.appendChild(homeLink());
       const pick = document.createElement("div");
       pick.className = "army-pick";
       pick.textContent = "지도에서 나라를 클릭해 고르세요 — 작은 나라는 어렵고, 큰 나라는 지킬 게 많습니다.";
@@ -219,6 +233,7 @@ export function mountArmyApp(root: HTMLElement, opts: { seed?: number } = {}): v
       root.appendChild(buildMap());
       return;
     }
+    root.appendChild(homeLink());
     const me = player;
     const prog = goalProgress(s, me, startProv);
     const gainStr = `${prog.gained >= 0 ? "+" : ""}${prog.gained}`;
