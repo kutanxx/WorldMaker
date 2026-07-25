@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { generateWorld } from "./world";
 import { DEFAULT_PARAMS } from "../types/world";
-import { basePopOf, initArmySim, BIOME_POP, BIOME_DEF, LEVY_FRAC, UPKEEP_FRAC, REGROW_FRAC, MILITIA_FRAC, WIN_LOSS_MULT, DEF_LOSS_MULT, armyAt, maxLevy, levy, applyUpkeep, regrow, militiaOf, defenceOf, previewMove, moveArmy, aiTurn, endTurn, battleRoll, winChance, ODDS_K } from "./armySim";
+import { basePopOf, initArmySim, BIOME_POP, BIOME_DEF, LEVY_FRAC, UPKEEP_FRAC, REGROW_FRAC, MILITIA_FRAC, WIN_LOSS_MULT, DEF_LOSS_MULT, AI_LEVY_FRAC, armyAt, maxLevy, levy, applyUpkeep, regrow, militiaOf, defenceOf, previewMove, moveArmy, aiTurn, endTurn, battleRoll, winChance, ODDS_K } from "./armySim";
 import { GRASSLAND, ALPINE } from "./biome";
 
 describe("basePopOf (population comes from the generated world)", () => {
@@ -395,6 +395,102 @@ describe("aiTurn (AI acts independently)", () => {
     // and the player's armies are untouched (count and nation match)
     const playerArmiesAfter = s.armies.filter((a) => a.nation === player);
     expect(playerArmiesAfter.length).toBe(playerArmiesBefore.length);
+  });
+});
+
+describe("aiTurn mobilises in proportion to nation size (multi-levy)", () => {
+  // give `nation` sole ownership of `count` provinces, each with a healthy fixed population, and
+  // give every OTHER province in the world an enormous population so its militia dwarfs anything the
+  // test nation could ever levy — this makes every adjacent province unbeatable, so aiTurn's move
+  // step never fires and only the levy step is exercised (isolating the behaviour under test).
+  function isolateForLevyOnly(seed: number, assignments: Array<{ nation: number; provs: number[] }>) {
+    const { world } = generateWorld({ ...DEFAULT_PARAMS, seed });
+    const s = initArmySim(world);
+    const owned = new Set<number>();
+    for (const { provs } of assignments) for (const p of provs) owned.add(p);
+    // strip every OTHER real nation from the world too, not just its population, or one of the
+    // world's actual AI nations could conquer our synthetic provinces (they have real, much larger
+    // armies) and confound the levy-only measurement this helper exists to isolate.
+    for (let p = 0; p < s.n; p++) { s.pop[p] = owned.has(p) ? 100 : 1e12; if (!owned.has(p)) s.owner[p] = -1; }
+    for (const { nation, provs } of assignments) for (const p of provs) s.owner[p] = nation;
+    return s;
+  }
+
+  it("levies from more than one province when the nation owns several", () => {
+    const nation = 9001;
+    // 8 owned provinces -> ceil(8 * AI_LEVY_FRAC) must be > 1 for this to be a real test
+    const provs = [0, 1, 2, 3, 4, 5, 6, 7];
+    const expectedN = Math.max(1, Math.ceil(provs.length * AI_LEVY_FRAC));
+    expect(expectedN).toBeGreaterThan(1);
+    const s = isolateForLevyOnly(1, [{ nation, provs }]);
+    aiTurn(s, -1); // no real player: exercise every AI nation including ours
+    const levied = new Set(s.armies.filter((a) => a.nation === nation).map((a) => a.prov));
+    expect(levied.size).toBe(expectedN);
+    // tied populations (all == 100) must break by lower province id
+    expect([...levied].sort((a, b) => a - b)).toEqual(provs.slice(0, expectedN));
+  });
+
+  it("AI_LEVY_FRAC scaling: a bigger nation levies from strictly more provinces than a small one", () => {
+    const big = 9001, small = 9002;
+    const bigProvs = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]; // ceil(12 * 0.25) = 3
+    const smallProvs = [12, 13];                              // ceil(2 * 0.25) = 1
+    const s = isolateForLevyOnly(1, [{ nation: big, provs: bigProvs }, { nation: small, provs: smallProvs }]);
+    aiTurn(s, -1);
+    const bigLevied = new Set(s.armies.filter((a) => a.nation === big).map((a) => a.prov));
+    const smallLevied = new Set(s.armies.filter((a) => a.nation === small).map((a) => a.prov));
+    expect(bigLevied.size).toBe(3);
+    expect(smallLevied.size).toBe(1);
+    expect(bigLevied.size).toBeGreaterThan(smallLevied.size);
+  });
+});
+
+describe("aiTurn moves every army, not just the biggest", () => {
+  it("moves both a small and a large army in the same turn", () => {
+    const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });
+    const s = initArmySim(world);
+    const nation = 9001, enemy1 = 9002, enemy2 = 9003, player = -1;
+
+    // find two disjoint (province, adjacent-province) pairs so each army gets its own target
+    let p1 = -1, t1 = -1;
+    for (let a = 0; a < s.n && p1 < 0; a++) {
+      if (s.adj[a].length > 0) { p1 = a; t1 = s.adj[a][0]; }
+    }
+    expect(p1).toBeGreaterThanOrEqual(0);
+    let p2 = -1, t2 = -1;
+    for (let c = 0; c < s.n && p2 < 0; c++) {
+      if (c === p1 || c === t1) continue;
+      for (const d of s.adj[c]) {
+        if (d === p1 || d === t1 || d === c) continue;
+        p2 = c; t2 = d; break;
+      }
+    }
+    expect(p2).toBeGreaterThanOrEqual(0);
+
+    s.owner[p1] = nation; s.owner[p2] = nation;
+    s.owner[t1] = enemy1; s.owner[t2] = enemy2;
+    s.pop[t1] = 0; s.pop[t2] = 0; // zero population -> zero defence -> a certain win for any army
+    s.armies.push({ prov: p1, nation, men: 5, movedOn: -1 });   // small — not "the biggest"
+    s.armies.push({ prov: p2, nation, men: 500, movedOn: -1 }); // large — would be the ONLY mover today
+
+    aiTurn(s, player);
+
+    expect(s.owner[t1]).toBe(nation); // the small army's target was captured too
+    expect(s.owner[t2]).toBe(nation); // and the large army's target
+    expect(armyAt(s, p1, nation)).toBeUndefined();
+    expect(armyAt(s, p2, nation)).toBeUndefined();
+  });
+});
+
+describe("aiTurn determinism under the stronger AI", () => {
+  it("multi-levy and multi-move stay deterministic: same seed and commands give the same state", () => {
+    const run = () => {
+      const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 7 });
+      const s = initArmySim(world);
+      const player = [...s.owner].find((o) => o >= 0)!;
+      for (let i = 0; i < 5; i++) endTurn(s, player);
+      return JSON.stringify({ o: [...s.owner], p: [...s.pop].map((v) => v.toFixed(6)), a: s.armies, t: s.turn });
+    };
+    expect(run()).toBe(run());
   });
 });
 

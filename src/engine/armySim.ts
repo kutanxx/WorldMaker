@@ -216,33 +216,43 @@ export function moveArmy(s: ArmyState, prov: number, nation: number, target: num
   return r;
 }
 
+// a human player levies from many provinces and moves every army each turn; an AI that only ever
+// touches its single best province and its single biggest army mobilises roughly n-times slower than
+// that (n = the nation's province count), so it can never concentrate enough force to crack a
+// defended player and the map freezes. AI_LEVY_FRAC ties the AI's mobilisation to its own size instead
+// of a flat "one", so a big nation musters proportionally more without needing per-nation tuning.
+export const AI_LEVY_FRAC = 0.25;
+
 // Deliberately dumb AI: enough for the world to push back while we test whether the loop is fun.
-// Each non-player nation levies once from its most populous province, then marches its biggest army
-// at the weakest adjacent enemy province it can actually beat. Deterministic: ties break on lower id.
+// Each non-player nation levies from its AI_LEVY_FRAC most populous owned provinces, then marches
+// EVERY one of its armies (not just the biggest) at the weakest adjacent enemy province it can
+// actually beat. Deterministic: province selection sorts by population descending then id ascending;
+// armies are processed in ascending province-id order; target selection ties break on lower id.
 export function aiTurn(s: ArmyState, playerNation: number): void {
   const nations = [...new Set([...s.owner].filter((o) => o >= 0 && o !== playerNation))].sort((a, b) => a - b);
   for (const nation of nations) {
-    // 1. levy from the most populous owned province
-    let best = -1;
-    for (let p = 0; p < s.n; p++) {
-      if (s.owner[p] !== nation) continue;
-      if (best < 0 || s.pop[p] > s.pop[best]) best = p;
+    // 1. levy from the n most populous owned provinces
+    const owned: number[] = [];
+    for (let p = 0; p < s.n; p++) if (s.owner[p] === nation) owned.push(p);
+    owned.sort((a, b) => (s.pop[b] - s.pop[a]) || (a - b));
+    const nLevy = Math.max(1, Math.ceil(owned.length * AI_LEVY_FRAC));
+    for (let i = 0; i < nLevy && i < owned.length; i++) levy(s, owned[i], nation);
+
+    // 2. march every army at the weakest beatable adjacent enemy province each can find. Snapshot
+    // positions first because moveArmy mutates s.armies (removes/merges/relocates) — iterating the
+    // live array while marching through it would skip or double-visit entries.
+    const positions = s.armies.filter((a) => a.nation === nation).map((a) => a.prov).sort((a, b) => a - b);
+    for (const prov of positions) {
+      const army = armyAt(s, prov, nation);
+      if (!army) continue; // this army no longer exists (e.g. merged away by an earlier move)
+      let target = -1, targetDef = Infinity;
+      for (const q of s.adj[army.prov]) {
+        if (s.owner[q] === nation) continue;
+        const d = defenceOf(s, q, nation);
+        if (d < army.men && (d < targetDef || (d === targetDef && q < target))) { targetDef = d; target = q; }
+      }
+      if (target >= 0) moveArmy(s, army.prov, nation, target);
     }
-    if (best >= 0) levy(s, best, nation);
-    // 2. march the biggest army at the weakest beatable adjacent enemy province
-    let army: Army | undefined;
-    for (const a of s.armies) {
-      if (a.nation !== nation) continue;
-      if (!army || a.men > army.men || (a.men === army.men && a.prov < army.prov)) army = a;
-    }
-    if (!army) continue;
-    let target = -1, targetDef = Infinity;
-    for (const q of s.adj[army.prov]) {
-      if (s.owner[q] === nation) continue;
-      const d = defenceOf(s, q, nation);
-      if (d < army.men && (d < targetDef || (d === targetDef && q < target))) { targetDef = d; target = q; }
-    }
-    if (target >= 0) moveArmy(s, army.prov, nation, target);
   }
 }
 
