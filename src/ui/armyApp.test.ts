@@ -193,4 +193,43 @@ describe("goal and game over", () => {
       .dispatchEvent(new MouseEvent("click", { bubbles: true }));
     expect(root.querySelector(".army-pick")).toBeTruthy();      // back to the nation picker
   });
+
+  it("restart produces a genuinely fresh game, not just a cleared selection", () => {
+    mountArmyApp(root, { seed: 1 });
+
+    // capture the ORIGINAL starting map's per-nation stats before playing at all
+    const statsAtStart = new Map<string, string>();
+    for (const label of [...root.querySelectorAll(".army-pick-label")]) {
+      statsAtStart.set(label.getAttribute("data-polity")!, label.textContent!);
+    }
+    expect(statsAtStart.size).toBeGreaterThan(1);
+
+    pickNation();
+    // play to the horizon ending (HORIZON is 50), conquering territory along the way
+    for (let i = 0; i < 60; i++) {
+      const end = root.querySelector("button.army-end") as HTMLButtonElement | null;
+      if (!end) break;
+      end.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    }
+    expect(root.querySelector(".army-over")).toBeTruthy();
+
+    (root.querySelector("button.army-restart") as HTMLButtonElement)
+      .dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    expect(root.querySelector(".army-pick")).toBeTruthy();
+
+    // the picker map shown after restart must be the ORIGINAL starting map, not the finished one —
+    // every nation must show its starting territory/population, proving the ArmyState itself (not
+    // just UI selection) was rebuilt from scratch.
+    const statsAfterRestart = new Map<string, string>();
+    for (const label of [...root.querySelectorAll(".army-pick-label")]) {
+      statsAfterRestart.set(label.getAttribute("data-polity")!, label.textContent!);
+    }
+    expect(statsAfterRestart).toEqual(statsAtStart);
+
+    // pick a nation again: a real, playable game must resume, not the stale finished one.
+    pickNation();
+    expect(root.querySelector("button.army-end")).toBeTruthy();
+    expect(root.querySelector(".army-hud")!.textContent).toContain("턴 0");
+    expect(root.querySelector(".army-over")).toBeNull();
+  });
 });

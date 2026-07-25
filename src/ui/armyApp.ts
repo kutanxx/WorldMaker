@@ -15,7 +15,7 @@ import { cellPath } from "./svgPaths";
 export function mountArmyApp(root: HTMLElement, opts: { seed?: number } = {}): void {
   const seed = opts.seed ?? Math.floor(Date.now() % 1_000_000);
   const world = generateWorld({ ...DEFAULT_PARAMS, seed }).world;
-  const s: ArmyState = initArmySim(world);
+  let s: ArmyState = initArmySim(world);
   let player: number | null = null;       // null = picker mode: click a nation on the map to start
 
   let sel: number | null = null;          // selected province (mine)
@@ -49,7 +49,11 @@ export function mountArmyApp(root: HTMLElement, opts: { seed?: number } = {}): v
         "data-polity": String(s.owner[p]),
         d: byProv[p], fill: sel === p ? "rgba(232,181,58,0.35)" : "transparent", stroke: "none",
       });
-      hit.addEventListener("click", () => { if (player === null) startGame(s.owner[p]); else onProvClick(p); });
+      hit.addEventListener("click", () => {
+        if (player === null) { startGame(s.owner[p]); return; }
+        if (outcome(s, player)) return;   // game over: the map stops taking clicks
+        onProvClick(p);
+      });
       svg.appendChild(hit);
       const [cx, cy] = world.provinces[p].centroid;
       const army = s.armies.find((a) => a.prov === p);
@@ -175,7 +179,11 @@ export function mountArmyApp(root: HTMLElement, opts: { seed?: number } = {}): v
       const again = document.createElement("button");
       again.className = "army-restart";
       again.textContent = "다시";
-      again.addEventListener("click", () => { player = null; sel = null; log.length = 0; render(); });
+      again.addEventListener("click", () => {
+        s = initArmySim(world);           // a genuinely fresh game, not just cleared UI selection
+        player = null; sel = null; log.length = 0;
+        render();
+      });
       root.appendChild(again);
       const lg2 = document.createElement("div");
       lg2.className = "army-log";

@@ -704,4 +704,19 @@ describe("goal / outcome (a reason to keep playing)", () => {
     expect(nationRank(s, b)).toEqual({ rank: 1, of: 2 });
     expect(nationRank(s, a)).toEqual({ rank: 2, of: 2 });
   });
+
+  it("nationRank breaks a true tie (equal province counts) toward the lower polity id", () => {
+    const s = fresh();
+    const lo = 0, hi = 1; // lo has the lower id
+    for (let p = 0; p < s.n; p++) if (s.owner[p] >= 0) s.owner[p] = -1 as unknown as number; // clear owners
+    // both nations hold the SAME number of provinces — a genuine tie, exercising the `a.id - b.id`
+    // comparator branch that the pre-existing test (3 vs 5 provinces) never reached.
+    const land = [...Array(s.n).keys()].slice(0, 6);
+    for (const p of land.slice(0, 3)) s.owner[p] = lo;
+    for (const p of land.slice(3, 6)) s.owner[p] = hi;
+    expect(provinceCount(s, lo)).toBe(3);
+    expect(provinceCount(s, hi)).toBe(3);
+    expect(nationRank(s, lo)).toEqual({ rank: 1, of: 2 }); // lower id wins the tie
+    expect(nationRank(s, hi)).toEqual({ rank: 2, of: 2 });
+  });
 });
