@@ -9,6 +9,8 @@ export const UPKEEP_FRAC = 0.03;   // share of an army lost per turn (use it or 
 export const MILITIA_FRAC = 0.2;   // share of a province's population that defends it in battle
 export const WIN_LOSS_MULT = 0.6;  // winner's losses as a share of the loser's effective strength
 export const CITY_BONUS = 0.5;     // population multiplier added per city in the province
+export const POP_SCALE = 20;      // people per "cell-unit" — sets the game's numeric scale so levies
+                                  // and upkeep survive integer floors and read like real armies
 
 // population potential by biome: rich plains, empty mountains
 export const BIOME_POP: Record<number, number> = {
@@ -42,7 +44,7 @@ export function basePopOf(world: World, provId: number): number {
   if (!p) return 0;
   let cities = 0;
   for (const c of world.cities) if (world.provinceOf[c.cell] === provId) cities++;
-  return p.cells * (BIOME_POP[p.biome] ?? 0) * (1 + CITY_BONUS * cities);
+  return p.cells * (BIOME_POP[p.biome] ?? 0) * (1 + CITY_BONUS * cities) * POP_SCALE;
 }
 
 // each province's majority owner over its cells (ties -> lower id; unowned -> -1)

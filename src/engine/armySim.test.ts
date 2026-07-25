@@ -282,6 +282,21 @@ describe("endTurn", () => {
   });
 });
 
+describe("POP_SCALE (armies must survive their own upkeep)", () => {
+  it("a single normal levy from a typical owned province is not annihilated by one turn of upkeep", () => {
+    const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });
+    const s = initArmySim(world);
+    const prov = [...s.owner].findIndex((o) => o >= 0);
+    const nation = s.owner[prov];
+    const men = levy(s, prov, nation);
+    expect(men).toBeGreaterThan(0); // sanity: the levy actually raised someone
+    endTurn(s, nation);
+    const army = armyAt(s, prov, nation);
+    expect(army).toBeDefined();
+    expect(army!.men).toBeGreaterThan(0); // the bug: upkeep used to wipe out a freshly-levied army
+  });
+});
+
 describe("aiTurn (AI acts independently)", () => {
   it("only moves non-player nations and never touches the player's armies", () => {
     const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });
