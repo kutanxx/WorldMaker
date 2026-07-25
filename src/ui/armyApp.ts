@@ -15,11 +15,7 @@ export function mountArmyApp(root: HTMLElement, opts: { seed?: number } = {}): v
   const seed = opts.seed ?? Math.floor(Date.now() % 1_000_000);
   const world = generateWorld({ ...DEFAULT_PARAMS, seed }).world;
   const s: ArmyState = initArmySim(world);
-  // the player is the nation holding the most provinces at the start
-  const counts = new Map<number, number>();
-  for (let p = 0; p < s.n; p++) if (s.owner[p] >= 0) counts.set(s.owner[p], (counts.get(s.owner[p]) ?? 0) + 1);
-  let player = 0, bestN = -1;
-  for (const [id, k] of [...counts].sort((a, b) => a[0] - b[0])) if (k > bestN) { bestN = k; player = id; }
+  let player: number | null = null;       // null = picker mode: click a nation on the map to start
 
   let sel: number | null = null;          // selected province (mine)
   const log: string[] = [];
@@ -46,12 +42,13 @@ export function mountArmyApp(root: HTMLElement, opts: { seed?: number } = {}): v
     }
     for (let p = 0; p < s.n; p++) {
       if (!byProv[p]) continue;
-      const mine = s.owner[p] === player;
+      const mine = player !== null && s.owner[p] === player;
       const hit = svgEl("path", {
         class: "army-prov" + (sel === p ? " sel" : ""), "data-prov": String(p), "data-mine": mine ? "1" : "0",
+        "data-polity": String(s.owner[p]),
         d: byProv[p], fill: sel === p ? "rgba(232,181,58,0.35)" : "transparent", stroke: "none",
       });
-      hit.addEventListener("click", () => onProvClick(p));
+      hit.addEventListener("click", () => { if (player === null) startGame(s.owner[p]); else onProvClick(p); });
       svg.appendChild(hit);
       const [cx, cy] = world.provinces[p].centroid;
       const army = s.armies.find((a) => a.prov === p);
@@ -61,8 +58,30 @@ export function mountArmyApp(root: HTMLElement, opts: { seed?: number } = {}): v
       label.textContent = army ? `${Math.round(s.pop[p])}·⚔${army.men}` : `${Math.round(s.pop[p])}`;
       svg.appendChild(label);
     }
+    if (player === null) {
+      const stat = new Map<number, { prov: number; pop: number }>();
+      for (let p = 0; p < s.n; p++) {
+        const o = s.owner[p];
+        if (o < 0) continue;
+        const v = stat.get(o) ?? { prov: 0, pop: 0 };
+        v.prov++; v.pop += s.pop[p];
+        stat.set(o, v);
+      }
+      for (const [id, v] of [...stat].sort((a, b) => a[0] - b[0])) {
+        const cap = world.polities[id]?.capital;
+        if (cap === undefined) continue;
+        const label = svgEl("text", {
+          class: "army-pick-label", "data-polity": String(id), "pointer-events": "none",
+          x: String(world.grid.points[cap * 2]), y: String(world.grid.points[cap * 2 + 1]), "text-anchor": "middle",
+        });
+        label.textContent = `${world.polities[id]?.name ?? id} · 영토 ${v.prov} · 인구 ${Math.round(v.pop)}`;
+        svg.appendChild(label);
+      }
+    }
     return svg;
   }
+
+  function startGame(nation: number): void { if (nation >= 0) { player = nation; sel = null; render(); } }
 
   // clicking the map only ever selects one of your own provinces (or clears the selection) —
   // marching is issued from the panel's per-target buttons, never by a map click, so a misclick
@@ -73,11 +92,11 @@ export function mountArmyApp(root: HTMLElement, opts: { seed?: number } = {}): v
   }
 
   function issueMove(from: number, target: number): void {
-    const r = moveArmy(s, from, player, target);
+    const r = moveArmy(s, from, player!, target);
     if (r) {
-      say(r.captured ? `점령 ${world.provinces[target].name} (손실 ${r.attackerLosses})`
+      say(r.captured ? `점령 ${world.provinces[target].name} (손실 ${r.attackerLosses}, ${Math.round(r.p * 100)}%)`
         : r.won ? `이동 ${world.provinces[target].name}`
-        : `패배 ${world.provinces[target].name} — 전멸 (방어 ${Math.ceil(r.def)})`);
+        : `패배 ${world.provinces[target].name} — 전멸 (${Math.round(r.p * 100)}% 였음)`);
     }
     sel = null;
     render();
@@ -88,7 +107,7 @@ export function mountArmyApp(root: HTMLElement, opts: { seed?: number } = {}): v
     box.className = "army-sel";
     if (sel === null) { box.textContent = "내 영토를 클릭해 선택하세요. 징집과 행군은 아래 버튼으로 실행합니다."; return box; }
     const p = sel, name = world.provinces[p].name;
-    const a = armyAt(s, p, player);
+    const a = armyAt(s, p, player!);
     const head = document.createElement("div");
     head.textContent = `${name} · 인구 ${Math.round(s.pop[p])} · 민병 ${militiaOf(s, p)}` + (a ? ` · 병력 ${a.men}` : "");
     box.appendChild(head);
@@ -97,7 +116,7 @@ export function mountArmyApp(root: HTMLElement, opts: { seed?: number } = {}): v
     btn.className = "army-levy";
     btn.textContent = `징집 (+${levyAmount}명, 인구 −${levyAmount})`;
     btn.disabled = levyAmount === 0;
-    btn.addEventListener("click", () => { const m = levy(s, p, player); if (m > 0) say(`징집 ${name} +${m}`); render(); });
+    btn.addEventListener("click", () => { const m = levy(s, p, player!); if (m > 0) say(`징집 ${name} +${m}`); render(); });
     box.appendChild(btn);
     if (a) {
       const spent = a.movedOn === s.turn;
@@ -110,7 +129,7 @@ export function mountArmyApp(root: HTMLElement, opts: { seed?: number } = {}): v
       const list = document.createElement("div");
       list.className = "army-moves";
       for (const q of s.adj[p]) {
-        const r = previewMove(s, p, player, q);
+        const r = previewMove(s, p, player!, q);
         if (!r) continue;
         const row = document.createElement("button");
         row.className = "army-move";
@@ -118,7 +137,7 @@ export function mountArmyApp(root: HTMLElement, opts: { seed?: number } = {}): v
         row.disabled = spent;
         row.textContent = s.owner[q] === player
           ? `→ ${world.provinces[q].name} (행군)`
-          : `→ ${world.provinces[q].name} · 공격 ${r.atk} vs 방어 ${Math.ceil(r.def)} · ${r.won ? "승리 예상" : "패배 예상"}`;
+          : `→ ${world.provinces[q].name} · 공격 ${r.atk} vs 방어 ${Math.ceil(r.def)} · ${Math.round(r.p * 100)}%`;
         row.addEventListener("click", () => issueMove(p, q));
         list.appendChild(row);
       }
@@ -129,16 +148,25 @@ export function mountArmyApp(root: HTMLElement, opts: { seed?: number } = {}): v
 
   function render(): void {
     root.innerHTML = "";
+    if (player === null) {
+      const pick = document.createElement("div");
+      pick.className = "army-pick";
+      pick.textContent = "지도에서 나라를 클릭해 고르세요 — 작은 나라는 어렵고, 큰 나라는 지킬 게 많습니다.";
+      root.appendChild(pick);
+      root.appendChild(buildMap());
+      return;
+    }
+    const me = player;
     const hud = document.createElement("div");
     hud.className = "army-hud";
-    hud.textContent = `턴 ${s.turn} · 시드 ${seed} · ${world.polities[player]?.name ?? ""} · 영토 ${myProv()} · 인구 ${Math.round(myPop())} · 병력 ${myMen()}`;
+    hud.textContent = `턴 ${s.turn} · 시드 ${seed} · ${world.polities[me]?.name ?? ""} · 영토 ${myProv()} · 인구 ${Math.round(myPop())} · 병력 ${myMen()}`;
     root.appendChild(hud);
     root.appendChild(buildMap());
     root.appendChild(panel());
     const end = document.createElement("button");
     end.className = "army-end";
     end.textContent = "턴 종료 ▶";
-    end.addEventListener("click", () => { endTurn(s, player); sel = null; render(); });
+    end.addEventListener("click", () => { endTurn(s, me); sel = null; render(); });
     root.appendChild(end);
     const lg = document.createElement("div");
     lg.className = "army-log";
