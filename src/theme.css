@@ -457,3 +457,13 @@ svg.world .legend { pointer-events: none; }
 .prov-over.win { background: #f6ecc9; border-color: #d8b25a; box-shadow: 0 3px 18px rgba(216, 178, 90, .5); } /* domination */
 .prov-over.ok { border-color: #b7c39a; } /* survived AND grew — a real result, not just a turtle */
 @media (max-width: 640px) { .prov-title { font-size: 21px; } .prov-hud { font-size: 12px; } }
+
+/* ── Army prototype (playArmy.html) ── */
+.army-hud { font-size: 15px; padding: 6px 2px; color: #3c2f1c; }
+.army-map { display: block; width: 100%; max-width: 900px; margin: 6px auto; background: #eadfc2; border: 1px solid #cbb784; border-radius: 5px; max-height: 60vh; }
+.army-prov { cursor: pointer; }
+.army-num { font-size: 9px; fill: #2b2113; paint-order: stroke; stroke: #f6ecd2; stroke-width: 2.5px; }
+.army-sel { font-size: 14px; padding: 8px 2px; display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+.army-moves { font-size: 13px; color: #5c4626; }
+.army-end { margin: 6px 0; }
+.army-log { font-size: 13px; color: #7a5a2f; padding: 4px 2px; }
