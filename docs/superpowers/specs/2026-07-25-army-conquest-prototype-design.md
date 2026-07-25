@@ -93,14 +93,24 @@ The defender's strength is the enemy army standing on that province PLUS a small
 itself raises, so a populous province is never free to walk into and terrain always matters:
 
 ```
-militia  = floor(province.population × MILITIA_FRAC)     // MILITIA_FRAC = 0.05
+militia  = floor(province.population × MILITIA_FRAC)     // MILITIA_FRAC = 0.2
 atk      = attacker.men
 def      = (enemy army men on that province + militia) × BIOME_DEF[target.biome]
 attacker wins iff atk > def
 ```
 
 Militia is not a standing unit — it is computed at battle time from the province's current population,
-so a province hollowed out by over-levying really is defenceless, and a rich untouched one is not.
+so a province hollowed out by over-levying really is defenceless, and a rich untouched one is not. It
+also cannot move: militia defends only its own province, so "mobile army vs land that defends itself"
+is a real trade-off when deciding how hard to levy.
+
+Note that terrain already differentiates militia without a second dial: the same 20 militia are worth 32
+in alpine (×1.6) and 17 in grassland (×0.85). One `MILITIA_FRAC` is therefore enough — making the
+fraction itself biome-dependent would double-count terrain.
+
+Consequence to watch: poor provinces raise almost nothing (pop 25 → 5 militia), so frontier wasteland
+changes hands cheaply and the real wars happen over the rich core. That is intended, but it also means a
+small, poor nation is easy to eat. Flagged for after the fun-test, not fixed now.
 
 Losses (both sides bleed; overwhelming force is cheap, a close fight is ruinous):
 - Loser: destroyed (all committed men lost). Militia losses come off the province's population.
@@ -159,7 +169,7 @@ No stance buttons, no target-arming, no threat panels. Two clicks per action.
 LEVY_FRAC    = 0.2    // max share of a province's population one levy takes
 REGROW_FRAC  = 0.03   // share of basePop regained per turn
 UPKEEP_FRAC  = 0.03   // share of an army lost per turn
-MILITIA_FRAC = 0.05   // share of a province's population that defends it at battle time
+MILITIA_FRAC = 0.2    // share of a province's population that defends it at battle time
 WIN_LOSS_MULT= 0.6    // winner's losses as a share of the loser's effective strength
 CITY_BONUS   = 0.5    // population multiplier added per city in the province
 ```
