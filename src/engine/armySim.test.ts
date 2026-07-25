@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { generateWorld } from "./world";
 import { DEFAULT_PARAMS } from "../types/world";
-import { basePopOf, initArmySim, BIOME_POP, BIOME_DEF, LEVY_FRAC, UPKEEP_FRAC, REGROW_FRAC, MILITIA_FRAC, WIN_LOSS_MULT, DEF_LOSS_MULT, AI_LEVY_FRAC, armyAt, maxLevy, levy, applyUpkeep, regrow, militiaOf, defenceOf, previewMove, moveArmy, aiTurn, endTurn, battleRoll, winChance, ODDS_K, GOAL_FRAC, HORIZON, landProvinces, goalTarget, provinceCount, nationRank, outcome } from "./armySim";
+import { basePopOf, initArmySim, BIOME_POP, BIOME_DEF, LEVY_FRAC, UPKEEP_FRAC, REGROW_FRAC, MILITIA_FRAC, WIN_LOSS_MULT, DEF_LOSS_MULT, AI_LEVY_FRAC, armyAt, maxLevy, levy, applyUpkeep, regrow, militiaOf, defenceOf, previewMove, moveArmy, aiTurn, endTurn, battleRoll, winChance, ODDS_K, GOAL_GAIN_FRAC, HORIZON, landProvinces, goalGain, goalProgress, provinceCount, nationRank, outcome } from "./armySim";
 import { GRASSLAND, ALPINE } from "./biome";
 
 describe("basePopOf (population comes from the generated world)", () => {
@@ -641,82 +641,69 @@ describe("a repelled attack still bleeds the defender (turtling is not free)", (
   });
 });
 
-describe("goal / outcome (a reason to keep playing)", () => {
+describe("goal / outcome (start-fair: you must CONQUER, not merely hold)", () => {
   const fresh = () => initArmySim(generateWorld({ ...DEFAULT_PARAMS, seed: 1 }).world);
 
-  it("goalTarget is round(GOAL_FRAC x land) and land counts ownable provinces", () => {
+  it("goalGain is round(GOAL_GAIN_FRAC x land)", () => {
     const s = fresh();
-    expect(landProvinces(s)).toBeGreaterThan(0);
-    expect(landProvinces(s)).toBeLessThanOrEqual(s.n);
-    expect(goalTarget(s)).toBe(Math.round(GOAL_FRAC * landProvinces(s)));
+    expect(goalGain(s)).toBe(Math.round(GOAL_GAIN_FRAC * landProvinces(s)));
+    expect(goalGain(s)).toBeGreaterThan(0);
   });
 
-  it("returns null mid-game", () => {
+  it("nobody wins at t0, whatever their size — gain is 0 for every start", () => {
     const s = fresh();
-    const me = [...s.owner].find((o) => o >= 0)!;
-    expect(outcome(s, me)).toBeNull();
+    const counts = new Map<number, number>();
+    for (let p = 0; p < s.n; p++) if (s.owner[p] >= 0) counts.set(s.owner[p], (counts.get(s.owner[p]) ?? 0) + 1);
+    const sizes = [...counts].sort((a, b) => a[1] - b[1]);
+    const smallest = sizes[0], largest = sizes[sizes.length - 1];
+    expect(outcome(s, smallest[0], smallest[1])).toBeNull();
+    expect(outcome(s, largest[0], largest[1])).toBeNull();   // a big start cannot win instantly
   });
 
-  it("is defeat at zero provinces — even past the horizon (order matters)", () => {
-    const s = fresh();
-    const me = [...s.owner].find((o) => o >= 0)!;
-    for (let p = 0; p < s.n; p++) if (s.owner[p] === me) s.owner[p] = me === 0 ? 1 : 0;
-    s.turn = HORIZON + 5;
-    expect(outcome(s, me)).toEqual({ kind: "defeat" });
-  });
-
-  it("is victory at exactly the target, and not one below it", () => {
+  it("needs the full gain: one short is not a win, exactly the gain is", () => {
     const s = fresh();
     const me = [...s.owner].find((o) => o >= 0)!;
     const other = me === 0 ? 1 : 0;
     const land = [...Array(s.n).keys()].filter((p) => s.owner[p] >= 0);
-    const target = goalTarget(s);
-    for (const p of land) s.owner[p] = other;            // wipe the board to a rival
-    for (const p of land.slice(0, target - 1)) s.owner[p] = me;
-    expect(outcome(s, me)).toBeNull();                    // one short
-    s.owner[land[target - 1]] = me;
-    expect(outcome(s, me)).toEqual({ kind: "victory" });
+    const start = 2;
+    const need = goalGain(s);
+    for (const p of land) s.owner[p] = other;
+    for (const p of land.slice(0, start + need - 1)) s.owner[p] = me;
+    expect(outcome(s, me, start)).toBeNull();
+    s.owner[land[start + need - 1]] = me;
+    expect(outcome(s, me, start)).toEqual({ kind: "victory" });
   });
 
-  it("ends at the horizon with a rank among surviving nations", () => {
+  it("the same finish line for a small and a large start (start-fair)", () => {
+    const s = fresh();
+    const me = [...s.owner].find((o) => o >= 0)!;
+    const need = goalGain(s);
+    expect(goalProgress(s, me, 3).goal).toBe(need);
+    expect(goalProgress(s, me, 18).goal).toBe(need);   // identical requirement
+  });
+
+  it("reports a NEGATIVE gain when the realm shrinks below its start", () => {
+    const s = fresh();
+    const me = [...s.owner].find((o) => o >= 0)!;
+    const held = provinceCount(s, me);
+    const prog = goalProgress(s, me, held + 4);
+    expect(prog.gained).toBe(-4);
+  });
+
+  it("defeat still outranks victory and the horizon", () => {
+    const s = fresh();
+    const me = [...s.owner].find((o) => o >= 0)!;
+    for (let p = 0; p < s.n; p++) if (s.owner[p] === me) s.owner[p] = me === 0 ? 1 : 0;
+    s.turn = HORIZON + 5;
+    expect(outcome(s, me, 1)).toEqual({ kind: "defeat" });
+  });
+
+  it("ends at the horizon with a rank", () => {
     const s = fresh();
     const me = [...s.owner].find((o) => o >= 0)!;
     s.turn = HORIZON;
-    const r = outcome(s, me);
+    const r = outcome(s, me, provinceCount(s, me));
     expect(r && r.kind).toBe("horizon");
-    if (r && r.kind === "horizon") {
-      expect(r.rank).toBeGreaterThanOrEqual(1);
-      expect(r.rank).toBeLessThanOrEqual(r.of);
-      expect(r.of).toBe(nationRank(s, me).of);
-    }
-  });
-
-  it("nationRank ranks by province count, ties to the lower id, counting only living nations", () => {
-    const s = fresh();
-    const a = 0, b = 1;
-    for (let p = 0; p < s.n; p++) if (s.owner[p] >= 0) s.owner[p] = -1 as unknown as number; // clear owners
-    // rebuild a tiny world: nation a holds 3, nation b holds 5
-    const land = [...Array(s.n).keys()].slice(0, 8);
-    for (const p of land.slice(0, 3)) s.owner[p] = a;
-    for (const p of land.slice(3, 8)) s.owner[p] = b;
-    expect(provinceCount(s, a)).toBe(3);
-    expect(provinceCount(s, b)).toBe(5);
-    expect(nationRank(s, b)).toEqual({ rank: 1, of: 2 });
-    expect(nationRank(s, a)).toEqual({ rank: 2, of: 2 });
-  });
-
-  it("nationRank breaks a true tie (equal province counts) toward the lower polity id", () => {
-    const s = fresh();
-    const lo = 0, hi = 1; // lo has the lower id
-    for (let p = 0; p < s.n; p++) if (s.owner[p] >= 0) s.owner[p] = -1 as unknown as number; // clear owners
-    // both nations hold the SAME number of provinces — a genuine tie, exercising the `a.id - b.id`
-    // comparator branch that the pre-existing test (3 vs 5 provinces) never reached.
-    const land = [...Array(s.n).keys()].slice(0, 6);
-    for (const p of land.slice(0, 3)) s.owner[p] = lo;
-    for (const p of land.slice(3, 6)) s.owner[p] = hi;
-    expect(provinceCount(s, lo)).toBe(3);
-    expect(provinceCount(s, hi)).toBe(3);
-    expect(nationRank(s, lo)).toEqual({ rank: 1, of: 2 }); // lower id wins the tie
-    expect(nationRank(s, hi)).toEqual({ rank: 2, of: 2 });
+    if (r && r.kind === "horizon") expect(r.of).toBe(nationRank(s, me).of);
   });
 });

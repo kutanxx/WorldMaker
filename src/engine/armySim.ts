@@ -264,7 +264,6 @@ export function endTurn(s: ArmyState, playerNation: number): void {
 }
 
 // --- goal: what you are racing toward, and how a game ends ---
-export const GOAL_FRAC = 0.4;   // conquer this share of the world's land to win (8 nations => 12.5% is average)
 export const HORIZON = 50;      // the game ends here and ranks you — a real ending, not a soft stop
 
 // provinces that can be owned at all (the denominator the goal is a fraction of)
@@ -274,9 +273,20 @@ export function landProvinces(s: ArmyState): number {
   return k;
 }
 
-// the number the HUD shows AND the number victory is tested against — one source, so they cannot drift.
-export function goalTarget(s: ArmyState): number {
-  return Math.round(GOAL_FRAC * landProvinces(s));
+// Victory is measured by what you CONQUERED, not by what you happen to hold. Additive so it is
+// start-fair: a 3-province realm and an 18-province realm must both take the same absolute number of
+// provinces, a big start never wins at t0 (gain is 0), and a small start cannot win by grabbing two
+// neighbours. (The province game learned this same lesson; an absolute threshold favours big starts.)
+export const GOAL_GAIN_FRAC = 0.2;
+
+export function goalGain(s: ArmyState): number {
+  return Math.round(GOAL_GAIN_FRAC * landProvinces(s));
+}
+
+// what the HUD shows AND what victory is tested against — one source, so they cannot drift.
+// `gained` is deliberately NOT clamped: a realm below its start is the losing state to surface.
+export function goalProgress(s: ArmyState, nation: number, startProv: number): { gained: number; goal: number } {
+  return { gained: provinceCount(s, nation) - startProv, goal: goalGain(s) };
 }
 
 export function provinceCount(s: ArmyState, nation: number): number {
@@ -306,10 +316,10 @@ export type Outcome =
 
 // Checked before the player acts each turn, in this order: death first (it outranks everything),
 // then the conquest goal, then the horizon.
-export function outcome(s: ArmyState, nation: number): Outcome {
-  const mine = provinceCount(s, nation);
-  if (mine === 0) return { kind: "defeat" };
-  if (mine >= goalTarget(s)) return { kind: "victory" };
+export function outcome(s: ArmyState, nation: number, startProv: number): Outcome {
+  if (provinceCount(s, nation) === 0) return { kind: "defeat" };
+  const { gained, goal } = goalProgress(s, nation, startProv);
+  if (gained >= goal) return { kind: "victory" };
   if (s.turn >= HORIZON) { const { rank, of } = nationRank(s, nation); return { kind: "horizon", rank, of }; }
   return null;
 }
