@@ -3,6 +3,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mountArmyApp } from "./armyApp";
 import { generateWorld } from "../engine/world";
 import { DEFAULT_PARAMS } from "../types/world";
+import { initArmySim } from "../engine/armySim";
 
 describe("armyApp (prototype loop: levy -> march -> end turn)", () => {
   let root: HTMLElement;
@@ -290,6 +291,44 @@ describe("province number labels never float over the sea", () => {
       expect(world.provinceOf[cell!]).toBe(prov);      // and that cell belongs to THIS province
       expect(prov).toBeGreaterThanOrEqual(0);          // never ocean
     }
+  });
+});
+
+describe("unowned wilderness is painted, not left to look like open sea", () => {
+  let root: HTMLElement;
+  beforeEach(() => { root = document.createElement("div"); document.body.appendChild(root); });
+  afterEach(() => { root.remove(); });
+
+  function pickNation(): void {
+    const label = root.querySelector(".army-pick-label") as HTMLElement;
+    const id = label.getAttribute("data-polity")!;
+    (root.querySelector(`.army-prov[data-polity="${id}"]`) as SVGElement)
+      .dispatchEvent(new MouseEvent("click", { bubbles: true }));
+  }
+
+  // seed 1 (used by every other test in this file) is confirmed non-vacuous: initArmySim leaves
+  // 21 of its 102 provinces unowned (owner === -1) at the start of a game.
+  it("paints every unowned province with a non-empty .army-wild path", () => {
+    const world = generateWorld({ ...DEFAULT_PARAMS, seed: 1 }).world;
+    const s = initArmySim(world);
+    let unowned = 0;
+    for (let p = 0; p < s.n; p++) if (s.owner[p] === -1) unowned++;
+    expect(unowned).toBeGreaterThan(0); // guard: this test would be vacuous on a seed with none
+
+    mountArmyApp(root, { seed: 1 });
+    pickNation();
+    const wild = root.querySelector(".army-wild") as SVGPathElement | null;
+    expect(wild).toBeTruthy();
+    expect(wild!.getAttribute("d")).toBeTruthy();
+  });
+
+  it("does not steal clicks from owned provinces", () => {
+    mountArmyApp(root, { seed: 1 });
+    pickNation();
+    expect(root.querySelector(".army-wild")).toBeTruthy();
+    const mine = root.querySelector(".army-prov[data-mine='1']") as SVGElement;
+    mine.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    expect(root.querySelector(".army-sel")!.textContent).not.toContain("내 영토를 클릭해 선택하세요");
   });
 });
 

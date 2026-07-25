@@ -461,6 +461,10 @@ svg.world .legend { pointer-events: none; }
 /* ── Army prototype (playArmy.html) ── */
 .army-hud { font-size: 15px; padding: 6px 2px; color: #3c2f1c; }
 .army-map { display: block; width: 100%; max-width: 900px; margin: 6px auto; background: #eadfc2; border: 1px solid #cbb784; border-radius: 5px; max-height: 60vh; }
+/* unowned "wilderness" land: conquerable but claimed by no nation. A muted, desaturated tone —
+   distinct from every nation colour, from the free-city grey, and from the .army-map background —
+   so it reads as unclaimed land rather than as bare page background (which looks like open sea). */
+.army-wild { fill: #93876e; fill-opacity: 0.8; pointer-events: none; }
 .army-prov { cursor: pointer; }
 .army-num { font-size: 9px; fill: #2b2113; paint-order: stroke; stroke: #f6ecd2; stroke-width: 2.5px; }
 .army-sel { font-size: 14px; padding: 8px 2px; display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }

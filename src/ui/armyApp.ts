@@ -37,6 +37,37 @@ export function mountArmyApp(root: HTMLElement, opts: { seed?: number } = {}): v
     for (let c = 0; c < world.grid.count; c++) { const p = world.provinceOf[c]; if (p >= 0) owner[c] = s.owner[p]; }
     svg.appendChild(politicalLayer(world.grid, owner, world.polities, { fills: true, labels: false, legend: false }));
 
+    // per-province polygon union + label anchor, built in ONE pass over grid cells. Reused below
+    // for: the wilderness fill, the click hit-areas, and the number labels — no extra O(grid.count)
+    // scan is added just to paint unowned land. The label anchor is picked in this same pass: for
+    // each cell belonging to province p, track the cell nearest that province's centroid. A raw
+    // centroid (arithmetic mean of cell positions) can fall outside the province's own land for a
+    // crescent, a bay-hugging, or a peninsula province — snapping to the province's own nearest
+    // cell guarantees the label sits on land that actually belongs to it (ties: lower cell index
+    // wins, so the map is stable across renders).
+    const byProv: string[] = new Array(s.n).fill("");
+    const anchorCell = new Int32Array(s.n).fill(-1);
+    const anchorDist2 = new Float64Array(s.n).fill(Infinity);
+    let wildD = "";
+    for (let c = 0; c < world.grid.count; c++) {
+      const p = world.provinceOf[c];
+      if (p < 0) continue;
+      const cellD = cellPath(world.grid.polygons[c]);
+      byProv[p] += cellD;
+      if (s.owner[p] === -1) wildD += cellD;
+      const [tx, ty] = world.provinces[p].centroid;
+      const dx = world.grid.points[c * 2] - tx, dy = world.grid.points[c * 2 + 1] - ty;
+      const d2 = dx * dx + dy * dy;
+      if (d2 < anchorDist2[p]) { anchorDist2[p] = d2; anchorCell[p] = c; }
+    }
+    // unowned land ("wilderness"): real, conquerable provinces (moveArmy lets an army march into
+    // them, defenceOf gives them militia) that no nation's fill paints. Without this the political
+    // layer leaves them as bare page background — visually identical to open sea — so their number
+    // labels look like they float on water. Painted in a neutral tone (src/theme.css .army-wild,
+    // pointer-events:none there) distinct from every nation colour and the background. Drawn before
+    // the borders (so boundary strokes still sit on top) and before the click hit-areas below.
+    if (wildD) svg.appendChild(svgEl("path", { class: "army-wild", d: wildD }));
+
     // land clip: the union of every OWNED cell's polygon — exactly the painted land (NOT "every
     // non-ocean cell": a non-ocean cell's Voronoi polygon can still span a narrow strait, so that
     // would mask nothing). Border strokes are clipped to this so a boundary line whose Voronoi edge
@@ -62,25 +93,7 @@ export function mountArmyApp(root: HTMLElement, opts: { seed?: number } = {}): v
       "clip-path": "url(#army-land)", "pointer-events": "none",
     }));
 
-    // one clickable hit area per province + its numbers. The label anchor is picked in the SAME
-    // pass over grid cells that builds byProv: for each cell belonging to province p, track the
-    // cell nearest that province's centroid. A raw centroid (arithmetic mean of cell positions)
-    // can fall outside the province's own land for a crescent, a bay-hugging, or a peninsula
-    // province — snapping to the province's own nearest cell guarantees the label sits on land
-    // that actually belongs to it, without a second O(n) scan per province (ties: lower cell
-    // index wins, so the map is stable across renders).
-    const byProv: string[] = new Array(s.n).fill("");
-    const anchorCell = new Int32Array(s.n).fill(-1);
-    const anchorDist2 = new Float64Array(s.n).fill(Infinity);
-    for (let c = 0; c < world.grid.count; c++) {
-      const p = world.provinceOf[c];
-      if (p < 0) continue;
-      byProv[p] += cellPath(world.grid.polygons[c]);
-      const [tx, ty] = world.provinces[p].centroid;
-      const dx = world.grid.points[c * 2] - tx, dy = world.grid.points[c * 2 + 1] - ty;
-      const d2 = dx * dx + dy * dy;
-      if (d2 < anchorDist2[p]) { anchorDist2[p] = d2; anchorCell[p] = c; }
-    }
+    // one clickable hit area per province + its numbers, reusing byProv/anchorCell computed above.
     for (let p = 0; p < s.n; p++) {
       if (!byProv[p]) continue;
       const mine = player !== null && s.owner[p] === player;
