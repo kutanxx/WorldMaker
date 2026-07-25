@@ -175,3 +175,40 @@ export function moveArmy(s: ArmyState, prov: number, nation: number, target: num
   }
   return r;
 }
+
+// Deliberately dumb AI: enough for the world to push back while we test whether the loop is fun.
+// Each non-player nation levies once from its most populous province, then marches its biggest army
+// at the weakest adjacent enemy province it can actually beat. Deterministic: ties break on lower id.
+export function aiTurn(s: ArmyState, playerNation: number): void {
+  const nations = [...new Set([...s.owner].filter((o) => o >= 0 && o !== playerNation))].sort((a, b) => a - b);
+  for (const nation of nations) {
+    // 1. levy from the most populous owned province
+    let best = -1;
+    for (let p = 0; p < s.n; p++) {
+      if (s.owner[p] !== nation) continue;
+      if (best < 0 || s.pop[p] > s.pop[best]) best = p;
+    }
+    if (best >= 0) levy(s, best, nation);
+    // 2. march the biggest army at the weakest beatable adjacent enemy province
+    let army: Army | undefined;
+    for (const a of s.armies) {
+      if (a.nation !== nation) continue;
+      if (!army || a.men > army.men || (a.men === army.men && a.prov < army.prov)) army = a;
+    }
+    if (!army) continue;
+    let target = -1, targetDef = Infinity;
+    for (const q of s.adj[army.prov]) {
+      if (s.owner[q] === nation) continue;
+      const d = defenceOf(s, q, nation);
+      if (d < army.men && (d < targetDef || (d === targetDef && q < target))) { targetDef = d; target = q; }
+    }
+    if (target >= 0) moveArmy(s, army.prov, nation, target);
+  }
+}
+
+export function endTurn(s: ArmyState, playerNation: number): void {
+  aiTurn(s, playerNation);
+  applyUpkeep(s);
+  regrow(s);
+  s.turn++;
+}

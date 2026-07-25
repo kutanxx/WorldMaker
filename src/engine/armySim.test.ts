@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { generateWorld } from "./world";
 import { DEFAULT_PARAMS } from "../types/world";
-import { basePopOf, initArmySim, BIOME_POP, BIOME_DEF, LEVY_FRAC, UPKEEP_FRAC, REGROW_FRAC, MILITIA_FRAC, WIN_LOSS_MULT, armyAt, maxLevy, levy, applyUpkeep, regrow, militiaOf, defenceOf, previewMove, moveArmy } from "./armySim";
+import { basePopOf, initArmySim, BIOME_POP, BIOME_DEF, LEVY_FRAC, UPKEEP_FRAC, REGROW_FRAC, MILITIA_FRAC, WIN_LOSS_MULT, armyAt, maxLevy, levy, applyUpkeep, regrow, militiaOf, defenceOf, previewMove, moveArmy, aiTurn, endTurn } from "./armySim";
 import { GRASSLAND, ALPINE } from "./biome";
 
 describe("basePopOf (population comes from the generated world)", () => {
@@ -236,3 +236,46 @@ describe("moveArmy (march, battle, capture)", () => {
   });
 });
 
+describe("endTurn", () => {
+  it("advances the turn, applies upkeep and regrows population", () => {
+    const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });
+    const s = initArmySim(world);
+    const prov = [...s.owner].findIndex((o) => o >= 0);
+    const nation = s.owner[prov];
+    const men = levy(s, prov, nation);
+    const popAfterLevy = s.pop[prov];
+    endTurn(s, nation);
+    expect(s.turn).toBe(1);
+    expect(armyAt(s, prov, nation)!.men).toBeLessThan(men);   // upkeep bled it
+    expect(s.pop[prov]).toBeGreaterThan(popAfterLevy);        // regrowth
+  });
+  it("lets the AI act but never moves the player's armies", () => {
+    const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });
+    const s = initArmySim(world);
+    const player = 0;
+    const prov = [...Array(s.n).keys()].find((p) => s.owner[p] === player)!;
+    // two levies so upkeep's minimum 1-man drain shrinks the army without wiping it out
+    levy(s, prov, player);
+    levy(s, prov, player);
+    const before = armyAt(s, prov, player)!.men;
+    endTurn(s, player);
+    // the player's army is still where the player left it (only upkeep changed its size)
+    expect(armyAt(s, prov, player)).toBeDefined();
+    expect(armyAt(s, prov, player)!.men).toBeLessThan(before);
+    // and the AI did something: some nation other than the player raised men
+    expect(s.armies.some((a) => a.nation !== player)).toBe(true);
+  });
+  it("is deterministic: same seed and same commands give the same state", () => {
+    const run = () => {
+      const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 5 });
+      const s = initArmySim(world);
+      const prov = [...s.owner].findIndex((o) => o >= 0);
+      const nation = s.owner[prov];
+      levy(s, prov, nation);
+      endTurn(s, nation);
+      endTurn(s, nation);
+      return JSON.stringify({ o: [...s.owner], p: [...s.pop].map((v) => v.toFixed(6)), a: s.armies, t: s.turn });
+    };
+    expect(run()).toBe(run());
+  });
+});
