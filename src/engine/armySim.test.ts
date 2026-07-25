@@ -297,6 +297,61 @@ describe("POP_SCALE (armies must survive their own upkeep)", () => {
   });
 });
 
+describe("movedOn (one move per army per turn)", () => {
+  it("refuses a second march by the same army in the same turn and changes nothing", () => {
+    const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });
+    const s = initArmySim(world);
+    const prov = [...Array(world.provinces.length).keys()]
+      .find((p) => s.owner[p] >= 0 && s.adj[p].some((q) => s.owner[q] === s.owner[p]))!;
+    const nation = s.owner[prov];
+    const dest = s.adj[prov].find((q) => s.owner[q] === nation)!;
+    levy(s, prov, nation);
+    const r1 = moveArmy(s, prov, nation, dest);
+    expect(r1).not.toBeNull();
+    const snapshot = JSON.stringify({ o: [...s.owner], p: [...s.pop], a: s.armies });
+    // the same army, now sitting at `dest`, tries to march again this turn (back the way it came)
+    const r2 = moveArmy(s, dest, nation, prov);
+    expect(r2).toBeNull();
+    expect(JSON.stringify({ o: [...s.owner], p: [...s.pop], a: s.armies })).toBe(snapshot);
+  });
+
+  it("lets the army move again once endTurn advances the turn counter", () => {
+    const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });
+    const s = initArmySim(world);
+    const prov = [...Array(world.provinces.length).keys()]
+      .find((p) => s.owner[p] >= 0 && s.adj[p].some((q) => s.owner[q] === s.owner[p]))!;
+    const nation = s.owner[prov];
+    const dest = s.adj[prov].find((q) => s.owner[q] === nation)!;
+    levy(s, prov, nation);
+    expect(moveArmy(s, prov, nation, dest)).not.toBeNull();
+    expect(moveArmy(s, dest, nation, prov)).toBeNull();     // blocked: already moved this turn
+    endTurn(s, nation);
+    expect(armyAt(s, dest, nation)).toBeDefined();          // survived upkeep
+    expect(moveArmy(s, dest, nation, prov)).not.toBeNull(); // a new turn, free to move again
+  });
+
+  it("marks a stack as moved when another army merges into it, so the merge cannot move again this turn", () => {
+    const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });
+    const s = initArmySim(world);
+    let found: { x: number; w: number; y: number; nation: number } | null = null;
+    for (let y = 0; y < s.n && !found; y++) {
+      if (s.owner[y] < 0) continue;
+      const nation = s.owner[y];
+      const friends = s.adj[y].filter((q) => s.owner[q] === nation && maxLevy(s, q) > 0);
+      if (friends.length >= 2) found = { x: friends[0], w: friends[1], y, nation };
+    }
+    expect(found).not.toBeNull();
+    const { x, w, y, nation } = found!;
+    levy(s, x, nation);
+    levy(s, w, nation);
+    expect(moveArmy(s, x, nation, y)).not.toBeNull();  // first arrival creates the stack at y
+    expect(moveArmy(s, w, nation, y)).not.toBeNull();  // second arrival merges into it
+    // the merged stack must read as moved this turn, even though the merge came from a
+    // fresh (never-moved) army — merging must not launder the target's spent move.
+    expect(moveArmy(s, y, nation, x)).toBeNull();
+  });
+});
+
 describe("aiTurn (AI acts independently)", () => {
   it("only moves non-player nations and never touches the player's armies", () => {
     const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });

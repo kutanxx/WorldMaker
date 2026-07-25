@@ -25,7 +25,10 @@ export const BIOME_DEF: Record<number, number> = {
   [TEMPERATE_FOREST]: 1.2, [TAIGA]: 1.2, [WETLAND]: 1.35, [ALPINE]: 1.6,
 };
 
-export interface Army { prov: number; nation: number; men: number }
+// movedOn is optional (rather than required) so pre-existing tests that construct Army
+// literals directly (before this field existed) keep compiling unchanged; a missing value
+// behaves exactly like -1 (never moved this turn) everywhere it is read.
+export interface Army { prov: number; nation: number; men: number; movedOn?: number }
 
 export interface ArmyState {
   world: World;
@@ -93,12 +96,12 @@ export function maxLevy(s: ArmyState, prov: number): number {
 
 // raise men from an owned province: the population really leaves the land.
 export function levy(s: ArmyState, prov: number, nation: number): number {
-  if (prov < 0 || prov >= s.n || s.owner[prov] !== nation) return 0;
+  if (nation < 0 || prov < 0 || prov >= s.n || s.owner[prov] !== nation) return 0;
   const men = maxLevy(s, prov);
   if (men <= 0) return 0;
   s.pop[prov] -= men;
   const a = armyAt(s, prov, nation);
-  if (a) a.men += men; else s.armies.push({ prov, nation, men });
+  if (a) a.men += men; else s.armies.push({ prov, nation, men, movedOn: -1 });
   return men;
 }
 
@@ -125,6 +128,7 @@ export function militiaOf(s: ArmyState, prov: number): number {
 // effective defence of `prov` against `attacker`: every non-attacker army standing there plus the
 // militia, all multiplied by how defensible the terrain is.
 export function defenceOf(s: ArmyState, prov: number, attacker: number): number {
+  if (prov < 0 || prov >= s.n) return 0;
   let men = 0;
   for (const a of s.armies) if (a.prov === prov && a.nation !== attacker) men += a.men;
   const mult = BIOME_DEF[s.world.provinces[prov].biome] ?? 1;
@@ -155,6 +159,8 @@ export function previewMove(s: ArmyState, prov: number, nation: number, target: 
 // march or attack. On a win the army occupies the target (and the land, with its population, changes
 // hands — that population is levyable next turn, which is what makes attacking compound).
 export function moveArmy(s: ArmyState, prov: number, nation: number, target: number): BattleResult | null {
+  const before = armyAt(s, prov, nation);
+  if (before && before.movedOn === s.turn) return null;  // one move per army per turn
   const r = resolve(s, prov, nation, target);
   if (!r) return null;
   const army = armyAt(s, prov, nation)!;
@@ -173,7 +179,10 @@ export function moveArmy(s: ArmyState, prov: number, nation: number, target: num
   }
   if (army.men > 0) {
     const there = armyAt(s, target, nation);
-    if (there) there.men += army.men; else s.armies.push({ prov: target, nation, men: army.men });
+    // movedOn is always set to THIS turn, never inherited from the mover — otherwise merging a
+    // fresh army into an already-spent stack would launder the stack back to "hasn't moved".
+    if (there) { there.men += army.men; there.movedOn = s.turn; }
+    else s.armies.push({ prov: target, nation, men: army.men, movedOn: s.turn });
   }
   return r;
 }

@@ -8,8 +8,9 @@ import { politicalLayer } from "./politicalLayer";
 import { svgEl } from "./renderer";
 import { cellPath } from "./svgPaths";
 
-// PROTOTYPE UI. Two clicks per action, no stances, no target arming: click your province to levy,
-// click your army then a neighbour to march. Everything the rules use is printed on the map.
+// PROTOTYPE UI. Click a province of yours to select it; levy and march/attack are both issued from
+// the panel's buttons (never by clicking the map), so a misclick on a hostile neighbour can never
+// destroy an army by accident. Everything the rules use is printed on the map.
 export function mountArmyApp(root: HTMLElement, opts: { seed?: number } = {}): void {
   const seed = opts.seed ?? Math.floor(Date.now() % 1_000_000);
   const world = generateWorld({ ...DEFAULT_PARAMS, seed }).world;
@@ -63,47 +64,62 @@ export function mountArmyApp(root: HTMLElement, opts: { seed?: number } = {}): v
     return svg;
   }
 
+  // clicking the map only ever selects one of your own provinces (or clears the selection) —
+  // marching is issued from the panel's per-target buttons, never by a map click, so a misclick
+  // on a hostile neighbour can never destroy an army without a deliberate confirming click.
   function onProvClick(p: number): void {
-    if (sel !== null && sel !== p) {
-      const a = armyAt(s, sel, player);
-      if (a && s.adj[sel].includes(p)) {           // march / attack
-        const r = moveArmy(s, sel, player, p);
-        if (r) {
-          say(r.captured ? `점령 ${world.provinces[p].name} (손실 ${r.attackerLosses})`
-            : r.won ? `이동 ${world.provinces[p].name}`
-            : `패배 ${world.provinces[p].name} — 전멸 (방어 ${Math.round(r.def)})`);
-        }
-        sel = null; render(); return;
-      }
-    }
     sel = s.owner[p] === player ? p : null;
+    render();
+  }
+
+  function issueMove(from: number, target: number): void {
+    const r = moveArmy(s, from, player, target);
+    if (r) {
+      say(r.captured ? `점령 ${world.provinces[target].name} (손실 ${r.attackerLosses})`
+        : r.won ? `이동 ${world.provinces[target].name}`
+        : `패배 ${world.provinces[target].name} — 전멸 (방어 ${Math.ceil(r.def)})`);
+    }
+    sel = null;
     render();
   }
 
   function panel(): HTMLElement {
     const box = document.createElement("div");
     box.className = "army-sel";
-    if (sel === null) { box.textContent = "내 영토를 클릭해 징집하거나, 군대를 고른 뒤 인접 영토를 클릭하세요."; return box; }
+    if (sel === null) { box.textContent = "내 영토를 클릭해 선택하세요. 징집과 행군은 아래 버튼으로 실행합니다."; return box; }
     const p = sel, name = world.provinces[p].name;
     const a = armyAt(s, p, player);
     const head = document.createElement("div");
     head.textContent = `${name} · 인구 ${Math.round(s.pop[p])} · 민병 ${militiaOf(s, p)}` + (a ? ` · 병력 ${a.men}` : "");
     box.appendChild(head);
+    const levyAmount = maxLevy(s, p);
     const btn = document.createElement("button");
     btn.className = "army-levy";
-    btn.textContent = `징집 (+${maxLevy(s, p)}명, 인구 −${maxLevy(s, p)})`;
+    btn.textContent = `징집 (+${levyAmount}명, 인구 −${levyAmount})`;
+    btn.disabled = levyAmount === 0;
     btn.addEventListener("click", () => { const m = levy(s, p, player); if (m > 0) say(`징집 ${name} +${m}`); render(); });
     box.appendChild(btn);
     if (a) {
+      const spent = a.movedOn === s.turn;
+      if (spent) {
+        const note = document.createElement("div");
+        note.className = "army-spent";
+        note.textContent = "이미 이동함";
+        box.appendChild(note);
+      }
       const list = document.createElement("div");
       list.className = "army-moves";
       for (const q of s.adj[p]) {
         const r = previewMove(s, p, player, q);
         if (!r) continue;
-        const row = document.createElement("div");
+        const row = document.createElement("button");
+        row.className = "army-move";
+        row.dataset.target = String(q);
+        row.disabled = spent;
         row.textContent = s.owner[q] === player
           ? `→ ${world.provinces[q].name} (행군)`
-          : `→ ${world.provinces[q].name} · 공격 ${r.atk} vs 방어 ${Math.round(r.def)} · ${r.won ? "승리 예상" : "패배 예상"}`;
+          : `→ ${world.provinces[q].name} · 공격 ${r.atk} vs 방어 ${Math.ceil(r.def)} · ${r.won ? "승리 예상" : "패배 예상"}`;
+        row.addEventListener("click", () => issueMove(p, q));
         list.appendChild(row);
       }
       box.appendChild(list);
@@ -115,7 +131,7 @@ export function mountArmyApp(root: HTMLElement, opts: { seed?: number } = {}): v
     root.innerHTML = "";
     const hud = document.createElement("div");
     hud.className = "army-hud";
-    hud.textContent = `턴 ${s.turn} · ${world.polities[player]?.name ?? ""} · 영토 ${myProv()} · 인구 ${Math.round(myPop())} · 병력 ${myMen()}`;
+    hud.textContent = `턴 ${s.turn} · 시드 ${seed} · ${world.polities[player]?.name ?? ""} · 영토 ${myProv()} · 인구 ${Math.round(myPop())} · 병력 ${myMen()}`;
     root.appendChild(hud);
     root.appendChild(buildMap());
     root.appendChild(panel());
