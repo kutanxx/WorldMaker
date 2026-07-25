@@ -262,3 +262,54 @@ export function endTurn(s: ArmyState, playerNation: number): void {
   regrow(s);
   s.turn++;
 }
+
+// --- goal: what you are racing toward, and how a game ends ---
+export const GOAL_FRAC = 0.4;   // conquer this share of the world's land to win (8 nations => 12.5% is average)
+export const HORIZON = 50;      // the game ends here and ranks you — a real ending, not a soft stop
+
+// provinces that can be owned at all (the denominator the goal is a fraction of)
+export function landProvinces(s: ArmyState): number {
+  let k = 0;
+  for (let p = 0; p < s.n; p++) if (s.basePop[p] > 0 || s.owner[p] >= 0) k++;
+  return k;
+}
+
+// the number the HUD shows AND the number victory is tested against — one source, so they cannot drift.
+export function goalTarget(s: ArmyState): number {
+  return Math.round(GOAL_FRAC * landProvinces(s));
+}
+
+export function provinceCount(s: ArmyState, nation: number): number {
+  let k = 0;
+  for (let p = 0; p < s.n; p++) if (s.owner[p] === nation) k++;
+  return k;
+}
+
+// standing among nations that still hold land; ties -> lower polity id ranks first.
+export function nationRank(s: ArmyState, nation: number): { rank: number; of: number } {
+  const alive: { id: number; k: number }[] = [];
+  const seen = new Set<number>();
+  for (let p = 0; p < s.n; p++) {
+    const o = s.owner[p];
+    if (o >= 0 && !seen.has(o)) { seen.add(o); alive.push({ id: o, k: provinceCount(s, o) }); }
+  }
+  alive.sort((a, b) => b.k - a.k || a.id - b.id);
+  const idx = alive.findIndex((x) => x.id === nation);
+  return { rank: idx < 0 ? alive.length + 1 : idx + 1, of: alive.length };
+}
+
+export type Outcome =
+  | { kind: "defeat" }
+  | { kind: "victory" }
+  | { kind: "horizon"; rank: number; of: number }
+  | null;
+
+// Checked before the player acts each turn, in this order: death first (it outranks everything),
+// then the conquest goal, then the horizon.
+export function outcome(s: ArmyState, nation: number): Outcome {
+  const mine = provinceCount(s, nation);
+  if (mine === 0) return { kind: "defeat" };
+  if (mine >= goalTarget(s)) return { kind: "victory" };
+  if (s.turn >= HORIZON) { const { rank, of } = nationRank(s, nation); return { kind: "horizon", rank, of }; }
+  return null;
+}
