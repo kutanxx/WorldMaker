@@ -181,6 +181,10 @@ describe("moveArmy (march, battle, capture)", () => {
     const target = s.adj[prov].find((q) => s.owner[q] >= 0 && s.owner[q] !== nation)!;
     const ownerBefore = s.owner[target];
     s.armies.push({ prov, nation, men: 1 }); // hopeless
+    // structural, not lucky: pin that the odds themselves are near-zero, so the loss below is
+    // guaranteed by the numbers rather than by this particular (seed, turn, target, attacker) roll.
+    const preview = previewMove(s, prov, nation, target)!;
+    expect(preview.p).toBeLessThan(0.01);
     const r = moveArmy(s, prov, nation, target)!;
     expect(r.won).toBe(false);
     expect(r.captured).toBe(false);
@@ -191,10 +195,17 @@ describe("moveArmy (march, battle, capture)", () => {
     const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });
 
     // Under the old atk>def-only verdict, the pyrrhic boundary was "smallest atk that still wins".
-    // Under closeness-scaled losses that boundary can no longer be pyrrhic: at atk = floor(def)+1,
-    // atk is only barely above def, so closeness = def/atk is barely below 1 and
-    // round(def*WIN_LOSS_MULT*closeness) < atk for every def (WIN_LOSS_MULT=0.6 < 1). The
-    // zero-survivor case instead lives on the OTHER side of the ratio: whenever def >= atk, closeness
+    // Under closeness-scaled losses that boundary can no longer be pyrrhic FOR THE `def` VALUES THIS
+    // ENGINE'S CURRENT CONSTANTS CAN ACTUALLY PRODUCE — this is NOT a fact about the formula for every
+    // real def. At atk = floor(def)+1, closeness = def/atk is barely below 1, and
+    // round(def*WIN_LOSS_MULT*closeness) < atk does fail for some real def: e.g. atk=1, def=0.95 gives
+    // round(0.6*0.95^2) = round(0.5415) = 1 = atk, a zero-survivor win at the old-style boundary.
+    // (The counterexample band is roughly def in [0.9129, 1) at atk=1.) It happens to hold here only
+    // because reaching def < 1 requires a single militia unit times BIOME_DEF, and the only values this
+    // engine currently produces are 0.85 (GRASSLAND) and 0.9 (DESERT) — both below that ~0.9129
+    // threshold. A future BIOME_DEF or MILITIA_FRAC change that lands def in ~[0.913, 1) would break
+    // this reasoning and reopen the old-style boundary as pyrrhic again.
+    // The zero-survivor case instead lives on the OTHER side of the ratio: whenever def >= atk, closeness
     // = atk/def, so def*closeness telescopes to exactly atk, and losses = round(WIN_LOSS_MULT*atk) —
     // independent of def. That equals atk only at atk=1 (round(0.6)=1; for atk>=2, 0.6*atk is more
     // than 0.5 below atk). So: attack with a single man (atk=1) into any province whose defence is at
