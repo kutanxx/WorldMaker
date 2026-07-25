@@ -137,7 +137,7 @@ export function defenceOf(s: ArmyState, prov: number, attacker: number): number 
   return (men + militiaOf(s, prov)) * mult;
 }
 
-export interface BattleResult { won: boolean; atk: number; def: number; attackerLosses: number; captured: boolean }
+export interface BattleResult { won: boolean; atk: number; def: number; p: number; attackerLosses: number; captured: boolean }
 
 // Win probability from the strength ratio, sharpened by ODDS_K so overwhelming force is nearly safe
 // while an even fight is a coin flip. That gamble is the decision the deterministic version lacked.
@@ -159,15 +159,16 @@ export function battleRoll(s: ArmyState, target: number, attacker: number): numb
 function resolve(s: ArmyState, prov: number, nation: number, target: number): BattleResult | null {
   const army = armyAt(s, prov, nation);
   if (!army || !s.adj[prov]?.includes(target)) return null;
-  if (s.owner[target] === nation) return { won: true, atk: army.men, def: 0, attackerLosses: 0, captured: false };
+  if (s.owner[target] === nation) return { won: true, atk: army.men, def: 0, p: 1, attackerLosses: 0, captured: false };
   const atk = army.men;
   const def = defenceOf(s, target, nation);
-  const won = atk > def;
-  // the min() clamp guards future tuning of WIN_LOSS_MULT: if it were ever raised to >= 1,
-  // losses could otherwise exceed the attacking force and drive `men` negative. At today's
-  // constants a win always implies atk >= 1, so the clamp is a no-op in practice.
-  const attackerLosses = won ? Math.min(atk, Math.round(def * WIN_LOSS_MULT)) : atk;
-  return { won, atk, def, attackerLosses, captured: won };
+  const p = winChance(atk, def);
+  const won = battleRoll(s, target, nation) < p;
+  // a near-run fight is ruinous, a rout is cheap: scale the winner's losses by how close it was.
+  const closeness = Math.max(atk, def) > 0 ? Math.min(atk, def) / Math.max(atk, def) : 0;
+  // Math.min guards a future WIN_LOSS_MULT >= 1 from producing negative men.
+  const attackerLosses = won ? Math.min(atk, Math.round(def * WIN_LOSS_MULT * closeness)) : atk;
+  return { won, atk, def, p, attackerLosses, captured: won };
 }
 
 // PURE forecast of a move — same arithmetic the real move runs, so the preview can never lie.

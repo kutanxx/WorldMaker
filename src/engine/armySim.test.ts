@@ -158,15 +158,19 @@ describe("moveArmy (march, battle, capture)", () => {
     const nation = s.owner[prov];
     const target = s.adj[prov].find((q) => s.owner[q] >= 0 && s.owner[q] !== nation)!;
     const def = defenceOf(s, target, nation);
-    s.armies.push({ prov, nation, men: Math.ceil(def) + 1000 }); // overwhelming
+    const atk = Math.ceil(def) + 1000; // overwhelming: odds must be near-certain, not just atk>def
+    s.armies.push({ prov, nation, men: atk });
     const preview = previewMove(s, prov, nation, target)!;
     const r = moveArmy(s, prov, nation, target)!;
     expect(preview.won).toBe(true);
     expect(r.won).toBe(true);
     expect(r.captured).toBe(true);
     expect(s.owner[target]).toBe(nation);
-    expect(r.attackerLosses).toBe(Math.round(def * WIN_LOSS_MULT));
-    expect(armyAt(s, target, nation)!.men).toBe(Math.ceil(def) + 1000 - r.attackerLosses);
+    // losses now scale by closeness = min(atk,def)/max(atk,def); with atk this far above def the
+    // fight is a rout, so this pins the new formula rather than the old flat round(def*WIN_LOSS_MULT).
+    const closeness = def / atk;
+    expect(r.attackerLosses).toBe(Math.round(def * WIN_LOSS_MULT * closeness));
+    expect(armyAt(s, target, nation)!.men).toBe(atk - r.attackerLosses);
   });
   it("loses the whole attacking army and captures nothing when outmatched", () => {
     const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });
@@ -185,42 +189,52 @@ describe("moveArmy (march, battle, capture)", () => {
   });
   it("captures with zero surviving attackers on an exactly pyrrhic win (intended: the land is taken, the force is spent)", () => {
     const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });
-    const s = initArmySim(world);
 
-    // Search real adjacent province pairs for a population level at `target` where the resulting
-    // militia + terrain defence produces a win that is EXACTLY pyrrhic: the attacker's rounded
-    // losses consume the whole attacking force (e.g. 1 militia on grassland: def=0.85, atk=1,
-    // losses=round(0.85*WIN_LOSS_MULT)=1, leaving 0 survivors). Computed from the real helpers
-    // (not hardcoded) so the boundary tracks any future constant tuning.
-    let hit: { prov: number; target: number; nation: number; pop: number; atk: number } | null = null;
-    for (let prov = 0; prov < s.n && !hit; prov++) {
-      if (s.owner[prov] < 0) continue;
-      const nation = s.owner[prov];
-      for (const target of s.adj[prov]) {
-        if (hit) break;
-        for (let pop = 1; pop <= 50; pop++) {
+    // Under the old atk>def-only verdict, the pyrrhic boundary was "smallest atk that still wins".
+    // Under closeness-scaled losses that boundary can no longer be pyrrhic: at atk = floor(def)+1,
+    // atk is only barely above def, so closeness = def/atk is barely below 1 and
+    // round(def*WIN_LOSS_MULT*closeness) < atk for every def (WIN_LOSS_MULT=0.6 < 1). The
+    // zero-survivor case instead lives on the OTHER side of the ratio: whenever def >= atk, closeness
+    // = atk/def, so def*closeness telescopes to exactly atk, and losses = round(WIN_LOSS_MULT*atk) —
+    // independent of def. That equals atk only at atk=1 (round(0.6)=1; for atk>=2, 0.6*atk is more
+    // than 0.5 below atk). So: attack with a single man (atk=1) into any province whose defence is at
+    // least 1 (any biome with BIOME_DEF>=1, one militiaman) — a real, always-available matchup, not a
+    // knife-edge one — and IF the roll lands a win, it is unconditionally pyrrhic. Sweep turns (the
+    // roll is keyed on turn/target/attacker) to find one where that win actually lands.
+    let hit: { turn: number; prov: number; target: number; nation: number; pop: number; atk: number } | null = null;
+    for (let turn = 0; turn < 30 && !hit; turn++) {
+      const s = initArmySim(world);
+      s.turn = turn;
+      for (let prov = 0; prov < s.n && !hit; prov++) {
+        if (s.owner[prov] < 0) continue;
+        const nation = s.owner[prov];
+        for (const target of s.adj[prov]) {
+          if (hit) break;
+          const pop = 5; // floor(5 * MILITIA_FRAC) = 1 man of militia, regardless of biome
           s.pop[target] = pop;
           const def = defenceOf(s, target, nation);
-          if (def <= 0) continue;
-          const atk = Math.floor(def) + 1; // smallest integer strictly greater than def (a win)
-          const attackerLosses = Math.min(atk, Math.round(def * WIN_LOSS_MULT));
-          if (atk - attackerLosses === 0) { hit = { prov, target, nation, pop, atk }; break; }
+          const atk = 1;
+          if (def < atk) continue; // need def >= atk for the telescoping identity above to apply
+          const p = winChance(atk, def);
+          const roll = battleRoll(s, target, nation);
+          if (roll < p) { hit = { turn, prov, target, nation, pop, atk }; break; }
         }
       }
     }
     expect(hit).not.toBeNull(); // if this ever fails, hand-construct the boundary instead (see review)
-    const { prov, target, nation, pop, atk } = hit!;
+    const { turn, prov, target, nation, pop, atk } = hit!;
 
     // rebuild a clean state and pin exactly this boundary
     const s2 = initArmySim(world);
+    s2.turn = turn;
     s2.owner[target] = nation === 0 ? 1 : 0; // a hostile target, regardless of its original owner
     s2.pop[target] = pop;
     s2.armies.push({ prov, nation, men: atk });
 
     const r = moveArmy(s2, prov, nation, target)!;
     expect(r.won).toBe(true);
+    expect(r.attackerLosses).toBe(atk); // closeness-scaled, rounded losses consume the entire attacking force
     expect(r.captured).toBe(true);
-    expect(r.attackerLosses).toBe(atk); // rounded losses consume the entire attacking force
     expect(s2.owner[target]).toBe(nation);       // the land changes hands...
     expect(armyAt(s2, target, nation)).toBeUndefined(); // ...but no army survives to occupy it
     expect(armyAt(s2, prov, nation)).toBeUndefined();   // the attacking force is spent, not left behind
@@ -417,5 +431,57 @@ describe("battleRoll (uncertainty WITHOUT losing determinism)", () => {
     const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 4 });
     const s1 = initArmySim(world), s2 = initArmySim(world);
     expect(battleRoll(s1, 9, 1)).toBe(battleRoll(s2, 9, 1));
+  });
+});
+
+describe("battle verdict is now a roll against the quoted odds", () => {
+  it("reports the same p that the verdict was decided by, and preview matches the real move", () => {
+    const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });
+    const s = initArmySim(world);
+    const prov = [...Array(world.provinces.length).keys()]
+      .find((p) => s.owner[p] >= 0 && s.adj[p].some((q) => s.owner[q] >= 0 && s.owner[q] !== s.owner[p]))!;
+    const nation = s.owner[prov];
+    const target = s.adj[prov].find((q) => s.owner[q] >= 0 && s.owner[q] !== nation)!;
+    s.armies.push({ prov, nation, men: 500, movedOn: -1 });
+    const pre = previewMove(s, prov, nation, target)!;
+    expect(pre.p).toBeCloseTo(winChance(pre.atk, pre.def), 9);
+    const real = moveArmy(s, prov, nation, target)!;
+    expect(real.won).toBe(pre.won);      // preview cannot disagree with the outcome
+    expect(real.p).toBeCloseTo(pre.p, 9);
+  });
+
+  it("CAN lose a battle it outnumbers — the point of the change", () => {
+    // sweep turns so the roll changes; with atk only slightly above def, some turn must roll a loss
+    const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });
+    let sawLoss = false;
+    for (let turn = 0; turn < 40 && !sawLoss; turn++) {
+      const s = initArmySim(world);
+      s.turn = turn;
+      const prov = [...Array(world.provinces.length).keys()]
+        .find((p) => s.owner[p] >= 0 && s.adj[p].some((q) => s.owner[q] >= 0 && s.owner[q] !== s.owner[p]))!;
+      const nation = s.owner[prov];
+      const target = s.adj[prov].find((q) => s.owner[q] >= 0 && s.owner[q] !== nation)!;
+      const def = defenceOf(s, target, nation);
+      s.armies.push({ prov, nation, men: Math.ceil(def) + 1, movedOn: -1 }); // barely ahead => ~50%
+      const r = moveArmy(s, prov, nation, target)!;
+      if (!r.won) sawLoss = true;
+    }
+    expect(sawLoss).toBe(true);
+  });
+
+  it("an even fight costs the winner more than a rout does", () => {
+    const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });
+    const mk = (men: number) => {
+      const s = initArmySim(world);
+      const prov = [...Array(world.provinces.length).keys()]
+        .find((p) => s.owner[p] >= 0 && s.adj[p].some((q) => s.owner[q] >= 0 && s.owner[q] !== s.owner[p]))!;
+      const nation = s.owner[prov];
+      const target = s.adj[prov].find((q) => s.owner[q] >= 0 && s.owner[q] !== nation)!;
+      s.armies.push({ prov, nation, men, movedOn: -1 });
+      return previewMove(s, prov, nation, target)!;
+    };
+    const close = mk(Math.ceil(mk(1).def) + 2);   // barely enough
+    const rout = mk(100000);                       // overwhelming
+    expect(rout.attackerLosses).toBeLessThan(close.attackerLosses);
   });
 });
