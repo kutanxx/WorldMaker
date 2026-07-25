@@ -2,7 +2,7 @@ import { generateWorld } from "../engine/world";
 import { DEFAULT_PARAMS } from "../types/world";
 import {
   initArmySim, levy, maxLevy, moveArmy, previewMove, endTurn, armyAt, militiaOf,
-  outcome, goalTarget, provinceCount, GOAL_FRAC, HORIZON,
+  outcome, goalProgress, provinceCount, GOAL_GAIN_FRAC, HORIZON,
   type ArmyState, type Outcome,
 } from "../engine/armySim";
 import { politicalLayer } from "./politicalLayer";
@@ -17,6 +17,7 @@ export function mountArmyApp(root: HTMLElement, opts: { seed?: number } = {}): v
   const world = generateWorld({ ...DEFAULT_PARAMS, seed }).world;
   let s: ArmyState = initArmySim(world);
   let player: number | null = null;       // null = picker mode: click a nation on the map to start
+  let startProv = 0;   // provinces held the moment this nation was picked — the goal is measured from here
 
   let sel: number | null = null;          // selected province (mine)
   const log: string[] = [];
@@ -51,7 +52,7 @@ export function mountArmyApp(root: HTMLElement, opts: { seed?: number } = {}): v
       });
       hit.addEventListener("click", () => {
         if (player === null) { startGame(s.owner[p]); return; }
-        if (outcome(s, player)) return;   // game over: the map stops taking clicks
+        if (outcome(s, player, startProv)) return;   // game over: the map stops taking clicks
         onProvClick(p);
       });
       svg.appendChild(hit);
@@ -86,7 +87,9 @@ export function mountArmyApp(root: HTMLElement, opts: { seed?: number } = {}): v
     return svg;
   }
 
-  function startGame(nation: number): void { if (nation >= 0) { player = nation; sel = null; render(); } }
+  function startGame(nation: number): void {
+    if (nation >= 0) { player = nation; startProv = provinceCount(s, nation); sel = null; render(); }
+  }
 
   // clicking the map only ever selects one of your own provinces (or clears the selection) —
   // marching is issued from the panel's per-target buttons, never by a map click, so a misclick
@@ -162,18 +165,20 @@ export function mountArmyApp(root: HTMLElement, opts: { seed?: number } = {}): v
       return;
     }
     const me = player;
+    const prog = goalProgress(s, me, startProv);
+    const gainStr = `${prog.gained >= 0 ? "+" : ""}${prog.gained}`;
     const hud = document.createElement("div");
     hud.className = "army-hud";
-    hud.textContent = `턴 ${s.turn} · 시드 ${seed} · ${world.polities[me]?.name ?? ""} · 영토 ${myProv()} · 목표 ${provinceCount(s, me)}/${goalTarget(s)} · 인구 ${Math.round(myPop())} · 병력 ${myMen()}`;
+    hud.textContent = `턴 ${s.turn} · 시드 ${seed} · ${world.polities[me]?.name ?? ""} · 영토 ${myProv()} · 정복 ${gainStr}/${prog.goal} · 인구 ${Math.round(myPop())} · 병력 ${myMen()}`;
     root.appendChild(hud);
     root.appendChild(buildMap());
-    const oc: Outcome = outcome(s, me);
+    const oc: Outcome = outcome(s, me, startProv);
     if (oc) {
       const over = document.createElement("div");
       over.className = "army-over";
       over.textContent =
         oc.kind === "defeat" ? "패배 — 모든 영토를 잃었습니다"
-        : oc.kind === "victory" ? `승리 — 세계의 ${Math.round(GOAL_FRAC * 100)}%를 정복했습니다`
+        : oc.kind === "victory" ? `승리 — 세계의 ${Math.round(GOAL_GAIN_FRAC * 100)}%를 새로 정복했습니다`
         : `${HORIZON}턴 종료 — ${oc.rank}위 / ${oc.of}`;
       root.appendChild(over);
       const again = document.createElement("button");
@@ -181,7 +186,7 @@ export function mountArmyApp(root: HTMLElement, opts: { seed?: number } = {}): v
       again.textContent = "다시";
       again.addEventListener("click", () => {
         s = initArmySim(world);           // a genuinely fresh game, not just cleared UI selection
-        player = null; sel = null; log.length = 0;
+        player = null; sel = null; startProv = 0; log.length = 0;
         render();
       });
       root.appendChild(again);

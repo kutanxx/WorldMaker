@@ -171,7 +171,7 @@ describe("goal and game over", () => {
     mountArmyApp(root, { seed: 1 });
     pickNation();
     const hud = root.querySelector(".army-hud")!.textContent!;
-    expect(hud).toMatch(/목표 \d+\/\d+/);
+    expect(hud).toMatch(/정복 \+\d+\/\d+/);
   });
 
   it("ends the game and offers a restart back to the picker", () => {
@@ -231,5 +231,41 @@ describe("goal and game over", () => {
     expect(root.querySelector("button.army-end")).toBeTruthy();
     expect(root.querySelector(".army-hud")!.textContent).toContain("턴 0");
     expect(root.querySelector(".army-over")).toBeNull();
+  });
+});
+
+describe("start-fair goal in the HUD", () => {
+  let root: HTMLElement;
+  beforeEach(() => { root = document.createElement("div"); document.body.appendChild(root); });
+  afterEach(() => { root.remove(); });
+
+  function pickNation(): void {
+    const label = root.querySelector(".army-pick-label") as HTMLElement;
+    const id = label.getAttribute("data-polity")!;
+    (root.querySelector(`.army-prov[data-polity="${id}"]`) as SVGElement)
+      .dispatchEvent(new MouseEvent("click", { bubbles: true }));
+  }
+
+  it("shows a signed conquest counter, starting at +0", () => {
+    mountArmyApp(root, { seed: 1 });
+    pickNation();
+    expect(root.querySelector(".army-hud")!.textContent).toMatch(/정복 \+0\/\d+/);
+  });
+
+  it("re-reads the start count after a restart with a different nation", () => {
+    mountArmyApp(root, { seed: 1 });
+    pickNation();
+    // end turns until the game is over, then restart and pick again
+    for (let i = 0; i < 60; i++) {
+      const end = root.querySelector("button.army-end") as HTMLButtonElement | null;
+      if (!end) break;
+      end.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    }
+    (root.querySelector("button.army-restart") as HTMLButtonElement)
+      .dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    pickNation();
+    // a fresh game: turn 0 and a zero gain again
+    expect(root.querySelector(".army-hud")!.textContent).toContain("턴 0");
+    expect(root.querySelector(".army-hud")!.textContent).toMatch(/정복 \+0\/\d+/);
   });
 });
