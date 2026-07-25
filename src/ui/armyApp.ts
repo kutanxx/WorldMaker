@@ -2,7 +2,8 @@ import { generateWorld } from "../engine/world";
 import { DEFAULT_PARAMS } from "../types/world";
 import {
   initArmySim, levy, maxLevy, moveArmy, previewMove, endTurn, armyAt, militiaOf,
-  type ArmyState,
+  outcome, goalTarget, provinceCount, GOAL_FRAC, HORIZON,
+  type ArmyState, type Outcome,
 } from "../engine/armySim";
 import { politicalLayer } from "./politicalLayer";
 import { svgEl } from "./renderer";
@@ -159,9 +160,29 @@ export function mountArmyApp(root: HTMLElement, opts: { seed?: number } = {}): v
     const me = player;
     const hud = document.createElement("div");
     hud.className = "army-hud";
-    hud.textContent = `턴 ${s.turn} · 시드 ${seed} · ${world.polities[me]?.name ?? ""} · 영토 ${myProv()} · 인구 ${Math.round(myPop())} · 병력 ${myMen()}`;
+    hud.textContent = `턴 ${s.turn} · 시드 ${seed} · ${world.polities[me]?.name ?? ""} · 영토 ${myProv()} · 목표 ${provinceCount(s, me)}/${goalTarget(s)} · 인구 ${Math.round(myPop())} · 병력 ${myMen()}`;
     root.appendChild(hud);
     root.appendChild(buildMap());
+    const oc: Outcome = outcome(s, me);
+    if (oc) {
+      const over = document.createElement("div");
+      over.className = "army-over";
+      over.textContent =
+        oc.kind === "defeat" ? "패배 — 모든 영토를 잃었습니다"
+        : oc.kind === "victory" ? `승리 — 세계의 ${Math.round(GOAL_FRAC * 100)}%를 정복했습니다`
+        : `${HORIZON}턴 종료 — ${oc.rank}위 / ${oc.of}`;
+      root.appendChild(over);
+      const again = document.createElement("button");
+      again.className = "army-restart";
+      again.textContent = "다시";
+      again.addEventListener("click", () => { player = null; sel = null; log.length = 0; render(); });
+      root.appendChild(again);
+      const lg2 = document.createElement("div");
+      lg2.className = "army-log";
+      lg2.textContent = log.join("  ·  ");
+      root.appendChild(lg2);
+      return;                       // no panel, no end-turn button — the game is over
+    }
     root.appendChild(panel());
     const end = document.createElement("button");
     end.className = "army-end";

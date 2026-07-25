@@ -469,3 +469,5 @@ svg.world .legend { pointer-events: none; }
 .army-log { font-size: 13px; color: #7a5a2f; padding: 4px 2px; }
 .army-pick { font-size: 14px; padding: 8px 2px; color: #5c4626; text-align: center; }
 .army-pick-label { font-size: 10px; fill: #2b2113; paint-order: stroke; stroke: #f6ecd2; stroke-width: 3px; }
+.army-over { font-size: 17px; padding: 10px 2px; color: #3c2f1c; text-align: center; }
+.army-restart { margin: 4px 0; }

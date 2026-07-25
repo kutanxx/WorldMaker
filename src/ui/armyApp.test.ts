@@ -154,3 +154,43 @@ describe("odds are quoted, not promised", () => {
     expect(row!.textContent).not.toContain("승리 예상"); // no promise
   });
 });
+
+describe("goal and game over", () => {
+  let root: HTMLElement;
+  beforeEach(() => { root = document.createElement("div"); document.body.appendChild(root); });
+  afterEach(() => { root.remove(); });
+
+  function pickNation(): void {
+    const label = root.querySelector(".army-pick-label") as HTMLElement;
+    const id = label.getAttribute("data-polity")!;
+    (root.querySelector(`.army-prov[data-polity="${id}"]`) as SVGElement)
+      .dispatchEvent(new MouseEvent("click", { bubbles: true }));
+  }
+
+  it("shows goal progress in the HUD once a game starts", () => {
+    mountArmyApp(root, { seed: 1 });
+    pickNation();
+    const hud = root.querySelector(".army-hud")!.textContent!;
+    expect(hud).toMatch(/목표 \d+\/\d+/);
+  });
+
+  it("ends the game and offers a restart back to the picker", () => {
+    mountArmyApp(root, { seed: 1 });
+    pickNation();
+    // end turns until the horizon is reached (HORIZON is 50)
+    for (let i = 0; i < 60; i++) {
+      const end = root.querySelector("button.army-end") as HTMLButtonElement | null;
+      if (!end) break;
+      end.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    }
+    const over = root.querySelector(".army-over");
+    expect(over).toBeTruthy();
+    expect(over!.textContent).toMatch(/승리|패배|종료/);
+    expect(root.querySelector("button.army-end")).toBeNull();   // no more turns
+    expect(root.querySelector(".army-sel")).toBeNull();         // no more orders
+
+    (root.querySelector("button.army-restart") as HTMLButtonElement)
+      .dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    expect(root.querySelector(".army-pick")).toBeTruthy();      // back to the nation picker
+  });
+});
