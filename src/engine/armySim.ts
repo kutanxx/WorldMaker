@@ -138,7 +138,10 @@ function resolve(s: ArmyState, prov: number, nation: number, target: number): Ba
   const atk = army.men;
   const def = defenceOf(s, target, nation);
   const won = atk > def;
-  const attackerLosses = won ? Math.min(atk - 1 < 0 ? 0 : atk, Math.round(def * WIN_LOSS_MULT)) : atk;
+  // the min() clamp guards future tuning of WIN_LOSS_MULT: if it were ever raised to >= 1,
+  // losses could otherwise exceed the attacking force and drive `men` negative. At today's
+  // constants a win always implies atk >= 1, so the clamp is a no-op in practice.
+  const attackerLosses = won ? Math.min(atk, Math.round(def * WIN_LOSS_MULT)) : atk;
   return { won, atk, def, attackerLosses, captured: won };
 }
 

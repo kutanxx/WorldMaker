@@ -181,6 +181,48 @@ describe("moveArmy (march, battle, capture)", () => {
     expect(s.owner[target]).toBe(ownerBefore);
     expect(armyAt(s, prov, nation)).toBeUndefined(); // destroyed
   });
+  it("captures with zero surviving attackers on an exactly pyrrhic win (intended: the land is taken, the force is spent)", () => {
+    const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });
+    const s = initArmySim(world);
+
+    // Search real adjacent province pairs for a population level at `target` where the resulting
+    // militia + terrain defence produces a win that is EXACTLY pyrrhic: the attacker's rounded
+    // losses consume the whole attacking force (e.g. 1 militia on grassland: def=0.85, atk=1,
+    // losses=round(0.85*WIN_LOSS_MULT)=1, leaving 0 survivors). Computed from the real helpers
+    // (not hardcoded) so the boundary tracks any future constant tuning.
+    let hit: { prov: number; target: number; nation: number; pop: number; atk: number } | null = null;
+    for (let prov = 0; prov < s.n && !hit; prov++) {
+      if (s.owner[prov] < 0) continue;
+      const nation = s.owner[prov];
+      for (const target of s.adj[prov]) {
+        if (hit) break;
+        for (let pop = 1; pop <= 50; pop++) {
+          s.pop[target] = pop;
+          const def = defenceOf(s, target, nation);
+          if (def <= 0) continue;
+          const atk = Math.floor(def) + 1; // smallest integer strictly greater than def (a win)
+          const attackerLosses = Math.min(atk, Math.round(def * WIN_LOSS_MULT));
+          if (atk - attackerLosses === 0) { hit = { prov, target, nation, pop, atk }; break; }
+        }
+      }
+    }
+    expect(hit).not.toBeNull(); // if this ever fails, hand-construct the boundary instead (see review)
+    const { prov, target, nation, pop, atk } = hit!;
+
+    // rebuild a clean state and pin exactly this boundary
+    const s2 = initArmySim(world);
+    s2.owner[target] = nation === 0 ? 1 : 0; // a hostile target, regardless of its original owner
+    s2.pop[target] = pop;
+    s2.armies.push({ prov, nation, men: atk });
+
+    const r = moveArmy(s2, prov, nation, target)!;
+    expect(r.won).toBe(true);
+    expect(r.captured).toBe(true);
+    expect(r.attackerLosses).toBe(atk); // rounded losses consume the entire attacking force
+    expect(s2.owner[target]).toBe(nation);       // the land changes hands...
+    expect(armyAt(s2, target, nation)).toBeUndefined(); // ...but no army survives to occupy it
+    expect(armyAt(s2, prov, nation)).toBeUndefined();   // the attacking force is spent, not left behind
+  });
   it("previewMove never mutates the state", () => {
     const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });
     const s = initArmySim(world);
