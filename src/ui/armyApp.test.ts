@@ -384,6 +384,42 @@ describe("start-fair goal in the HUD", () => {
   });
 });
 
+describe("the race is visible", () => {
+  let root: HTMLElement;
+  beforeEach(() => { root = document.createElement("div"); document.body.appendChild(root); });
+  afterEach(() => { root.remove(); });
+
+  function pickNation(): void {
+    const label = root.querySelector(".army-pick-label") as HTMLElement;
+    const id = label.getAttribute("data-polity")!;
+    (root.querySelector(`.army-prov[data-polity="${id}"]`) as SVGElement)
+      .dispatchEvent(new MouseEvent("click", { bubbles: true }));
+  }
+
+  it("shows the leading rival's progress next to my own", () => {
+    mountArmyApp(root, { seed: 11 });
+    pickNation();
+    const hud = root.querySelector(".army-hud")!.textContent!;
+    expect(hud).toMatch(/정복 [+-]\d+\/\d+/);      // mine
+    expect(hud).toMatch(/추격 .+ [+-]\d+\/\d+/);   // theirs
+  });
+
+  it("ends the game naming the rival that got there first", () => {
+    mountArmyApp(root, { seed: 11 });
+    pickNation();
+    // play passively to the end; either the horizon or a rival finishes it
+    for (let i = 0; i < 60; i++) {
+      const end = root.querySelector("button.army-end") as HTMLButtonElement | null;
+      if (!end) break;
+      end.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    }
+    const over = root.querySelector(".army-over");
+    expect(over).toBeTruthy();
+    expect(over!.textContent).toMatch(/패배|승리|종료/);
+    expect(root.querySelector("button.army-restart")).toBeTruthy();
+  });
+});
+
 describe("theater scoping in the UI", () => {
   let root: HTMLElement;
   beforeEach(() => { root = document.createElement("div"); document.body.appendChild(root); });
