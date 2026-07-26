@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { generateWorld } from "./world";
 import { DEFAULT_PARAMS } from "../types/world";
-import { basePopOf, initArmySim, BIOME_POP, BIOME_DEF, LEVY_FRAC, UPKEEP_FRAC, REGROW_FRAC, MILITIA_FRAC, WIN_LOSS_MULT, DEF_LOSS_MULT, AI_LEVY_FRAC, armyAt, maxLevy, levy, canLevy, applyUpkeep, regrow, militiaOf, defenceOf, previewMove, moveArmy, aiTurn, endTurn, battleRoll, winChance, ODDS_K, GOAL_GAIN_FRAC, HORIZON, landProvinces, goalGain, goalProgress, provinceCount, nationRank, outcome, landComponents, theaterOf, setTheater, playableNations, nationProgress, leadingRival, aiObjective } from "./armySim";
+import { basePopOf, initArmySim, BIOME_POP, BIOME_DEF, LEVY_FRAC, UPKEEP_FRAC, REGROW_FRAC, MILITIA_FRAC, WIN_LOSS_MULT, DEF_LOSS_MULT, AI_LEVY_FRAC, armyAt, maxLevy, levy, canLevy, applyUpkeep, regrow, militiaOf, defenceOf, previewMove, moveArmy, aiTurn, endTurn, battleRoll, winChance, ODDS_K, GOAL_GAIN_FRAC, HORIZON, landProvinces, goalGain, goalProgress, provinceCount, nationRank, outcome, landComponents, theaterOf, setTheater, playableNations, nationProgress, leadingRival, aiObjective, stepToward } from "./armySim";
 import { GRASSLAND, ALPINE } from "./biome";
 
 describe("basePopOf (population comes from the generated world)", () => {
@@ -528,6 +528,19 @@ describe("aiTurn moves every army, not just the biggest", () => {
     }
     expect(p2).toBeGreaterThanOrEqual(0);
 
+    // isolate: strip every other real nation from the world (as isolateForLevyOnly does above) so the
+    // AI's now value-seeking fight step — "best score among what it can beat", not "weakest" — cannot
+    // be confounded by real neighbouring nations. Left un-isolated, a nation's own frontier-worthy
+    // provinces became live options too once an army was strong enough to beat their real defence,
+    // and a probabilistic loss to one of them (a legitimate battle outcome, not a bug) could wipe the
+    // army before it ever reached t1/t2. Zeroing every other province's stake makes t1/t2 the ONLY
+    // beatable targets, regardless of how large levy makes p1/p2's armies.
+    const keep = new Set([p1, p2, t1, t2]);
+    for (let p = 0; p < s.n; p++) {
+      if (keep.has(p)) continue;
+      s.pop[p] = 1e12;
+      s.owner[p] = -1;
+    }
     s.owner[p1] = nation; s.owner[p2] = nation;
     s.owner[t1] = enemy1; s.owner[t2] = enemy2;
     s.pop[t1] = 0; s.pop[t2] = 0; // zero population -> zero defence -> a certain win for any army
@@ -986,5 +999,69 @@ describe("aiObjective (the AI wants land worth having)", () => {
     const first = aiObjective(s, nation);
     expect(aiObjective(s, nation)).toBe(first);
     expect(JSON.stringify({ o: [...s.owner], p: [...s.pop], a: s.armies })).toBe(snap);
+  });
+});
+
+describe("stepToward (deterministic march through your own land)", () => {
+  const fresh = () => initArmySim(generateWorld({ ...DEFAULT_PARAMS, seed: 11 }).world);
+
+  it("returns a neighbour of `from` that is owned by the nation and closer to `to`", () => {
+    const s = fresh();
+    const nation = [...s.owner].find((o) => o >= 0)!;
+    const mine = [...Array(s.n).keys()].filter((p) => s.owner[p] === nation);
+    // find a pair of my provinces at distance >= 2 through my own land
+    let from = -1, to = -1;
+    for (const a of mine) for (const b of mine) {
+      if (a === b || s.adj[a].includes(b)) continue;
+      if (stepToward(s, a, b, nation) >= 0) { from = a; to = b; break; }
+      if (from >= 0) break;
+    }
+    expect(from).toBeGreaterThanOrEqual(0);
+    const step = stepToward(s, from, to, nation);
+    expect(s.adj[from]).toContain(step);
+    expect(s.owner[step]).toBe(nation);
+  });
+
+  it("is deterministic and does not mutate", () => {
+    const s = fresh();
+    const nation = [...s.owner].find((o) => o >= 0)!;
+    const mine = [...Array(s.n).keys()].filter((p) => s.owner[p] === nation);
+    const snap = JSON.stringify({ o: [...s.owner], a: s.armies });
+    const a = stepToward(s, mine[0], mine[mine.length - 1], nation);
+    expect(stepToward(s, mine[0], mine[mine.length - 1], nation)).toBe(a);
+    expect(JSON.stringify({ o: [...s.owner], a: s.armies })).toBe(snap);
+  });
+
+  it("returns -1 when the destination cannot be reached through own land", () => {
+    const s = fresh();
+    const nation = [...s.owner].find((o) => o >= 0)!;
+    const foreign = [...Array(s.n).keys()].find((p) => s.owner[p] >= 0 && s.owner[p] !== nation)!;
+    const mine = [...Array(s.n).keys()].find((p) => s.owner[p] === nation)!;
+    expect(stepToward(s, mine, foreign, nation)).toBe(-1);
+  });
+});
+
+describe("the AI concentrates instead of idling", () => {
+  it("moves an army that cannot win anything toward the front", () => {
+    const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 11 });
+    const s = initArmySim(world);
+    const player = 0;
+    const nation = [...new Set([...s.owner].filter((o) => o >= 0 && o !== player))][0];
+    // put a tiny army deep inside the nation's territory, far from any enemy it could beat
+    const mine = [...Array(s.n).keys()].filter((p) => s.owner[p] === nation);
+    const interior = mine.find((p) => s.adj[p].every((q) => s.owner[q] === nation));
+    if (interior === undefined) return;                   // this seed has no interior province; nothing to assert
+    s.armies.push({ prov: interior, nation, men: 1, movedOn: -1 });
+    aiTurn(s, player);
+    // it must not still be sitting where it started doing nothing
+    expect(armyAt(s, interior, nation)).toBeUndefined();
+  });
+
+  it("still obeys one move per army per turn", () => {
+    const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 11 });
+    const s = initArmySim(world);
+    const player = 0;
+    aiTurn(s, player);
+    for (const a of s.armies) if (a.nation !== player) expect(a.movedOn === -1 || a.movedOn === s.turn).toBe(true);
   });
 });

@@ -266,11 +266,41 @@ export function aiObjective(s: ArmyState, nation: number): number {
   return best;
 }
 
+// One step along a shortest path from `from` to `to` through provinces this nation OWNS. BFS with an
+// ascending-id frontier so the path (and therefore the whole game) stays deterministic. -1 when `to`
+// is not reachable through own territory, or when `from` is already `to`.
+export function stepToward(s: ArmyState, from: number, to: number, nation: number): number {
+  if (from === to) return -1;
+  const prev = new Int32Array(s.n).fill(-1);
+  const seen = new Uint8Array(s.n);
+  seen[from] = 1;
+  let frontier = [from];
+  while (frontier.length) {
+    const next: number[] = [];
+    for (const u of frontier) {
+      for (const v of [...s.adj[u]].sort((a, b) => a - b)) {
+        if (seen[v]) continue;
+        if (v !== to && s.owner[v] !== nation) continue;   // may only march through own land
+        seen[v] = 1; prev[v] = u;
+        if (v === to) {                                    // walk back to the first step
+          let cur = v;
+          while (prev[cur] !== from) cur = prev[cur];
+          return cur;
+        }
+        next.push(v);
+      }
+    }
+    next.sort((a, b) => a - b);
+    frontier = next;
+  }
+  return -1;
+}
+
 // Deliberately dumb AI: enough for the world to push back while we test whether the loop is fun.
-// Each non-player nation levies from its AI_LEVY_FRAC most populous owned provinces, then marches
-// EVERY one of its armies (not just the biggest) at the weakest adjacent enemy province it can
-// actually beat. Deterministic: province selection sorts by population descending then id ascending;
-// armies are processed in ascending province-id order; target selection ties break on lower id.
+// Each non-player nation levies from its AI_LEVY_FRAC most populous owned provinces, then concentrates
+// its armies on the front instead of idling. Deterministic: province selection sorts by population
+// descending then id ascending; armies are processed in ascending province-id order; target and front
+// selection tie-break on lower id.
 export function aiTurn(s: ArmyState, playerNation: number): void {
   const nations = [...new Set([...s.owner].filter((o) => o >= 0 && o !== playerNation))].sort((a, b) => a - b);
   for (const nation of nations) {
@@ -281,20 +311,37 @@ export function aiTurn(s: ArmyState, playerNation: number): void {
     const nLevy = Math.max(1, Math.ceil(owned.length * AI_LEVY_FRAC));
     for (let i = 0; i < nLevy && i < owned.length; i++) levy(s, owned[i], nation);
 
-    // 2. march every army at the weakest beatable adjacent enemy province each can find. Snapshot
-    // positions first because moveArmy mutates s.armies (removes/merges/relocates) — iterating the
-    // live array while marching through it would skip or double-visit entries.
+    // 2. concentrate. Each army fights if it can win where it stands; otherwise it marches toward the
+    // front rather than standing still for the rest of the game bleeding upkeep. Snapshot positions
+    // first because moveArmy mutates s.armies (removes/merges/relocates).
+    const obj = aiObjective(s, nation);
+    let front = -1, frontMen = -1;
+    if (obj >= 0) {
+      for (const q of s.adj[obj]) {
+        if (s.owner[q] !== nation) continue;
+        const men = armyAt(s, q, nation)?.men ?? 0;
+        if (men > frontMen || (men === frontMen && (front < 0 || q < front))) { frontMen = men; front = q; }
+      }
+    }
     const positions = s.armies.filter((a) => a.nation === nation).map((a) => a.prov).sort((a, b) => a - b);
     for (const prov of positions) {
       const army = armyAt(s, prov, nation);
-      if (!army) continue; // this army no longer exists (e.g. merged away by an earlier move)
-      let target = -1, targetDef = Infinity;
+      if (!army) continue;                       // merged away by an earlier move this turn
+      // fight if this army can win where it stands — best value-for-defence among what it can beat
+      let target = -1, bestScore = -Infinity;
       for (const q of s.adj[army.prov]) {
         if (s.owner[q] === nation) continue;
         const d = defenceOf(s, q, nation);
-        if (d < army.men && (d < targetDef || (d === targetDef && q < target))) { targetDef = d; target = q; }
+        if (d >= army.men) continue;
+        const score = s.pop[q] / (1 + d);
+        if (score > bestScore) { bestScore = score; target = q; }
       }
-      if (target >= 0) moveArmy(s, army.prov, nation, target);
+      if (target >= 0) { moveArmy(s, army.prov, nation, target); continue; }
+      // otherwise walk toward the front so force accumulates where it will matter
+      if (front >= 0 && army.prov !== front) {
+        const step = stepToward(s, army.prov, front, nation);
+        if (step >= 0) moveArmy(s, army.prov, nation, step);
+      }
     }
   }
 }
