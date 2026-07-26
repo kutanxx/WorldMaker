@@ -3,6 +3,7 @@ import { DEFAULT_PARAMS } from "../types/world";
 import {
   initArmySim, levy, maxLevy, moveArmy, previewMove, endTurn, armyAt, militiaOf,
   outcome, goalProgress, provinceCount, GOAL_GAIN_FRAC, HORIZON,
+  playableNations, setTheater, theaterOf,
   type ArmyState, type Outcome,
 } from "../engine/armySim";
 import { politicalLayer } from "./politicalLayer";
@@ -36,6 +37,12 @@ export function mountArmyApp(root: HTMLElement, opts: { seed?: number } = {}): v
     const owner = new Int32Array(world.grid.count).fill(-1);
     for (let c = 0; c < world.grid.count; c++) { const p = world.provinceOf[c]; if (p >= 0) owner[c] = s.owner[p]; }
     svg.appendChild(politicalLayer(world.grid, owner, world.polities, { fills: true, labels: false, legend: false }));
+
+    // picker mode: only nations with a reachable rival are offered (Task 2) — clicking any other
+    // nation's land is inert. Play mode: the theater mask decides which provinces get a number
+    // label; the fill above is untouched, so out-of-theater land still paints exactly as before.
+    const offered = player === null ? new Set(playableNations(s)) : null;
+    const mask = player !== null ? theaterOf(s, player) : null;
 
     // per-province polygon union + label anchor, built in ONE pass over grid cells. Reused below
     // for: the wilderness fill, the click hit-areas, and the number labels — no extra O(grid.count)
@@ -103,27 +110,29 @@ export function mountArmyApp(root: HTMLElement, opts: { seed?: number } = {}): v
         d: byProv[p], fill: sel === p ? "rgba(232,181,58,0.35)" : "transparent", stroke: "none",
       });
       hit.addEventListener("click", () => {
-        if (player === null) { startGame(s.owner[p]); return; }
+        if (player === null) { if (offered!.has(s.owner[p])) startGame(s.owner[p]); return; }
         if (outcome(s, player, startProv)) return;   // game over: the map stops taking clicks
         onProvClick(p);
       });
       svg.appendChild(hit);
-      const anchor = anchorCell[p] >= 0 ? anchorCell[p] : world.provinces[p].seedCell;
-      const [cx, cy] = anchor >= 0
-        ? [world.grid.points[anchor * 2], world.grid.points[anchor * 2 + 1]]
-        : world.provinces[p].centroid;
-      const army = s.armies.find((a) => a.prov === p);
-      const label = svgEl("text", {
-        class: "army-num", "data-prov": String(p), x: String(cx), y: String(cy), "text-anchor": "middle", "pointer-events": "none",
-      });
-      label.textContent = army ? `${Math.round(s.pop[p])}·⚔${army.men}` : `${Math.round(s.pop[p])}`;
-      svg.appendChild(label);
+      if (!mask || mask[p] === 1) {
+        const anchor = anchorCell[p] >= 0 ? anchorCell[p] : world.provinces[p].seedCell;
+        const [cx, cy] = anchor >= 0
+          ? [world.grid.points[anchor * 2], world.grid.points[anchor * 2 + 1]]
+          : world.provinces[p].centroid;
+        const army = s.armies.find((a) => a.prov === p);
+        const label = svgEl("text", {
+          class: "army-num", "data-prov": String(p), x: String(cx), y: String(cy), "text-anchor": "middle", "pointer-events": "none",
+        });
+        label.textContent = army ? `${Math.round(s.pop[p])}·⚔${army.men}` : `${Math.round(s.pop[p])}`;
+        svg.appendChild(label);
+      }
     }
     if (player === null) {
       const stat = new Map<number, { prov: number; pop: number }>();
       for (let p = 0; p < s.n; p++) {
         const o = s.owner[p];
-        if (o < 0) continue;
+        if (o < 0 || !offered!.has(o)) continue;
         const v = stat.get(o) ?? { prov: 0, pop: 0 };
         v.prov++; v.pop += s.pop[p];
         stat.set(o, v);
@@ -156,7 +165,10 @@ export function mountArmyApp(root: HTMLElement, opts: { seed?: number } = {}): v
   }
 
   function startGame(nation: number): void {
-    if (nation >= 0) { player = nation; startProv = provinceCount(s, nation); sel = null; render(); }
+    if (nation >= 0) {
+      setTheater(s, nation);   // scope the world to this nation's landmass BEFORE the start count is taken
+      player = nation; startProv = provinceCount(s, nation); sel = null; render();
+    }
   }
 
   // clicking the map only ever selects one of your own provinces (or clears the selection) —
@@ -239,6 +251,7 @@ export function mountArmyApp(root: HTMLElement, opts: { seed?: number } = {}): v
     const gainStr = `${prog.gained >= 0 ? "+" : ""}${prog.gained}`;
     const hud = document.createElement("div");
     hud.className = "army-hud";
+    hud.dataset.nation = String(me);
     hud.textContent = `턴 ${s.turn} · 시드 ${seed} · ${world.polities[me]?.name ?? ""} · 영토 ${myProv()} · 정복 ${gainStr}/${prog.goal} · 인구 ${Math.round(myPop())} · 병력 ${myMen()}`;
     root.appendChild(hud);
     root.appendChild(buildMap());

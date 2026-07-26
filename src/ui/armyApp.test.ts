@@ -3,7 +3,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mountArmyApp } from "./armyApp";
 import { generateWorld } from "../engine/world";
 import { DEFAULT_PARAMS } from "../types/world";
-import { initArmySim } from "../engine/armySim";
+import { initArmySim, playableNations, theaterOf, goalGain } from "../engine/armySim";
 
 describe("armyApp (prototype loop: levy -> march -> end turn)", () => {
   let root: HTMLElement;
@@ -381,5 +381,51 @@ describe("start-fair goal in the HUD", () => {
     // a fresh game: turn 0 and a zero gain again
     expect(root.querySelector(".army-hud")!.textContent).toContain("턴 0");
     expect(root.querySelector(".army-hud")!.textContent).toMatch(/정복 \+0\/\d+/);
+  });
+});
+
+describe("theater scoping in the UI", () => {
+  let root: HTMLElement;
+  beforeEach(() => { root = document.createElement("div"); document.body.appendChild(root); });
+  afterEach(() => { root.remove(); });
+
+  function pickNation(): void {
+    const label = root.querySelector(".army-pick-label") as HTMLElement;
+    const id = label.getAttribute("data-polity")!;
+    (root.querySelector(`.army-prov[data-polity="${id}"]`) as SVGElement)
+      .dispatchEvent(new MouseEvent("click", { bubbles: true }));
+  }
+
+  it("offers only nations that have a reachable rival", () => {
+    mountArmyApp(root, { seed: 23 });
+    const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 23 });
+    const s = initArmySim(world);
+    const offered = [...root.querySelectorAll(".army-pick-label")].map((l) => Number(l.getAttribute("data-polity"))).sort((a, b) => a - b);
+    expect(offered).toEqual(playableNations(s));
+    expect(offered.length).toBeLessThan(new Set([...s.owner].filter((o) => o >= 0)).size);
+  });
+
+  it("numbers only the land inside the theater, but still paints the rest", () => {
+    mountArmyApp(root, { seed: 23 });
+    pickNation();
+    const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 23 });
+    const s = initArmySim(world);
+    const played = Number((root.querySelector(".army-hud") as HTMLElement).dataset.nation ?? NaN);
+    const mask = theaterOf(s, Number.isNaN(played) ? playableNations(s)[0] : played);
+    const numbered = new Set([...root.querySelectorAll(".army-num")].map((n) => Number(n.getAttribute("data-prov"))));
+    for (const p of numbered) expect(mask[p]).toBe(1);              // nothing outside the theater is numbered
+    expect(numbered.size).toBeLessThan(s.n);                        // seed 23 has out-of-theater land
+    expect(root.querySelector(".army-wild")).toBeTruthy();          // the rest of the world is still painted
+  });
+
+  it("the goal reflects the theater, not the whole map", () => {
+    mountArmyApp(root, { seed: 23 });
+    pickNation();
+    const goalShown = Number((root.querySelector(".army-hud")!.textContent!.match(/정복 [+-]\d+\/(\d+)/) || [])[1]);
+    const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 23 });
+    const s = initArmySim(world);
+    const wholeMapGoal = goalGain(s);
+    expect(goalShown).toBeGreaterThan(0);
+    expect(goalShown).toBeLessThan(wholeMapGoal);
   });
 });
