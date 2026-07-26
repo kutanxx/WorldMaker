@@ -329,7 +329,7 @@ export function landProvinces(s: ArmyState): number {
 // start-fair: a 3-province realm and an 18-province realm must both take the same absolute number of
 // provinces, a big start never wins at t0 (gain is 0), and a small start cannot win by grabbing two
 // neighbours. (The province game learned this same lesson; an absolute threshold favours big starts.)
-export const GOAL_GAIN_FRAC = 0.2;
+export const GOAL_GAIN_FRAC = 0.3;
 
 export function goalGain(s: ArmyState): number {
   return Math.round(GOAL_GAIN_FRAC * landProvinces(s));
