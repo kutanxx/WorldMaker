@@ -250,6 +250,22 @@ export function moveArmy(s: ArmyState, prov: number, nation: number, target: num
 // of a flat "one", so a big nation musters proportionally more without needing per-nation tuning.
 export const AI_LEVY_FRAC = 0.25;
 
+// What this nation is trying to take. Scored by value-for-defence — population is what becomes
+// soldiers next turn, so the AI should want the same provinces a player wants, not merely the
+// emptiest wasteland on its border (which is what "lowest defence" alone picks). Ties -> lower id.
+export function aiObjective(s: ArmyState, nation: number): number {
+  let best = -1, bestScore = -Infinity;
+  for (let p = 0; p < s.n; p++) {
+    if (s.owner[p] === nation) continue;
+    let touches = false;
+    for (const q of s.adj[p]) if (s.owner[q] === nation) { touches = true; break; }
+    if (!touches) continue;
+    const score = s.pop[p] / (1 + defenceOf(s, p, nation));
+    if (score > bestScore) { bestScore = score; best = p; }
+  }
+  return best;
+}
+
 // Deliberately dumb AI: enough for the world to push back while we test whether the loop is fun.
 // Each non-player nation levies from its AI_LEVY_FRAC most populous owned provinces, then marches
 // EVERY one of its armies (not just the biggest) at the weakest adjacent enemy province it can

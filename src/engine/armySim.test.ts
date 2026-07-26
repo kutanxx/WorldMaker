@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { generateWorld } from "./world";
 import { DEFAULT_PARAMS } from "../types/world";
-import { basePopOf, initArmySim, BIOME_POP, BIOME_DEF, LEVY_FRAC, UPKEEP_FRAC, REGROW_FRAC, MILITIA_FRAC, WIN_LOSS_MULT, DEF_LOSS_MULT, AI_LEVY_FRAC, armyAt, maxLevy, levy, canLevy, applyUpkeep, regrow, militiaOf, defenceOf, previewMove, moveArmy, aiTurn, endTurn, battleRoll, winChance, ODDS_K, GOAL_GAIN_FRAC, HORIZON, landProvinces, goalGain, goalProgress, provinceCount, nationRank, outcome, landComponents, theaterOf, setTheater, playableNations, nationProgress, leadingRival } from "./armySim";
+import { basePopOf, initArmySim, BIOME_POP, BIOME_DEF, LEVY_FRAC, UPKEEP_FRAC, REGROW_FRAC, MILITIA_FRAC, WIN_LOSS_MULT, DEF_LOSS_MULT, AI_LEVY_FRAC, armyAt, maxLevy, levy, canLevy, applyUpkeep, regrow, militiaOf, defenceOf, previewMove, moveArmy, aiTurn, endTurn, battleRoll, winChance, ODDS_K, GOAL_GAIN_FRAC, HORIZON, landProvinces, goalGain, goalProgress, provinceCount, nationRank, outcome, landComponents, theaterOf, setTheater, playableNations, nationProgress, leadingRival, aiObjective } from "./armySim";
 import { GRASSLAND, ALPINE } from "./biome";
 
 describe("basePopOf (population comes from the generated world)", () => {
@@ -934,5 +934,57 @@ describe("the race (every nation has the same victory condition)", () => {
     for (const p of pool.slice(0, need)) s.owner[p] = rival;
     for (let p = 0; p < s.n; p++) if (s.owner[p] === me) s.owner[p] = rival;   // I hold nothing
     expect(outcome(s, me, s.startCounts[me])).toEqual({ kind: "defeat" });
+  });
+});
+
+describe("aiObjective (the AI wants land worth having)", () => {
+  const fresh = (seed: number) => initArmySim(generateWorld({ ...DEFAULT_PARAMS, seed }).world);
+
+  it("picks a province on the nation's frontier, never its own land", () => {
+    const s = fresh(11);
+    const nation = [...s.owner].find((o) => o >= 0)!;
+    const obj = aiObjective(s, nation);
+    expect(obj).toBeGreaterThanOrEqual(0);
+    expect(s.owner[obj]).not.toBe(nation);
+    const touchesMe = s.adj[obj].some((q) => s.owner[q] === nation);
+    expect(touchesMe).toBe(true);
+  });
+
+  it("prefers the richer of two equally defended frontier provinces", () => {
+    const s = fresh(11);
+    const nation = [...s.owner].find((o) => o >= 0)!;
+    // find two frontier candidates and make one clearly richer, both undefended by armies
+    const frontier = [...Array(s.n).keys()].filter((p) => s.owner[p] !== nation && s.adj[p].some((q) => s.owner[q] === nation));
+    expect(frontier.length).toBeGreaterThan(1);
+    const [a, b] = frontier;
+    // seed 11's frontier has more than two candidates; zero the others' population so a/b's
+    // score comparison isn't confounded by some unrelated, naturally richer frontier province.
+    for (const p of frontier) if (p !== a && p !== b) s.pop[p] = 0;
+    s.armies = s.armies.filter((x) => x.prov !== a && x.prov !== b);
+    s.pop[a] = 10; s.pop[b] = 10;
+    expect(aiObjective(s, nation)).toBe(Math.min(a, b));   // equal value -> lower id
+    s.pop[b] = 400;                                         // now b is far richer
+    expect(aiObjective(s, nation)).toBe(b);
+  });
+
+  it("returns -1 for a nation with no frontier at all", () => {
+    const s = fresh(23);
+    // an isolated nation (seed 23 has them): every neighbour of its land is its own
+    const isolated = [...new Set([...s.owner].filter((o) => o >= 0))]
+      .find((n) => {
+        for (let p = 0; p < s.n; p++) if (s.owner[p] === n) for (const q of s.adj[p]) if (s.owner[q] !== n) return false;
+        return true;
+      });
+    expect(isolated).toBeDefined();
+    expect(aiObjective(s, isolated!)).toBe(-1);
+  });
+
+  it("is pure — calling it twice gives the same answer and mutates nothing", () => {
+    const s = fresh(11);
+    const nation = [...s.owner].find((o) => o >= 0)!;
+    const snap = JSON.stringify({ o: [...s.owner], p: [...s.pop], a: s.armies });
+    const first = aiObjective(s, nation);
+    expect(aiObjective(s, nation)).toBe(first);
+    expect(JSON.stringify({ o: [...s.owner], p: [...s.pop], a: s.armies })).toBe(snap);
   });
 });
