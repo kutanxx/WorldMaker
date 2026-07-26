@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { generateWorld } from "./world";
 import { DEFAULT_PARAMS } from "../types/world";
-import { basePopOf, initArmySim, BIOME_POP, BIOME_DEF, LEVY_FRAC, UPKEEP_FRAC, REGROW_FRAC, MILITIA_FRAC, WIN_LOSS_MULT, DEF_LOSS_MULT, AI_LEVY_FRAC, armyAt, maxLevy, levy, applyUpkeep, regrow, militiaOf, defenceOf, previewMove, moveArmy, aiTurn, endTurn, battleRoll, winChance, ODDS_K, GOAL_GAIN_FRAC, HORIZON, landProvinces, goalGain, goalProgress, provinceCount, nationRank, outcome } from "./armySim";
+import { basePopOf, initArmySim, BIOME_POP, BIOME_DEF, LEVY_FRAC, UPKEEP_FRAC, REGROW_FRAC, MILITIA_FRAC, WIN_LOSS_MULT, DEF_LOSS_MULT, AI_LEVY_FRAC, armyAt, maxLevy, levy, applyUpkeep, regrow, militiaOf, defenceOf, previewMove, moveArmy, aiTurn, endTurn, battleRoll, winChance, ODDS_K, GOAL_GAIN_FRAC, HORIZON, landProvinces, goalGain, goalProgress, provinceCount, nationRank, outcome, landComponents, theaterOf, setTheater, playableNations } from "./armySim";
 import { GRASSLAND, ALPINE } from "./biome";
 
 describe("basePopOf (population comes from the generated world)", () => {
@@ -734,5 +734,73 @@ describe("goal / outcome (start-fair: you must CONQUER, not merely hold)", () =>
     expect(provinceCount(s, hi)).toBe(3);
     expect(nationRank(s, lo)).toEqual({ rank: 1, of: 2 }); // lower id wins the tie
     expect(nationRank(s, hi)).toEqual({ rank: 2, of: 2 });
+  });
+});
+
+describe("theater scoping (the board is what you can reach)", () => {
+  const fresh = (seed: number) => initArmySim(generateWorld({ ...DEFAULT_PARAMS, seed }).world);
+
+  it("splits the map into land components, deterministically", () => {
+    const s = fresh(23);
+    const a = landComponents(s), b = landComponents(s);
+    expect([...a]).toEqual([...b]);
+    expect(a.length).toBe(s.n);
+    // seed 23 is island-heavy: more than one component
+    expect(new Set([...a]).size).toBeGreaterThan(1);
+  });
+
+  it("a theater contains the nation's own land and nothing from another component", () => {
+    const s = fresh(23);
+    const nation = [...s.owner].find((o) => o >= 0)!;
+    const comp = landComponents(s);
+    const mask = theaterOf(s, nation);
+    const mine = [...Array(s.n).keys()].filter((p) => s.owner[p] === nation);
+    const myComp = comp[mine[0]];
+    for (let p = 0; p < s.n; p++) expect(mask[p] === 1).toBe(comp[p] === myComp);
+    for (const p of mine) expect(mask[p]).toBe(1);
+  });
+
+  it("scoping shrinks the land count and therefore the goal", () => {
+    const s = fresh(23);
+    const wholeMap = landProvinces(s);
+    const wholeGoal = goalGain(s);
+    const nation = [...s.owner].find((o) => o >= 0)!;
+    setTheater(s, nation);
+    expect(landProvinces(s)).toBeLessThan(wholeMap);
+    expect(goalGain(s)).toBeLessThanOrEqual(wholeGoal);
+    expect(goalGain(s)).toBe(Math.round(GOAL_GAIN_FRAC * landProvinces(s)));
+  });
+
+  it("counts and ranks only within the theater", () => {
+    const s = fresh(23);
+    const nation = [...s.owner].find((o) => o >= 0)!;
+    const before = provinceCount(s, nation);
+    setTheater(s, nation);
+    expect(provinceCount(s, nation)).toBe(before);          // my own land is all in my theater
+    const { of } = nationRank(s, nation);
+    // every ranked nation must actually be inside the theater
+    const inTheater = new Set<number>();
+    for (let p = 0; p < s.n; p++) if (s.scope![p] === 1 && s.owner[p] >= 0) inTheater.add(s.owner[p]);
+    expect(of).toBe(inTheater.size);
+  });
+
+  it("playableNations excludes a nation with no reachable rival", () => {
+    const s = fresh(23);
+    const playable = playableNations(s);
+    const all = [...new Set([...s.owner].filter((o) => o >= 0))].sort((a, b) => a - b);
+    expect(playable.length).toBeGreaterThan(0);
+    expect(playable.length).toBeLessThan(all.length);        // seed 23 has stranded nations
+    for (const n of playable) {
+      const mask = theaterOf(s, n);
+      const others = new Set<number>();
+      for (let p = 0; p < s.n; p++) if (mask[p] === 1 && s.owner[p] >= 0 && s.owner[p] !== n) others.add(s.owner[p]);
+      expect(others.size).toBeGreaterThan(0);                // a rival exists in every offered theater
+    }
+  });
+
+  it("without a scope everything still counts (pre-scoping behaviour)", () => {
+    const s = fresh(11);
+    expect(s.scope).toBeUndefined();
+    expect(landProvinces(s)).toBeGreaterThan(0);
   });
 });

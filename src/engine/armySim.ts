@@ -42,6 +42,7 @@ export interface ArmyState {
   armies: Army[];
   adj: number[][];
   turn: number;
+  scope?: Uint8Array; // 1 = in the current theater; absent = whole map
 }
 
 // a province's population ceiling, derived from the generated world: size x biome x cities.
@@ -263,13 +264,61 @@ export function endTurn(s: ArmyState, playerNation: number): void {
   s.turn++;
 }
 
+// The province graph splits into land-connected components; armies move only by land, so two
+// components can never interact. Deterministic: provinces scanned ascending, ids in first-seen order.
+export function landComponents(s: ArmyState): Int32Array {
+  const comp = new Int32Array(s.n).fill(-1);
+  let next = 0;
+  for (let i = 0; i < s.n; i++) {
+    if (comp[i] >= 0) continue;
+    const stack = [i]; comp[i] = next;
+    while (stack.length) {
+      const u = stack.pop()!;
+      for (const v of s.adj[u]) if (comp[v] < 0) { comp[v] = next; stack.push(v); }
+    }
+    next++;
+  }
+  return comp;
+}
+
+// the landmass this nation actually plays on: every province reachable by land from its territory.
+export function theaterOf(s: ArmyState, nation: number): Uint8Array {
+  const comp = landComponents(s);
+  const mine = new Set<number>();
+  for (let p = 0; p < s.n; p++) if (s.owner[p] === nation) mine.add(comp[p]);
+  const mask = new Uint8Array(s.n);
+  for (let p = 0; p < s.n; p++) if (mine.has(comp[p])) mask[p] = 1;
+  return mask;
+}
+
+export function setTheater(s: ArmyState, nation: number): void { s.scope = theaterOf(s, nation); }
+
+// nations worth offering: those with at least one rival reachable by land. A nation alone on an
+// island can neither attack nor be attacked, so picking it is 50 turns of pressing "end turn".
+export function playableNations(s: ArmyState): number[] {
+  const comp = landComponents(s);
+  const byComp = new Map<number, Set<number>>();
+  for (let p = 0; p < s.n; p++) {
+    const o = s.owner[p];
+    if (o < 0) continue;
+    if (!byComp.has(comp[p])) byComp.set(comp[p], new Set());
+    byComp.get(comp[p])!.add(o);
+  }
+  const out = new Set<number>();
+  for (const nations of byComp.values()) if (nations.size >= 2) for (const n of nations) out.add(n);
+  return [...out].sort((a, b) => a - b);
+}
+
+// whether a province counts at all: absent scope means the whole map is in play.
+const inScope = (s: ArmyState, p: number) => !s.scope || s.scope[p] === 1;
+
 // --- goal: what you are racing toward, and how a game ends ---
 export const HORIZON = 50;      // the game ends here and ranks you — a real ending, not a soft stop
 
 // provinces that can be owned at all (the denominator the goal is a fraction of)
 export function landProvinces(s: ArmyState): number {
   let k = 0;
-  for (let p = 0; p < s.n; p++) if (s.basePop[p] > 0 || s.owner[p] >= 0) k++;
+  for (let p = 0; p < s.n; p++) if ((s.basePop[p] > 0 || s.owner[p] >= 0) && inScope(s, p)) k++;
   return k;
 }
 
@@ -291,7 +340,7 @@ export function goalProgress(s: ArmyState, nation: number, startProv: number): {
 
 export function provinceCount(s: ArmyState, nation: number): number {
   let k = 0;
-  for (let p = 0; p < s.n; p++) if (s.owner[p] === nation) k++;
+  for (let p = 0; p < s.n; p++) if (s.owner[p] === nation && inScope(s, p)) k++;
   return k;
 }
 
@@ -301,7 +350,7 @@ export function nationRank(s: ArmyState, nation: number): { rank: number; of: nu
   const seen = new Set<number>();
   for (let p = 0; p < s.n; p++) {
     const o = s.owner[p];
-    if (o >= 0 && !seen.has(o)) { seen.add(o); alive.push({ id: o, k: provinceCount(s, o) }); }
+    if (o >= 0 && !seen.has(o) && inScope(s, p)) { seen.add(o); alive.push({ id: o, k: provinceCount(s, o) }); }
   }
   alive.sort((a, b) => b.k - a.k || a.id - b.id);
   const idx = alive.findIndex((x) => x.id === nation);
