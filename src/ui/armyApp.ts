@@ -3,7 +3,7 @@ import { DEFAULT_PARAMS } from "../types/world";
 import {
   initArmySim, levy, maxLevy, moveArmy, previewMove, endTurn, armyAt, militiaOf,
   outcome, goalProgress, provinceCount, GOAL_GAIN_FRAC, HORIZON,
-  playableNations, setTheater, theaterOf,
+  playableNations, setTheater,
   type ArmyState, type Outcome,
 } from "../engine/armySim";
 import { politicalLayer } from "./politicalLayer";
@@ -42,7 +42,10 @@ export function mountArmyApp(root: HTMLElement, opts: { seed?: number } = {}): v
     // nation's land is inert. Play mode: the theater mask decides which provinces get a number
     // label; the fill above is untouched, so out-of-theater land still paints exactly as before.
     const offered = player === null ? new Set(playableNations(s)) : null;
-    const mask = player !== null ? theaterOf(s, player) : null;
+    // setTheater() computed this once when the game began, and it cannot change at runtime (adjacency
+    // is fixed and a nation's land can never leave its own component), so reuse the cached mask
+    // instead of re-running the component DFS on every render.
+    const mask = player !== null ? (s.scope ?? null) : null;
 
     // per-province polygon union + label anchor, built in ONE pass over grid cells. Reused below
     // for: the wilderness fill, the click hit-areas, and the number labels — no extra O(grid.count)
