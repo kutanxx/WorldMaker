@@ -41,6 +41,23 @@ describe("armyApp (prototype loop: levy -> march -> end turn)", () => {
     expect(root.querySelector(".army-log")!.textContent).toContain("징집");
   });
 
+  it("blocks a second levy on the same province in one turn: men only rise once, and the button reads levied", () => {
+    mountArmyApp(root, { seed: 1 });
+    pickNation();
+    const own = root.querySelector(".army-prov[data-mine='1']") as SVGElement;
+    own.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    const btn = () => root.querySelector("button.army-levy") as HTMLButtonElement;
+    expect(btn().disabled).toBe(false);
+    btn().dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    const menAfterFirst = root.querySelector(".army-sel")!.textContent!.match(/병력 (\d+)/)![1];
+    // the button must now be disabled and its label must say why: already levied this turn.
+    expect(btn().disabled).toBe(true);
+    expect(btn().textContent).toContain("이번 턴");
+    btn().dispatchEvent(new MouseEvent("click", { bubbles: true })); // clicking a disabled button is a no-op anyway
+    const menAfterSecond = root.querySelector(".army-sel")!.textContent!.match(/병력 (\d+)/)![1];
+    expect(menAfterSecond).toBe(menAfterFirst); // men did not rise a second time
+  });
+
   it("prints the seed in the HUD so a play-test session can be identified", () => {
     mountArmyApp(root, { seed: 1 });
     pickNation();

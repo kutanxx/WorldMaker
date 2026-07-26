@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { generateWorld } from "./world";
 import { DEFAULT_PARAMS } from "../types/world";
-import { basePopOf, initArmySim, BIOME_POP, BIOME_DEF, LEVY_FRAC, UPKEEP_FRAC, REGROW_FRAC, MILITIA_FRAC, WIN_LOSS_MULT, DEF_LOSS_MULT, AI_LEVY_FRAC, armyAt, maxLevy, levy, applyUpkeep, regrow, militiaOf, defenceOf, previewMove, moveArmy, aiTurn, endTurn, battleRoll, winChance, ODDS_K, GOAL_GAIN_FRAC, HORIZON, landProvinces, goalGain, goalProgress, provinceCount, nationRank, outcome, landComponents, theaterOf, setTheater, playableNations, nationProgress, leadingRival } from "./armySim";
+import { basePopOf, initArmySim, BIOME_POP, BIOME_DEF, LEVY_FRAC, UPKEEP_FRAC, REGROW_FRAC, MILITIA_FRAC, WIN_LOSS_MULT, DEF_LOSS_MULT, AI_LEVY_FRAC, armyAt, maxLevy, levy, canLevy, applyUpkeep, regrow, militiaOf, defenceOf, previewMove, moveArmy, aiTurn, endTurn, battleRoll, winChance, ODDS_K, GOAL_GAIN_FRAC, HORIZON, landProvinces, goalGain, goalProgress, provinceCount, nationRank, outcome, landComponents, theaterOf, setTheater, playableNations, nationProgress, leadingRival } from "./armySim";
 import { GRASSLAND, ALPINE } from "./biome";
 
 describe("basePopOf (population comes from the generated world)", () => {
@@ -60,12 +60,17 @@ describe("levy (men cost population)", () => {
     expect(s.pop[prov]).toBeCloseTo(before - got, 9);
     expect(armyAt(s, prov, nation)!.men).toBe(got);
   });
-  it("stacks a second levy into the same army", () => {
+  it("stacks a second levy (a turn later) into the same army", () => {
+    // one levy per province per turn is now enforced (see the "levy per-turn guard" describe block
+    // below), so the second levy here must land on a DIFFERENT turn than the first — advance s.turn
+    // directly (not endTurn) so upkeep/regrowth don't perturb the population/army numbers this test
+    // is pinning.
     const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });
     const s = initArmySim(world);
     const prov = [...s.owner].findIndex((o) => o >= 0);
     const nation = s.owner[prov];
     const a = levy(s, prov, nation);
+    s.turn++;
     const b = levy(s, prov, nation);
     expect(armyAt(s, prov, nation)!.men).toBe(a + b);
     expect(s.armies.filter((x) => x.prov === prov && x.nation === nation).length).toBe(1);
@@ -76,6 +81,59 @@ describe("levy (men cost population)", () => {
     const prov = [...s.owner].findIndex((o) => o >= 0);
     const notOwner = s.owner[prov] === 0 ? 1 : 0;
     expect(levy(s, prov, notOwner)).toBe(0);
+  });
+});
+
+describe("levy per-turn guard (the bug: a province could be levied unlimited times in one turn)", () => {
+  it("refuses a second levy on the same province in the same turn and changes nothing", () => {
+    const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });
+    const s = initArmySim(world);
+    const prov = [...s.owner].findIndex((o) => o >= 0);
+    const nation = s.owner[prov];
+    const first = levy(s, prov, nation);
+    expect(first).toBeGreaterThan(0);
+    const popAfterFirst = s.pop[prov];
+    const menAfterFirst = armyAt(s, prov, nation)!.men;
+    const second = levy(s, prov, nation);
+    expect(second).toBe(0);
+    expect(s.pop[prov]).toBe(popAfterFirst);
+    expect(armyAt(s, prov, nation)!.men).toBe(menAfterFirst);
+  });
+
+  it("lets the same province be levied again once endTurn advances the turn counter", () => {
+    const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });
+    const s = initArmySim(world);
+    const prov = [...s.owner].findIndex((o) => o >= 0);
+    const nation = s.owner[prov];
+    levy(s, prov, nation);
+    expect(levy(s, prov, nation)).toBe(0);          // blocked: same turn
+    endTurn(s, nation);
+    expect(levy(s, prov, nation)).toBeGreaterThan(0); // a new turn, free to levy again
+  });
+
+  it("lets two different provinces each be levied in the same turn", () => {
+    const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });
+    const s = initArmySim(world);
+    const nation = [...s.owner].find((o) => o >= 0)!;
+    const owned = [...Array(s.n).keys()].filter((p) => s.owner[p] === nation && maxLevy(s, p) > 0);
+    expect(owned.length).toBeGreaterThanOrEqual(2); // guard: this test would be vacuous otherwise
+    const [a, b] = owned;
+    expect(levy(s, a, nation)).toBeGreaterThan(0);
+    expect(levy(s, b, nation)).toBeGreaterThan(0);
+  });
+
+  it("canLevy reflects fresh, already-levied-this-turn, and too-low-population states", () => {
+    const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });
+    const s = initArmySim(world);
+    const prov = [...s.owner].findIndex((o) => o >= 0);
+    const nation = s.owner[prov];
+    expect(canLevy(s, prov, nation)).toBe(true);         // fresh: owned, population, never levied
+    levy(s, prov, nation);
+    expect(canLevy(s, prov, nation)).toBe(false);        // already levied this turn
+    s.turn++;                                            // a new turn clears the per-turn guard...
+    s.pop[prov] = 4;                                     // ...but population is now too low to raise anyone
+    expect(maxLevy(s, prov)).toBe(0);
+    expect(canLevy(s, prov, nation)).toBe(false);        // population too low
   });
 });
 
@@ -281,9 +339,13 @@ describe("endTurn", () => {
     const s = initArmySim(world);
     const player = 0;
     const prov = [...Array(s.n).keys()].find((p) => s.owner[p] === player)!;
-    // two levies so upkeep's minimum 1-man drain shrinks the army without wiping it out
+    // two levies so upkeep's minimum 1-man drain shrinks the army without wiping it out. One levy
+    // per province per turn is now enforced, so advance s.turn directly (not endTurn, which would
+    // itself run upkeep/regrowth and disturb the numbers this test reads) between the two calls.
     levy(s, prov, player);
+    s.turn++;
     levy(s, prov, player);
+    s.turn = 0;
     const before = armyAt(s, prov, player)!.men;
     endTurn(s, player);
     // the player's army is still where the player left it (only upkeep changed its size)

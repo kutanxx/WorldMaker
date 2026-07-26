@@ -1,7 +1,7 @@
 import { generateWorld } from "../engine/world";
 import { DEFAULT_PARAMS } from "../types/world";
 import {
-  initArmySim, levy, maxLevy, moveArmy, previewMove, endTurn, armyAt, militiaOf,
+  initArmySim, levy, maxLevy, canLevy, moveArmy, previewMove, endTurn, armyAt, militiaOf,
   outcome, goalProgress, provinceCount, GOAL_GAIN_FRAC, HORIZON,
   playableNations, setTheater, leadingRival,
   type ArmyState, type Outcome,
@@ -203,10 +203,15 @@ export function mountArmyApp(root: HTMLElement, opts: { seed?: number } = {}): v
     head.textContent = `${name} · 인구 ${Math.round(s.pop[p])} · 민병 ${militiaOf(s, p)}` + (a ? ` · 병력 ${a.men}` : "");
     box.appendChild(head);
     const levyAmount = maxLevy(s, p);
+    const canLevyNow = canLevy(s, p, player!);
     const btn = document.createElement("button");
     btn.className = "army-levy";
-    btn.textContent = `징집 (+${levyAmount}명, 인구 −${levyAmount})`;
-    btn.disabled = levyAmount === 0;
+    // two distinct disabled reasons, so the label tells you which one it is: nothing left to raise
+    // (levyAmount === 0) vs. already spent this turn's one levy on this province.
+    btn.textContent = levyAmount === 0 || canLevyNow
+      ? `징집 (+${levyAmount}명, 인구 −${levyAmount})`
+      : "징집 완료 (이번 턴)";
+    btn.disabled = !canLevyNow;
     btn.addEventListener("click", () => { const m = levy(s, p, player!); if (m > 0) say(`징집 ${name} +${m}`); render(); });
     box.appendChild(btn);
     if (a) {

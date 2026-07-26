@@ -44,6 +44,10 @@ export interface ArmyState {
   turn: number;
   scope?: Uint8Array; // 1 = in the current theater; absent = whole map
   startCounts: Int32Array; // province count per nation when the game began — every nation races from its own start
+  // leviedOn is optional (rather than required) so pre-existing tests that construct ArmyState by hand
+  // (before this field existed) keep compiling unchanged; a missing array behaves exactly like "never
+  // levied" everywhere it is read. -1 = never levied; otherwise the last turn this province was levied.
+  leviedOn?: Int32Array;
 }
 
 // a province's population ceiling, derived from the generated world: size x biome x cities.
@@ -88,7 +92,8 @@ export function initArmySim(world: World): ArmyState {
   const adj = buildProvinceAdj(world.provinceOf, world.provinces, world.grid);
   const startCounts = new Int32Array(world.polities.length);
   for (let p = 0; p < n; p++) { const o = owner[p]; if (o >= 0 && o < startCounts.length) startCounts[o]++; }
-  return { world, n, owner, pop, basePop, armies: [], adj, turn: 0, startCounts };
+  const leviedOn = new Int32Array(n).fill(-1);
+  return { world, n, owner, pop, basePop, armies: [], adj, turn: 0, startCounts, leviedOn };
 }
 
 export function armyAt(s: ArmyState, prov: number, nation: number): Army | undefined {
@@ -101,14 +106,32 @@ export function maxLevy(s: ArmyState, prov: number): number {
   return Math.floor(s.pop[prov] * LEVY_FRAC);
 }
 
-// raise men from an owned province: the population really leaves the land.
+// the levy clock, allocated on first use so hand-built fixtures without it still work (mirrors
+// provinceSim's unrestArr pattern).
+function leviedOnArr(s: ArmyState): Int32Array {
+  if (!s.leviedOn || s.leviedOn.length !== s.n) s.leviedOn = new Int32Array(s.n).fill(-1);
+  return s.leviedOn;
+}
+
+// whether `nation` may levy `prov` right now: owned, something left to raise, and not already
+// levied this turn. The UI asks this before attempting, so it can disable the button outright
+// instead of letting a click silently do nothing.
+export function canLevy(s: ArmyState, prov: number, nation: number): boolean {
+  if (nation < 0 || prov < 0 || prov >= s.n || s.owner[prov] !== nation) return false;
+  if (maxLevy(s, prov) <= 0) return false;
+  return leviedOnArr(s)[prov] !== s.turn;
+}
+
+// raise men from an owned province: the population really leaves the land. One levy per province
+// per turn — over-levying is meant to hollow a province out ACROSS turns (the population regrows
+// slowly via REGROW_FRAC), not be bypassed by clicking the same province repeatedly in one turn.
 export function levy(s: ArmyState, prov: number, nation: number): number {
-  if (nation < 0 || prov < 0 || prov >= s.n || s.owner[prov] !== nation) return 0;
+  if (!canLevy(s, prov, nation)) return 0;
   const men = maxLevy(s, prov);
-  if (men <= 0) return 0;
   s.pop[prov] -= men;
   const a = armyAt(s, prov, nation);
   if (a) a.men += men; else s.armies.push({ prov, nation, men, movedOn: -1 });
+  leviedOnArr(s)[prov] = s.turn;
   return men;
 }
 
