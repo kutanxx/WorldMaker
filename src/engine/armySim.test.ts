@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { generateWorld } from "./world";
 import { DEFAULT_PARAMS } from "../types/world";
-import { basePopOf, initArmySim, BIOME_POP, BIOME_DEF, LEVY_FRAC, UPKEEP_FRAC, REGROW_FRAC, MILITIA_FRAC, WIN_LOSS_MULT, DEF_LOSS_MULT, AI_LEVY_FRAC, armyAt, maxLevy, levy, applyUpkeep, regrow, militiaOf, defenceOf, previewMove, moveArmy, aiTurn, endTurn, battleRoll, winChance, ODDS_K, GOAL_GAIN_FRAC, HORIZON, landProvinces, goalGain, goalProgress, provinceCount, nationRank, outcome, landComponents, theaterOf, setTheater, playableNations } from "./armySim";
+import { basePopOf, initArmySim, BIOME_POP, BIOME_DEF, LEVY_FRAC, UPKEEP_FRAC, REGROW_FRAC, MILITIA_FRAC, WIN_LOSS_MULT, DEF_LOSS_MULT, AI_LEVY_FRAC, armyAt, maxLevy, levy, applyUpkeep, regrow, militiaOf, defenceOf, previewMove, moveArmy, aiTurn, endTurn, battleRoll, winChance, ODDS_K, GOAL_GAIN_FRAC, HORIZON, landProvinces, goalGain, goalProgress, provinceCount, nationRank, outcome, landComponents, theaterOf, setTheater, playableNations, nationProgress, leadingRival } from "./armySim";
 import { GRASSLAND, ALPINE } from "./biome";
 
 describe("basePopOf (population comes from the generated world)", () => {
@@ -669,6 +669,9 @@ describe("goal / outcome (start-fair: you must CONQUER, not merely hold)", () =>
     const need = goalGain(s);
     for (const p of land) s.owner[p] = other;
     for (const p of land.slice(0, start + need - 1)) s.owner[p] = me;
+    // this fixture rigs almost the whole map onto "other" to isolate MY start-fair goal check;
+    // pin its start to that rigged holding so it doesn't look like it just raced to victory itself.
+    s.startCounts[other] = provinceCount(s, other);
     expect(outcome(s, me, start)).toBeNull();
     s.owner[land[start + need - 1]] = me;
     expect(outcome(s, me, start)).toEqual({ kind: "victory" });
@@ -802,5 +805,72 @@ describe("theater scoping (the board is what you can reach)", () => {
     const s = fresh(11);
     expect(s.scope).toBeUndefined();
     expect(landProvinces(s)).toBeGreaterThan(0);
+  });
+});
+
+describe("the race (every nation has the same victory condition)", () => {
+  const fresh = (seed: number) => initArmySim(generateWorld({ ...DEFAULT_PARAMS, seed }).world);
+
+  it("records every nation's starting size", () => {
+    const s = fresh(11);
+    const nations = [...new Set([...s.owner].filter((o) => o >= 0))];
+    for (const n of nations) expect(s.startCounts[n]).toBe(provinceCount(s, n));
+  });
+
+  it("measures a rival's progress from ITS OWN start", () => {
+    const s = fresh(11);
+    const rival = [...new Set([...s.owner].filter((o) => o >= 0))][1];
+    const before = nationProgress(s, rival);
+    expect(before.gained).toBe(0);
+    expect(before.goal).toBe(goalGain(s));
+    // hand the rival one more province
+    const victim = [...Array(s.n).keys()].find((p) => s.owner[p] >= 0 && s.owner[p] !== rival)!;
+    s.owner[victim] = rival;
+    expect(nationProgress(s, rival).gained).toBe(1);
+  });
+
+  it("leadingRival names the rival closest to the goal, never the player", () => {
+    const s = fresh(11);
+    const nations = [...new Set([...s.owner].filter((o) => o >= 0))].sort((a, b) => a - b);
+    const me = nations[0], rival = nations[1];
+    const free = [...Array(s.n).keys()].filter((p) => s.owner[p] >= 0 && s.owner[p] !== rival && s.owner[p] !== me);
+    for (const p of free.slice(0, 3)) s.owner[p] = rival;      // rival pulls ahead
+    const lead = leadingRival(s, me)!;
+    expect(lead.nation).toBe(rival);
+    expect(lead.nation).not.toBe(me);
+    expect(lead.gained).toBeGreaterThan(0);
+  });
+
+  it("the player LOSES when a rival reaches the goal first", () => {
+    const s = fresh(11);
+    const nations = [...new Set([...s.owner].filter((o) => o >= 0))].sort((a, b) => a - b);
+    const me = nations[0], rival = nations[1];
+    const need = goalGain(s);
+    const takeable = [...Array(s.n).keys()].filter((p) => s.owner[p] >= 0 && s.owner[p] !== rival && s.owner[p] !== me);
+    for (const p of takeable.slice(0, need)) s.owner[p] = rival;
+    const r = outcome(s, me, s.startCounts[me]);
+    expect(r).toEqual({ kind: "outpaced", by: rival });
+  });
+
+  it("a tie goes to the player: my own victory outranks a rival's", () => {
+    const s = fresh(11);
+    const nations = [...new Set([...s.owner].filter((o) => o >= 0))].sort((a, b) => a - b);
+    const me = nations[0], rival = nations[1];
+    const need = goalGain(s);
+    const pool = [...Array(s.n).keys()].filter((p) => s.owner[p] >= 0 && s.owner[p] !== me && s.owner[p] !== rival);
+    for (const p of pool.slice(0, need)) s.owner[p] = rival;          // rival is at the goal
+    for (const p of pool.slice(need, need * 2)) s.owner[p] = me;      // and so am I
+    expect(outcome(s, me, s.startCounts[me])).toEqual({ kind: "victory" });
+  });
+
+  it("my own defeat still outranks everything", () => {
+    const s = fresh(11);
+    const nations = [...new Set([...s.owner].filter((o) => o >= 0))].sort((a, b) => a - b);
+    const me = nations[0], rival = nations[1];
+    const need = goalGain(s);
+    const pool = [...Array(s.n).keys()].filter((p) => s.owner[p] >= 0 && s.owner[p] !== me);
+    for (const p of pool.slice(0, need)) s.owner[p] = rival;
+    for (let p = 0; p < s.n; p++) if (s.owner[p] === me) s.owner[p] = rival;   // I hold nothing
+    expect(outcome(s, me, s.startCounts[me])).toEqual({ kind: "defeat" });
   });
 });

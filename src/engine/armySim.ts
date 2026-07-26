@@ -43,6 +43,7 @@ export interface ArmyState {
   adj: number[][];
   turn: number;
   scope?: Uint8Array; // 1 = in the current theater; absent = whole map
+  startCounts: Int32Array; // province count per nation when the game began — every nation races from its own start
 }
 
 // a province's population ceiling, derived from the generated world: size x biome x cities.
@@ -85,7 +86,9 @@ export function initArmySim(world: World): ArmyState {
   const pop = new Float64Array(n);
   for (let p = 0; p < n; p++) { basePop[p] = basePopOf(world, p); pop[p] = basePop[p]; }
   const adj = buildProvinceAdj(world.provinceOf, world.provinces, world.grid);
-  return { world, n, owner, pop, basePop, armies: [], adj, turn: 0 };
+  const startCounts = new Int32Array(world.polities.length);
+  for (let p = 0; p < n; p++) { const o = owner[p]; if (o >= 0 && o < startCounts.length) startCounts[o]++; }
+  return { world, n, owner, pop, basePop, armies: [], adj, turn: 0, startCounts };
 }
 
 export function armyAt(s: ArmyState, prov: number, nation: number): Army | undefined {
@@ -344,6 +347,27 @@ export function provinceCount(s: ArmyState, nation: number): number {
   return k;
 }
 
+// a nation's progress toward the SAME goal the player races for, measured from its own starting size.
+export function nationProgress(s: ArmyState, nation: number): { gained: number; goal: number } {
+  return { gained: provinceCount(s, nation) - (s.startCounts[nation] ?? 0), goal: goalGain(s) };
+}
+
+// the rival closest to winning — what the player is actually racing. Ties break on the lower polity id.
+// Only nations that still hold land inside the theater are considered.
+export function leadingRival(s: ArmyState, player: number): { nation: number; gained: number; goal: number } | null {
+  const seen = new Set<number>();
+  for (let p = 0; p < s.n; p++) {
+    const o = s.owner[p];
+    if (o >= 0 && o !== player && (!s.scope || s.scope[p] === 1)) seen.add(o);
+  }
+  let best: { nation: number; gained: number; goal: number } | null = null;
+  for (const n of [...seen].sort((a, b) => a - b)) {
+    const pr = nationProgress(s, n);
+    if (!best || pr.gained > best.gained) best = { nation: n, ...pr };
+  }
+  return best;
+}
+
 // standing among nations that still hold land; ties -> lower polity id ranks first.
 export function nationRank(s: ArmyState, nation: number): { rank: number; of: number } {
   const alive: { id: number; k: number }[] = [];
@@ -360,15 +384,19 @@ export function nationRank(s: ArmyState, nation: number): { rank: number; of: nu
 export type Outcome =
   | { kind: "defeat" }
   | { kind: "victory" }
+  | { kind: "outpaced"; by: number }
   | { kind: "horizon"; rank: number; of: number }
   | null;
 
 // Checked before the player acts each turn, in this order: death first (it outranks everything),
-// then the conquest goal, then the horizon.
+// then the player's own conquest goal, then whether a rival got there first (the player wins any
+// tie, since they act first within a turn), then the horizon.
 export function outcome(s: ArmyState, nation: number, startProv: number): Outcome {
   if (provinceCount(s, nation) === 0) return { kind: "defeat" };
   const { gained, goal } = goalProgress(s, nation, startProv);
   if (gained >= goal) return { kind: "victory" };
+  const lead = leadingRival(s, nation);
+  if (lead && lead.gained >= lead.goal) return { kind: "outpaced", by: lead.nation };
   if (s.turn >= HORIZON) { const { rank, of } = nationRank(s, nation); return { kind: "horizon", rank, of }; }
   return null;
 }
