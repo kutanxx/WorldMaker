@@ -250,6 +250,12 @@ export function moveArmy(s: ArmyState, prov: number, nation: number, target: num
 // of a flat "one", so a big nation musters proportionally more without needing per-nation tuning.
 export const AI_LEVY_FRAC = 0.25;
 
+// The AI used to attack whenever defenceOf(target) < army.men — but since winChance = atk^ODDS_K /
+// (atk^ODDS_K + def^ODDS_K), that condition is exactly "better than a coin flip": the AI committed at
+// 51% odds. A human player waits for better than that. AI_ODDS_MIN raises the bar: the AI only commits
+// at these odds or better, and otherwise keeps massing at the front (see aiTurn) instead of gambling.
+export const AI_ODDS_MIN = 0.7;
+
 // What this nation is trying to take. Scored by value-for-defence — population is what becomes
 // soldiers next turn, so the AI should want the same provinces a player wants, not merely the
 // emptiest wasteland on its border (which is what "lowest defence" alone picks). Ties -> lower id.
@@ -332,7 +338,7 @@ export function aiTurn(s: ArmyState, playerNation: number): void {
       for (const q of s.adj[army.prov]) {
         if (s.owner[q] === nation) continue;
         const d = defenceOf(s, q, nation);
-        if (d >= army.men) continue;
+        if (winChance(army.men, d) < AI_ODDS_MIN) continue;
         const score = s.pop[q] / (1 + d);
         if (score > bestScore) { bestScore = score; target = q; }
       }

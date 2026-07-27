@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { generateWorld } from "./world";
 import { DEFAULT_PARAMS } from "../types/world";
-import { basePopOf, initArmySim, BIOME_POP, BIOME_DEF, LEVY_FRAC, UPKEEP_FRAC, REGROW_FRAC, MILITIA_FRAC, WIN_LOSS_MULT, DEF_LOSS_MULT, AI_LEVY_FRAC, armyAt, maxLevy, levy, canLevy, applyUpkeep, regrow, militiaOf, defenceOf, previewMove, moveArmy, aiTurn, endTurn, battleRoll, winChance, ODDS_K, GOAL_GAIN_FRAC, HORIZON, landProvinces, goalGain, goalProgress, provinceCount, nationRank, outcome, landComponents, theaterOf, setTheater, playableNations, nationProgress, leadingRival, aiObjective, stepToward } from "./armySim";
+import { basePopOf, initArmySim, BIOME_POP, BIOME_DEF, LEVY_FRAC, UPKEEP_FRAC, REGROW_FRAC, MILITIA_FRAC, WIN_LOSS_MULT, DEF_LOSS_MULT, AI_LEVY_FRAC, AI_ODDS_MIN, armyAt, maxLevy, levy, canLevy, applyUpkeep, regrow, militiaOf, defenceOf, previewMove, moveArmy, aiTurn, endTurn, battleRoll, winChance, ODDS_K, GOAL_GAIN_FRAC, HORIZON, landProvinces, goalGain, goalProgress, provinceCount, nationRank, outcome, landComponents, theaterOf, setTheater, playableNations, nationProgress, leadingRival, aiObjective, stepToward } from "./armySim";
 import { GRASSLAND, ALPINE } from "./biome";
 
 describe("basePopOf (population comes from the generated world)", () => {
@@ -1063,5 +1063,130 @@ describe("the AI concentrates instead of idling", () => {
     const player = 0;
     aiTurn(s, player);
     for (const a of s.armies) if (a.nation !== player) expect(a.movedOn === -1 || a.movedOn === s.turn).toBe(true);
+  });
+});
+
+describe("AI_ODDS_MIN (the AI waits for good odds instead of attacking on a coin flip)", () => {
+  const nation = 9001, enemy = 9002;
+  const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });
+
+  // find one (province, adjacent target) pair once — reused by every test below so the world is
+  // only ever generated a single time in this whole describe block.
+  const probe = initArmySim(world);
+  let prov = -1, target = -1;
+  for (let p = 0; p < probe.n && prov < 0; p++) if (probe.adj[p].length > 0) { prov = p; target = probe.adj[p][0]; }
+  const mult = BIOME_DEF[world.provinces[target].biome] ?? 1;
+
+  // Isolate one attacking army against `target`: every OTHER province gets a population so large
+  // its militia is unbeatable and its owner cleared (same isolation technique as
+  // isolateForLevyOnly / "aiTurn moves every army" above), so the only fight the AI can even
+  // consider is this one. The attacker's own province is zeroed out so the AI's levy phase cannot
+  // add men to the army mid-test and disturb the exact odds under test. Calling aiTurn with
+  // `enemy` as the "player" means only `nation`'s turn actually runs, so the isolation is not
+  // confounded by enemy's own AI decisions either.
+  function isolate(men: number, targetPop: number) {
+    const s = initArmySim(world);
+    for (let p = 0; p < s.n; p++) {
+      if (p === prov || p === target) continue;
+      s.pop[p] = 1e12;
+      s.owner[p] = -1;
+    }
+    s.owner[prov] = nation;
+    s.owner[target] = enemy;
+    s.pop[prov] = 0;              // nothing left to levy — the army stays exactly `men`
+    s.pop[target] = targetPop;
+    s.armies = [{ prov, nation, men, movedOn: -1 }];
+    return s;
+  }
+
+  // Pure arithmetic mirror of defenceOf(target) when nothing but militia garrisons it (true of
+  // every state isolate() builds) — floor(pop * MILITIA_FRAC) * mult, the same formula
+  // defenceOf/militiaOf use. Used ONLY to search cheaply for boundary populations without
+  // rebuilding a whole ArmyState per candidate; every assertion below re-derives the real number
+  // via the actual defenceOf on an actual isolated state, so this never substitutes for the
+  // real computation, only speeds up finding where to point it.
+  const dFor = (pop: number) => Math.floor(pop * MILITIA_FRAC) * mult;
+
+  it("is 0.7", () => {
+    expect(AI_ODDS_MIN).toBe(0.7);
+  });
+
+  it("attacks only once winChance crosses AI_ODDS_MIN, not below it — a direct, non-vacuous boundary check", () => {
+    const men = 500;
+    // search achievable populations for the exact boundary where winChance(men, dFor(pop))
+    // crosses AI_ODDS_MIN
+    let popOver = 0, popUnder = -1;
+    for (let pop = 0; pop <= 20000 && popUnder < 0; pop++) {
+      if (winChance(men, dFor(pop)) >= AI_ODDS_MIN) popOver = pop; else popUnder = pop;
+    }
+    expect(popUnder).toBeGreaterThan(0); // guard: the sweep actually found the boundary
+
+    // just under the threshold: the AI must NOT attack
+    const under = isolate(men, popUnder);
+    const dUnder = defenceOf(under, target, nation);
+    expect(winChance(men, dUnder)).toBeLessThan(AI_ODDS_MIN);
+    aiTurn(under, enemy);
+    expect(under.owner[target]).toBe(enemy);            // target NOT captured
+    expect(armyAt(under, prov, nation)!.men).toBe(men);  // army stayed home, untouched
+
+    // at/over the threshold: the AI must attack. It commits to the fight (the target is no
+    // longer skipped), but the battle's own roll can still go either way this close to the
+    // threshold — so the deterministic, RNG-independent signal that an attack was ATTEMPTED is
+    // that the army no longer sits untouched at `prov`: on a win it relocates onto `target`, on a
+    // loss it is destroyed outright. Either way it leaves `prov` with its original `men` intact.
+    // (Guaranteed CAPTURE, not just an attempt, is covered by the separate "overwhelming odds"
+    // test below, where winChance = 1 makes the roll irrelevant.)
+    const over = isolate(men, popOver);
+    const dOver = defenceOf(over, target, nation);
+    expect(winChance(men, dOver)).toBeGreaterThanOrEqual(AI_ODDS_MIN);
+    aiTurn(over, enemy);
+    expect(armyAt(over, prov, nation)).toBeUndefined(); // the army committed to the fight
+  });
+
+  it("does not attack a target where the odds are only ~50% — previously it would have", () => {
+    const men = 5000; // large men -> fine-grained achievable defence steps near the boundary
+    // walk populations up until defenceOf(target) is as close as possible to `men` from BELOW —
+    // exactly the old condition `d < army.men` that used to trigger an attack (winChance just
+    // over 0.5, a coin flip the AI used to take).
+    let bestPop = 0, bestD = 0;
+    for (let pop = 0; pop <= 40000; pop++) {
+      const d = dFor(pop);
+      if (d < men && d > bestD) { bestD = d; bestPop = pop; }
+      if (d >= men) break; // dFor only grows with pop; no point searching further
+    }
+    expect(bestD).toBeGreaterThan(0); // guard: found a real near-parity defence, not a vacuous 0
+    const s = isolate(men, bestPop);
+    const d = defenceOf(s, target, nation); // the real number, not the search shortcut
+    const p = winChance(men, d);
+    expect(p).toBeGreaterThan(0.5);      // old condition (d < men) means atk > def: just past a coin flip...
+    expect(p).toBeLessThan(AI_ODDS_MIN); // ...but still short of the new bar
+    aiTurn(s, enemy);
+    expect(s.owner[target]).toBe(enemy);        // NOT captured — the old code would have taken this fight
+    expect(armyAt(s, prov, nation)!.men).toBe(men);
+  });
+
+  it("still attacks when the odds are overwhelming", () => {
+    const men = 500;
+    const s = isolate(men, 0); // zero population -> zero defence -> certain win
+    expect(winChance(men, defenceOf(s, target, nation))).toBe(1);
+    aiTurn(s, enemy);
+    expect(s.owner[target]).toBe(nation);
+    expect(armyAt(s, prov, nation)).toBeUndefined(); // the army relocated onto the captured province
+    expect(armyAt(s, target, nation)).toBeDefined();
+  });
+
+  it("stays deterministic at the caution boundary: same seed and setup give the same state", () => {
+    const men = 500;
+    let popUnder = -1;
+    for (let pop = 0; pop <= 20000 && popUnder < 0; pop++) {
+      if (winChance(men, dFor(pop)) < AI_ODDS_MIN) popUnder = pop;
+    }
+    expect(popUnder).toBeGreaterThan(0);
+    const run = () => {
+      const s = isolate(men, popUnder);
+      aiTurn(s, enemy);
+      return JSON.stringify({ o: [...s.owner], p: [...s.pop].map((v) => v.toFixed(6)), a: s.armies, t: s.turn });
+    };
+    expect(run()).toBe(run());
   });
 });
