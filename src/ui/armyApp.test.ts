@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mountArmyApp } from "./armyApp";
+import { mountArmyApp, leadWarning } from "./armyApp";
 import { generateWorld } from "../engine/world";
 import { DEFAULT_PARAMS } from "../types/world";
 import { initArmySim, playableNations, theaterOf, goalGain, LEAD_MIN_FRAC } from "../engine/armySim";
@@ -501,8 +501,10 @@ describe("the race is visible", () => {
     // Seed 23 (used elsewhere in this file) never gets the player strictly ahead of the best
     // rival within 30 turns under playAggressively — checked by instrumenting the same driver
     // across seeds 1-167 and logging mine/rival each turn. Seed 107 does reliably: 7 quiet turns
-    // before the first conquest, then 23 straight turns in the lead, and crosses the theater's
-    // threshold of 2 by turn 10 — so sawLead is never vacuous.
+    // before the first conquest, then 12 turns in the below-threshold band (a real, positive lead
+    // that does not yet clear the threshold — false positives under the old `gained > 0` rule, the
+    // clearest evidence the threshold does something), crosses the theater's threshold of 2 by turn
+    // 10, and leads outright for 11 turns — so sawLead is never vacuous.
     mountArmyApp(root, { seed: 107 });
     pickNation();
     // The HUD already prints both numbers the answer depends on: `정복 +N/M` is the player's
@@ -535,6 +537,27 @@ describe("the race is visible", () => {
     }
     expect(sawQuiet).toBeGreaterThan(0);                 // it was quiet before the first conquest
     expect(sawLead).toBeGreaterThan(0);                  // and it did fire once the player cleared the threshold
+  });
+});
+
+describe("leadWarning (the AI_LEADER_BIAS gate, pinned directly)", () => {
+  // The documented revert for AI_LEADER_BIAS is "set it to 1", and that must also silence the HUD.
+  // Nothing else in this file pins that gate: with the constant at its live value of 2, deleting
+  // it or weakening it to `bias >= 1` still leaves every other test green.
+  it("is silent at bias 1 even for the leader", () => {
+    expect(leadWarning(1, true)).toBe("");
+  });
+
+  it("is silent at bias 1 for a non-leader", () => {
+    expect(leadWarning(1, false)).toBe("");
+  });
+
+  it("warns at bias 2 for the leader", () => {
+    expect(leadWarning(2, true)).toContain("당신이 선두");
+  });
+
+  it("is silent at bias 2 for a non-leader", () => {
+    expect(leadWarning(2, false)).toBe("");
   });
 });
 

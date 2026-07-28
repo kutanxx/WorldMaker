@@ -1197,6 +1197,21 @@ describe("raceLeader (the AI can see who is winning)", () => {
     s.startCounts[nation] = provinceCount(s, nation) - ceilThreshold;
     expect(raceLeader(s)).toBe(nation);
   });
+
+  it("does not crown a leader when the theater's goal rounds to zero", () => {
+    const s = fresh(11);
+    // shrink the theater to a single owned province: landProvinces(s) = 1, so
+    // goalGain(s) = Math.round(GOAL_GAIN_FRAC * 1) = 0 -- the hole the Math.max(1, ...) floor closes.
+    const p0 = [...Array(s.n).keys()].find((p) => s.owner[p] >= 0)!;
+    s.scope = new Uint8Array(s.n);
+    s.scope[p0] = 1;
+    expect(goalGain(s)).toBe(0);
+    // model a genuine turn 0 in this theater: every nation's gained is exactly 0, same as the
+    // real t0 case the comment above describes -- without the floor this is exactly the state
+    // that used to crown the lowest-id in-scope nation for no reason but its id.
+    for (let n = 0; n < s.startCounts.length; n++) s.startCounts[n] = provinceCount(s, n);
+    expect(raceLeader(s)).toBe(-1);
+  });
 });
 
 describe("AI_LEADER_BIAS (the AI checks the leader, but never suicides for it)", () => {

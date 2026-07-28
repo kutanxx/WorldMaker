@@ -11,6 +11,13 @@ import { politicalBorders } from "../engine/borders";
 import { svgEl } from "./renderer";
 import { cellPath, segPath } from "./svgPaths";
 
+// The documented revert for AI_LEADER_BIAS is "set it to 1", and the HUD must not keep warning
+// about a dogpile the AI has stopped doing — so the gate lives here, in the one place that decides
+// the rendered string, rather than being re-derived (and potentially dropped) at the call site.
+export function leadWarning(bias: number, isLeader: boolean): string {
+  return bias > 1 && isLeader ? " · ⚠ 당신이 선두 — 주변국이 노립니다" : "";
+}
+
 // PROTOTYPE UI. Click a province of yours to select it; levy and march/attack are both issued from
 // the panel's buttons (never by clicking the map), so a misclick on a hostile neighbour can never
 // destroy an army by accident. Everything the rules use is printed on the map.
@@ -263,9 +270,7 @@ export function mountArmyApp(root: HTMLElement, opts: { seed?: number } = {}): v
       : "";
     // Being in front now changes how the AI plays, so it has to be on screen: an unannounced
     // dogpile reads as the game being unfair rather than as a rule the player can play around.
-    // Gated on AI_LEADER_BIAS > 1 as well: the documented revert for that constant is "set it to
-    // 1", and the HUD must not keep warning about a dogpile the AI has stopped doing.
-    const leadSeg = AI_LEADER_BIAS > 1 && raceLeader(s) === me ? " · ⚠ 당신이 선두 — 주변국이 노립니다" : "";
+    const leadSeg = leadWarning(AI_LEADER_BIAS, raceLeader(s) === me);
     const hud = document.createElement("div");
     hud.className = "army-hud";
     hud.dataset.nation = String(me);

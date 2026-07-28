@@ -497,7 +497,11 @@ export function raceLeader(s: ArmyState): number {
     const o = s.owner[p];
     if (o >= 0 && (!s.scope || s.scope[p] === 1)) seen.add(o);
   }
-  const minGained = Math.ceil(LEAD_MIN_FRAC * goalGain(s));
+  // Math.max(1, ...): a one-province theater makes goalGain(s) round down to 0, which would make
+  // the guard above vacuous — every `gained >= 0` nation qualifies, including everyone at t0 — and
+  // crown the lowest-id nation for no reason but its id, exactly the hole the comment above says is
+  // closed. The floor keeps that guarantee true unconditionally instead of only for positive goals.
+  const minGained = Math.max(1, Math.ceil(LEAD_MIN_FRAC * goalGain(s)));
   let best = -1, bestGained = minGained - 1;   // below-threshold gains never win, even by the tie-break
   for (const n of [...seen].sort((a, b) => a - b)) {
     const g = nationProgress(s, n).gained;
