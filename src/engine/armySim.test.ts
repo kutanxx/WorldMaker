@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { generateWorld } from "./world";
 import { DEFAULT_PARAMS } from "../types/world";
-import { basePopOf, initArmySim, BIOME_POP, BIOME_DEF, LEVY_FRAC, UPKEEP_FRAC, REGROW_FRAC, MILITIA_FRAC, WIN_LOSS_MULT, DEF_LOSS_MULT, AI_LEVY_FRAC, armyAt, maxLevy, levy, canLevy, applyUpkeep, regrow, militiaOf, defenceOf, previewMove, moveArmy, aiTurn, endTurn, battleRoll, winChance, ODDS_K, GOAL_GAIN_FRAC, HORIZON, landProvinces, goalGain, goalProgress, provinceCount, nationRank, outcome, landComponents, theaterOf, setTheater, playableNations, nationProgress, leadingRival, aiObjective, stepToward } from "./armySim";
+import { basePopOf, initArmySim, BIOME_POP, BIOME_DEF, LEVY_FRAC, UPKEEP_FRAC, REGROW_FRAC, MILITIA_FRAC, WIN_LOSS_MULT, DEF_LOSS_MULT, AI_LEVY_FRAC, armyAt, maxLevy, levy, canLevy, applyUpkeep, regrow, militiaOf, defenceOf, previewMove, moveArmy, aiTurn, endTurn, battleRoll, winChance, ODDS_K, GOAL_GAIN_FRAC, HORIZON, landProvinces, goalGain, goalProgress, provinceCount, nationRank, outcome, landComponents, theaterOf, setTheater, playableNations, nationProgress, leadingRival, raceLeader, aiObjective, stepToward } from "./armySim";
 import { GRASSLAND, ALPINE } from "./biome";
 
 describe("basePopOf (population comes from the generated world)", () => {
@@ -1063,5 +1063,62 @@ describe("the AI concentrates instead of idling", () => {
     const player = 0;
     aiTurn(s, player);
     for (const a of s.armies) if (a.nation !== player) expect(a.movedOn === -1 || a.movedOn === s.turn).toBe(true);
+  });
+});
+
+describe("raceLeader (the AI can see who is winning)", () => {
+  const fresh = (seed: number) => initArmySim(generateWorld({ ...DEFAULT_PARAMS, seed }).world);
+
+  it("picks the nation with the most conquest since its own start, not the biggest nation", () => {
+    const s = fresh(11);
+    const nations = [...new Set([...s.owner].filter((o) => o >= 0))].sort((a, b) => a - b);
+    expect(nations.length).toBeGreaterThan(2);
+    // at t0 nobody has gained anything, so the tie-break decides: lowest id
+    expect(raceLeader(s)).toBe(nations[0]);
+    // hand a LATER-id nation one extra province taken from a third nation; it now leads on gained
+    const climber = nations[nations.length - 1];
+    const victim = nations[1];
+    const taken = [...Array(s.n).keys()].find((p) => s.owner[p] === victim)!;
+    s.owner[taken] = climber;
+    expect(raceLeader(s)).toBe(climber);
+    expect(nationProgress(s, climber).gained).toBe(1);
+    // the biggest nation is NOT necessarily the answer — assert we did not just pick by size
+    const sizes = nations.map((n) => ({ n, k: provinceCount(s, n) })).sort((a, b) => b.k - a.k);
+    if (sizes[0].n !== climber) expect(raceLeader(s)).not.toBe(sizes[0].n);
+  });
+
+  it("includes the player — it is not the rival-only question leadingRival answers", () => {
+    const s = fresh(11);
+    const nations = [...new Set([...s.owner].filter((o) => o >= 0))].sort((a, b) => a - b);
+    const player = nations[0];
+    const taken = [...Array(s.n).keys()].find((p) => s.owner[p] === nations[1])!;
+    s.owner[taken] = player;
+    expect(raceLeader(s)).toBe(player);                 // the player can be the leader
+    expect(leadingRival(s, player)?.nation).not.toBe(player); // leadingRival still excludes them
+  });
+
+  it("ignores nations outside the theater", () => {
+    const s = fresh(23);
+    const nations = [...new Set([...s.owner].filter((o) => o >= 0))].sort((a, b) => a - b);
+    const outsider = nations[nations.length - 1];
+    // give the outsider a commanding lead, then scope the theater to exclude it entirely
+    for (let p = 0; p < s.n; p++) if (s.owner[p] === nations[1]) s.owner[p] = outsider;
+    s.scope = new Uint8Array(s.n);
+    for (let p = 0; p < s.n; p++) if (s.owner[p] !== outsider) s.scope[p] = 1;
+    expect(raceLeader(s)).not.toBe(outsider);
+  });
+
+  it("returns -1 when nobody holds land", () => {
+    const s = fresh(11);
+    s.owner.fill(-1);
+    expect(raceLeader(s)).toBe(-1);
+  });
+
+  it("is pure and deterministic — same answer twice, state untouched", () => {
+    const s = fresh(11);
+    const snap = JSON.stringify({ o: [...s.owner], p: [...s.pop], a: s.armies });
+    const first = raceLeader(s);
+    expect(raceLeader(s)).toBe(first);
+    expect(JSON.stringify({ o: [...s.owner], p: [...s.pop], a: s.armies })).toBe(snap);
   });
 });
