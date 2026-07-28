@@ -1075,16 +1075,23 @@ describe("raceLeader (the AI can see who is winning)", () => {
     expect(nations.length).toBeGreaterThan(2);
     // at t0 nobody has gained anything, so the tie-break decides: lowest id
     expect(raceLeader(s)).toBe(nations[0]);
-    // hand a LATER-id nation one extra province taken from a third nation; it now leads on gained
-    const climber = nations[nations.length - 1];
-    const victim = nations[1];
+    // climber = the SMALLEST nation at t0 (ties -> lower id). Picking it this way, rather than by id,
+    // means a size-ranked implementation cannot accidentally agree with the answer below.
+    const sizesAtT0 = nations
+      .map((n) => ({ n, k: provinceCount(s, n) }))
+      .sort((a, b) => a.k - b.k || a.n - b.n);
+    const climber = sizesAtT0[0].n;
+    const victim = nations.find((n) => n !== climber)!;
     const taken = [...Array(s.n).keys()].find((p) => s.owner[p] === victim)!;
     s.owner[taken] = climber;
-    expect(raceLeader(s)).toBe(climber);
     expect(nationProgress(s, climber).gained).toBe(1);
-    // the biggest nation is NOT necessarily the answer — assert we did not just pick by size
-    const sizes = nations.map((n) => ({ n, k: provinceCount(s, n) })).sort((a, b) => b.k - a.k);
-    if (sizes[0].n !== climber) expect(raceLeader(s)).not.toBe(sizes[0].n);
+    // unconditional, not "if this happens to be true": the size leader must be someone other than
+    // climber, so the next assertion (raceLeader picks climber) actually proves size was not the metric.
+    const sizeLeader = nations
+      .map((n) => ({ n, k: provinceCount(s, n) }))
+      .sort((a, b) => b.k - a.k || a.n - b.n)[0].n;
+    expect(sizeLeader).not.toBe(climber);
+    expect(raceLeader(s)).toBe(climber);
   });
 
   it("includes the player — it is not the rival-only question leadingRival answers", () => {
@@ -1101,11 +1108,21 @@ describe("raceLeader (the AI can see who is winning)", () => {
     const s = fresh(23);
     const nations = [...new Set([...s.owner].filter((o) => o >= 0))].sort((a, b) => a - b);
     const outsider = nations[nations.length - 1];
-    // give the outsider a commanding lead, then scope the theater to exclude it entirely
-    for (let p = 0; p < s.n; p++) if (s.owner[p] === nations[1]) s.owner[p] = outsider;
+    // scope the theater so every province the outsider owns is out, everything else is in
     s.scope = new Uint8Array(s.n);
-    for (let p = 0; p < s.n; p++) if (s.owner[p] !== outsider) s.scope[p] = 1;
+    for (let p = 0; p < s.n; p++) s.scope[p] = s.owner[p] === outsider ? 0 : 1;
+    // Rig the scores so the outsider would WIN if raceLeader's own scope guard were missing.
+    // provinceCount already filters by scope independently of raceLeader, so the outsider's in-scope
+    // holdings read as 0 either way — give it a start count of 0 too, so its `gained` is exactly 0.
+    // Give every in-scope nation a `gained` of -1 (start count one above its current holdings), so if
+    // the guard were gone and the outsider leaked into the candidate set, its 0 would beat all of them.
+    s.startCounts[outsider] = 0;
+    for (const n of nations) {
+      if (n === outsider) continue;
+      s.startCounts[n] = provinceCount(s, n) + 1;
+    }
     expect(raceLeader(s)).not.toBe(outsider);
+    expect(nations.filter((n) => n !== outsider)).toContain(raceLeader(s));
   });
 
   it("returns -1 when nobody holds land", () => {
