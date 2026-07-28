@@ -115,6 +115,19 @@ The AI keeps taking whatever it can. It will over-eat and pay for it. That is th
 direction — the runaway this exists to slow is usually an AI — and it leaves the informed player a
 genuine advantage in pacing, which is the kind of lever this repo has repeatedly found works.
 
+**One exception, added after review found it inverts the design.** `aiTurn` fills a levy quota of
+`max(1, ceil(owned × AI_LEVY_FRAC))` provinces, taken in population order. Raw provinces sort near
+the top of that list — the AI picks targets by `pop / (1 + defence)`, and captured land has not been
+hollowed out by repeated levying the way its own core has — and a levy that returns 0 still consumed
+its slot. A 4-province AI has one slot and would raise **nothing at all** for a turn after a single
+capture; a 20-province runaway has five and loses at most a fifth. That channel scales with realm
+size in exactly the opposite direction to this feature's thesis.
+
+So the quota counts **successful** levies and skips provinces it cannot levy. This is not strategic
+awareness — the AI already declines fights it cannot win — it just stops the AI spending a turn on
+an action that does nothing. Digestion now costs a realm the raw province's own contribution and
+not a whole slot. The AI still does not pace its conquest, which is the part that stays untaught.
+
 ### 7. Determinism
 
 Nations processed in ascending id; within a nation, raw provinces sorted by captured-turn ascending
