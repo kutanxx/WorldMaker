@@ -49,9 +49,10 @@ export interface ArmyState {
   // levied" everywhere it is read. -1 = never levied; otherwise the last turn this province was levied.
   leviedOn?: Int32Array;
   // Freshly conquered land does not fight for you yet: the turn a province changed hands, or -1
-  // once it has been digested (and for land nobody has taken). Optional and lazily allocated for
-  // the same reason as leviedOn — fixtures built before this field existed must keep behaving as
-  // "nothing is raw".
+  // once it has been digested (and for land nobody has taken). Optional for the same reason as
+  // leviedOn — fixtures built before this field existed must keep behaving as "nothing is raw".
+  // initArmySim allocates it eagerly (see rawArr's comment); the lazy allocation is only the
+  // fallback for hand-built ArmyState fixtures that never call initArmySim.
   raw?: Int32Array;
 }
 
@@ -343,10 +344,11 @@ export function stepToward(s: ArmyState, from: number, to: number, nation: numbe
 }
 
 // Deliberately dumb AI: enough for the world to push back while we test whether the loop is fun.
-// Each non-player nation levies from its AI_LEVY_FRAC most populous owned provinces, then concentrates
-// its armies on the front instead of idling. Deterministic: province selection sorts by population
-// descending then id ascending; armies are processed in ascending province-id order; target and front
-// selection tie-break on lower id.
+// Each non-player nation levies from its AI_LEVY_FRAC most populous owned LEVYABLE provinces (raw
+// land is skipped — see the loop below), then concentrates its armies on the front instead of
+// idling. Deterministic: province selection sorts by population descending then id ascending;
+// armies are processed in ascending province-id order; target and front selection tie-break on
+// lower id.
 export function aiTurn(s: ArmyState, playerNation: number): void {
   const nations = [...new Set([...s.owner].filter((o) => o >= 0 && o !== playerNation))].sort((a, b) => a - b);
   const leader = raceLeader(s);   // computed once: the turn's outcome must not depend on nation order
@@ -363,6 +365,16 @@ export function aiTurn(s: ArmyState, playerNation: number): void {
     // from the rest of digestion (a small nation's one slot was worth more, proportionally, than a
     // big nation's five), so it is cut here: skipping an action that cannot do anything is not
     // strategy — the AI already skips fights it cannot win.
+    //
+    // Why "skip" cannot accidentally change non-raw behaviour: `owned` is sorted by population
+    // descending, and maxLevy = floor(pop * LEVY_FRAC) is monotone in population, so a
+    // maxLevy === 0 rejection at index i guarantees every later index is also 0 — skipping can
+    // never reach past it to find a levyable province further down. And leviedOn[p] === s.turn is
+    // unreachable for an AI nation's own province during its own levy phase: this loop is the only
+    // place that levies this province this turn, and it hasn't reached p yet. So raw is the only
+    // reachable skip reason. That argument depends on the sort key being population — a future
+    // change to sort `owned` some other way would silently make this skip start changing
+    // non-raw behaviour too.
     let levied = 0;
     for (let i = 0; i < owned.length && levied < nLevy; i++) {
       if (!canLevy(s, owned[i], nation)) continue;

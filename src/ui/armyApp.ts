@@ -137,7 +137,13 @@ export function mountArmyApp(root: HTMLElement, opts: { seed?: number } = {}): v
         });
         // ⌛ on the number rather than a new map layer: the label is already where this province's
         // numbers live, and a raw province's population is exactly the number that is not available.
-        const digesting = isRaw(s, p) ? "⌛" : "";
+        // Scoped to the player's own land (`mine`), not every raw province in the theater: raw land
+        // defends exactly as normal (militiaOf/defenceOf never consult `raw`), so an enemy's
+        // hourglass conveys nothing the player can act on — and worse, it would make the on-map
+        // hourglass count disagree with the HUD's "소화 대기 N", which only counts the player's own
+        // backlog. data-raw stays set for every province regardless (it is a test hook, not a
+        // visual), only the glyph is scoped.
+        const digesting = mine && isRaw(s, p) ? "⌛" : "";
         label.textContent = army
           ? `${digesting}${Math.round(s.pop[p])}·⚔${army.men}`
           : `${digesting}${Math.round(s.pop[p])}`;
@@ -219,13 +225,18 @@ export function mountArmyApp(root: HTMLElement, opts: { seed?: number } = {}): v
     const canLevyNow = canLevy(s, p, player!);
     const btn = document.createElement("button");
     btn.className = "army-levy";
-    // two distinct disabled reasons, so the label tells you which one it is: nothing left to raise
-    // (levyAmount === 0) vs. already spent this turn's one levy on this province.
-    btn.textContent = levyAmount === 0 || canLevyNow
+    // Three distinct reasons the button can read, and rawness must be checked before the
+    // empty-population case: a freshly captured province can be both raw AND under-populated
+    // (a capture strips militia, so a near-empty province is exactly what raw land looks like
+    // right after it changes hands). Rawness is the reason that will not clear next turn — the
+    // player needs to know that, not "+0명" — so it must win the precedence, not lose to a
+    // levyAmount === 0 check that happens to also be true.
+    btn.textContent = canLevyNow
       ? `징집 (+${levyAmount}명, 인구 −${levyAmount})`
       // two different reasons the button is dead, and the player needs to tell them apart: one
       // clears next turn, the other clears when the realm has digested what it swallowed.
       : isRaw(s, p) ? "소화 중 — 아직 징집할 수 없습니다"
+      : levyAmount === 0 ? `징집 (+${levyAmount}명, 인구 −${levyAmount})`
       : "징집 완료 (이번 턴)";
     btn.disabled = !canLevyNow;
     btn.addEventListener("click", () => { const m = levy(s, p, player!); if (m > 0) say(`징집 ${name} +${m}`); render(); });

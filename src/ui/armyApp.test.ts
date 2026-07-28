@@ -193,6 +193,82 @@ describe("armyApp (prototype loop: levy -> march -> end turn)", () => {
     expect(btn.textContent).toContain("소화 중");
     expect(btn.textContent).not.toContain("징집 완료");   // the two reasons must not be confused
   });
+
+  it("an AI-owned raw province gets no hourglass, even though data-raw is set on it for the test hook", () => {
+    mountArmyApp(root, { seed: 11 });
+    pickNation();
+    // seed 11's neighbouring AI nations start fighting each other immediately: the very first
+    // end-turn click already leaves someone's raw conquest on the map. Raw land defends exactly
+    // like normal land (militiaOf/defenceOf never consult `raw`), so the marker is only meaningful
+    // — and only counted by the HUD's "소화 대기 N" — for the player's own backlog.
+    (root.querySelector("button.army-end") as HTMLButtonElement)
+      .dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    const enemyRaw = root.querySelector('.army-prov[data-mine="0"][data-raw="1"]');
+    expect(enemyRaw).toBeTruthy();                       // the drive must actually find one
+    const id = enemyRaw!.getAttribute("data-prov");
+    const label = root.querySelector(`.army-num[data-prov="${id}"]`);
+    expect(label).toBeTruthy();                           // it must be inside the rendered theater
+    expect(label!.textContent).not.toContain("⌛");
+  });
+
+  // Item 4's precedence bug only shows up when a province is BOTH raw AND already below the levy
+  // floor (population < 5, so maxLevy === 0) — the ordinary "just captured, still fat" case never
+  // exercises the levyAmount === 0 branch. Reaching it needs sustained pressure on ONE weak front
+  // (a captured province stands undefended once its army marches on again, so the AI takes it back
+  // and the population tolls down a little further on the next recapture) while NOT overextending
+  // everywhere else, or the realm crumbles to counter-attacks before the population ever gets this
+  // low. One attack per turn, always against the single weakest reachable target realm-wide,
+  // reliably reproduces it for seed 23.
+  function popOf(prov: string): number {
+    const lbl = root.querySelector(`.army-num[data-prov="${prov}"]`);
+    const m = lbl?.textContent?.match(/(\d+)/);
+    return m ? parseInt(m[1], 10) : Infinity;
+  }
+  function pushUntilUnderpopulatedRaw(maxTurns: number): Element | null {
+    for (let t = 0; t < maxTurns; t++) {
+      for (const p of root.querySelectorAll('.army-prov[data-mine="1"]')) {
+        p.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+        const lv = root.querySelector("button.army-levy") as HTMLButtonElement | null;
+        if (lv && !lv.disabled) lv.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      }
+      let bestBtn: HTMLButtonElement | null = null, bestPop = Infinity, bestProv: Element | null = null;
+      for (const p of [...root.querySelectorAll('.army-prov[data-mine="1"]')]) {
+        p.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+        for (const b of [...root.querySelectorAll("button.army-move")] as HTMLButtonElement[]) {
+          if (!/공격/.test(b.textContent || "") || b.disabled) continue;
+          const pop = popOf(b.dataset.target!);
+          if (pop < bestPop) { bestPop = pop; bestBtn = b; bestProv = p; }
+        }
+      }
+      if (bestProv) bestProv.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      if (bestBtn) bestBtn.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      for (const r of root.querySelectorAll('.army-prov[data-mine="1"][data-raw="1"]')) {
+        const id = r.getAttribute("data-prov")!;
+        if (popOf(id) < 5) return r;
+      }
+      const end = root.querySelector("button.army-end") as HTMLButtonElement | null;
+      if (!end) return null;                              // the game ended before we got there
+      end.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    }
+    return null;
+  }
+
+  it("a raw province too small to levy still reads 소화 중, not +0명 (rawness must win the precedence)", () => {
+    mountArmyApp(root, { seed: 23 });
+    // pickNation() (the first *offered*, id-sorted nation) is not the nation this scenario was
+    // proven against; use the same "first owned province" nation the scratch run that found it used.
+    const firstOwned = [...root.querySelectorAll(".army-prov")]
+      .find((el) => el.getAttribute("data-polity") !== "-1") as SVGElement;
+    firstOwned.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    const target = pushUntilUnderpopulatedRaw(20);
+    expect(target).toBeTruthy();                           // the drive must actually reach the state
+    target!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    const btn = root.querySelector("button.army-levy") as HTMLButtonElement;
+    expect(btn).toBeTruthy();
+    expect(btn.disabled).toBe(true);
+    expect(btn.textContent).toContain("소화 중");
+    expect(btn.textContent).not.toContain("+0명");          // the precedence bug's symptom
+  });
 });
 
 describe("nation picker", () => {

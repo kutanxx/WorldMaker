@@ -524,7 +524,13 @@ describe("aiTurn mobilises in proportion to nation size (multi-levy)", () => {
     expect(levied[0].men).toBeGreaterThan(0);
   });
 
-  it("still produces the same game for the same seed when nothing is raw (the levy-skip change is a no-op off the raw path)", () => {
+  // This only re-runs the current code twice and compares — it can catch nondeterminism (Set/Map
+  // iteration order, an untracked Math.random, etc.) but says nothing about behaviour against the
+  // pre-levy-skip loop. The "no-op off the raw path" argument for that change is real, but it is
+  // not something this test can demonstrate; it now lives as a comment at the levy-skip loop in
+  // aiTurn. Note the run below does capture territory (raw land is very much on the path here),
+  // so this was never actually exercising a "nothing is raw" scenario either.
+  it("produces the same game for the same seed across two runs (determinism smoke test)", () => {
     const run = () => {
       const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 7 });
       const s = initArmySim(world);
