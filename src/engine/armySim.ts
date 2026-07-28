@@ -98,7 +98,8 @@ export function initArmySim(world: World): ArmyState {
   const startCounts = new Int32Array(world.polities.length);
   for (let p = 0; p < n; p++) { const o = owner[p]; if (o >= 0 && o < startCounts.length) startCounts[o]++; }
   const leviedOn = new Int32Array(n).fill(-1);
-  return { world, n, owner, pop, basePop, armies: [], adj, turn: 0, startCounts, leviedOn };
+  const raw = new Int32Array(n).fill(-1);
+  return { world, n, owner, pop, basePop, armies: [], adj, turn: 0, startCounts, leviedOn, raw };
 }
 
 export function armyAt(s: ArmyState, prov: number, nation: number): Army | undefined {
@@ -118,7 +119,8 @@ function leviedOnArr(s: ArmyState): Int32Array {
   return s.leviedOn;
 }
 
-// the digestion clock, allocated on first use so hand-built fixtures without it still work.
+// the digestion clock. initArmySim allocates s.raw eagerly (mirroring leviedOn), so this lazy path
+// only matters for hand-built fixtures constructed before this field existed — pure back-compat.
 function rawArr(s: ArmyState): Int32Array {
   if (!s.raw || s.raw.length !== s.n) s.raw = new Int32Array(s.n).fill(-1);
   return s.raw;
@@ -234,7 +236,8 @@ export function previewMove(s: ArmyState, prov: number, nation: number, target: 
 }
 
 // march or attack. On a win the army occupies the target (and the land, with its population, changes
-// hands — that population is levyable next turn, which is what makes attacking compound).
+// hands — but the province is marked raw here and cannot be levied until digest() clears it, which
+// is what DAMPENS attacking compounding rather than fueling it).
 export function moveArmy(s: ArmyState, prov: number, nation: number, target: number): BattleResult | null {
   const before = armyAt(s, prov, nation);
   if (before && before.movedOn === s.turn) return null;  // one move per army per turn
@@ -353,7 +356,19 @@ export function aiTurn(s: ArmyState, playerNation: number): void {
     for (let p = 0; p < s.n; p++) if (s.owner[p] === nation) owned.push(p);
     owned.sort((a, b) => (s.pop[b] - s.pop[a]) || (a - b));
     const nLevy = Math.max(1, Math.ceil(owned.length * AI_LEVY_FRAC));
-    for (let i = 0; i < nLevy && i < owned.length; i++) levy(s, owned[i], nation);
+    // Skip provinces canLevy already rejects (chiefly: still-digesting raw land) instead of just
+    // taking the top nLevy positions — a captured province sorts near the top (by population) long
+    // before it has been hollowed out like the rest of the realm, so "spend the slot regardless"
+    // would waste a levy on land that raises nobody. That channel scaled with realm size backwards
+    // from the rest of digestion (a small nation's one slot was worth more, proportionally, than a
+    // big nation's five), so it is cut here: skipping an action that cannot do anything is not
+    // strategy — the AI already skips fights it cannot win.
+    let levied = 0;
+    for (let i = 0; i < owned.length && levied < nLevy; i++) {
+      if (!canLevy(s, owned[i], nation)) continue;
+      levy(s, owned[i], nation);
+      levied++;
+    }
 
     // 2. concentrate. Each army fights if it can win where it stands; otherwise it marches toward the
     // front rather than standing still for the rest of the game bleeding upkeep. Snapshot positions
@@ -400,6 +415,11 @@ export const DIGEST_PER_TURN = 1;
 
 // Each nation absorbs its oldest raw provinces. Deterministic: nations ascending, and within a
 // nation oldest-captured first with ties on the lower province id.
+//
+// `o < 0` (unowned) provinces are skipped, so a raw province that somehow became unowned would stay
+// raw forever, uncounted by any nation's backlog. Unreachable through the engine — nothing ever
+// writes a province's owner back to -1 once claimed — but reachable from a hand-built test fixture,
+// so do not rely on digest() to clean up an owner-less raw entry.
 export function digest(s: ArmyState): void {
   const arr = rawArr(s);
   const byNation = new Map<number, number[]>();

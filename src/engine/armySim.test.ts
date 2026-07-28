@@ -504,6 +504,36 @@ describe("aiTurn mobilises in proportion to nation size (multi-levy)", () => {
     expect(smallLevied.size).toBe(1);
     expect(bigLevied.size).toBeGreaterThan(smallLevied.size);
   });
+
+  // Approved deviation from the plan (see armySim.ts's comment at the aiTurn levy loop): a levy
+  // attempt that lands on raw land raises nothing but used to still spend the slot, and a captured
+  // province sorts near the top of `owned` (by population) well before it has been hollowed out like
+  // the rest of the realm — so the AI must now skip past raw land to fill its quota instead of
+  // stopping at the first nLevy positions.
+  it("skips a raw province in its levy quota and raises from the next province down instead of wasting the slot", () => {
+    const nation = 9001;
+    const provs = [0, 1, 2, 3]; // all pop=100 (tied) -> owned sorts id-ascending -> nLevy = max(1, ceil(4*0.25)) = 1
+    const s = isolateForLevyOnly(1, [{ nation, provs }]);
+    s.raw![0] = s.turn; // the province that would otherwise be picked first is raw (raw is always
+                         // allocated by initArmySim now; the ! matches its still-optional type,
+                         // kept for hand-built fixtures)
+    aiTurn(s, -1);
+    const levied = s.armies.filter((a) => a.nation === nation);
+    expect(levied.length).toBe(1);
+    expect(levied[0].prov).toBe(1);      // 0 was skipped (raw, canLevy false); 1 is the next in order
+    expect(levied[0].men).toBeGreaterThan(0);
+  });
+
+  it("still produces the same game for the same seed when nothing is raw (the levy-skip change is a no-op off the raw path)", () => {
+    const run = () => {
+      const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 7 });
+      const s = initArmySim(world);
+      const player = [...s.owner].find((o) => o >= 0)!;
+      for (let i = 0; i < 5; i++) endTurn(s, player);
+      return JSON.stringify({ o: [...s.owner], p: [...s.pop].map((v) => v.toFixed(6)), a: s.armies, t: s.turn });
+    };
+    expect(run()).toBe(run());
+  });
 });
 
 describe("aiTurn moves every army, not just the biggest", () => {
@@ -1550,7 +1580,13 @@ describe("digestion (conquered land does not fight for you yet)", () => {
     expect(levy(s, taken, nation)).toBeGreaterThan(0);
   });
 
-  it("captures beyond the fixed capacity accumulate a backlog", () => {
+  // NOTE on what this actually proves: the Math.max(0, 3 - k*DIGEST_PER_TURN) expectations are
+  // written generically so the test survives a future DIGEST_PER_TURN edit, but that genericity cuts
+  // both ways — if DIGEST_PER_TURN were ever raised to 3 (== targets.length), both checks below would
+  // collapse to 0 and still pass despite no backlog ever persisting. So do not read this test as
+  // proof that a backlog accumulates; it only pins that digest() clears exactly DIGEST_PER_TURN of a
+  // nation's raw provinces per call, clamped at zero once the backlog is exhausted.
+  it("digest clears exactly DIGEST_PER_TURN provinces per call, clamped at zero", () => {
     const s = fresh(11);
     const nation = [...s.owner].find((o) => o >= 0)!;
     const targets = [...Array(s.n).keys()]
@@ -1580,6 +1616,12 @@ describe("digestion (conquered land does not fight for you yet)", () => {
     expect(isRaw(s, a)).toBe(true);
   });
 
+  // NOTE: this test does NOT actually cover the `|| (x - y)` tie-break in digest()'s sort. The scan
+  // that builds each nation's list runs id-ascending (`for (let p = 0; p < s.n; ...)`), and
+  // Array#sort has been spec-stable since ES2019, so a stable sort on an already id-ascending input
+  // produces this same result even with the explicit tie-break deleted. The tie-break is kept anyway
+  // — it documents intent and guards against a future reordering of the scan that would otherwise
+  // silently make the sort unstable-in-effect — but do not count this test as coverage for it.
   it("breaks an age tie on the lower province id", () => {
     expect(DIGEST_PER_TURN).toBe(1);            // this test is written for a capacity of exactly 1
     const s = fresh(11);
@@ -1637,6 +1679,16 @@ describe("digestion (conquered land does not fight for you yet)", () => {
   it("the AI is blocked by the same gate — a wholly raw realm raises nobody", () => {
     const s = fresh(11);
     const nation = [...s.owner].find((o) => o >= 0)!;
+
+    // guard: this test would be vacuous otherwise — if `nation` simply had too little population to
+    // levy anything, `raised === 0` below would pass for a reason that has nothing to do with the
+    // rawness gate. Prove the SAME nation, on the SAME map, DOES raise men when nothing is raw, so
+    // the zero is attributable to the gate.
+    const control = fresh(11);
+    aiTurn(control, -1);
+    const controlRaised = control.armies.filter((a) => a.nation === nation).reduce((k, a) => k + a.men, 0);
+    expect(controlRaised).toBeGreaterThan(0);
+
     s.raw = new Int32Array(s.n).fill(-1);
     for (let p = 0; p < s.n; p++) if (s.owner[p] === nation) s.raw[p] = s.turn;
     aiTurn(s, -1);
@@ -1648,12 +1700,43 @@ describe("digestion (conquered land does not fight for you yet)", () => {
     expect(raised).toBe(0);
   });
 
+  // The tests above all call digest(s) directly, which pins the unit's own behaviour but says
+  // nothing about the call site in endTurn — deleting `digest(s);` from endTurn (after aiTurn,
+  // before s.turn++) leaves every test above passing. These two drive the real call site instead.
+  it("endTurn (the real call site) digests a captured province so it becomes levyable", () => {
+    const s = fresh(11);
+    const nation = [...s.owner].find((o) => o >= 0)!;
+    const [, taken] = captureOne(s, nation);
+    expect(isRaw(s, taken)).toBe(true);
+    s.pop[taken] = 1000;             // plenty to raise, so a false-canLevy would show up as 0
+    // `nation` as the playerNation: aiTurn will not move its armies out from under this assertion.
+    endTurn(s, nation);
+    expect(isRaw(s, taken)).toBe(false);
+    expect(canLevy(s, taken, nation)).toBe(true);
+    expect(levy(s, taken, nation)).toBeGreaterThan(0);
+  });
+
+  it("endTurn digests at most DIGEST_PER_TURN provinces even when two were captured in the same turn", () => {
+    const s = fresh(11);
+    const nation = [...s.owner].find((o) => o >= 0)!;
+    const [, first] = captureOne(s, nation);
+    const [, second] = captureOne(s, nation);
+    expect(first).not.toBe(second);
+    expect(isRaw(s, first)).toBe(true);
+    expect(isRaw(s, second)).toBe(true);
+    endTurn(s, nation);
+    const stillRaw = [first, second].filter((p) => isRaw(s, p)).length;
+    expect(stillRaw).toBe(Math.max(0, 2 - DIGEST_PER_TURN)); // capacity pinned at the real call site
+  });
+
   it("endTurn digests, and the same seed still produces the same game", () => {
     const a = fresh(11), b = fresh(11);
     for (let t = 0; t < 8; t++) { endTurn(a, 0); endTurn(b, 0); }
     expect([...a.owner]).toEqual([...b.owner]);
     expect([...a.pop]).toEqual([...b.pop]);
-    expect([...(a.raw ?? [])]).toEqual([...(b.raw ?? [])]);
+    // both states always have s.raw now (initArmySim allocates it eagerly, like leviedOn), so there
+    // is no "one has it, one doesn't" case left to paper over with ?? [].
+    expect([...a.raw!]).toEqual([...b.raw!]);
     expect(a.armies).toEqual(b.armies);
   });
 });
