@@ -3,7 +3,7 @@ import { DEFAULT_PARAMS } from "../types/world";
 import {
   initArmySim, levy, maxLevy, canLevy, moveArmy, previewMove, endTurn, armyAt, militiaOf,
   outcome, goalProgress, provinceCount, GOAL_GAIN_FRAC, HORIZON,
-  playableNations, setTheater, leadingRival,
+  playableNations, setTheater, leadingRival, raceLeader,
   type ArmyState, type Outcome,
 } from "../engine/armySim";
 import { politicalLayer } from "./politicalLayer";
@@ -261,10 +261,13 @@ export function mountArmyApp(root: HTMLElement, opts: { seed?: number } = {}): v
     const rivalSeg = rival
       ? ` · 추격 ${world.polities[rival.nation]?.name ?? rival.nation} ${rival.gained >= 0 ? "+" : ""}${rival.gained}/${rival.goal}`
       : "";
+    // Being in front now changes how the AI plays, so it has to be on screen: an unannounced
+    // dogpile reads as the game being unfair rather than as a rule the player can play around.
+    const leadSeg = raceLeader(s) === me ? " · ⚠ 당신이 선두 — 주변국이 노립니다" : "";
     const hud = document.createElement("div");
     hud.className = "army-hud";
     hud.dataset.nation = String(me);
-    hud.textContent = `턴 ${s.turn} · 시드 ${seed} · ${world.polities[me]?.name ?? ""} · 영토 ${myProv()} · 정복 ${gainStr}/${prog.goal} · 인구 ${Math.round(myPop())} · 병력 ${myMen()}${rivalSeg}`;
+    hud.textContent = `턴 ${s.turn} · 시드 ${seed} · ${world.polities[me]?.name ?? ""} · 영토 ${myProv()} · 정복 ${gainStr}/${prog.goal} · 인구 ${Math.round(myPop())} · 병력 ${myMen()}${rivalSeg}${leadSeg}`;
     root.appendChild(hud);
     root.appendChild(buildMap());
     const oc: Outcome = outcome(s, me, startProv);

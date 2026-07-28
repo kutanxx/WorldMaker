@@ -413,6 +413,23 @@ describe("the race is visible", () => {
       .dispatchEvent(new MouseEvent("click", { bubbles: true }));
   }
 
+  // Lifts the levy+attack pattern from "odds are quoted, not promised" (lines 196-200 of this
+  // file): sweep the realm's own provinces, topping up levy wherever the panel allows it, and
+  // launch the first hostile move on offer. A no-op if the realm has neither to give this turn.
+  function playAggressively(): void {
+    for (const el of [...root.querySelectorAll('.army-prov[data-mine="1"]')]) {
+      el.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      for (let i = 0; i < 4; i++) {
+        const b = root.querySelector("button.army-levy") as HTMLButtonElement | null;
+        if (b && !b.disabled) b.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      }
+      el.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      const row = [...root.querySelectorAll("button.army-move")]
+        .find((b) => /공격/.test((b as HTMLElement).textContent || "")) as HTMLButtonElement | undefined;
+      if (row) { row.dispatchEvent(new MouseEvent("click", { bubbles: true })); return; }
+    }
+  }
+
   it("shows the leading rival's progress next to my own", () => {
     mountArmyApp(root, { seed: 11 });
     pickNation();
@@ -434,6 +451,53 @@ describe("the race is visible", () => {
     expect(over).toBeTruthy();
     expect(over!.textContent).toMatch(/패배|승리|종료/);
     expect(root.querySelector("button.army-restart")).toBeTruthy();
+  });
+
+  it("stays silent at turn 0 — nobody has conquered anything yet, so nobody leads", () => {
+    const base = initArmySim(generateWorld({ ...DEFAULT_PARAMS, seed: 1 }).world);
+    const playable = playableNations(base);
+    expect(playable.length).toBeGreaterThan(1);
+    // structural, not seed luck: startCounts is snapshotted at init, so every nation's `gained`
+    // is exactly 0 at t0, and raceLeader requires gained > 0. No pick may produce the warning.
+    for (const id of playable) {
+      root.remove();
+      root = document.createElement("div");
+      document.body.appendChild(root);
+      mountArmyApp(root, { seed: 1 });
+      (root.querySelector(`.army-prov[data-polity="${id}"]`) as SVGElement)
+        .dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      expect(root.querySelector(".army-hud")!.textContent).not.toContain("당신이 선두");
+    }
+  });
+
+  it("warns once the player is actually ahead, and only while they are", () => {
+    // Seed 23 (used elsewhere in this file) never gets the player strictly ahead of the best
+    // rival within 30 turns under playAggressively — checked by instrumenting the same driver
+    // across seeds 1-167 and logging mine/rival each turn. Seed 107 does reliably: 7 quiet turns
+    // before the first conquest, then 23 straight turns in the lead, so sawLead is never vacuous.
+    mountArmyApp(root, { seed: 107 });
+    pickNation();
+    // The HUD already prints both numbers the answer depends on: `정복 +N/M` is the player's
+    // own gained, `추격 <name> +K/M` is the best rival's. So the test needs no mirror of the
+    // app's internal state — it reads the same screen the player does.
+    let sawLead = 0, sawQuiet = 0;
+    for (let turn = 0; turn < 30; turn++) {
+      const hud = root.querySelector(".army-hud")!.textContent!;
+      const mine = Number((hud.match(/정복 ([+-]?\d+)\//) || [])[1]);
+      const rivalMatch = hud.match(/추격 .*?([+-]?\d+)\/\d+/);
+      const rival = rivalMatch ? Number(rivalMatch[1]) : -Infinity;
+      const warned = hud.includes("당신이 선두");
+      if (mine <= 0) { expect(warned).toBe(false); sawQuiet++; }
+      else if (mine > rival) { expect(warned).toBe(true); sawLead++; }
+      // mine > 0 && mine === rival is deliberately skipped: raceLeader breaks that tie on the
+      // lower polity id, not in the player's favour, so these two numbers do not decide it.
+      const end = root.querySelector("button.army-end") as HTMLButtonElement | null;
+      if (!end) break;                                   // the game reached an outcome
+      playAggressively();
+      end.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    }
+    expect(sawQuiet).toBeGreaterThan(0);                 // it was quiet before the first conquest
+    expect(sawLead).toBeGreaterThan(0);                  // and it did fire once the player led
   });
 });
 
