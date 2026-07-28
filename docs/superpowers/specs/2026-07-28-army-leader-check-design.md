@@ -127,3 +127,49 @@ outranks it.
 ## Reverting
 
 Set `AI_LEADER_BIAS = 1` and the AI behaves exactly as it does today. One line.
+
+## Measured result
+
+All-AI worlds (`aiTurn(s, -1)`, so every nation is played by the AI and no human proxy stands in
+for one), run to the first nation reaching the goal or to the turn-50 horizon. "Before" was taken
+by setting `AI_LEADER_BIAS = 1`, which the code makes bit-identical to the pre-feature engine, so
+before and after come from the same driver on the same commit. `lead−2nd` is the winning margin;
+`totalGain` sums every nation's positive conquest.
+
+| seed | before (bias 1) | after (bias 2) |
+|---|---|---|
+| 11 | nation 6 wins **t15**, lead−2nd 18, totalGain 40, men 5601, pop 6967 | nation 6 wins **t28**, lead−2nd 11, totalGain 43, men 6412, pop 6545 |
+| 23 | nation 2 wins t28, lead−2nd 20, totalGain 18 | **no winner in 50**, lead−2nd 0, totalGain 3 |
+| 1 | no winner, lead−2nd 12, totalGain 28 | no winner, lead−2nd 6, totalGain 24 |
+| 7 | nation 4 wins t32, lead−2nd 15, totalGain 25 | **no winner in 50**, lead−2nd 21, totalGain 18 |
+| 42 | nation 0 wins t30, lead−2nd 12, totalGain 36 | nation 0 wins t36, lead−2nd 18, totalGain 30 |
+| 107 | no winner, totalGain 0 | *byte-identical* — see below |
+
+**1. Did the runaway stop? Partly, and the null result stands.** Seed 11's 29-province giant
+**still wins**. The check delays it — t15 to t28, and its margin over second place falls from 18 to
+11 — but it does not stop it. That is mechanism B doing exactly what this spec predicted it would:
+the giant levies from 8 provinces while an 11-province neighbour levies from 3, and the goal is the
+same flat number for both. **No amount of tuning `AI_LEADER_BIAS` will fix that**; it would mean
+changing what victory is, or how production scales.
+
+**2. Did it backfire the way `AI_ODDS_MIN` did? No — but there is a different cost.** The
+`AI_ODDS_MIN` failure mode was armies bleeding out in close fights, which would show as *fewer* men
+standing. Men went **up** in 3 of 5 active seeds and were flat in the others, so the AI is not
+grinding itself down. What did happen is that **totalGain fell in 4 of 5** (18→3 on seed 23 is the
+extreme). Armies concentrate on a leader they often cannot beat, so they accumulate and wait
+instead of taking land. The world gets less decisive rather than more contested. On an all-AI
+board that reads as stalling; with a human player pushing a front it may read as pressure. **This
+is the thing to watch in live play.**
+
+**3. Is the race closer? In three of five, yes — and the reversals are informative.** Margins
+narrowed on seeds 11 (18→11), 23 (20→0) and 1 (12→6), and widened on 7 (15→21) and 42 (12→18). The
+widening cases are the coalition eating each other while the eventual leader is elsewhere: the bias
+aims everyone at whoever is momentarily ahead, which is not always whoever will win.
+
+**Seed 107 is identical under both settings**, and that is the `gained > 0` rule working: no nation
+ever reaches positive conquest there, so `raceLeader` returns -1 for the whole game and the lever
+never engages. A world where nobody is running away is a world this feature correctly leaves alone.
+
+**Standing caveat.** This is a bot proxy and it has been wrong on this engine before — the
+`AI_ODDS_MIN` measurement pointed the opposite way from what live play showed. These numbers are a
+direction, not a verdict. Live play decides.
