@@ -166,6 +166,51 @@ Then:
 
 Bot measurement is a proxy and has been wrong on this engine before. Live play decides.
 
+## Measured result
+
+All-AI worlds, run to the first nation reaching the goal or to the turn-50 horizon. "Before" was
+taken by setting `DIGEST_PER_TURN = 9999` — the documented revert, which makes `digest` clear
+everything it finds every turn — so both columns come from the same driver on the same commit, with
+the leader-check already in place in both.
+
+| seed | before (digestion off) | after (`DIGEST_PER_TURN = 1`) |
+|---|---|---|
+| 11 | winner @t28, best **27**, 2nd 16, 1.54/turn, biggest **56** | **no winner**, best **15**, 2nd 12, 0.72/turn, biggest **44** |
+| 23 | winner @t32, best 18, 2nd **1**, 0.59/turn, biggest **36** | winner @t29, best 18, 2nd **5**, 0.79/turn, biggest **21** |
+| 1 | no winner, best 6, 2nd 5, 0.38/turn, biggest 27 | no winner, best 18, 2nd 12, 0.62/turn, biggest 25 |
+| 7 | winner @t37, best 21, 2nd **0**, 0.57/turn, biggest 49 | winner @t34, best 19, 2nd **12**, 0.91/turn, biggest 47 |
+| 42 | winner @t23, best 23, 2nd 4, 1.30/turn, biggest 43 | winner @t21, best 24, 2nd 3, 1.33/turn, biggest 44 |
+
+**1. Did the map freeze? No — it did the opposite.** This was the failure mode to check first, and it
+did not happen. Per-turn conquest rose in four of five seeds (0.59→0.79, 0.38→0.62, 0.57→0.91,
+1.30→1.33) and fell only on seed 11, where it fell because the runaway that was producing most of
+that conquest was stopped. Total conquest rose in three of five. The world got *busier*, because
+breaking the runaway leaves more nations alive and doing something.
+
+**2. Did the runaways slow? On two seeds decisively, on two barely.** Seed 11 is the clean case: a
+winner at t28 with a 27-province gain and a 56-province empire becomes **no winner at all**, best
+gain 15, biggest realm 44. Seed 23's largest realm falls 36→21. Seeds 7 and 42 barely move (best
+21→19 and 23→24), and on three seeds the winner actually arrives *earlier* — though on seed 23 a
+**different nation** wins, so that is a reshuffle rather than the same runaway going faster.
+
+**3. The field closed up, and it closed up the right way.** The plan required that a narrower gap
+only counts if second place went *up*, and it did: 2nd place goes 0→12 on seed 7, 5→12 on seed 1,
+and 1→5 on seed 23. Seed 7 is the strongest single result — the runner-up went from gaining
+*nothing at all* to gaining 12. This is the "one nation runs away while everyone sits near zero"
+shape breaking, which is what the re-diagnosis identified as the actual problem.
+
+**4. The backlogs are large, and that is worth watching.** End-of-game backlogs run 20–39 provinces
+per world, concentrated on the leaders: seed 7's winner holds **23 raw provinces out of 47**, seed
+42's holds 24 of 44. Mechanically that is the design working — a runaway accumulates forever — but
+roughly half of a large realm being unlevyable is a big number to put in front of a player, and
+whether `소화 대기 23` reads as meaningful pressure or as an incomprehensible tax is a live-play
+question, not a measurement one.
+
+**Standing caveat.** Bot measurement is a proxy and has been wrong on this engine before. These are
+a direction, not a verdict, and they cannot answer the one that matters most for the player: whether
+pacing expansion actually beats over-eating. If "take everything you can" is still optimal, this
+lever did nothing for the player and only taxed the AI.
+
 ## Prior art in this repo — why this might fail
 
 Mechanical anti-snowball levers have been reverted here four times (`SIZE_CAP`, fragile conquest,
