@@ -152,23 +152,52 @@ the giant levies from 8 provinces while an 11-province neighbour levies from 3, 
 same flat number for both. **No amount of tuning `AI_LEADER_BIAS` will fix that**; it would mean
 changing what victory is, or how production scales.
 
-**2. Did it backfire the way `AI_ODDS_MIN` did? No — but there is a different cost.** The
-`AI_ODDS_MIN` failure mode was armies bleeding out in close fights, which would show as *fewer* men
-standing. Men went **up** in 3 of 5 active seeds and were flat in the others, so the AI is not
-grinding itself down. What did happen is that **totalGain fell in 4 of 5** (18→3 on seed 23 is the
-extreme). Armies concentrate on a leader they often cannot beat, so they accumulate and wait
-instead of taking land. The world gets less decisive rather than more contested. On an all-AI
-board that reads as stalling; with a human player pushing a front it may read as pressure. **This
-is the thing to watch in live play.**
+**⚠ Read the table with its confound in mind.** Every metric above is taken at game end, but the
+"after" games run *longer* — the check delays or prevents a winner, so before ends at t15–t50 and
+after at t28–t50. Standing men, totalGain and margin all accumulate with turns played, so raw
+end-state numbers flatter the change. Where the two conclusions below depend on that, they are
+normalized per turn.
 
-**3. Is the race closer? In three of five, yes — and the reversals are informative.** Margins
-narrowed on seeds 11 (18→11), 23 (20→0) and 1 (12→6), and widened on 7 (15→21) and 42 (12→18). The
-widening cases are the coalition eating each other while the eventual leader is elsewhere: the bias
-aims everyone at whoever is momentarily ahead, which is not always whoever will win.
+**2. Did it backfire the way `AI_ODDS_MIN` did? Not in the same way — but conquest slows
+everywhere, and one seed does show the attrition signature.** The `AI_ODDS_MIN` failure mode was
+armies bleeding out in close fights, which shows as *fewer* men standing. Men rose on seeds 11
+(5601→6412), 23 (4109→4313) and 7 (7459→8860), fell 1.2% on seed 1 — and **fell 10.2% on seed 42
+(6254→5613), while its army count rose 27→44**. More, smaller stacks holding fewer men is the
+attrition pattern, not the accumulation pattern, and seed 42 is the one seed exhibiting it. It
+should not be rounded off: the spec required this check be *looked for*, not assumed absent.
 
-**Seed 107 is identical under both settings**, and that is the `gained > 0` rule working: no nation
-ever reaches positive conquest there, so `raceLeader` returns -1 for the whole game and the lever
-never engages. A world where nobody is running away is a world this feature correctly leaves alone.
+Normalizing conquest by turns actually played, the picture is worse than the raw totals suggest:
+
+| seed | conquest/turn before | after | change |
+|---|---|---|---|
+| 11 | 2.67 | 1.54 | −42% |
+| 23 | 0.64 | 0.06 | −91% |
+| 1 | 0.56 | 0.48 | −14% |
+| 7 | 0.78 | 0.36 | −54% |
+| 42 | 1.20 | 0.83 | −31% |
+
+**Conquest rate falls in 5 of 5, by 14–91%.** Seed 11's raw totalGain *rise* (40→43) is an artifact
+of having 13 more turns to produce 3 more provinces. So the honest statement is: the bias does not
+bleed armies the way `AI_ODDS_MIN` did, but it makes the whole world less decisive. Armies
+concentrate on a leader they often cannot beat and then wait. On an all-AI board that reads as
+stalling; with a human player pushing a front it may read as pressure. **This is the thing to watch
+in live play.**
+
+**3. The player-leads case was NOT measured.** The spec's third question — does a strong player
+start still walk to victory? — cannot be answered by an all-AI driver, which has no player. Since
+"the player is included in the leader check" is this feature's headline design decision, this is a
+real gap and it is deliberately left open for live play rather than papered over with a bot proxy.
+
+**Margins: closer in three of five, wider in two.** Narrowed on seeds 11 (18→11), 23 (20→0) and 1
+(12→6); widened on 7 (15→21) and 42 (12→18). The widening cases are the coalition eating each other
+while the eventual winner is elsewhere: the bias aims everyone at whoever is *momentarily* ahead,
+which is not always whoever will win.
+
+**Seed 107 is identical under both settings**, which is the `gained > 0` rule working: with no
+player, no nation there ever reaches positive conquest, so `raceLeader` returns -1 all game and the
+lever never engages. That is specific to the all-AI configuration, not a general property of that
+world — seed 107 is also the seed the UI test uses precisely because a *player* there conquers by
+turn 7 and then leads for 23 straight turns, engaging the lever for most of the game.
 
 **Standing caveat.** This is a bot proxy and it has been wrong on this engine before — the
 `AI_ODDS_MIN` measurement pointed the opposite way from what live play showed. These numbers are a
