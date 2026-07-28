@@ -36,14 +36,17 @@ New `raceLeader(s: ArmyState): number`.
 - Score is `nationProgress(n).gained` — conquest relative to that nation's own start.
 - **The player is included.** The player leading is the case this most needs to cover.
 - Only nations still holding land inside the theater are considered.
-- **`gained` must be strictly positive.** A nation that has conquered nothing is not leading.
+- **`gained` must clear a threshold** — see *Fix: a lead has to be worth something* below, which
+  supersedes this section's original `gained > 0` rule after live play showed it was set at noise
+  level. The shipped requirement is `gained >= max(1, ceil(LEAD_MIN_FRAC × goalGain(s)))`.
 - Ties break on the lower polity id. Returns `-1` when no nation qualifies.
 
-The `gained > 0` requirement exists because `startCounts` is snapshotted at init, so at t0 every
+A threshold of some kind is needed because `startCounts` is snapshotted at init, so at t0 every
 nation's `gained` is exactly 0 and the tie-break alone would decide — crowning the lowest-id nation
-(possibly the player) as "leader" for no reason connected to the race, aiming the AI's bias and any
-future "you are the leader" message at an arbitrary target. Returning `-1` instead leaves the whole
-leader-check inert until somebody has actually taken something.
+(possibly the player) as "leader" for no reason connected to the race, aiming the AI's bias and the
+"you are the leader" message at an arbitrary target. Any positive threshold leaves the whole
+leader-check inert until somebody has actually taken something; the `max(1, …)` floor is what makes
+that guarantee hold unconditionally rather than only for a positive goal.
 
 Size is deliberately *not* the metric. This game replaced an absolute "hold 40% of the world"
 goal with a start-fair additive one because size at t0 is an accident of map generation.
