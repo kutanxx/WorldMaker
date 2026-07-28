@@ -171,70 +171,79 @@ Append to `src/engine/armySim.test.ts`:
 ```ts
 describe("AI_LEADER_BIAS (the AI checks the leader, but never suicides for it)", () => {
   const fresh = (seed: number) => initArmySim(generateWorld({ ...DEFAULT_PARAMS, seed }).world);
+  const frontierOf = (s: ArmyState, nation: number) => [...Array(s.n).keys()]
+    .filter((p) => s.owner[p] !== nation && s.adj[p].some((q) => s.owner[q] === nation));
+  const otherNation = (s: ArmyState, nation: number) =>
+    [...new Set([...s.owner].filter((o) => o >= 0 && o !== nation))].sort((a, b) => a - b)[0];
 
-  it("prefers the leader's province over an equally valuable neutral one", () => {
+  // `defenceOf` reads armies, population and biome — never `owner`. So reassigning a province's
+  // owner changes the bias and NOTHING else, which is what makes these tests exact rather than
+  // dependent on some seed's biome layout happening to produce a tie.
+  const scoreOf = (s: ArmyState, p: number, nation: number) => s.pop[p] / (1 + defenceOf(s, p, nation));
+
+  it("lifts the leader's province past a rival the AI would otherwise prefer", () => {
     const s = fresh(11);
     const nation = [...s.owner].find((o) => o >= 0)!;
-    const frontier = [...Array(s.n).keys()]
-      .filter((p) => s.owner[p] !== nation && s.adj[p].some((q) => s.owner[q] === nation));
-    expect(frontier.length).toBeGreaterThan(1);
-    const [a, b] = frontier;
-    for (const p of frontier) if (p !== a && p !== b) s.pop[p] = 0;   // isolate the comparison
-    s.armies = s.armies.filter((x) => x.prov !== a && x.prov !== b);
-    s.pop[a] = 100; s.pop[b] = 100;
-    const leader = s.owner[b] >= 0 ? s.owner[b] : -1;
-    if (leader < 0) return;                                          // b unowned: nothing to test
-    s.owner[a] = -1;                                                 // a is neutral, b is the leader's
-    expect(aiObjective(s, nation, -1)).toBe(Math.min(a, b));         // unbiased: equal value -> lower id
-    expect(aiObjective(s, nation, leader)).toBe(b);                  // biased: the leader's land wins
+    const leader = otherNation(s, nation);
+    const top = aiObjective(s, nation, -1);
+    expect(top).toBeGreaterThanOrEqual(0);
+    // a near-miss: loses on raw value, but by less than the bias makes up
+    const runnerUp = frontierOf(s, nation).filter((p) => p !== top)
+      .find((p) => scoreOf(s, p, nation) > 0 && scoreOf(s, p, nation) * AI_LEADER_BIAS > scoreOf(s, top, nation));
+    expect(runnerUp).toBeDefined();
+    s.owner[top] = -1;                 // make sure the leader does not also own the old winner
+    s.owner[runnerUp!] = leader;
+    expect(aiObjective(s, nation, -1)).toBe(top);           // unbiased: unchanged
+    expect(aiObjective(s, nation, leader)).toBe(runnerUp);  // biased: the leader's land wins
   });
 
-  it("does NOT bias unowned wasteland when there is no leader", () => {
+  it("does not mistake unowned wasteland for the leader's land when there is no leader", () => {
     const s = fresh(11);
     const nation = [...s.owner].find((o) => o >= 0)!;
-    // owner is -1 for unowned provinces and raceLeader returns -1 for "nobody" — the guard that
-    // keeps those two from colliding is the point of this test.
-    expect(aiObjective(s, nation, -1)).toBe(aiObjective(s, nation));
+    const top = aiObjective(s, nation, -1);
+    const wild = frontierOf(s, nation).filter((p) => p !== top)
+      .find((p) => scoreOf(s, p, nation) > 0 && scoreOf(s, p, nation) * AI_LEADER_BIAS > scoreOf(s, top, nation));
+    expect(wild).toBeDefined();
+    s.owner[wild!] = -1;                              // unowned, scoring just below the winner
+    s.owner[top] = otherNation(s, nation);            // owned, so it is not wasteland too
+    // owner is -1 for wasteland and raceLeader returns -1 for "nobody". Drop the `leader >= 0`
+    // guard from leaderWeight and `wild` wins this. It must not.
+    expect(aiObjective(s, nation, -1)).toBe(top);
   });
 
   it("never turns a fight the AI would decline into one it takes", () => {
     const s = fresh(11);
     const nation = [...s.owner].find((o) => o >= 0)!;
-    const before = JSON.stringify(s.armies);
-    // make every neighbour of this nation unbeatable, and make them all the leader's
-    const leader = [...new Set([...s.owner].filter((o) => o >= 0 && o !== nation))].sort((a, b) => a - b)[0];
-    for (let p = 0; p < s.n; p++) {
-      if (s.owner[p] === nation) continue;
-      if (!s.adj[p].some((q) => s.owner[q] === nation)) continue;
-      s.owner[p] = leader;
-      s.pop[p] = 1e6;                       // militia alone makes defence enormous
-    }
+    const leader = otherNation(s, nation);
+    // every neighbour becomes the leader's (maximally attractive) AND unbeatable (militia alone
+    // dwarfs anything this nation can raise). The bias must not override the winnability gate.
+    for (const p of frontierOf(s, nation)) { s.owner[p] = leader; s.pop[p] = 1e6; }
+    const mine = new Set([...Array(s.n).keys()].filter((p) => s.owner[p] === nation));
     aiTurn(s, -1);
-    // no army of `nation` may have moved onto a province it could not beat
-    for (const a of s.armies) {
-      if (a.nation !== nation) continue;
-      expect(s.owner[a.prov]).toBe(nation);
-    }
-    expect(before).toBeTypeOf("string");
+    expect(s.armies.some((a) => a.nation === nation)).toBe(true);   // it did raise troops
+    for (const a of s.armies) if (a.nation === nation) expect(mine.has(a.prov)).toBe(true);
   });
 
-  it("setting the bias to 1 would be today's behaviour — the constant is the only lever", () => {
-    expect(AI_LEADER_BIAS).toBeGreaterThan(1);
+  it("defaults to inert — the third parameter is optional and unbiased", () => {
+    const s = fresh(11);
+    const nation = [...s.owner].find((o) => o >= 0)!;
+    expect(AI_LEADER_BIAS).toBeGreaterThan(1);        // 1 would be a no-op lever
+    expect(aiObjective(s, nation)).toBe(aiObjective(s, nation, -1));
   });
 
-  it("all nations in a turn react to the same leader — order does not change the game", () => {
+  it("same seed, same game — the bias introduced no order-dependence", () => {
     const a = fresh(11), b = fresh(11);
-    for (let t = 0; t < 6; t++) { aiTurn(a, -1); endTurn(b, -1); }
-    expect(raceLeader(a)).toBe(raceLeader(a));           // stable within a state
-    const c = fresh(11), d = fresh(11);
-    for (let t = 0; t < 6; t++) { endTurn(c, 0); endTurn(d, 0); }
-    expect([...c.owner]).toEqual([...d.owner]);          // same seed -> identical game
-    expect(c.armies).toEqual(d.armies);
+    for (let t = 0; t < 8; t++) { endTurn(a, 0); endTurn(b, 0); }
+    expect([...a.owner]).toEqual([...b.owner]);
+    expect([...a.pop]).toEqual([...b.pop]);
+    expect(a.armies).toEqual(b.armies);
   });
 });
 ```
 
-Add `AI_LEADER_BIAS` to the import list at the top of `src/engine/armySim.test.ts` (line 4).
+Add `AI_LEADER_BIAS` **and `type ArmyState`** to the import list at the top of
+`src/engine/armySim.test.ts` (line 4). `ArmyState` is not currently imported there and the helper
+signatures above need it; `defenceOf`, `aiTurn` and `endTurn` are already in that list.
 
 - [ ] **Step 2: Run the tests to verify they fail**
 
@@ -544,7 +553,8 @@ Bot measurement is a proxy and has been wrong on this engine before (`80dd8f4` w
 | 2. `AI_LEADER_BIAS = 2`, both scoring sites, `leader >= 0` guard, optional `aiObjective` param | Task 2 |
 | Winnability gate untouched | Task 2 Step 5 (explicit instruction) + Task 2 Step 1 test 3 |
 | 3. Player must see it | Task 3 |
-| 4. Determinism — leader computed once per turn, no rng | Task 2 Step 5 + Task 2 Step 1 test 5 |
+| 4. Determinism — no rng, identical game per seed | Task 2 Step 1 test 5 |
+| 4. Leader computed once per turn (order-independence) | Task 2 Step 5 — structural, enforced by code placement and its comment; not observable through the public API |
 | Testing section (all five bullets) | Tasks 1-3 tests |
 | Measurement after merge (all three questions) | Task 4 |
 | Reverting via the constant | Task 2 Step 1 test 4 documents the lever |
