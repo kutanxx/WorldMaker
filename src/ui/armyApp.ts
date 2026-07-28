@@ -4,6 +4,7 @@ import {
   initArmySim, levy, maxLevy, canLevy, moveArmy, previewMove, endTurn, armyAt, militiaOf,
   outcome, goalProgress, provinceCount, GOAL_GAIN_FRAC, HORIZON,
   playableNations, setTheater, leadingRival, raceLeader, AI_LEADER_BIAS,
+  isRaw, backlogOf,
   type ArmyState, type Outcome,
 } from "../engine/armySim";
 import { politicalLayer } from "./politicalLayer";
@@ -116,7 +117,7 @@ export function mountArmyApp(root: HTMLElement, opts: { seed?: number } = {}): v
       const mine = player !== null && s.owner[p] === player;
       const hit = svgEl("path", {
         class: "army-prov" + (sel === p ? " sel" : ""), "data-prov": String(p), "data-mine": mine ? "1" : "0",
-        "data-polity": String(s.owner[p]),
+        "data-polity": String(s.owner[p]), "data-raw": isRaw(s, p) ? "1" : "0",
         d: byProv[p], fill: sel === p ? "rgba(232,181,58,0.35)" : "transparent", stroke: "none",
       });
       hit.addEventListener("click", () => {
@@ -134,7 +135,12 @@ export function mountArmyApp(root: HTMLElement, opts: { seed?: number } = {}): v
         const label = svgEl("text", {
           class: "army-num", "data-prov": String(p), x: String(cx), y: String(cy), "text-anchor": "middle", "pointer-events": "none",
         });
-        label.textContent = army ? `${Math.round(s.pop[p])}·⚔${army.men}` : `${Math.round(s.pop[p])}`;
+        // ⌛ on the number rather than a new map layer: the label is already where this province's
+        // numbers live, and a raw province's population is exactly the number that is not available.
+        const digesting = isRaw(s, p) ? "⌛" : "";
+        label.textContent = army
+          ? `${digesting}${Math.round(s.pop[p])}·⚔${army.men}`
+          : `${digesting}${Math.round(s.pop[p])}`;
         svg.appendChild(label);
       }
     }
@@ -217,6 +223,9 @@ export function mountArmyApp(root: HTMLElement, opts: { seed?: number } = {}): v
     // (levyAmount === 0) vs. already spent this turn's one levy on this province.
     btn.textContent = levyAmount === 0 || canLevyNow
       ? `징집 (+${levyAmount}명, 인구 −${levyAmount})`
+      // two different reasons the button is dead, and the player needs to tell them apart: one
+      // clears next turn, the other clears when the realm has digested what it swallowed.
+      : isRaw(s, p) ? "소화 중 — 아직 징집할 수 없습니다"
       : "징집 완료 (이번 턴)";
     btn.disabled = !canLevyNow;
     btn.addEventListener("click", () => { const m = levy(s, p, player!); if (m > 0) say(`징집 ${name} +${m}`); render(); });
@@ -271,10 +280,13 @@ export function mountArmyApp(root: HTMLElement, opts: { seed?: number } = {}): v
     // Being in front now changes how the AI plays, so it has to be on screen: an unannounced
     // dogpile reads as the game being unfair rather than as a rule the player can play around.
     const leadSeg = leadWarning(AI_LEADER_BIAS, raceLeader(s) === me);
+    // Only when there is one: a permanent "소화 대기 0" is noise, and this line is already long.
+    const backlog = backlogOf(s, me);
+    const digestSeg = backlog > 0 ? ` · 소화 대기 ${backlog}` : "";
     const hud = document.createElement("div");
     hud.className = "army-hud";
     hud.dataset.nation = String(me);
-    hud.textContent = `턴 ${s.turn} · 시드 ${seed} · ${world.polities[me]?.name ?? ""} · 영토 ${myProv()} · 정복 ${gainStr}/${prog.goal} · 인구 ${Math.round(myPop())} · 병력 ${myMen()}${rivalSeg}${leadSeg}`;
+    hud.textContent = `턴 ${s.turn} · 시드 ${seed} · ${world.polities[me]?.name ?? ""} · 영토 ${myProv()} · 정복 ${gainStr}/${prog.goal} · 인구 ${Math.round(myPop())} · 병력 ${myMen()}${rivalSeg}${leadSeg}${digestSeg}`;
     root.appendChild(hud);
     root.appendChild(buildMap());
     const oc: Outcome = outcome(s, me, startProv);

@@ -133,6 +133,66 @@ describe("armyApp (prototype loop: levy -> march -> end turn)", () => {
     expect(disabledMoves.length).toBeGreaterThan(0);
     disabledMoves.forEach((b) => expect((b as HTMLButtonElement).disabled).toBe(true));
   });
+
+  const myRaw = () => [...root.querySelectorAll('.army-prov[data-raw="1"][data-mine="1"]')];
+
+  // Plays aggressively until the PLAYER holds raw land. The check runs BEFORE the end-turn click,
+  // not after: digestion happens in endTurn, so a single capture is absorbed the moment the turn
+  // ends and a check on the next iteration would find nothing. `data-mine` filters out the AI's
+  // own fresh conquests, which are marked too but are not what the HUD counts.
+  function pushUntilCapture(maxTurns: number): boolean {
+    for (let t = 0; t < maxTurns; t++) {
+      const end = root.querySelector("button.army-end") as HTMLButtonElement | null;
+      if (!end) return false;
+      for (const p of root.querySelectorAll('.army-prov[data-mine="1"]')) {
+        p.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+        const lv = root.querySelector("button.army-levy") as HTMLButtonElement | null;
+        if (lv && !lv.disabled) lv.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+        const atk = [...root.querySelectorAll("button.army-move")]
+          .find((b) => /공격/.test(b.textContent || "")) as HTMLButtonElement | undefined;
+        if (atk && !atk.disabled) atk.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      }
+      if (myRaw().length > 0) return true;
+      end.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    }
+    return false;
+  }
+
+  it("nothing is raw at turn 0 — no marks, no backlog in the HUD", () => {
+    mountArmyApp(root, { seed: 11 });
+    pickNation();
+    expect(root.querySelector('.army-prov[data-raw="1"]')).toBeNull();
+    expect(root.querySelector(".army-hud")!.textContent).not.toContain("소화 대기");
+    expect(root.querySelector(".army-map")!.textContent).not.toContain("⌛");
+  });
+
+  it("a freshly taken province is marked on the map and counted in the HUD", () => {
+    mountArmyApp(root, { seed: 11 });
+    pickNation();
+    expect(pushUntilCapture(12)).toBe(true);      // the driver must actually take something
+    const raw = myRaw();
+    expect(raw.length).toBeGreaterThan(0);
+    // every one of them carries the map marker on its own number label
+    for (const r of raw) {
+      const id = r.getAttribute("data-prov");
+      const label = root.querySelector(`.army-num[data-prov="${id}"]`);
+      expect(label?.textContent).toContain("⌛");
+    }
+    // and the HUD counts exactly the player's own backlog, not the whole world's
+    expect(root.querySelector(".army-hud")!.textContent).toContain(`소화 대기 ${raw.length}`);
+  });
+
+  it("the levy button says why it is unavailable, instead of just being dead", () => {
+    mountArmyApp(root, { seed: 11 });
+    pickNation();
+    expect(pushUntilCapture(12)).toBe(true);
+    myRaw()[0].dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    const btn = root.querySelector("button.army-levy") as HTMLButtonElement;
+    expect(btn).toBeTruthy();
+    expect(btn.disabled).toBe(true);
+    expect(btn.textContent).toContain("소화 중");
+    expect(btn.textContent).not.toContain("징집 완료");   // the two reasons must not be confused
+  });
 });
 
 describe("nation picker", () => {
