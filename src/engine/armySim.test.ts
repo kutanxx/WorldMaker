@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { generateWorld } from "./world";
 import { DEFAULT_PARAMS } from "../types/world";
-import { basePopOf, initArmySim, BIOME_POP, BIOME_DEF, LEVY_FRAC, UPKEEP_FRAC, REGROW_FRAC, MILITIA_FRAC, WIN_LOSS_MULT, DEF_LOSS_MULT, AI_LEVY_FRAC, armyAt, maxLevy, levy, canLevy, applyUpkeep, regrow, militiaOf, defenceOf, previewMove, moveArmy, aiTurn, endTurn, battleRoll, winChance, ODDS_K, GOAL_GAIN_FRAC, HORIZON, landProvinces, goalGain, goalProgress, provinceCount, nationRank, outcome, landComponents, theaterOf, setTheater, playableNations, nationProgress, leadingRival, raceLeader, aiObjective, stepToward } from "./armySim";
+import { basePopOf, initArmySim, BIOME_POP, BIOME_DEF, LEVY_FRAC, UPKEEP_FRAC, REGROW_FRAC, MILITIA_FRAC, WIN_LOSS_MULT, DEF_LOSS_MULT, AI_LEVY_FRAC, AI_LEADER_BIAS, armyAt, maxLevy, levy, canLevy, applyUpkeep, regrow, militiaOf, defenceOf, previewMove, moveArmy, aiTurn, endTurn, battleRoll, winChance, ODDS_K, GOAL_GAIN_FRAC, HORIZON, landProvinces, goalGain, goalProgress, provinceCount, nationRank, outcome, landComponents, theaterOf, setTheater, playableNations, nationProgress, leadingRival, raceLeader, aiObjective, stepToward, type ArmyState } from "./armySim";
 import { GRASSLAND, ALPINE } from "./biome";
 
 describe("basePopOf (population comes from the generated world)", () => {
@@ -1137,5 +1137,76 @@ describe("raceLeader (the AI can see who is winning)", () => {
     const first = raceLeader(s);
     expect(raceLeader(s)).toBe(first);
     expect(JSON.stringify({ o: [...s.owner], p: [...s.pop], a: s.armies })).toBe(snap);
+  });
+});
+
+describe("AI_LEADER_BIAS (the AI checks the leader, but never suicides for it)", () => {
+  const fresh = (seed: number) => initArmySim(generateWorld({ ...DEFAULT_PARAMS, seed }).world);
+  const frontierOf = (s: ArmyState, nation: number) => [...Array(s.n).keys()]
+    .filter((p) => s.owner[p] !== nation && s.adj[p].some((q) => s.owner[q] === nation));
+  const otherNation = (s: ArmyState, nation: number) =>
+    [...new Set([...s.owner].filter((o) => o >= 0 && o !== nation))].sort((a, b) => a - b)[0];
+
+  // `defenceOf` reads armies, population and biome — never `owner`. So reassigning a province's
+  // owner changes the bias and NOTHING else, which is what makes these tests exact rather than
+  // dependent on some seed's biome layout happening to produce a tie.
+  const scoreOf = (s: ArmyState, p: number, nation: number) => s.pop[p] / (1 + defenceOf(s, p, nation));
+
+  it("lifts the leader's province past a rival the AI would otherwise prefer", () => {
+    const s = fresh(11);
+    const nation = [...s.owner].find((o) => o >= 0)!;
+    const leader = otherNation(s, nation);
+    const top = aiObjective(s, nation, -1);
+    expect(top).toBeGreaterThanOrEqual(0);
+    // a near-miss: loses on raw value, but by less than the bias makes up
+    const runnerUp = frontierOf(s, nation).filter((p) => p !== top)
+      .find((p) => scoreOf(s, p, nation) > 0 && scoreOf(s, p, nation) * AI_LEADER_BIAS > scoreOf(s, top, nation));
+    expect(runnerUp).toBeDefined();
+    s.owner[top] = -1;                 // make sure the leader does not also own the old winner
+    s.owner[runnerUp!] = leader;
+    expect(aiObjective(s, nation, -1)).toBe(top);           // unbiased: unchanged
+    expect(aiObjective(s, nation, leader)).toBe(runnerUp);  // biased: the leader's land wins
+  });
+
+  it("does not mistake unowned wasteland for the leader's land when there is no leader", () => {
+    const s = fresh(11);
+    const nation = [...s.owner].find((o) => o >= 0)!;
+    const top = aiObjective(s, nation, -1);
+    const wild = frontierOf(s, nation).filter((p) => p !== top)
+      .find((p) => scoreOf(s, p, nation) > 0 && scoreOf(s, p, nation) * AI_LEADER_BIAS > scoreOf(s, top, nation));
+    expect(wild).toBeDefined();
+    s.owner[wild!] = -1;                              // unowned, scoring just below the winner
+    s.owner[top] = otherNation(s, nation);            // owned, so it is not wasteland too
+    // owner is -1 for wasteland and raceLeader returns -1 for "nobody". Drop the `leader >= 0`
+    // guard from leaderWeight and `wild` wins this. It must not.
+    expect(aiObjective(s, nation, -1)).toBe(top);
+  });
+
+  it("never turns a fight the AI would decline into one it takes", () => {
+    const s = fresh(11);
+    const nation = [...s.owner].find((o) => o >= 0)!;
+    const leader = otherNation(s, nation);
+    // every neighbour becomes the leader's (maximally attractive) AND unbeatable (militia alone
+    // dwarfs anything this nation can raise). The bias must not override the winnability gate.
+    for (const p of frontierOf(s, nation)) { s.owner[p] = leader; s.pop[p] = 1e6; }
+    const mine = new Set([...Array(s.n).keys()].filter((p) => s.owner[p] === nation));
+    aiTurn(s, -1);
+    expect(s.armies.some((a) => a.nation === nation)).toBe(true);   // it did raise troops
+    for (const a of s.armies) if (a.nation === nation) expect(mine.has(a.prov)).toBe(true);
+  });
+
+  it("defaults to inert — the third parameter is optional and unbiased", () => {
+    const s = fresh(11);
+    const nation = [...s.owner].find((o) => o >= 0)!;
+    expect(AI_LEADER_BIAS).toBeGreaterThan(1);        // 1 would be a no-op lever
+    expect(aiObjective(s, nation)).toBe(aiObjective(s, nation, -1));
+  });
+
+  it("same seed, same game — the bias introduced no order-dependence", () => {
+    const a = fresh(11), b = fresh(11);
+    for (let t = 0; t < 8; t++) { endTurn(a, 0); endTurn(b, 0); }
+    expect([...a.owner]).toEqual([...b.owner]);
+    expect([...a.pop]).toEqual([...b.pop]);
+    expect(a.armies).toEqual(b.armies);
   });
 });

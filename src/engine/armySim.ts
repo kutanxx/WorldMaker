@@ -250,17 +250,30 @@ export function moveArmy(s: ArmyState, prov: number, nation: number, target: num
 // of a flat "one", so a big nation musters proportionally more without needing per-nation tuning.
 export const AI_LEVY_FRAC = 0.25;
 
+// A province owned by the race leader is worth more than its raw value — this is the whole
+// leader-check. It only reorders targets the AI could already beat; it never overrides the
+// winnability test in aiTurn. That restraint is deliberate: the winner of a battle loses
+// def x WIN_LOSS_MULT x closeness, so close fights are ruinous and an AI pushed into the strongest
+// nation would grind itself down. Set to 1 to restore the unbiased AI exactly.
+export const AI_LEADER_BIAS = 2;
+
+// `leader >= 0` is load-bearing: unowned provinces carry owner -1 and raceLeader returns -1 when
+// nobody qualifies, so without the guard every wasteland would score as the leader's land.
+function leaderWeight(s: ArmyState, prov: number, leader: number): number {
+  return leader >= 0 && s.owner[prov] === leader ? AI_LEADER_BIAS : 1;
+}
+
 // What this nation is trying to take. Scored by value-for-defence — population is what becomes
 // soldiers next turn, so the AI should want the same provinces a player wants, not merely the
 // emptiest wasteland on its border (which is what "lowest defence" alone picks). Ties -> lower id.
-export function aiObjective(s: ArmyState, nation: number): number {
+export function aiObjective(s: ArmyState, nation: number, leader = -1): number {
   let best = -1, bestScore = -Infinity;
   for (let p = 0; p < s.n; p++) {
     if (s.owner[p] === nation) continue;
     let touches = false;
     for (const q of s.adj[p]) if (s.owner[q] === nation) { touches = true; break; }
     if (!touches) continue;
-    const score = s.pop[p] / (1 + defenceOf(s, p, nation));
+    const score = leaderWeight(s, p, leader) * s.pop[p] / (1 + defenceOf(s, p, nation));
     if (score > bestScore) { bestScore = score; best = p; }
   }
   return best;
@@ -303,6 +316,7 @@ export function stepToward(s: ArmyState, from: number, to: number, nation: numbe
 // selection tie-break on lower id.
 export function aiTurn(s: ArmyState, playerNation: number): void {
   const nations = [...new Set([...s.owner].filter((o) => o >= 0 && o !== playerNation))].sort((a, b) => a - b);
+  const leader = raceLeader(s);   // computed once: the turn's outcome must not depend on nation order
   for (const nation of nations) {
     // 1. levy from the n most populous owned provinces
     const owned: number[] = [];
@@ -314,7 +328,7 @@ export function aiTurn(s: ArmyState, playerNation: number): void {
     // 2. concentrate. Each army fights if it can win where it stands; otherwise it marches toward the
     // front rather than standing still for the rest of the game bleeding upkeep. Snapshot positions
     // first because moveArmy mutates s.armies (removes/merges/relocates).
-    const obj = aiObjective(s, nation);
+    const obj = aiObjective(s, nation, leader);
     let front = -1, frontMen = -1;
     if (obj >= 0) {
       for (const q of s.adj[obj]) {
@@ -333,7 +347,7 @@ export function aiTurn(s: ArmyState, playerNation: number): void {
         if (s.owner[q] === nation) continue;
         const d = defenceOf(s, q, nation);
         if (d >= army.men) continue;
-        const score = s.pop[q] / (1 + d);
+        const score = leaderWeight(s, q, leader) * s.pop[q] / (1 + d);
         if (score > bestScore) { bestScore = score; target = q; }
       }
       if (target >= 0) { moveArmy(s, army.prov, nation, target); continue; }
