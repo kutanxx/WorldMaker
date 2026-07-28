@@ -3,7 +3,7 @@ import { DEFAULT_PARAMS } from "../types/world";
 import {
   initArmySim, levy, maxLevy, canLevy, moveArmy, previewMove, endTurn, armyAt, militiaOf,
   outcome, goalProgress, provinceCount, GOAL_GAIN_FRAC, HORIZON,
-  playableNations, setTheater, leadingRival, raceLeader,
+  playableNations, setTheater, leadingRival, raceLeader, AI_LEADER_BIAS,
   type ArmyState, type Outcome,
 } from "../engine/armySim";
 import { politicalLayer } from "./politicalLayer";
@@ -263,7 +263,9 @@ export function mountArmyApp(root: HTMLElement, opts: { seed?: number } = {}): v
       : "";
     // Being in front now changes how the AI plays, so it has to be on screen: an unannounced
     // dogpile reads as the game being unfair rather than as a rule the player can play around.
-    const leadSeg = raceLeader(s) === me ? " · ⚠ 당신이 선두 — 주변국이 노립니다" : "";
+    // Gated on AI_LEADER_BIAS > 1 as well: the documented revert for that constant is "set it to
+    // 1", and the HUD must not keep warning about a dogpile the AI has stopped doing.
+    const leadSeg = AI_LEADER_BIAS > 1 && raceLeader(s) === me ? " · ⚠ 당신이 선두 — 주변국이 노립니다" : "";
     const hud = document.createElement("div");
     hud.className = "army-hud";
     hud.dataset.nation = String(me);

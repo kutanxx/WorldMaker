@@ -3,7 +3,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mountArmyApp } from "./armyApp";
 import { generateWorld } from "../engine/world";
 import { DEFAULT_PARAMS } from "../types/world";
-import { initArmySim, playableNations, theaterOf, goalGain } from "../engine/armySim";
+import { initArmySim, playableNations, theaterOf, goalGain, LEAD_MIN_FRAC } from "../engine/armySim";
 
 describe("armyApp (prototype loop: levy -> march -> end turn)", () => {
   let root: HTMLElement;
@@ -458,7 +458,7 @@ describe("the race is visible", () => {
     const playable = playableNations(base);
     expect(playable.length).toBeGreaterThan(1);
     // structural, not seed luck: startCounts is snapshotted at init, so every nation's `gained`
-    // is exactly 0 at t0, and raceLeader requires gained > 0. No pick may produce the warning.
+    // is exactly 0 at t0, below any positive threshold. No pick may produce the warning.
     for (const id of playable) {
       root.remove();
       root = document.createElement("div");
@@ -470,11 +470,39 @@ describe("the race is visible", () => {
     }
   });
 
+  it("does not warn while the player is ahead but below the threshold", () => {
+    // Seed 107, same pick and driver as the test below: by turn 4 the player has taken exactly
+    // one province and is strictly ahead of the best rival (mine=1, rival=-1 — checked below) —
+    // a real, positive lead, the kind that used to trigger the warning outright. But the
+    // in-theater goal here is 7, so ceil(0.2 * 7) = 2: one province is not enough to be a lead
+    // that matters, and this is exactly the live-play case (player flagged at turn 1 for a single
+    // conquest) the threshold exists to fix.
+    mountArmyApp(root, { seed: 107 });
+    pickNation();
+    for (let turn = 0; turn < 4; turn++) {
+      playAggressively();
+      (root.querySelector("button.army-end") as HTMLButtonElement)
+        .dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    }
+    const hud = root.querySelector(".army-hud")!.textContent!;
+    const mine = Number((hud.match(/정복 ([+-]?\d+)\//) || [])[1]);
+    const rivalMatch = hud.match(/추격 .*?([+-]?\d+)\/\d+/);
+    const rival = rivalMatch ? Number(rivalMatch[1]) : -Infinity;
+    const goal = Number((hud.match(/정복 [+-]?\d+\/(\d+)/) || [])[1]);
+    const threshold = Math.ceil(LEAD_MIN_FRAC * goal);
+    // the premise, proved rather than assumed: a real lead that is still below the threshold.
+    expect(mine).toBeGreaterThan(rival);
+    expect(mine).toBeGreaterThan(0);
+    expect(mine).toBeLessThan(threshold);
+    expect(hud).not.toContain("당신이 선두");
+  });
+
   it("warns once the player is actually ahead, and only while they are", () => {
     // Seed 23 (used elsewhere in this file) never gets the player strictly ahead of the best
     // rival within 30 turns under playAggressively — checked by instrumenting the same driver
     // across seeds 1-167 and logging mine/rival each turn. Seed 107 does reliably: 7 quiet turns
-    // before the first conquest, then 23 straight turns in the lead, so sawLead is never vacuous.
+    // before the first conquest, then 23 straight turns in the lead, and crosses the theater's
+    // threshold of 2 by turn 10 — so sawLead is never vacuous.
     mountArmyApp(root, { seed: 107 });
     pickNation();
     // The HUD already prints both numbers the answer depends on: `정복 +N/M` is the player's
@@ -486,23 +514,27 @@ describe("the race is visible", () => {
       const mine = Number((hud.match(/정복 ([+-]?\d+)\//) || [])[1]);
       const rivalMatch = hud.match(/추격 .*?([+-]?\d+)\/\d+/);
       const rival = rivalMatch ? Number(rivalMatch[1]) : -Infinity;
+      const goal = Number((hud.match(/정복 [+-]?\d+\/(\d+)/) || [])[1]);
+      const threshold = Math.ceil(LEAD_MIN_FRAC * goal);
       const warned = hud.includes("당신이 선두");
       if (mine <= 0) { expect(warned).toBe(false); sawQuiet++; }
+      // A real lead that has not yet cleared the threshold: the exact band the fix added.
+      else if (mine < threshold) { expect(warned).toBe(false); }
       else if (mine > rival) { expect(warned).toBe(true); sawLead++; }
-      // Closes the band 0 < mine < rival: the player has conquered something but is still behind.
-      // Catches a regression where the HUD warns on `prog.gained > 0` (conquered anything) instead
-      // of `raceLeader(s) === me` (actually ahead). Seed 107 may never enter this band — that is
-      // fine; the assertion is free here and would still fire on another seed or driver change.
+      // Closes the band threshold <= mine < rival: the player cleared the bar but is still behind.
+      // Catches a regression where the HUD warns on `prog.gained >= threshold` (cleared the bar)
+      // instead of `raceLeader(s) === me` (actually ahead). Seed 107 may never enter this band —
+      // that is fine; the assertion is free here and would still fire on another seed or driver change.
       else if (mine < rival) { expect(warned).toBe(false); }
-      // mine > 0 && mine === rival is deliberately skipped: raceLeader breaks that tie on the
-      // lower polity id, not in the player's favour, so these two numbers do not decide it.
+      // mine >= threshold && mine === rival is deliberately skipped: raceLeader breaks that tie on
+      // the lower polity id, not in the player's favour, so these two numbers do not decide it.
       const end = root.querySelector("button.army-end") as HTMLButtonElement | null;
       if (!end) break;                                   // the game reached an outcome
       playAggressively();
       end.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     }
     expect(sawQuiet).toBeGreaterThan(0);                 // it was quiet before the first conquest
-    expect(sawLead).toBeGreaterThan(0);                  // and it did fire once the player led
+    expect(sawLead).toBeGreaterThan(0);                  // and it did fire once the player cleared the threshold
   });
 });
 

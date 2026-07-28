@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { generateWorld } from "./world";
 import { DEFAULT_PARAMS } from "../types/world";
-import { basePopOf, initArmySim, BIOME_POP, BIOME_DEF, LEVY_FRAC, UPKEEP_FRAC, REGROW_FRAC, MILITIA_FRAC, WIN_LOSS_MULT, DEF_LOSS_MULT, AI_LEVY_FRAC, AI_LEADER_BIAS, armyAt, maxLevy, levy, canLevy, applyUpkeep, regrow, militiaOf, defenceOf, previewMove, moveArmy, aiTurn, endTurn, battleRoll, winChance, ODDS_K, GOAL_GAIN_FRAC, HORIZON, landProvinces, goalGain, goalProgress, provinceCount, nationRank, outcome, landComponents, theaterOf, setTheater, playableNations, nationProgress, leadingRival, raceLeader, aiObjective, stepToward, type ArmyState } from "./armySim";
+import { basePopOf, initArmySim, BIOME_POP, BIOME_DEF, LEVY_FRAC, UPKEEP_FRAC, REGROW_FRAC, MILITIA_FRAC, WIN_LOSS_MULT, DEF_LOSS_MULT, AI_LEVY_FRAC, AI_LEADER_BIAS, LEAD_MIN_FRAC, armyAt, maxLevy, levy, canLevy, applyUpkeep, regrow, militiaOf, defenceOf, previewMove, moveArmy, aiTurn, endTurn, battleRoll, winChance, ODDS_K, GOAL_GAIN_FRAC, HORIZON, landProvinces, goalGain, goalProgress, provinceCount, nationRank, outcome, landComponents, theaterOf, setTheater, playableNations, nationProgress, leadingRival, raceLeader, aiObjective, stepToward, type ArmyState } from "./armySim";
 import { GRASSLAND, ALPINE } from "./biome";
 
 describe("basePopOf (population comes from the generated world)", () => {
@@ -1081,8 +1081,8 @@ describe("raceLeader (the AI can see who is winning)", () => {
     const s = fresh(11);
     const nations = [...new Set([...s.owner].filter((o) => o >= 0))].sort((a, b) => a - b);
     expect(nations.length).toBeGreaterThan(2);
-    // at t0 every nation's `gained` is exactly 0, and conquering nothing is not leading — so there
-    // is no leader at all yet. (Falling through to the lowest-id tie-break here would aim the AI's
+    // at t0 every nation's `gained` is exactly 0, below any positive threshold — so there is no
+    // leader at all yet. (Falling through to the lowest-id tie-break here would aim the AI's
     // bias at whichever nation happens to hold id 0, for no reason connected to the race.)
     expect(raceLeader(s)).toBe(-1);
     // climber = the SMALLEST nation at t0 (ties -> lower id). Picking it this way, rather than by id,
@@ -1091,10 +1091,14 @@ describe("raceLeader (the AI can see who is winning)", () => {
       .map((n) => ({ n, k: provinceCount(s, n) }))
       .sort((a, b) => a.k - b.k || a.n - b.n);
     const climber = sizesAtT0[0].n;
-    const victim = nations.find((n) => n !== climber)!;
-    const taken = [...Array(s.n).keys()].find((p) => s.owner[p] === victim)!;
-    s.owner[taken] = climber;
-    expect(nationProgress(s, climber).gained).toBe(1);
+    // derived from goalGain(s), not hard-coded — a lead has to clear the threshold, not just be
+    // positive, so climber needs this many conquests before raceLeader will call it the leader.
+    const threshold = Math.ceil(LEAD_MIN_FRAC * goalGain(s));
+    const taken = [...Array(s.n).keys()].filter((p) => s.owner[p] !== -1 && s.owner[p] !== climber)
+      .slice(0, threshold);
+    expect(taken.length).toBe(threshold);   // the map must hold enough foreign land to stage this
+    for (const p of taken) s.owner[p] = climber;
+    expect(nationProgress(s, climber).gained).toBe(threshold);
     // unconditional, not "if this happens to be true": the size leader must be someone other than
     // climber, so the next assertion (raceLeader picks climber) actually proves size was not the metric.
     const sizeLeader = nations
@@ -1108,8 +1112,10 @@ describe("raceLeader (the AI can see who is winning)", () => {
     const s = fresh(11);
     const nations = [...new Set([...s.owner].filter((o) => o >= 0))].sort((a, b) => a - b);
     const player = nations[0];
-    const taken = [...Array(s.n).keys()].find((p) => s.owner[p] === nations[1])!;
-    s.owner[taken] = player;
+    const threshold = Math.ceil(LEAD_MIN_FRAC * goalGain(s));
+    const taken = [...Array(s.n).keys()].filter((p) => s.owner[p] === nations[1]).slice(0, threshold);
+    expect(taken.length).toBe(threshold);   // nations[1] must hold enough land to stage this
+    for (const p of taken) s.owner[p] = player;
     expect(raceLeader(s)).toBe(player);                 // the player can be the leader
     expect(leadingRival(s, player)?.nation).not.toBe(player); // leadingRival still excludes them
   });
@@ -1121,17 +1127,20 @@ describe("raceLeader (the AI can see who is winning)", () => {
     // scope the theater so every province the outsider owns is out, everything else is in
     s.scope = new Uint8Array(s.n);
     for (let p = 0; p < s.n; p++) s.scope[p] = s.owner[p] === outsider ? 0 : 1;
+    // the theater-scoped goal, computed after scoping — that is the goal raceLeader itself will use.
+    const threshold = Math.ceil(LEAD_MIN_FRAC * goalGain(s));
     // Rig the scores so the outsider would WIN if raceLeader's own scope guard were missing.
     // provinceCount already filters by scope independently of raceLeader, so the outsider's in-scope
-    // holdings read as 0 either way — give it a NEGATIVE start count of -5, so its `gained` is a
-    // strongly positive 5. Give every in-scope nation a `gained` of exactly 1 (start count one below
-    // its current holdings), so if the guard were gone and the outsider leaked into the candidate
-    // set, its 5 would beat all of them. Positive on both sides is what keeps this discriminating
-    // now that a `gained` of 0 no longer counts as leading at all.
-    s.startCounts[outsider] = -5;
+    // holdings read as 0 either way — give it a NEGATIVE start count well past the threshold, so its
+    // `gained` is a strongly positive number no in-scope nation matches. Give every in-scope nation a
+    // `gained` of exactly the threshold (start count that many below its current holdings), so if the
+    // guard were gone and the outsider leaked into the candidate set, its inflated gained would beat
+    // all of them. Both sides clearing the threshold is what keeps this discriminating now that a
+    // small positive `gained` no longer counts as leading at all.
+    s.startCounts[outsider] = -(threshold + 5);
     for (const n of nations) {
       if (n === outsider) continue;
-      s.startCounts[n] = provinceCount(s, n) - 1;
+      s.startCounts[n] = provinceCount(s, n) - threshold;
     }
     expect(raceLeader(s)).not.toBe(outsider);
     expect(nations.filter((n) => n !== outsider)).toContain(raceLeader(s));
@@ -1149,6 +1158,44 @@ describe("raceLeader (the AI can see who is winning)", () => {
     const first = raceLeader(s);
     expect(raceLeader(s)).toBe(first);
     expect(JSON.stringify({ o: [...s.owner], p: [...s.pop], a: s.armies })).toBe(snap);
+  });
+
+  it("requires gained to clear LEAD_MIN_FRAC of the goal, not merely be positive", () => {
+    const s = fresh(11);
+    const nation = [...new Set([...s.owner].filter((o) => o >= 0))].sort((a, b) => a - b)[0];
+    // derived from goalGain(s) — hard-coding a number here would pin this seed's land count
+    // instead of the rule.
+    const threshold = Math.ceil(LEAD_MIN_FRAC * goalGain(s));
+    expect(threshold).toBeGreaterThan(1);   // otherwise "below" and "at" the threshold coincide
+    // one conquest short of the threshold: a real, positive lead — the old `gained > 0` bar — but
+    // still not enough to be worth the world's attention.
+    s.startCounts[nation] = provinceCount(s, nation) - (threshold - 1);
+    expect(nationProgress(s, nation).gained).toBe(threshold - 1);
+    expect(raceLeader(s)).toBe(-1);
+    // exactly at the threshold: >=, not >, so this now qualifies.
+    s.startCounts[nation] = provinceCount(s, nation) - threshold;
+    expect(nationProgress(s, nation).gained).toBe(threshold);
+    expect(raceLeader(s)).toBe(nation);
+  });
+
+  it("the boundary is Math.ceil, not Math.floor, of LEAD_MIN_FRAC times the goal", () => {
+    const s = fresh(23);
+    const goal = goalGain(s);
+    // premise, proved rather than assumed: this only distinguishes ceil from floor when the
+    // fraction is not already a whole number. toBe(false) is what fires if a world-gen change
+    // ever makes seed 23's goal a multiple of 5.
+    expect(Number.isInteger(LEAD_MIN_FRAC * goal)).toBe(false);
+    const ceilThreshold = Math.ceil(LEAD_MIN_FRAC * goal);
+    const floorThreshold = Math.floor(LEAD_MIN_FRAC * goal);
+    expect(ceilThreshold).toBe(floorThreshold + 1);
+    const nation = [...new Set([...s.owner].filter((o) => o >= 0))].sort((a, b) => a - b)[0];
+    // sitting at the floor value: Math.ceil says not a leader yet. A Math.floor implementation
+    // would already call this a lead — that is exactly the bug this test exists to catch.
+    s.startCounts[nation] = provinceCount(s, nation) - floorThreshold;
+    expect(raceLeader(s)).toBe(-1);
+    // one more conquest reaches the ceil threshold and crosses the line.
+    s.startCounts[nation] = provinceCount(s, nation) - ceilThreshold;
+    expect(raceLeader(s)).toBe(nation);
   });
 });
 
@@ -1284,10 +1331,12 @@ describe("AI_LEADER_BIAS (the AI checks the leader, but never suicides for it)",
   };
   // startCounts is indexed by polity id and the fixtures use synthetic ids outside the generated
   // world's range, so widen it and state each nation's start outright. Only `leader` is given a
-  // positive `gained` — which is now what it takes to be the leader at all.
+  // `gained` at all, and it must clear LEAD_MIN_FRAC of the goal (derived from goalGain(s), not a
+  // flat number) — that is now what it takes to be the leader.
   const setRace = (s: ArmyState, all: number[], leader: number) => {
     s.startCounts = new Int32Array(GARRISON + 1);
-    for (const n of all) s.startCounts[n] = provinceCount(s, n) - (n === leader ? 1 : 0);
+    const threshold = Math.ceil(LEAD_MIN_FRAC * goalGain(s));
+    for (const n of all) s.startCounts[n] = provinceCount(s, n) - (n === leader ? threshold : 0);
   };
 
   it("aiTurn's fight target prefers the leader's province among fights it could already win", () => {
@@ -1404,7 +1453,15 @@ describe("AI_LEADER_BIAS (the AI checks the leader, but never suicides for it)",
       s.owner[c] = leader;  s.pop[c] = 4;    // taking this is what flips the race
       s.armies.push({ prov: p, nation: first, men: 10, movedOn: -1 });
       s.armies.push({ prov: h, nation: later, men: 500, movedOn: -1 });
-      setRace(s, [first, later, leader], leader);
+      // setRace alone (leader at the threshold, everyone else at 0) is not enough here: a single
+      // province flipping hands moves `gained` by only 1, far short of the threshold's usual size.
+      // Park `first` one conquest short of the threshold instead of at 0, so taking `c` is exactly
+      // what tips it over — one conquest still decides the outcome, just from a running start.
+      const threshold = Math.ceil(LEAD_MIN_FRAC * goalGain(s));
+      s.startCounts = new Int32Array(GARRISON + 1);
+      s.startCounts[first] = provinceCount(s, first) - (threshold - 1);
+      s.startCounts[later] = provinceCount(s, later);
+      s.startCounts[leader] = provinceCount(s, leader) - threshold;
       return { s, h, ql, qn, p, c };
     };
 
