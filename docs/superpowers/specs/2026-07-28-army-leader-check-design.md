@@ -36,7 +36,14 @@ New `raceLeader(s: ArmyState): number`.
 - Score is `nationProgress(n).gained` — conquest relative to that nation's own start.
 - **The player is included.** The player leading is the case this most needs to cover.
 - Only nations still holding land inside the theater are considered.
+- **`gained` must be strictly positive.** A nation that has conquered nothing is not leading.
 - Ties break on the lower polity id. Returns `-1` when no nation qualifies.
+
+The `gained > 0` requirement exists because `startCounts` is snapshotted at init, so at t0 every
+nation's `gained` is exactly 0 and the tie-break alone would decide — crowning the lowest-id nation
+(possibly the player) as "leader" for no reason connected to the race, aiming the AI's bias and any
+future "you are the leader" message at an arbitrary target. Returning `-1` instead leaves the whole
+leader-check inert until somebody has actually taken something.
 
 Size is deliberately *not* the metric. This game replaced an absolute "hold 40% of the world"
 goal with a start-fair additive one because size at t0 is an accident of map generation.

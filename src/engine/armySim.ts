@@ -472,14 +472,21 @@ export function leadingRival(s: ArmyState, player: number): { nation: number; ga
 // HUD shows. The PLAYER IS INCLUDED: a player running away with the game is the case this exists to
 // cover. Size is deliberately not the metric — this game replaced an absolute goal with a start-fair
 // one because size at t0 is an accident of the map, and a large nation that has gained nothing has
-// not earned a coalition against it. Ties -> lower polity id. -1 when nobody holds theater land.
+// not earned a coalition against it.
+//
+// `gained > 0` is required: conquering nothing is not leading. At t0 every nation's `gained` is
+// exactly 0, so without this the tie-break would crown the lowest-id nation — aiming the AI's bias,
+// and any "you are the leader" message, at somebody for no reason but their id. Returning -1 instead
+// makes the whole leader-check inert until someone has actually taken something.
+//
+// Ties -> lower polity id. -1 when nobody holds theater land, or when nobody has gained anything.
 export function raceLeader(s: ArmyState): number {
   const seen = new Set<number>();
   for (let p = 0; p < s.n; p++) {
     const o = s.owner[p];
     if (o >= 0 && (!s.scope || s.scope[p] === 1)) seen.add(o);
   }
-  let best = -1, bestGained = -Infinity;
+  let best = -1, bestGained = 0;   // 0, not -Infinity: a nation that has conquered nothing never wins
   for (const n of [...seen].sort((a, b) => a - b)) {
     const g = nationProgress(s, n).gained;
     if (g > bestGained) { bestGained = g; best = n; }

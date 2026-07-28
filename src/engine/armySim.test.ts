@@ -512,7 +512,9 @@ describe("aiTurn moves every army, not just the biggest", () => {
     const s = initArmySim(world);
     const nation = 9001, enemy1 = 9002, enemy2 = 9003, player = -1;
 
-    // find two disjoint (province, adjacent-province) pairs so each army gets its own target
+    // find two disjoint (province, adjacent-province) pairs so each army gets its own target.
+    // Relies only on the province graph having two disjoint edges — true of any world with more
+    // than a handful of connected land provinces. The p1/p2 assertions below are what fires if not.
     let p1 = -1, t1 = -1;
     for (let a = 0; a < s.n && p1 < 0; a++) {
       if (s.adj[a].length > 0) { p1 = a; t1 = s.adj[a][0]; }
@@ -983,6 +985,9 @@ describe("aiObjective (the AI wants land worth having)", () => {
   it("returns -1 for a nation with no frontier at all", () => {
     const s = fresh(23);
     // an isolated nation (seed 23 has them): every neighbour of its land is its own
+    // Relies on seed 23's world containing at least one nation whose territory touches no other
+    // nation's — an island or a bloc sealed by unowned land. If world-gen ever stops producing one
+    // for this seed, the toBeDefined below is what fires, and this is why.
     const isolated = [...new Set([...s.owner].filter((o) => o >= 0))]
       .find((n) => {
         for (let p = 0; p < s.n; p++) if (s.owner[p] === n) for (const q of s.adj[p]) if (s.owner[q] !== n) return false;
@@ -1009,7 +1014,10 @@ describe("stepToward (deterministic march through your own land)", () => {
     const s = fresh();
     const nation = [...s.owner].find((o) => o >= 0)!;
     const mine = [...Array(s.n).keys()].filter((p) => s.owner[p] === nation);
-    // find a pair of my provinces at distance >= 2 through my own land
+    // find a pair of my provinces at distance >= 2 through my own land.
+    // Relies on this nation's territory being a connected blob at least three provinces deep in
+    // some direction, so a march has a middle step to take. `from` staying -1 is what fires if a
+    // world-gen change ever shrinks every nation to a diameter-1 clump.
     let from = -1, to = -1;
     for (const a of mine) for (const b of mine) {
       if (a === b || s.adj[a].includes(b)) continue;
@@ -1073,8 +1081,10 @@ describe("raceLeader (the AI can see who is winning)", () => {
     const s = fresh(11);
     const nations = [...new Set([...s.owner].filter((o) => o >= 0))].sort((a, b) => a - b);
     expect(nations.length).toBeGreaterThan(2);
-    // at t0 nobody has gained anything, so the tie-break decides: lowest id
-    expect(raceLeader(s)).toBe(nations[0]);
+    // at t0 every nation's `gained` is exactly 0, and conquering nothing is not leading — so there
+    // is no leader at all yet. (Falling through to the lowest-id tie-break here would aim the AI's
+    // bias at whichever nation happens to hold id 0, for no reason connected to the race.)
+    expect(raceLeader(s)).toBe(-1);
     // climber = the SMALLEST nation at t0 (ties -> lower id). Picking it this way, rather than by id,
     // means a size-ranked implementation cannot accidentally agree with the answer below.
     const sizesAtT0 = nations
@@ -1113,13 +1123,15 @@ describe("raceLeader (the AI can see who is winning)", () => {
     for (let p = 0; p < s.n; p++) s.scope[p] = s.owner[p] === outsider ? 0 : 1;
     // Rig the scores so the outsider would WIN if raceLeader's own scope guard were missing.
     // provinceCount already filters by scope independently of raceLeader, so the outsider's in-scope
-    // holdings read as 0 either way — give it a start count of 0 too, so its `gained` is exactly 0.
-    // Give every in-scope nation a `gained` of -1 (start count one above its current holdings), so if
-    // the guard were gone and the outsider leaked into the candidate set, its 0 would beat all of them.
-    s.startCounts[outsider] = 0;
+    // holdings read as 0 either way — give it a NEGATIVE start count of -5, so its `gained` is a
+    // strongly positive 5. Give every in-scope nation a `gained` of exactly 1 (start count one below
+    // its current holdings), so if the guard were gone and the outsider leaked into the candidate
+    // set, its 5 would beat all of them. Positive on both sides is what keeps this discriminating
+    // now that a `gained` of 0 no longer counts as leading at all.
+    s.startCounts[outsider] = -5;
     for (const n of nations) {
       if (n === outsider) continue;
-      s.startCounts[n] = provinceCount(s, n) + 1;
+      s.startCounts[n] = provinceCount(s, n) - 1;
     }
     expect(raceLeader(s)).not.toBe(outsider);
     expect(nations.filter((n) => n !== outsider)).toContain(raceLeader(s));
@@ -1158,7 +1170,10 @@ describe("AI_LEADER_BIAS (the AI checks the leader, but never suicides for it)",
     const leader = otherNation(s, nation);
     const top = aiObjective(s, nation, -1);
     expect(top).toBeGreaterThanOrEqual(0);
-    // a near-miss: loses on raw value, but by less than the bias makes up
+    // a near-miss: loses on raw value, but by less than the bias makes up.
+    // Relies on this nation's frontier holding at least two populated provinces whose raw scores
+    // are within a factor of AI_LEADER_BIAS of each other — i.e. a frontier that is not one
+    // overwhelming prize next to worthless scraps. toBeDefined below is what fires if that changes.
     const runnerUp = frontierOf(s, nation).filter((p) => p !== top)
       .find((p) => scoreOf(s, p, nation) > 0 && scoreOf(s, p, nation) * AI_LEADER_BIAS > scoreOf(s, top, nation));
     expect(runnerUp).toBeDefined();
@@ -1172,6 +1187,8 @@ describe("AI_LEADER_BIAS (the AI checks the leader, but never suicides for it)",
     const s = fresh(11);
     const nation = [...s.owner].find((o) => o >= 0)!;
     const top = aiObjective(s, nation, -1);
+    // Same structural need as the test above: a runner-up on this nation's frontier close enough
+    // that AI_LEADER_BIAS would flip it, so turning it into wasteland is a real temptation.
     const wild = frontierOf(s, nation).filter((p) => p !== top)
       .find((p) => scoreOf(s, p, nation) > 0 && scoreOf(s, p, nation) * AI_LEADER_BIAS > scoreOf(s, top, nation));
     expect(wild).toBeDefined();
@@ -1190,9 +1207,34 @@ describe("AI_LEADER_BIAS (the AI checks the leader, but never suicides for it)",
     // dwarfs anything this nation can raise). The bias must not override the winnability gate.
     for (const p of frontierOf(s, nation)) { s.owner[p] = leader; s.pop[p] = 1e6; }
     const mine = new Set([...Array(s.n).keys()].filter((p) => s.owner[p] === nation));
+    // Run the levy step here, exactly as aiTurn does it (most populous first, ties -> lower id), so
+    // the force it raises can be snapshotted. aiTurn's own levy then adds nothing: the leviedOn
+    // clock refuses a second levy of the same province on the same turn.
+    const owned = [...mine].sort((a, b) => (s.pop[b] - s.pop[a]) || (a - b));
+    const nLevy = Math.max(1, Math.ceil(owned.length * AI_LEVY_FRAC));
+    for (let i = 0; i < nLevy && i < owned.length; i++) levy(s, owned[i], nation);
+    // Freeze everyone else's mobilisation as well. At turn 0 no other nation has an army yet, so
+    // with the levy clock already spent this turn belongs entirely to `nation` — and the men and
+    // province counts below can only move because of what IT did. Left unfrozen, the leader levies
+    // the 1e6-population frontier this test just handed it and conquers `nation`'s land, which says
+    // nothing about whether the bias overrode the winnability gate.
+    s.leviedOn!.fill(s.turn);
+    const before = s.armies.filter((a) => a.nation === nation);
+    expect(before.length).toBeGreaterThan(0);                       // it did raise troops
+    const menBefore = before.reduce((k, a) => k + a.men, 0);
+    const provsBefore = provinceCount(s, nation);
+
     aiTurn(s, -1);
-    expect(s.armies.some((a) => a.nation === nation)).toBe(true);   // it did raise troops
-    for (const a of s.armies) if (a.nation === nation) expect(mine.has(a.prov)).toBe(true);
+
+    // Positions alone cannot see a suicide: an army that attacks a 1e6-population neighbour is
+    // annihilated by moveArmy's losing branch, so the loop below simply never visits it and any
+    // surviving interior army satisfies it vacuously. Missing men cannot hide the same way — a
+    // taken fight either destroys the attacker outright or costs it def x WIN_LOSS_MULT x closeness.
+    const after = s.armies.filter((a) => a.nation === nation);
+    expect(after.reduce((k, a) => k + a.men, 0)).toBe(menBefore);   // no men spent on a battle
+    expect(after.length).toBe(before.length);                       // no army wiped out
+    expect(provinceCount(s, nation)).toBe(provsBefore);             // and nothing was captured
+    for (const a of after) expect(mine.has(a.prov)).toBe(true);
   });
 
   it("defaults to inert — the third parameter is optional and unbiased", () => {
@@ -1202,11 +1244,176 @@ describe("AI_LEADER_BIAS (the AI checks the leader, but never suicides for it)",
     expect(aiObjective(s, nation)).toBe(aiObjective(s, nation, -1));
   });
 
-  it("same seed, same game — the bias introduced no order-dependence", () => {
+  it("same seed and the same commands still reproduce the game exactly", () => {
+    // A determinism regression test, NOT an order-independence one: two identical runs of identical
+    // code agree whether or not aiTurn depends on nation order. The test below is the one with teeth
+    // on that question.
     const a = fresh(11), b = fresh(11);
     for (let t = 0; t < 8; t++) { endTurn(a, 0); endTurn(b, 0); }
     expect([...a.owner]).toEqual([...b.owner]);
     expect([...a.pop]).toEqual([...b.pop]);
     expect(a.armies).toEqual(b.armies);
+  });
+
+  // --- the two scoring sites inside aiTurn ---
+  //
+  // The tests above call aiObjective directly, which leaves both of aiTurn's own uses of the bias
+  // unverified: the objective it passes `leader` to, and the per-army fight-target loop. These
+  // fixtures drive aiTurn itself.
+  //
+  // They share one isolation trick, an extension of the one the older aiTurn tests use: strip every
+  // province that is not part of the fixture down to owner -1 / pop 0 and park a garrison on it.
+  // The garrison belongs to a pseudo-nation that owns no land, so it never appears in aiTurn's
+  // nation list and never acts — it is a wall, not a player. That makes those provinces both
+  // unbeatable (nothing distracts the army under test) and worth 0 (nothing outbids the fixture).
+  const GARRISON = 9999;
+  const wallOff = (s: ArmyState, keep: Set<number>) => {
+    for (let p = 0; p < s.n; p++) {
+      if (keep.has(p)) continue;
+      s.owner[p] = -1; s.pop[p] = 0;
+      s.armies.push({ prov: p, nation: GARRISON, men: 1e6, movedOn: -1 });
+    }
+  };
+  // startCounts is indexed by polity id and the fixtures use synthetic ids outside the generated
+  // world's range, so widen it and state each nation's start outright. Only `leader` is given a
+  // positive `gained` — which is now what it takes to be the leader at all.
+  const setRace = (s: ArmyState, all: number[], leader: number) => {
+    s.startCounts = new Int32Array(GARRISON + 1);
+    for (const n of all) s.startCounts[n] = provinceCount(s, n) - (n === leader ? 1 : 0);
+  };
+
+  it("aiTurn's fight target prefers the leader's province among fights it could already win", () => {
+    const s = fresh(11);
+    const nation = 9001, rival = 9002, leader = 9003;
+    // Relies on the province graph having a vertex of degree >= 2, so one army faces a real choice
+    // of two targets. toBeDefined below is what fires if world-gen ever stops producing one.
+    const home = [...Array(s.n).keys()].find((p) => s.adj[p].length >= 2);
+    expect(home).toBeDefined();
+    const [plain, lead] = [...s.adj[home!]].sort((a, b) => a - b);
+    wallOff(s, new Set([home!, plain, lead]));
+    s.owner[home!] = nation; s.pop[home!] = 0;   // pop 0 -> maxLevy 0 -> the levy step adds nothing
+    s.owner[plain] = rival;  s.pop[plain] = 4;   // floor(4 * MILITIA_FRAC) = 0, so defence is 0 on
+    s.owner[lead] = leader;  s.pop[lead] = 3;    // any biome — worth strictly less raw than `plain`
+    s.armies.push({ prov: home!, nation, men: 10, movedOn: -1 });
+    setRace(s, [nation, rival, leader], leader);
+    expect(raceLeader(s)).toBe(leader);
+
+    // BOTH fights clear the winnability gate, so the gate is not what decides this — only the score
+    // is. Raw value prefers `plain`; `lead` trails it by less than AI_LEADER_BIAS makes up.
+    expect(defenceOf(s, plain, nation)).toBe(0);
+    expect(defenceOf(s, lead, nation)).toBe(0);
+    expect(scoreOf(s, plain, nation)).toBeGreaterThan(scoreOf(s, lead, nation));
+    expect(scoreOf(s, lead, nation) * AI_LEADER_BIAS).toBeGreaterThan(scoreOf(s, plain, nation));
+
+    aiTurn(s, -1);
+    expect(s.owner[lead]).toBe(nation);     // the leader's province was taken
+    expect(s.owner[plain]).toBe(rival);     // the one worth more on raw value was left alone
+  });
+
+  it("aiTurn's objective follows the leader too — and with it the front idle armies march to", () => {
+    const s = fresh(11);
+    const nation = 9001, rival = 9002, leader = 9003;
+    // Relies on the province graph containing an edge x-y where x has a neighbour `a` that y does
+    // not touch and y has a neighbour `b` that x does not touch — the shape that makes the OBJECTIVE
+    // decide where an army goes: objective `a` puts the front on x (stay put), objective `b` puts it
+    // on y (march). toBeDefined below is what fires if no such shape exists.
+    let fix: { x: number; y: number; a: number; b: number } | undefined;
+    for (let x = 0; x < s.n && !fix; x++) {
+      for (const y of [...s.adj[x]].sort((p, q) => p - q)) {
+        const nx = new Set(s.adj[x]), ny = new Set(s.adj[y]);
+        const a = [...s.adj[x]].sort((p, q) => p - q).find((p) => p !== y && !ny.has(p));
+        const b = [...s.adj[y]].sort((p, q) => p - q).find((p) => p !== x && p !== a && !nx.has(p));
+        if (a !== undefined && b !== undefined) { fix = { x, y, a, b }; break; }
+      }
+    }
+    expect(fix).toBeDefined();
+    const { x, y, a, b } = fix!;
+    wallOff(s, new Set([x, y, a, b]));
+    s.owner[x] = nation; s.pop[x] = 0;
+    s.owner[y] = nation; s.pop[y] = 0;
+    s.owner[a] = rival;  s.pop[a] = 4;      // equal raw population: the scores differ only by
+    s.owner[b] = leader; s.pop[b] = 4;      // defence, which the garrisons below set exactly
+    // Garrison both so NEITHER can be attacked. That forces the army into the march branch, the
+    // only path the objective's choice of front can influence. The garrisons are the landless
+    // pseudo-nation's, so rival and leader stay armyless and inert despite owning the provinces.
+    s.armies.push({ prov: a, nation: GARRISON, men: 1000, movedOn: -1 });
+    const dA = defenceOf(s, a, nation);
+    // Put b's defence strictly between a's and 1 + 2 x a's: the band where raw value prefers `a`
+    // but an AI_LEADER_BIAS of 2 flips the objective to `b`. Solved through the biome multiplier
+    // rather than guessed, so no seed's biome layout has to cooperate.
+    s.armies.push({ prov: b, nation: GARRISON, men: Math.round(1.4 * dA / (BIOME_DEF[s.world.provinces[b].biome] ?? 1)), movedOn: -1 });
+    const dB = defenceOf(s, b, nation);
+    expect(dB).toBeGreaterThan(dA);
+    expect(dB).toBeLessThan(1 + 2 * dA);
+    s.armies.push({ prov: x, nation, men: 10, movedOn: -1 });
+    expect(dA).toBeGreaterThanOrEqual(10);  // unwinnable both ways: the army marches, never fights
+    setRace(s, [nation, rival, leader], leader);
+    expect(raceLeader(s)).toBe(leader);
+    expect(aiObjective(s, nation, -1)).toBe(a);
+    expect(aiObjective(s, nation, leader)).toBe(b);
+
+    aiTurn(s, -1);
+    // objective b -> front y -> the army walks x to y. Objective a -> front x -> it never moves.
+    expect(armyAt(s, x, nation)).toBeUndefined();
+    expect(armyAt(s, y, nation)?.men).toBe(10);
+  });
+
+  it("computes the leader once per turn — a mid-turn capture does not re-aim a later nation", () => {
+    // Relies on the province graph containing a province h of degree >= 2 plus an edge p-c wholly
+    // outside h's TWO-step neighbourhood, so the two nations below share no border at all and can
+    // only influence each other through raceLeader. toBeDefined is what fires if no such pair exists.
+    const locate = (s: ArmyState) => {
+      for (let h = 0; h < s.n; h++) {
+        if (s.adj[h].length < 2) continue;
+        const near = new Set<number>([h, ...s.adj[h]]);
+        for (const q of s.adj[h]) for (const r of s.adj[q]) near.add(r);
+        for (let p = 0; p < s.n; p++) {
+          if (near.has(p)) continue;
+          const c = [...s.adj[p]].sort((u, v) => u - v).find((v) => !near.has(v));
+          if (c === undefined) continue;
+          const [ql, qn] = [...s.adj[h]].sort((u, v) => u - v);
+          return { h, ql, qn, p, c };
+        }
+      }
+      return undefined;
+    };
+    // first < later in id, so aiTurn processes `first` first. `leader` leads the race when the turn
+    // begins; `first` taking c from it hands the lead to `first` partway through the very same turn.
+    const first = 9001, later = 9002, leader = 9003;
+    const build = () => {
+      const s = fresh(11);
+      const f = locate(s);
+      expect(f).toBeDefined();
+      const { h, ql, qn, p, c } = f!;
+      wallOff(s, new Set([h, ql, qn, p, c]));
+      s.owner[h] = later;   s.pop[h] = 0;
+      s.owner[ql] = leader; s.pop[ql] = 3;   // the pre-turn leader's land: lower raw value...
+      s.owner[qn] = first;  s.pop[qn] = 4;   // ...than the mid-turn usurper's
+      s.owner[p] = first;   s.pop[p] = 0;
+      s.owner[c] = leader;  s.pop[c] = 4;    // taking this is what flips the race
+      s.armies.push({ prov: p, nation: first, men: 10, movedOn: -1 });
+      s.armies.push({ prov: h, nation: later, men: 500, movedOn: -1 });
+      setRace(s, [first, later, leader], leader);
+      return { s, h, ql, qn, p, c };
+    };
+
+    // the premise, proved rather than assumed: `first`'s capture really does move the lead.
+    const probe = build();
+    expect(raceLeader(probe.s)).toBe(leader);
+    probe.s.owner[probe.c] = first;                 // exactly what aiTurn is about to do below
+    expect(raceLeader(probe.s)).toBe(first);
+
+    const { s, ql, qn, c } = build();
+    // 2 x 3 (the pre-turn leader's) beats 4 (the usurper's); 3 loses to 2 x 4. So `later`'s target
+    // is a direct readout of WHICH leader it saw, and the two fights are equally winnable (both
+    // defenceless), so the winnability gate is not what decides it.
+    expect(defenceOf(s, ql, later)).toBe(0);
+    expect(defenceOf(s, qn, later)).toBe(0);
+
+    aiTurn(s, -1);
+
+    expect(s.owner[c]).toBe(first);     // the earlier nation did capture, mid-turn
+    expect(s.owner[ql]).toBe(later);    // yet the later one still went for the PRE-TURN leader
+    expect(s.owner[qn]).toBe(first);    // not for the nation that had just overtaken it
   });
 });
