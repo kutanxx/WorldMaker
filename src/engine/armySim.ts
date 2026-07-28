@@ -48,6 +48,11 @@ export interface ArmyState {
   // (before this field existed) keep compiling unchanged; a missing array behaves exactly like "never
   // levied" everywhere it is read. -1 = never levied; otherwise the last turn this province was levied.
   leviedOn?: Int32Array;
+  // Freshly conquered land does not fight for you yet: the turn a province changed hands, or -1
+  // once it has been digested (and for land nobody has taken). Optional and lazily allocated for
+  // the same reason as leviedOn — fixtures built before this field existed must keep behaving as
+  // "nothing is raw".
+  raw?: Int32Array;
 }
 
 // a province's population ceiling, derived from the generated world: size x biome x cities.
@@ -113,11 +118,35 @@ function leviedOnArr(s: ArmyState): Int32Array {
   return s.leviedOn;
 }
 
+// the digestion clock, allocated on first use so hand-built fixtures without it still work.
+function rawArr(s: ArmyState): Int32Array {
+  if (!s.raw || s.raw.length !== s.n) s.raw = new Int32Array(s.n).fill(-1);
+  return s.raw;
+}
+
+// Still being digested: it cannot be levied. Its people do still take up arms as militia when it is
+// attacked — they are there, they just will not march for a conqueror they met last week.
+export function isRaw(s: ArmyState, prov: number): boolean {
+  if (prov < 0 || prov >= s.n) return false;
+  return rawArr(s)[prov] >= 0;
+}
+
+// How much of a realm is still being digested. Derived from the provinces rather than stored per
+// nation, so a province that changes hands leaves one backlog and joins the other with no
+// bookkeeping that could fall out of sync.
+export function backlogOf(s: ArmyState, nation: number): number {
+  const arr = rawArr(s);
+  let k = 0;
+  for (let p = 0; p < s.n; p++) if (s.owner[p] === nation && arr[p] >= 0) k++;
+  return k;
+}
+
 // whether `nation` may levy `prov` right now: owned, something left to raise, and not already
 // levied this turn. The UI asks this before attempting, so it can disable the button outright
 // instead of letting a click silently do nothing.
 export function canLevy(s: ArmyState, prov: number, nation: number): boolean {
   if (nation < 0 || prov < 0 || prov >= s.n || s.owner[prov] !== nation) return false;
+  if (isRaw(s, prov)) return false;   // still digesting: the land is yours, its men are not
   if (maxLevy(s, prov) <= 0) return false;
   return leviedOnArr(s)[prov] !== s.turn;
 }
@@ -232,6 +261,7 @@ export function moveArmy(s: ArmyState, prov: number, nation: number, target: num
     s.armies = s.armies.filter((a) => a.prov !== target);  // the defenders are destroyed
     s.pop[target] = Math.max(0, s.pop[target] - militiaLost);
     s.owner[target] = nation;
+    rawArr(s)[target] = s.turn;   // the one line ownership changes on, so no capture can skip this
   }
   if (army.men > 0) {
     const there = armyAt(s, target, nation);
@@ -360,10 +390,36 @@ export function aiTurn(s: ArmyState, playerNation: number): void {
   }
 }
 
+// How many provinces a realm absorbs per turn. FIXED, and deliberately NOT scaled by realm size —
+// that is the whole design. A damper proportional to conquest VOLUME taxes a small nation catching
+// up as hard as a runaway (in relative terms harder, since it must conquer more of its own size to
+// compete). A fixed capacity taxes the RATE instead, and the measured rates separate cleanly: the
+// steady winner gained 0.67/turn and never accumulates a backlog, while the runaways gained
+// 1.35 and 1.74/turn and accumulate forever.
+export const DIGEST_PER_TURN = 1;
+
+// Each nation absorbs its oldest raw provinces. Deterministic: nations ascending, and within a
+// nation oldest-captured first with ties on the lower province id.
+export function digest(s: ArmyState): void {
+  const arr = rawArr(s);
+  const byNation = new Map<number, number[]>();
+  for (let p = 0; p < s.n; p++) {
+    const o = s.owner[p];
+    if (o < 0 || arr[p] < 0) continue;
+    const list = byNation.get(o);
+    if (list) list.push(p); else byNation.set(o, [p]);
+  }
+  for (const nation of [...byNation.keys()].sort((a, b) => a - b)) {
+    const list = byNation.get(nation)!.sort((x, y) => (arr[x] - arr[y]) || (x - y));
+    for (let i = 0; i < DIGEST_PER_TURN && i < list.length; i++) arr[list[i]] = -1;
+  }
+}
+
 export function endTurn(s: ArmyState, playerNation: number): void {
   aiTurn(s, playerNation);
   applyUpkeep(s);
   regrow(s);
+  digest(s);      // after this turn's captures, so a conqueror at capacity levies its prize next turn
   s.turn++;
 }
 
