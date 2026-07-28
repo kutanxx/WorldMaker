@@ -368,12 +368,12 @@ git commit -m "feat(armySim): the AI concentrates on whoever is winning the race
 Append to `src/ui/armyApp.test.ts`, inside the existing top-level `describe` block:
 
 ```ts
-  it("warns the player when they are the race leader, and only then", () => {
-    const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });
-    const base = initArmySim(world);
+  it("stays silent at turn 0 — nobody has conquered anything yet, so nobody leads", () => {
+    const base = initArmySim(generateWorld({ ...DEFAULT_PARAMS, seed: 1 }).world);
     const playable = playableNations(base);
     expect(playable.length).toBeGreaterThan(1);
-    let sawLeader = 0, sawFollower = 0;
+    // structural, not seed luck: startCounts is snapshotted at init, so every nation's `gained`
+    // is exactly 0 at t0, and raceLeader requires gained > 0. No pick may produce the warning.
     for (const id of playable) {
       root.remove();
       root = document.createElement("div");
@@ -381,22 +381,52 @@ Append to `src/ui/armyApp.test.ts`, inside the existing top-level `describe` blo
       mountArmyApp(root, { seed: 1 });
       (root.querySelector(`.army-prov[data-polity="${id}"]`) as SVGElement)
         .dispatchEvent(new MouseEvent("click", { bubbles: true }));
-      // rebuild the same state the app just built, and ask the engine who leads
-      const s = initArmySim(generateWorld({ ...DEFAULT_PARAMS, seed: 1 }).world);
-      s.scope = theaterOf(s, id);
-      const iLead = raceLeader(s) === id;
-      const warned = root.querySelector(".army-hud")!.textContent!.includes("당신이 선두");
-      expect(warned).toBe(iLead);
-      if (iLead) sawLeader++; else sawFollower++;
+      expect(root.querySelector(".army-hud")!.textContent).not.toContain("당신이 선두");
     }
-    // the lowest-id nation of any theater leads it at t0, and it is itself playable,
-    // so at least one pick must produce the warning — the test cannot pass vacuously
-    expect(sawLeader).toBeGreaterThan(0);
-    expect(sawLeader + sawFollower).toBe(playable.length);
+  });
+
+  it("warns once the player is actually ahead, and only while they are", () => {
+    mountArmyApp(root, { seed: 23 });
+    pickNation();
+    // The HUD already prints both numbers the answer depends on: `정복 +N/M` is the player's
+    // own gained, `추격 <name> +K/M` is the best rival's. So the test needs no mirror of the
+    // app's internal state — it reads the same screen the player does.
+    let sawLead = 0, sawQuiet = 0;
+    for (let turn = 0; turn < 30; turn++) {
+      const hud = root.querySelector(".army-hud")!.textContent!;
+      const mine = Number((hud.match(/정복 ([+-]?\d+)\//) || [])[1]);
+      const rivalMatch = hud.match(/추격 .*?([+-]?\d+)\/\d+/);
+      const rival = rivalMatch ? Number(rivalMatch[1]) : -Infinity;
+      const warned = hud.includes("당신이 선두");
+      if (mine <= 0) { expect(warned).toBe(false); sawQuiet++; }
+      else if (mine > rival) { expect(warned).toBe(true); sawLead++; }
+      // mine > 0 && mine === rival is deliberately skipped: raceLeader breaks that tie on the
+      // lower polity id, not in the player's favour, so these two numbers do not decide it.
+      const end = root.querySelector("button.army-end") as HTMLButtonElement | null;
+      if (!end) break;                                   // the game reached an outcome
+      playAggressively();
+      end.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    }
+    expect(sawQuiet).toBeGreaterThan(0);                 // it was quiet before the first conquest
+    expect(sawLead).toBeGreaterThan(0);                  // and it did fire once the player led
   });
 ```
 
-Add `raceLeader` to the import from `"../engine/armySim"` at the top of `src/ui/armyApp.test.ts` (line 6).
+`playAggressively()` is a helper you must add next to the existing `pickNation()` helper at the
+top of the describe block: for the currently selected realm, levy where the panel offers it and
+then click the first `button.army-move` whose label matches `/공격/`. The test at
+`src/ui/armyApp.test.ts:196-200` already does exactly this inline — lift that pattern rather than
+inventing a new one, and make it a no-op when neither button is present.
+
+Seed 23 is named because the driver has to actually reach a conquest for `sawLead` to be
+non-zero. If it does not on seed 23, try another seed and say in your report which you used and
+why — do **not** weaken `expect(sawLead).toBeGreaterThan(0)`, which is what stops this test from
+passing vacuously.
+
+The imports this test needs from `"../engine/armySim"` (line 6) are `initArmySim` and
+`playableNations`, both already there. It deliberately does **not** import `raceLeader` — it
+reads the HUD's own numbers instead of recomputing the answer with the same function the
+implementation uses, which would make the test agree with a bug.
 
 - [ ] **Step 2: Run the test to verify it fails**
 
