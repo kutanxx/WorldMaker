@@ -117,6 +117,10 @@ The AI keeps taking whatever it can. It will over-eat and pay for it. That is th
 direction — the runaway this exists to slow is usually an AI — and it leaves the informed player a
 genuine advantage in pacing, which is the kind of lever this repo has repeatedly found works.
 
+> **⚠ The second half of that claim is measured false — see "Live play — the pacing question" below.
+> Greedy play strictly dominates every paced strategy tried, because not taking a province costs far
+> more than holding a raw one. The feature is a conquest tax, not a pacing decision.**
+
 **One exception, added after review found it inverts the design.** `aiTurn` fills a levy quota of
 `max(1, ceil(owned × AI_LEVY_FRAC))` provinces, taken in population order. Raw provinces sort near
 the top of that list — the AI picks targets by `pop / (1 + defence)`, and captured land has not been
@@ -252,6 +256,43 @@ it.
 a direction, not a verdict, and they cannot answer the one that matters most for the player: whether
 pacing expansion actually beats over-eating. If "take everything you can" is still optimal, this
 lever did nothing for the player and only taxed the AI.
+
+## Live play — the pacing question, answered, and the answer is no
+
+Four games on seed 11, same aggressive driver throughout, varying only how many attacks it is
+allowed per turn. This is the one question a bot driver structurally cannot answer, because it has
+no player.
+
+**As the 29-province giant:**
+
+| attacks/turn | outcome |
+|---|---|
+| unlimited (greedy) | turn-50 horizon, **+17/27**, 1st of 3 — backlog held at 7–13 the whole game |
+| 3 | **defeat** — outpaced by Shakhaar, own realm collapsed to **−13** |
+| 1 (paced under capacity) | turn-50 horizon, **+0**, backlog 0–1, 5,000 men hoarded and never used |
+
+**As 14-province Shakhaar, greedy:** defeat around t23 to Vidaus, with a backlog that never exceeded
+2 — for a mid-sized realm the feature is nearly invisible.
+
+**Greedy strictly dominates.** Restraint is not merely no better, it is much worse: capping at 3
+lost the game outright, and capping at 1 meant never competing at all. The reason is a simple
+asymmetry the design missed. A backlog costs you the levy of a province or two, delayed. *Not*
+taking a province costs you that province's entire future output **and** cedes it to a neighbour who
+will use it against you. The tax is an order of magnitude smaller than the opportunity cost, so
+there is no rate at which pacing pays.
+
+**So section 6's claim is measured false and is withdrawn**: this does not leave the informed player
+a genuine advantage in pacing, because pacing is not advantageous. **The feature is a conquest tax,
+not a new decision.**
+
+What it does still do, on the same seed and the same greedy play: the giant went from **victory at
+t22** before any of this work, to a 50-turn stalemate at +17 that it does not win. That is real, and
+it is the "playing big is a walk" problem closing. It is just not the mechanism the design claimed.
+
+**Caveat on the driver.** "Paced" here means attacking with whichever army the loop finds first,
+while still levying everywhere — it does not concentrate force or choose *which* province to take.
+A human pacing deliberately would do better than these numbers. What the runs establish is that
+pacing is not *automatically* rewarded, which is what the design assumed.
 
 ## Prior art in this repo — why this might fail
 
