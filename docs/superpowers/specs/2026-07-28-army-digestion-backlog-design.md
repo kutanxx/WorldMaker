@@ -47,9 +47,11 @@ digest so much at a time.
 ### 1. Raw provinces
 
 `ArmyState.raw?: Int32Array` — province → the turn it was captured, or `-1` for land that is
-digested or was never taken. **Optional and lazily allocated**, exactly mirroring the existing
-`leviedOn` field, so hand-built fixtures that predate it keep compiling and a missing array
-behaves everywhere as "nothing is raw".
+digested or was never taken. **Optional**, exactly mirroring the existing `leviedOn` field, so
+hand-built fixtures that predate it keep compiling and a missing array behaves everywhere as
+"nothing is raw". `initArmySim` allocates it eagerly; the lazy allocator is the fallback for those
+fixtures, not the normal path — a query function that silently allocates would otherwise make
+state comparisons depend on which state happened to be queried first.
 
 Starting territory is not raw. Recapturing land — including land you previously owned — marks it
 raw again; a province changing hands repeatedly on a contested front is expensive to hold, which
@@ -142,7 +144,9 @@ an identical game.
 - Digestion integrates exactly `DIGEST_PER_TURN` provinces per nation per turn, oldest first,
   ties on the lower id.
 - A nation capturing at or below capacity never accumulates a backlog; one capturing above it
-  accumulates without bound.
+  carries the excess into the next turn. (Accumulation *without bound* is the design's claim but is
+  not what the tests pin — they cover one step above capacity, which is the part a unit test can
+  reach; the unbounded case is what the measurement section is for.)
 - Recapture re-marks a province raw.
 - Militia defence of a raw province is unchanged.
 - Same seed, same commands, identical game.
@@ -173,38 +177,76 @@ taken by setting `DIGEST_PER_TURN = 9999` — the documented revert, which makes
 everything it finds every turn — so both columns come from the same driver on the same commit, with
 the leader-check already in place in both.
 
-| seed | before (digestion off) | after (`DIGEST_PER_TURN = 1`) |
-|---|---|---|
-| 11 | winner @t28, best **27**, 2nd 16, 1.54/turn, biggest **56** | **no winner**, best **15**, 2nd 12, 0.72/turn, biggest **44** |
-| 23 | winner @t32, best 18, 2nd **1**, 0.59/turn, biggest **36** | winner @t29, best 18, 2nd **5**, 0.79/turn, biggest **21** |
-| 1 | no winner, best 6, 2nd 5, 0.38/turn, biggest 27 | no winner, best 18, 2nd 12, 0.62/turn, biggest 25 |
-| 7 | winner @t37, best 21, 2nd **0**, 0.57/turn, biggest 49 | winner @t34, best 19, 2nd **12**, 0.91/turn, biggest 47 |
-| 42 | winner @t23, best 23, 2nd 4, 1.30/turn, biggest 43 | winner @t21, best 24, 2nd 3, 1.33/turn, biggest 44 |
+The driver diverged from the plan in one way worth stating: it printed the backlog **per nation**
+as well as summed, which is where §4's per-nation figures come from. It has since been deleted, so
+those figures are not reproducible from the plan's version as written.
 
-**1. Did the map freeze? No — it did the opposite.** This was the failure mode to check first, and it
-did not happen. Per-turn conquest rose in four of five seeds (0.59→0.79, 0.38→0.62, 0.57→0.91,
-1.30→1.33) and fell only on seed 11, where it fell because the runaway that was producing most of
-that conquest was stopped. Total conquest rose in three of five. The world got *busier*, because
-breaking the runaway leaves more nations alive and doing something.
+| seed | winner | best | 2nd | totalGain | rate | biggest | backlog |
+|---|---|---|---|---|---|---|---|
+| 11 | t28 → **none** | 27 → **15** | 16 → 12 | 43 → 36 | 1.54 → 0.72 | 56 → 44 | 0 → 27 |
+| 23 | t32 → t29 | 18 → 18 | 1 → 5 | 19 → 23 | 0.59 → 0.79 | 36 → 21 | 0 → 20 |
+| 1 | none → none | 6 → **18** | 5 → 12 | 19 → 31 | 0.38 → 0.62 | 27 → 25 | 0 → 39 |
+| 7 | t37 → t34 | 21 → 19 | 0 → **12** | 21 → 31 | 0.57 → 0.91 | 49 → 47 | 0 → 30 |
+| 42 | t23 → t21 | 23 → 24 | 4 → 3 | 30 → 28 | 1.30 → 1.33 | 43 → 44 | 0 → 29 |
 
-**2. Did the runaways slow? On two seeds decisively, on two barely.** Seed 11 is the clean case: a
-winner at t28 with a 27-province gain and a 56-province empire becomes **no winner at all**, best
-gain 15, biggest realm 44. Seed 23's largest realm falls 36→21. Seeds 7 and 42 barely move (best
-21→19 and 23→24), and on three seeds the winner actually arrives *earlier* — though on seed 23 a
-**different nation** wins, so that is a reshuffle rather than the same runaway going faster.
+**1. Did the map freeze? No.** This was the failure mode to check first and it did not happen.
+Per-turn conquest rose on four seeds and fell only on seed 11, where it fell because the runaway
+producing most of that conquest was stopped. Two caveats on that number, both against the
+favourable reading: `rate` is `totalGain / turnsToWin`, so seed 42's 1.30→1.33 is entirely a shorter
+denominator — its total conquest actually **fell** 30→28. And total conquest rose on only three of
+five. The world did get busier on three seeds; the plausible reason is that breaking a runaway
+leaves more nations alive and active, but the driver never counted survivors, so that is an
+inference and not a measurement.
 
-**3. The field closed up, and it closed up the right way.** The plan required that a narrower gap
-only counts if second place went *up*, and it did: 2nd place goes 0→12 on seed 7, 5→12 on seed 1,
-and 1→5 on seed 23. Seed 7 is the strongest single result — the runner-up went from gaining
-*nothing at all* to gaining 12. This is the "one nation runs away while everyone sits near zero"
-shape breaking, which is what the re-diagnosis identified as the actual problem.
+**2. Did the runaways slow? On two seeds yes, on one it got worse, and the rest is noise.** Best
+gain fell on seed 11 (27→15) and seed 7 (21→19), was flat on 23, and **rose on two**: seed 42
+23→24, and **seed 1 tripled, 6→18**. Seed 11 is the clean case — a winner at t28 with a 56-province
+empire becomes no winner at all. But `biggest` is the metric that moves most consistently, falling
+on four of five (56→44, 36→21, 49→47, 27→25) and rising only on 42.
+
+On three seeds the winner arrives **earlier** (t32→29, t37→34, t23→21). Seed 23 is explicable — a
+*different* nation wins, so it is a reshuffle. Seeds 7 and 42 have no such account, and on seed 42
+every runaway metric moved the wrong way at once. With five seeds on a chaotic simulation this may
+simply be noise, and it is recorded as unexplained rather than filed under "barely moved".
+
+**3. The field closed up on three seeds of five.** The plan required that a narrower gap only counts
+if second place went *up*, and on three it did: 0→12 on seed 7, 5→12 on seed 1, 1→5 on seed 23.
+Seed 7 is the strongest single result — the runner-up went from gaining *nothing at all* to gaining
+12, which is the "one nation runs away while everyone else sits near zero" shape breaking. But
+second place **fell** on seeds 11 and 42, and seed 11 is the same seed called the clean case in §2.
+So the two headline seeds disagree with each other, and the closure is a three-of-five result, not a
+general one.
 
 **4. The backlogs are large, and that is worth watching.** End-of-game backlogs run 20–39 provinces
 per world, concentrated on the leaders: seed 7's winner holds **23 raw provinces out of 47**, seed
-42's holds 24 of 44. Mechanically that is the design working — a runaway accumulates forever — but
-roughly half of a large realm being unlevyable is a big number to put in front of a player, and
-whether `소화 대기 23` reads as meaningful pressure or as an incomprehensible tax is a live-play
-question, not a measurement one.
+42's 24 of 44 (per-nation figures, from the diverged driver noted above; the pairing of the largest
+backlog with the winner is inferred from nation order, not printed as such). Mechanically that is
+the design working — a runaway accumulates forever — but roughly half of a large realm being
+unlevyable is a big number to put in front of a player, and whether `소화 대기 23` reads as
+meaningful pressure or as an incomprehensible tax is a live-play question, not a measurement one.
+
+### Two behaviours found in review that the design did not anticipate
+
+**The damper taxes the human more than the AI at low conquest rates.** §3's "a conqueror at or
+below capacity is effectively unaffected" is exactly true for the **AI**, because `aiTurn` levies
+*before* it moves: a province the AI takes on turn T is cleared by `digest` at the end of T, so at
+one capture per turn the AI is never blocked once and pays nothing at all. The **player** acts
+before `endTurn`, and could previously capture a province and levy it the same turn. Now they
+cannot, so they lose one levy of a fresh, un-hollowed province on *every* conquest at any rate.
+That is arguably the feature working — it removes the strongest compounding move the player had —
+but it is the opposite of §6's claim that this leaves the informed player an advantage, and moving
+the `digest` call would not fix it: the asymmetry comes from the AI's levy-before-move ordering.
+
+**The approved AI levy-skip softens the damper exactly where it was meant to bite hardest.** Under
+the original loop, a realm whose top `nLevy` slots were all fresh conquests raised nothing that
+turn — the damper bit hardest on the biggest backlog. With the skip, the quota is always filled, so
+digestion costs the realm only the *population difference* between the raw province and its
+replacement. The measured runaways hold about half their realm raw and still won earlier, which is
+consistent with this. The skip is still correct — without it a 4-province AI raised nothing after a
+single capture, which inverted the design far worse — and both measurement columns include it, so
+nothing above is attributable to it. But it is the most plausible mechanism behind the unexplained
+earlier winners in §2, and it is recorded here so the next balance pass does not have to re-derive
+it.
 
 **Standing caveat.** Bot measurement is a proxy and has been wrong on this engine before. These are
 a direction, not a verdict, and they cannot answer the one that matters most for the player: whether
