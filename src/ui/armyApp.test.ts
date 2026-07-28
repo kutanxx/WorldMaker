@@ -489,6 +489,11 @@ describe("the race is visible", () => {
       const warned = hud.includes("당신이 선두");
       if (mine <= 0) { expect(warned).toBe(false); sawQuiet++; }
       else if (mine > rival) { expect(warned).toBe(true); sawLead++; }
+      // Closes the band 0 < mine < rival: the player has conquered something but is still behind.
+      // Catches a regression where the HUD warns on `prog.gained > 0` (conquered anything) instead
+      // of `raceLeader(s) === me` (actually ahead). Seed 107 may never enter this band — that is
+      // fine; the assertion is free here and would still fire on another seed or driver change.
+      else if (mine < rival) { expect(warned).toBe(false); }
       // mine > 0 && mine === rival is deliberately skipped: raceLeader breaks that tie on the
       // lower polity id, not in the player's favour, so these two numbers do not decide it.
       const end = root.querySelector("button.army-end") as HTMLButtonElement | null;

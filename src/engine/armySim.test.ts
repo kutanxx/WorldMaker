@@ -1206,6 +1206,10 @@ describe("AI_LEADER_BIAS (the AI checks the leader, but never suicides for it)",
     // every neighbour becomes the leader's (maximally attractive) AND unbeatable (militia alone
     // dwarfs anything this nation can raise). The bias must not override the winnability gate.
     for (const p of frontierOf(s, nation)) { s.owner[p] = leader; s.pop[p] = 1e6; }
+    // The premise, proved rather than assumed: without it, if `leader` ever stopped being the
+    // race leader the bias would go inert and an unbiased AI would decline this fight too — the
+    // test would keep passing while silently testing the old, unbiased behaviour.
+    expect(raceLeader(s)).toBe(leader);
     const mine = new Set([...Array(s.n).keys()].filter((p) => s.owner[p] === nation));
     // Run the levy step here, exactly as aiTurn does it (most populous first, ties -> lower id), so
     // the force it raises can be snapshotted. aiTurn's own levy then adds nothing: the leviedOn
@@ -1232,7 +1236,11 @@ describe("AI_LEADER_BIAS (the AI checks the leader, but never suicides for it)",
     // taken fight either destroys the attacker outright or costs it def x WIN_LOSS_MULT x closeness.
     const after = s.armies.filter((a) => a.nation === nation);
     expect(after.reduce((k, a) => k + a.men, 0)).toBe(menBefore);   // no men spent on a battle
-    expect(after.length).toBe(before.length);                       // no army wiped out
+    // Not toBe: moveArmy merges an army onto a friendly stack when it arrives, so two armies
+    // stepping onto the same front province legitimately shrink the count with no bug present.
+    // The men-conservation check above already proves nothing was destroyed — levies are frozen
+    // here, so men can only leave through battle, and none did. A drop here just means a merge.
+    expect(after.length).toBeLessThanOrEqual(before.length);        // no army wiped out
     expect(provinceCount(s, nation)).toBe(provsBefore);             // and nothing was captured
     for (const a of after) expect(mine.has(a.prov)).toBe(true);
   });
@@ -1360,8 +1368,11 @@ describe("AI_LEADER_BIAS (the AI checks the leader, but never suicides for it)",
 
   it("computes the leader once per turn — a mid-turn capture does not re-aim a later nation", () => {
     // Relies on the province graph containing a province h of degree >= 2 plus an edge p-c wholly
-    // outside h's TWO-step neighbourhood, so the two nations below share no border at all and can
-    // only influence each other through raceLeader. toBeDefined is what fires if no such pair exists.
+    // outside h's TWO-step neighbourhood. `first` and `later` DO share a border at h's own frontier
+    // (that border is the test's readout: whether `later` takes qn from `first`) — what p-c being
+    // outside the two-step neighbourhood buys is that `first`'s capture there cannot itself reach
+    // anything `later` reads, so any effect on `later`'s choice must be routed through raceLeader.
+    // toBeDefined is what fires if no such pair exists.
     const locate = (s: ArmyState) => {
       for (let h = 0; h < s.n; h++) {
         if (s.adj[h].length < 2) continue;
