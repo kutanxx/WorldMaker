@@ -202,3 +202,56 @@ turn 7 and then leads for 23 straight turns, engaging the lever for most of the 
 **Standing caveat.** This is a bot proxy and it has been wrong on this engine before — the
 `AI_ODDS_MIN` measurement pointed the opposite way from what live play showed. These numbers are a
 direction, not a verdict. Live play decides.
+
+## Live play — five games on seed 11, with the bias A/B'd
+
+Same aggressive driver throughout (levy everywhere offered, attack wherever possible), so the only
+variable is the nation played and whether the bias is on.
+
+| nation | bias | outcome |
+|---|---|---|
+| Shakhaar, 14 provinces | on | defeat t14 — Vidaus got there first |
+| Shakhaar, 14 provinces | **off** | defeat t12 |
+| **Vidaus, 29 provinces** | **off** | **victory t22**, +27/27, best rival stuck at +6 |
+| **Vidaus, 29 provinces** | on | **turn-50 horizon, nobody wins**, +12/27, a rival reached +19 |
+| Veiviksveir, 4 provinces | on | wiped out t15 (grew 4→10, then collapsed) |
+
+**The feature's real effect is on a player who plays big — the case the bot driver structurally
+could not measure.** Playing the giant used to be a walk: victory at t22 with the runner-up at +6.
+With the check on it becomes a seesaw — +21, ground down to +6, back to +19, down again — and 50
+turns end with nobody at the goal while a rival peaks at +22. That is the catch-up mechanic this
+game did not have.
+
+**It does not fix the giant *AI*.** Playing 14 provinces loses either way; t12 → t14 is the whole
+difference. Mechanism B is confirmed as the real cause by live play as well as by the bot.
+
+### The problem live play found: the threshold is noise-level
+
+The check fires on leads far too small to mean anything. In the 14-province game the player became
+"the leader" at **t1, having taken exactly one province**. In the 4-province game the player was
+flagged at **+4** — while the 29-province giant sitting at +3 was not.
+
+`gained` is the right metric for the *goal*, but as a *threat* metric it systematically targets
+small nations: a small realm's early growth spurt is its survival condition, and that is precisely
+when the coalition arrives. The 4-province game is that story — 4→10 provinces, flagged at t2,
+annihilated by t15.
+
+### Fix: a lead has to be worth something
+
+`raceLeader` additionally requires
+
+```ts
+gained >= Math.ceil(LEAD_MIN_FRAC * goalGain(s))     // LEAD_MIN_FRAC = 0.2
+```
+
+so a nation must be a fifth of the way to victory before the world notices it. The threshold is
+derived from the goal, so it scales with the theater instead of needing per-map tuning: goal 27 →
+6 provinces, goal 7 → 2. Against the games above this leaves every genuine runaway flagged (the
+giant crosses 6 by t2) while the 14-province player is not flagged until t3-t4 instead of t1, and
+the 4-province player not until t6 instead of t2.
+
+### Fix: the documented revert must not make the HUD lie
+
+Setting `AI_LEADER_BIAS = 1` stops the AI reacting, but the HUD reads `raceLeader` directly and
+would keep warning about a dogpile that is no longer happening. The HUD gates on the same constant,
+so the one-line revert really is one line.
