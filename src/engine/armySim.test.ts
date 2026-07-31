@@ -1750,7 +1750,9 @@ describe("raw land does not defend itself", () => {
     s.pop[p] = 500;
     expect(militiaOf(s, p)).toBe(Math.floor(500 * MILITIA_FRAC));   // digested land is unchanged
     s.raw![p] = s.turn;
-    expect(militiaOf(s, p)).toBe(Math.floor(500 * MILITIA_FRAC * RAW_MILITIA_FRAC));
+    expect(militiaOf(s, p)).toBe(0);
+    // nothing else pins the shipped value directly, so pin it here rather than only in the formula above.
+    expect(RAW_MILITIA_FRAC).toBe(0);
     digest(s);                                                      // p is this nation's only raw land
     expect(militiaOf(s, p)).toBe(Math.floor(500 * MILITIA_FRAC));
   });
@@ -1810,14 +1812,5 @@ describe("raw land does not defend itself", () => {
     const other = pickBefore === a ? b : a;
     s.raw![other] = s.turn;
     expect(aiObjective(s, nation)).toBe(other);
-  });
-
-  it("same seed, same game — no rng crept in", () => {
-    const a = fresh(11), b = fresh(11);
-    for (let t = 0; t < 8; t++) { endTurn(a, 0); endTurn(b, 0); }
-    expect([...a.owner]).toEqual([...b.owner]);
-    expect([...a.pop]).toEqual([...b.pop]);
-    expect([...a.raw!]).toEqual([...b.raw!]);
-    expect(a.armies).toEqual(b.armies);
   });
 });

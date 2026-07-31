@@ -20,11 +20,10 @@ export function leadWarning(bias: number, isLeader: boolean): string {
 }
 
 // Three distinct reasons the button can read, and rawness must be checked before the
-// empty-population case: a freshly captured province can be both raw AND under-populated
-// (a capture strips militia, so a near-empty province is exactly what raw land looks like
-// right after it changes hands). Rawness is the reason that will not clear next turn — the
-// player needs to know that, not "+0명" — so it must win the precedence, not lose to a
-// amount === 0 check that happens to also be true.
+// empty-population case: a province can be both raw AND too poor to levy by other routes
+// (over-levying or attrition hollow out digested land the same way). Rawness is the reason
+// that will not clear next turn — the player needs to know that, not "+0명" — so it must win
+// the precedence, not lose to an amount === 0 check that happens to also be true.
 // Pulled out to a pure function so the precedence can be unit-tested directly instead of
 // driven through the UI on a lucky seed.
 export function levyLabel({ canLevy, raw, amount }: { canLevy: boolean; raw: boolean; amount: number }): string {

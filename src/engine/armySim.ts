@@ -127,8 +127,9 @@ function rawArr(s: ArmyState): Int32Array {
   return s.raw;
 }
 
-// Still being digested: it cannot be levied. Its people do still take up arms as militia when it is
-// attacked — they are there, they just will not march for a conqueror they met last week.
+// Still being digested: it cannot be levied, and its people will not take up arms as militia when
+// it is attacked either — they will not march or fight for a conqueror they met last week. Holding
+// it means leaving a garrison, not trusting the population.
 export function isRaw(s: ArmyState, prov: number): boolean {
   if (prov < 0 || prov >= s.n) return false;
   return rawArr(s)[prov] >= 0;
