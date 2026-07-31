@@ -150,6 +150,65 @@ favourable side effects.
 
 Bot measurement is a proxy and has been wrong on this engine before. Live play decides.
 
+## Measured result — this did not work, and the mechanism is wrong-signed
+
+"Before" was taken with `RAW_MILITIA_FRAC = 1`, the documented revert, so both columns come from the
+same driver on the same commit. Flips are normalised per turn because the games ran different
+lengths.
+
+| seed | turns | flips/turn | max flips | prov 4+ | best | 2nd | biggest | winner |
+|---|---|---|---|---|---|---|---|---|
+| 11 | 50 → 50 | 10.9 → 13.2 | 27 → 32 | 48 → 47 | 15 → **22** | 12 → **9** | 44 → **51** | none → none |
+| 23 | 29 → 28 | 12.6 → 13.1 | 19 → 24 | 36 → 32 | 18 → **19** | 5 → 5 | 21 → **29** | t29 → t28 |
+| 1 | 50 → 47 | 19.3 → 16.6 | 30 → 34 | 62 → 53 | 18 → **24** | 12 → 14 | 25 → **33** | none → **t47** |
+| 7 | 34 → 26 | 8.9 → 7.0 | 15 → 10 | 33 → 23 | 19 → 19 | 12 → **8** | 47 → 47 | t34 → **t26** |
+| 42 | 21 → 50 | 15.8 → 14.7 | 14 → 30 | 42 → 55 | 24 → 15 | 3 → 13 | 44 → 33 | t21 → none |
+
+**1. Ping-pong: did not happen.** The failure mode this design was most likely to have is the one it
+avoided. Flips per turn rose on two seeds and fell on three; `prov 4+` fell on four of five. Seed
+42's raw counts triple, but its game went from 21 turns to 50 — per turn it fell.
+
+**2. Runaways got *bigger*, on three of five.** `biggest` rose on seeds 11 (44→51), 23 (21→29) and
+1 (25→33), was flat on 7, and fell only on 42. `best` gain rose on the same three. Seed 1 gained a
+winner where it previously had none, and seed 7's winner arrived eight turns earlier. This is the
+opposite of the intent.
+
+**3. Second place: no pattern.** Up on seeds 1 and 42, **down on 11 and 7**, flat on 23.
+
+### Live play, which is what decides it
+
+Seed 11 as the 29-province giant, with the rule **on**, three strategies:
+
+| strategy | outcome |
+|---|---|
+| greedy — every attack available | **defeat** around t32, collapsed to −5 |
+| paced — 1 attack/turn | turn-50 horizon, **3rd of 4**, −4 |
+| selective — 2 attacks/turn, always the best odds | peaked +6 while leading at t13, then declined to −4 by t35 |
+
+Against the same seed and nation **before** this change: greedy reached the horizon at **+17, first
+of three**, and paced sat at +0. **Every strategy got worse, and the best of them is now a loss.**
+
+The selective driver deserves its own note, because it is the play this design exists to reward:
+raw land shows a much lower `방어`, so picking the best odds each turn preferentially eats exactly
+the land the feature softened. It did briefly work — at t13 the player led +6 to +5, which neither
+other strategy managed — and then it lost anyway.
+
+### Why it is wrong-signed
+
+Softening raw land makes conquest cheaper **for everyone**, and the beneficiary of cheaper conquest
+is whoever has the most armies and the most fronts — the runaway. The patient player gets little
+from it: they hold almost no raw land of their own to protect (a paced realm's backlog is 1), and
+they have no privileged access to the runaway's soft land, which sits on the far side of the map
+behind the runaway's armies.
+
+The diagnosis that produced this design was right — restraint has no defensive benefit — but this
+lever does not supply one. It supplies a *general* discount on attacking, and a general discount
+favours the player who attacks most. **Tuning `RAW_MILITIA_FRAC` between 0 and 1 changes the
+magnitude, not the sign**, so a gentler value is not expected to rescue it.
+
+**Recommendation: do not merge.** The mechanism is implemented, tested and revertible, but the
+measurement says it makes the game worse on both the AI board and in the player's hands.
+
 ## Prior art — why this might fail
 
 Mechanical balance levers have been reverted here repeatedly (`SIZE_CAP`, fragile conquest,
