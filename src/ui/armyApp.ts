@@ -19,6 +19,24 @@ export function leadWarning(bias: number, isLeader: boolean): string {
   return bias > 1 && isLeader ? " · ⚠ 당신이 선두 — 주변국이 노립니다" : "";
 }
 
+// Three distinct reasons the button can read, and rawness must be checked before the
+// empty-population case: a freshly captured province can be both raw AND under-populated
+// (a capture strips militia, so a near-empty province is exactly what raw land looks like
+// right after it changes hands). Rawness is the reason that will not clear next turn — the
+// player needs to know that, not "+0명" — so it must win the precedence, not lose to a
+// amount === 0 check that happens to also be true.
+// Pulled out to a pure function so the precedence can be unit-tested directly instead of
+// driven through the UI on a lucky seed.
+export function levyLabel({ canLevy, raw, amount }: { canLevy: boolean; raw: boolean; amount: number }): string {
+  return canLevy
+    ? `징집 (+${amount}명, 인구 −${amount})`
+    // two different reasons the button is dead, and the player needs to tell them apart: one
+    // clears next turn, the other clears when the realm has digested what it swallowed.
+    : raw ? "소화 중 — 아직 징집할 수 없습니다"
+    : amount === 0 ? `징집 (+${amount}명, 인구 −${amount})`
+    : "징집 완료 (이번 턴)";
+}
+
 // PROTOTYPE UI. Click a province of yours to select it; levy and march/attack are both issued from
 // the panel's buttons (never by clicking the map), so a misclick on a hostile neighbour can never
 // destroy an army by accident. Everything the rules use is printed on the map.
@@ -225,19 +243,7 @@ export function mountArmyApp(root: HTMLElement, opts: { seed?: number } = {}): v
     const canLevyNow = canLevy(s, p, player!);
     const btn = document.createElement("button");
     btn.className = "army-levy";
-    // Three distinct reasons the button can read, and rawness must be checked before the
-    // empty-population case: a freshly captured province can be both raw AND under-populated
-    // (a capture strips militia, so a near-empty province is exactly what raw land looks like
-    // right after it changes hands). Rawness is the reason that will not clear next turn — the
-    // player needs to know that, not "+0명" — so it must win the precedence, not lose to a
-    // levyAmount === 0 check that happens to also be true.
-    btn.textContent = canLevyNow
-      ? `징집 (+${levyAmount}명, 인구 −${levyAmount})`
-      // two different reasons the button is dead, and the player needs to tell them apart: one
-      // clears next turn, the other clears when the realm has digested what it swallowed.
-      : isRaw(s, p) ? "소화 중 — 아직 징집할 수 없습니다"
-      : levyAmount === 0 ? `징집 (+${levyAmount}명, 인구 −${levyAmount})`
-      : "징집 완료 (이번 턴)";
+    btn.textContent = levyLabel({ canLevy: canLevyNow, raw: isRaw(s, p), amount: levyAmount });
     btn.disabled = !canLevyNow;
     btn.addEventListener("click", () => { const m = levy(s, p, player!); if (m > 0) say(`징집 ${name} +${m}`); render(); });
     box.appendChild(btn);

@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { generateWorld } from "./world";
 import { DEFAULT_PARAMS } from "../types/world";
-import { basePopOf, initArmySim, BIOME_POP, BIOME_DEF, LEVY_FRAC, UPKEEP_FRAC, REGROW_FRAC, MILITIA_FRAC, WIN_LOSS_MULT, DEF_LOSS_MULT, AI_LEVY_FRAC, AI_LEADER_BIAS, LEAD_MIN_FRAC, armyAt, maxLevy, levy, canLevy, applyUpkeep, regrow, militiaOf, defenceOf, previewMove, moveArmy, aiTurn, endTurn, battleRoll, winChance, ODDS_K, GOAL_GAIN_FRAC, HORIZON, landProvinces, goalGain, goalProgress, provinceCount, nationRank, outcome, landComponents, theaterOf, setTheater, playableNations, nationProgress, leadingRival, raceLeader, aiObjective, stepToward, isRaw, backlogOf, digest, DIGEST_PER_TURN, type ArmyState } from "./armySim";
+import { basePopOf, initArmySim, BIOME_POP, BIOME_DEF, LEVY_FRAC, UPKEEP_FRAC, REGROW_FRAC, MILITIA_FRAC, WIN_LOSS_MULT, DEF_LOSS_MULT, AI_LEVY_FRAC, AI_LEADER_BIAS, LEAD_MIN_FRAC, armyAt, maxLevy, levy, canLevy, applyUpkeep, regrow, militiaOf, defenceOf, previewMove, moveArmy, aiTurn, endTurn, battleRoll, winChance, ODDS_K, GOAL_GAIN_FRAC, HORIZON, landProvinces, goalGain, goalProgress, provinceCount, nationRank, outcome, landComponents, theaterOf, setTheater, playableNations, nationProgress, leadingRival, raceLeader, aiObjective, stepToward, isRaw, backlogOf, digest, DIGEST_PER_TURN, RAW_MILITIA_FRAC, type ArmyState } from "./armySim";
 import { GRASSLAND, ALPINE } from "./biome";
 
 describe("basePopOf (population comes from the generated world)", () => {
@@ -1669,31 +1669,24 @@ describe("digestion (conquered land does not fight for you yet)", () => {
     expect(isRaw(s, taken)).toBe(true);
   });
 
-  it("raw land still defends — militia is untouched", () => {
-    const s = fresh(11);
-    const nation = [...s.owner].find((o) => o >= 0)!;
-    const attacker = [...new Set([...s.owner].filter((o) => o >= 0 && o !== nation))].sort((a, b) => a - b)[0];
-    const p = [...Array(s.n).keys()].find((q) => s.owner[q] === nation)!;
-    s.pop[p] = 500;
-    const before = defenceOf(s, p, attacker);
-    s.raw = new Int32Array(s.n).fill(-1);
-    s.raw[p] = s.turn;
-    expect(militiaOf(s, p)).toBe(Math.floor(500 * MILITIA_FRAC));
-    expect(defenceOf(s, p, attacker)).toBe(before);
-  });
-
   it("the AI is blocked by the same gate — a wholly raw realm raises nobody", () => {
     const s = fresh(11);
     const nation = [...s.owner].find((o) => o >= 0)!;
 
     // guard: this test would be vacuous otherwise — if `nation` simply had too little population to
     // levy anything, `raised === 0` below would pass for a reason that has nothing to do with the
-    // rawness gate. Prove the SAME nation, on the SAME map, DOES raise men when nothing is raw, so
-    // the zero is attributable to the gate.
+    // rawness gate. Prove nation's own provinces have levyable population when nothing is raw, so
+    // the zero below is attributable to the gate and not a population shortfall.
+    //
+    // This used to run a full aiTurn(control, -1) and read surviving armies at turn's end, but that
+    // conflated "did this nation levy" with "did its levy survive combat" — and now that raw land
+    // mounts no militia, a freshly conquered province anywhere on the map is an easier target for a
+    // follow-up attack later in the SAME turn, so a nation can legitimately levy men and still end
+    // the turn holding none. Check the levy precondition directly instead, before any AI acts.
     const control = fresh(11);
-    aiTurn(control, -1);
-    const controlRaised = control.armies.filter((a) => a.nation === nation).reduce((k, a) => k + a.men, 0);
-    expect(controlRaised).toBeGreaterThan(0);
+    const controlLevyable = [...Array(control.n).keys()]
+      .some((p) => control.owner[p] === nation && canLevy(control, p, nation) && maxLevy(control, p) > 0);
+    expect(controlLevyable).toBe(true);
 
     s.raw = new Int32Array(s.n).fill(-1);
     for (let p = 0; p < s.n; p++) if (s.owner[p] === nation) s.raw[p] = s.turn;
@@ -1742,6 +1735,88 @@ describe("digestion (conquered land does not fight for you yet)", () => {
     expect([...a.pop]).toEqual([...b.pop]);
     // both states always have s.raw now (initArmySim allocates it eagerly, like leviedOn), so there
     // is no "one has it, one doesn't" case left to paper over with ?? [].
+    expect([...a.raw!]).toEqual([...b.raw!]);
+    expect(a.armies).toEqual(b.armies);
+  });
+});
+
+describe("raw land does not defend itself", () => {
+  const fresh = (seed: number) => initArmySim(generateWorld({ ...DEFAULT_PARAMS, seed }).world);
+
+  it("mounts no militia while raw, and its normal militia once digested", () => {
+    const s = fresh(11);
+    const nation = [...s.owner].find((o) => o >= 0)!;
+    const p = [...Array(s.n).keys()].find((q) => s.owner[q] === nation)!;
+    s.pop[p] = 500;
+    expect(militiaOf(s, p)).toBe(Math.floor(500 * MILITIA_FRAC));   // digested land is unchanged
+    s.raw![p] = s.turn;
+    expect(militiaOf(s, p)).toBe(Math.floor(500 * MILITIA_FRAC * RAW_MILITIA_FRAC));
+    digest(s);                                                      // p is this nation's only raw land
+    expect(militiaOf(s, p)).toBe(Math.floor(500 * MILITIA_FRAC));
+  });
+
+  it("loses exactly the militia term, while a garrison standing on it still counts in full", () => {
+    const s = fresh(11);
+    const nation = [...s.owner].find((o) => o >= 0)!;
+    const attacker = [...new Set([...s.owner].filter((o) => o >= 0 && o !== nation))].sort((a, b) => a - b)[0];
+    const p = [...Array(s.n).keys()].find((q) => s.owner[q] === nation)!;
+    s.armies = s.armies.filter((a) => a.prov !== p);
+    s.pop[p] = 500;
+    const mult = BIOME_DEF[s.world.provinces[p].biome] ?? 1;
+    expect(defenceOf(s, p, attacker)).toBeCloseTo(Math.floor(500 * MILITIA_FRAC) * mult, 9);
+    s.raw![p] = s.turn;
+    expect(defenceOf(s, p, attacker)).toBe(0);                      // nothing left to hold it
+    s.armies.push({ prov: p, nation, men: 120, movedOn: -1 });
+    expect(defenceOf(s, p, attacker)).toBeCloseTo(120 * mult, 9);   // the garrison is untouched
+  });
+
+  it("leaves digested land completely alone at every population", () => {
+    // Fails if the factor is applied unconditionally instead of only to raw land.
+    const s = fresh(11);
+    const p = [...Array(s.n).keys()].find((q) => s.owner[q] >= 0)!;
+    for (const pop of [0, 1, 4, 5, 501, 5000]) {
+      s.pop[p] = pop;
+      expect(militiaOf(s, p)).toBe(Math.floor(pop * MILITIA_FRAC));
+    }
+  });
+
+  it("capturing raw land destroys no population — there was nobody under arms to die", () => {
+    const s = fresh(11);
+    const nation = [...s.owner].find((o) => o >= 0)!;
+    const target = [...Array(s.n).keys()]
+      .find((q) => s.owner[q] !== nation && s.adj[q].some((x) => s.owner[x] === nation))!;
+    const from = s.adj[target].find((q) => s.owner[q] === nation)!;
+    s.armies = s.armies.filter((a) => a.prov !== target && a.prov !== from);
+    s.pop[target] = 500;
+    s.raw![target] = s.turn;                       // its current owner had only just taken it
+    s.armies.push({ prov: from, nation, men: 900, movedOn: -1 });
+    expect(moveArmy(s, from, nation, target)?.captured).toBe(true);
+    expect(s.pop[target]).toBe(500);
+  });
+
+  it("makes an over-eater's fresh conquest the most attractive target the AI can see", () => {
+    const s = fresh(11);
+    const nation = [...s.owner].find((o) => o >= 0)!;
+    const frontier = [...Array(s.n).keys()]
+      .filter((q) => s.owner[q] !== nation && s.adj[q].some((x) => s.owner[x] === nation));
+    expect(frontier.length).toBeGreaterThan(1);    // seed 11's frontier is wide
+    const [a, b] = frontier;
+    s.armies = s.armies.filter((x) => x.prov !== a && x.prov !== b);
+    for (const q of frontier) if (q !== a && q !== b) s.pop[q] = 0;   // isolate the comparison
+    s.pop[a] = 400; s.pop[b] = 400;
+    // Mark whichever one the AI did NOT already want, so the flip is attributable to rawness and
+    // not to the two provinces happening to differ in terrain.
+    const pickBefore = aiObjective(s, nation);
+    const other = pickBefore === a ? b : a;
+    s.raw![other] = s.turn;
+    expect(aiObjective(s, nation)).toBe(other);
+  });
+
+  it("same seed, same game — no rng crept in", () => {
+    const a = fresh(11), b = fresh(11);
+    for (let t = 0; t < 8; t++) { endTurn(a, 0); endTurn(b, 0); }
+    expect([...a.owner]).toEqual([...b.owner]);
+    expect([...a.pop]).toEqual([...b.pop]);
     expect([...a.raw!]).toEqual([...b.raw!]);
     expect(a.armies).toEqual(b.armies);
   });

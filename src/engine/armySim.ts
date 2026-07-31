@@ -180,11 +180,19 @@ export function regrow(s: ArmyState): void {
   }
 }
 
+// What a conquered province's militia is worth to its new owner. 0: they will not fight for someone
+// they met last week. This is what gives RESTRAINT a benefit rather than giving greed another cost —
+// holding fresh land now means leaving troops on it, which splits the army that would take the next
+// province. Set to 1 to restore the previous behaviour exactly.
+export const RAW_MILITIA_FRAC = 0;
+
 // the province's own people take up arms when attacked. Computed at battle time, so a province
-// hollowed out by over-levying really is defenceless. Militia cannot move.
+// hollowed out by over-levying really is defenceless. Militia cannot move. Land still being
+// digested musters nobody — the factor goes INSIDE the floor so RAW_MILITIA_FRAC = 1 is bit-identical
+// to the un-factored expression rather than drifting by a man on some populations.
 export function militiaOf(s: ArmyState, prov: number): number {
   if (prov < 0 || prov >= s.n) return 0;
-  return Math.floor(s.pop[prov] * MILITIA_FRAC);
+  return Math.floor(s.pop[prov] * MILITIA_FRAC * (isRaw(s, prov) ? RAW_MILITIA_FRAC : 1));
 }
 
 // effective defence of `prov` against `attacker`: every non-attacker army standing there plus the

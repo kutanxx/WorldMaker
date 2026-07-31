@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mountArmyApp, leadWarning } from "./armyApp";
+import { mountArmyApp, leadWarning, levyLabel } from "./armyApp";
 import { generateWorld } from "../engine/world";
 import { DEFAULT_PARAMS } from "../types/world";
 import { initArmySim, playableNations, theaterOf, goalGain, LEAD_MIN_FRAC } from "../engine/armySim";
@@ -211,63 +211,33 @@ describe("armyApp (prototype loop: levy -> march -> end turn)", () => {
     expect(label!.textContent).not.toContain("⌛");
   });
 
-  // Item 4's precedence bug only shows up when a province is BOTH raw AND already below the levy
-  // floor (population < 5, so maxLevy === 0) — the ordinary "just captured, still fat" case never
-  // exercises the levyAmount === 0 branch. Reaching it needs sustained pressure on ONE weak front
-  // (a captured province stands undefended once its army marches on again, so the AI takes it back
-  // and the population tolls down a little further on the next recapture) while NOT overextending
-  // everywhere else, or the realm crumbles to counter-attacks before the population ever gets this
-  // low. One attack per turn, always against the single weakest reachable target realm-wide,
-  // reliably reproduces it for seed 23.
-  function popOf(prov: string): number {
-    const lbl = root.querySelector(`.army-num[data-prov="${prov}"]`);
-    const m = lbl?.textContent?.match(/(\d+)/);
-    return m ? parseInt(m[1], 10) : Infinity;
-  }
-  function pushUntilUnderpopulatedRaw(maxTurns: number): Element | null {
-    for (let t = 0; t < maxTurns; t++) {
-      for (const p of root.querySelectorAll('.army-prov[data-mine="1"]')) {
-        p.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-        const lv = root.querySelector("button.army-levy") as HTMLButtonElement | null;
-        if (lv && !lv.disabled) lv.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-      }
-      let bestBtn: HTMLButtonElement | null = null, bestPop = Infinity, bestProv: Element | null = null;
-      for (const p of [...root.querySelectorAll('.army-prov[data-mine="1"]')]) {
-        p.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-        for (const b of [...root.querySelectorAll("button.army-move")] as HTMLButtonElement[]) {
-          if (!/공격/.test(b.textContent || "") || b.disabled) continue;
-          const pop = popOf(b.dataset.target!);
-          if (pop < bestPop) { bestPop = pop; bestBtn = b; bestProv = p; }
-        }
-      }
-      if (bestProv) bestProv.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-      if (bestBtn) bestBtn.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-      for (const r of root.querySelectorAll('.army-prov[data-mine="1"][data-raw="1"]')) {
-        const id = r.getAttribute("data-prov")!;
-        if (popOf(id) < 5) return r;
-      }
-      const end = root.querySelector("button.army-end") as HTMLButtonElement | null;
-      if (!end) return null;                              // the game ended before we got there
-      end.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    }
-    return null;
-  }
+});
 
-  it("a raw province too small to levy still reads 소화 중, not +0명 (rawness must win the precedence)", () => {
-    mountArmyApp(root, { seed: 23 });
-    // pickNation() (the first *offered*, id-sorted nation) is not the nation this scenario was
-    // proven against; use the same "first owned province" nation the scratch run that found it used.
-    const firstOwned = [...root.querySelectorAll(".army-prov")]
-      .find((el) => el.getAttribute("data-polity") !== "-1") as SVGElement;
-    firstOwned.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    const target = pushUntilUnderpopulatedRaw(20);
-    expect(target).toBeTruthy();                           // the drive must actually reach the state
-    target!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    const btn = root.querySelector("button.army-levy") as HTMLButtonElement;
-    expect(btn).toBeTruthy();
-    expect(btn.disabled).toBe(true);
-    expect(btn.textContent).toContain("소화 중");
-    expect(btn.textContent).not.toContain("+0명");          // the precedence bug's symptom
+// levyLabel is the pure decision behind the button text above. Unit-testing it directly (rather
+// than driving the real UI to a lucky combination of raw + underpopulated on some seed) is exactly
+// how this file already handled the same kind of display-precedence question for leadWarning: no
+// mocking, no seed-luck, and a rebalance of MILITIA_FRAC/RAW_MILITIA_FRAC can no longer break the
+// test by changing which seed/turn reaches the state.
+describe("levyLabel (which of the three button texts wins, in order of precedence)", () => {
+  it("shows the levy amount when levying is allowed", () => {
+    expect(levyLabel({ canLevy: true, raw: false, amount: 42 })).toBe("징집 (+42명, 인구 −42)");
+  });
+
+  it("raw wins over everything else, even a nonzero amount", () => {
+    expect(levyLabel({ canLevy: false, raw: true, amount: 42 })).toBe("소화 중 — 아직 징집할 수 없습니다");
+  });
+
+  it("raw AND amount === 0 still reads as raw, not +0명 (the precedence bug's exact case)", () => {
+    expect(levyLabel({ canLevy: false, raw: true, amount: 0 })).toBe("소화 중 — 아직 징집할 수 없습니다");
+    expect(levyLabel({ canLevy: false, raw: true, amount: 0 })).not.toContain("+0명");
+  });
+
+  it("not raw but amount === 0 (province too small to levy) shows the +0명 form", () => {
+    expect(levyLabel({ canLevy: false, raw: false, amount: 0 })).toBe("징집 (+0명, 인구 −0)");
+  });
+
+  it("not raw, amount > 0, but already levied this turn reads as done", () => {
+    expect(levyLabel({ canLevy: false, raw: false, amount: 42 })).toBe("징집 완료 (이번 턴)");
   });
 });
 
