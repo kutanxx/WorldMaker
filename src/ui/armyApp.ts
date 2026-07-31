@@ -31,7 +31,7 @@ export function levyLabel({ canLevy, raw, amount }: { canLevy: boolean; raw: boo
     ? `징집 (+${amount}명, 인구 −${amount})`
     // two different reasons the button is dead, and the player needs to tell them apart: one
     // clears next turn, the other clears when the realm has digested what it swallowed.
-    : raw ? "소화 중 — 아직 징집할 수 없습니다"
+    : raw ? "소화 중 — 징집 불가, 주민도 싸우지 않음"
     : amount === 0 ? `징집 (+${amount}명, 인구 −${amount})`
     : "징집 완료 (이번 턴)";
 }
@@ -154,13 +154,11 @@ export function mountArmyApp(root: HTMLElement, opts: { seed?: number } = {}): v
         });
         // ⌛ on the number rather than a new map layer: the label is already where this province's
         // numbers live, and a raw province's population is exactly the number that is not available.
-        // Scoped to the player's own land (`mine`), not every raw province in the theater: raw land
-        // defends exactly as normal (militiaOf/defenceOf never consult `raw`), so an enemy's
-        // hourglass conveys nothing the player can act on — and worse, it would make the on-map
-        // hourglass count disagree with the HUD's "소화 대기 N", which only counts the player's own
-        // backlog. data-raw stays set for every province regardless (it is a test hook, not a
-        // visual), only the glyph is scoped.
-        const digesting = mine && isRaw(s, p) ? "⌛" : "";
+        // Shown for EVERY nation's raw land, not just the player's: raw land musters no militia, so
+        // an enemy's hourglass marks the softest target on the board — the most actionable thing
+        // this feature produces. The HUD's counter says "내 소화 대기" precisely so that showing all
+        // of them here cannot be read as a claim about the player's own backlog.
+        const digesting = isRaw(s, p) ? "⌛" : "";
         label.textContent = army
           ? `${digesting}${Math.round(s.pop[p])}·⚔${army.men}`
           : `${digesting}${Math.round(s.pop[p])}`;
@@ -296,9 +294,12 @@ export function mountArmyApp(root: HTMLElement, opts: { seed?: number } = {}): v
     // Being in front now changes how the AI plays, so it has to be on screen: an unannounced
     // dogpile reads as the game being unfair rather than as a rule the player can play around.
     const leadSeg = leadWarning(AI_LEADER_BIAS, raceLeader(s) === me);
-    // Only when there is one: a permanent "소화 대기 0" is noise, and this line is already long.
+    // Only when there is one: a permanent "내 소화 대기 0" is noise, and this line is already long.
+    // "내" (mine) is load-bearing: the map now marks every nation's raw land with ⌛, so without the
+    // possessive this counter would read as a claim about the whole theater instead of the player's
+    // own backlog, which is the only thing it actually counts.
     const backlog = backlogOf(s, me);
-    const digestSeg = backlog > 0 ? ` · 소화 대기 ${backlog}` : "";
+    const digestSeg = backlog > 0 ? ` · 내 소화 대기 ${backlog}` : "";
     const hud = document.createElement("div");
     hud.className = "army-hud";
     hud.dataset.nation = String(me);

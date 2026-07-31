@@ -162,7 +162,7 @@ describe("armyApp (prototype loop: levy -> march -> end turn)", () => {
     mountArmyApp(root, { seed: 11 });
     pickNation();
     expect(root.querySelector('.army-prov[data-raw="1"]')).toBeNull();
-    expect(root.querySelector(".army-hud")!.textContent).not.toContain("소화 대기");
+    expect(root.querySelector(".army-hud")!.textContent).not.toContain("내 소화 대기");
     expect(root.querySelector(".army-map")!.textContent).not.toContain("⌛");
   });
 
@@ -179,7 +179,7 @@ describe("armyApp (prototype loop: levy -> march -> end turn)", () => {
       expect(label?.textContent).toContain("⌛");
     }
     // and the HUD counts exactly the player's own backlog, not the whole world's
-    expect(root.querySelector(".army-hud")!.textContent).toContain(`소화 대기 ${raw.length}`);
+    expect(root.querySelector(".army-hud")!.textContent).toContain(`내 소화 대기 ${raw.length}`);
   });
 
   it("the levy button says why it is unavailable, instead of just being dead", () => {
@@ -194,13 +194,13 @@ describe("armyApp (prototype loop: levy -> march -> end turn)", () => {
     expect(btn.textContent).not.toContain("징집 완료");   // the two reasons must not be confused
   });
 
-  it("an AI-owned raw province gets no hourglass, even though data-raw is set on it for the test hook", () => {
+  it("an AI-owned raw province gets the hourglass too, not just the data-raw test hook", () => {
     mountArmyApp(root, { seed: 11 });
     pickNation();
     // seed 11's neighbouring AI nations start fighting each other immediately: the very first
-    // end-turn click already leaves someone's raw conquest on the map. Raw land defends exactly
-    // like normal land (militiaOf/defenceOf never consult `raw`), so the marker is only meaningful
-    // — and only counted by the HUD's "소화 대기 N" — for the player's own backlog.
+    // end-turn click already leaves someone's raw conquest on the map. Raw land musters no militia
+    // regardless of who holds it, so the marker is shown for every nation's raw land — it is the
+    // HUD's "내 소화 대기 N" that is scoped to the player's own backlog, not the map marker.
     (root.querySelector("button.army-end") as HTMLButtonElement)
       .dispatchEvent(new MouseEvent("click", { bubbles: true }));
     const enemyRaw = root.querySelector('.army-prov[data-mine="0"][data-raw="1"]');
@@ -208,7 +208,46 @@ describe("armyApp (prototype loop: levy -> march -> end turn)", () => {
     const id = enemyRaw!.getAttribute("data-prov");
     const label = root.querySelector(`.army-num[data-prov="${id}"]`);
     expect(label).toBeTruthy();                           // it must be inside the rendered theater
-    expect(label!.textContent).not.toContain("⌛");
+    expect(label!.textContent).toContain("⌛");
+  });
+
+  it("marks an enemy's fresh conquest too — it is now the softest target on the board", () => {
+    mountArmyApp(root, { seed: 11 });
+    pickNation();
+    let enemyRaw: Element[] = [];
+    for (let t = 0; t < 12 && enemyRaw.length === 0; t++) {
+      const end = root.querySelector("button.army-end") as HTMLButtonElement | null;
+      if (!end) break;
+      end.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      enemyRaw = [...root.querySelectorAll('.army-prov[data-raw="1"][data-mine="0"]')];
+    }
+    // the AI conquers within 12 turns on seed 11; if it ever stops, this fails loudly rather
+    // than skipping the assertions below
+    expect(enemyRaw.length).toBeGreaterThan(0);
+    const labelled = enemyRaw
+      .map((e) => root.querySelector(`.army-num[data-prov="${e.getAttribute("data-prov")}"]`))
+      .filter(Boolean);
+    expect(labelled.length).toBeGreaterThan(0);   // in-theater raw land carries a label
+    for (const l of labelled) expect(l!.textContent).toContain("⌛");
+  });
+
+  it("the HUD counts only the player's own backlog, and its label says so", () => {
+    mountArmyApp(root, { seed: 11 });
+    pickNation();
+    expect(pushUntilCapture(12)).toBe(true);
+    expect(root.querySelector(".army-hud")!.textContent).toContain(`내 소화 대기 ${myRaw().length}`);
+  });
+
+  it("a selected raw province reads 민병 0 and the levy button names both consequences", () => {
+    mountArmyApp(root, { seed: 11 });
+    pickNation();
+    expect(pushUntilCapture(12)).toBe(true);
+    myRaw()[0].dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    expect(root.querySelector(".army-sel")!.textContent).toContain("민병 0");
+    const btn = root.querySelector("button.army-levy") as HTMLButtonElement;
+    expect(btn.disabled).toBe(true);
+    expect(btn.textContent).toContain("소화 중");
+    expect(btn.textContent).toContain("주민도 싸우지 않음");   // the consequence that can lose the province
   });
 
 });
@@ -224,11 +263,11 @@ describe("levyLabel (which of the three button texts wins, in order of precedenc
   });
 
   it("raw wins over everything else, even a nonzero amount", () => {
-    expect(levyLabel({ canLevy: false, raw: true, amount: 42 })).toBe("소화 중 — 아직 징집할 수 없습니다");
+    expect(levyLabel({ canLevy: false, raw: true, amount: 42 })).toBe("소화 중 — 징집 불가, 주민도 싸우지 않음");
   });
 
   it("raw AND amount === 0 still reads as raw, not +0명 (the precedence bug's exact case)", () => {
-    expect(levyLabel({ canLevy: false, raw: true, amount: 0 })).toBe("소화 중 — 아직 징집할 수 없습니다");
+    expect(levyLabel({ canLevy: false, raw: true, amount: 0 })).toBe("소화 중 — 징집 불가, 주민도 싸우지 않음");
     expect(levyLabel({ canLevy: false, raw: true, amount: 0 })).not.toContain("+0명");
   });
 
