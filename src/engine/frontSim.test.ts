@@ -445,6 +445,21 @@ describe("frontSim opponents and victory", () => {
     expect(shareOf(s, nation)).toBeCloseTo(s.tiles[nation] / total, 9);
   });
 
+  it("caches the land total instead of rescanning, and it survives ownership changes", () => {
+    const s = fresh(11);
+    const before = landTotal(s);
+    // Independent full recount — the value the cache must agree with, both now and after territory
+    // moves between nations (land total counts non-sea cells; it does not care who owns them).
+    expect(before).toBe([...s.owner].filter((o) => o !== SEA).length);
+    const nations = [...new Set([...s.owner].filter((o) => o >= 0))].sort((a, b) => a - b);
+    const from = nations[0], to = nations[1];
+    const cells = [...Array(s.n).keys()].filter((c) => s.owner[c] === from).slice(0, 5);
+    expect(cells.length).toBeGreaterThan(0);   // or the transfer below tests nothing
+    for (const c of cells) setOwner(s, c, to);
+    expect(landTotal(s)).toBe(before);
+    expect(landTotal(s)).toBe([...s.owner].filter((o) => o !== SEA).length);
+  });
+
   it("has the AI open fronts, and never for the player", () => {
     const s = fresh(11);
     const player = [...s.owner].find((o) => o >= 0)!;
@@ -474,6 +489,109 @@ describe("frontSim opponents and victory", () => {
     const oneCell = [...Array(s.n).keys()].find((c) => s.owner[c] === rival)!;
     setOwner(s, oneCell, player);          // the player survives but is nowhere near winning
     expect(outcome(s, player)).toEqual({ kind: "outpaced", by: rival });
+  });
+
+  it("names the rival actually leading, not the lowest id, when two are both over the line", () => {
+    const s = fresh(11);
+    const nations = [...new Set([...s.owner].filter((o) => o >= 0))].sort((a, b) => a - b);
+    expect(nations.length).toBeGreaterThanOrEqual(3);   // need a player plus two distinct rivals
+    const player = nations[0], lo = nations[1], hi = nations[2];
+    expect(hi).toBeGreaterThan(lo);   // the fixture depends on the higher-id rival ending up ahead
+    for (let c = 0; c < s.n; c++) if (s.owner[c] !== SEA) setOwner(s, c, lo);
+    const total = landTotal(s);
+    const land = [...Array(s.n).keys()].filter((c) => s.owner[c] !== SEA);
+    setOwner(s, land[0], player);          // player survives on a single cell
+    // Split what is left between lo and hi: lo keeps just enough to stay over VICTORY_SHARE, hi gets
+    // the (larger) remainder — so a first-match-by-id scan would wrongly report `lo`.
+    const loCells = [...Array(s.n).keys()].filter((c) => s.owner[c] === lo);
+    const loKeep = Math.ceil(total * VICTORY_SHARE) + 5;
+    expect(loKeep).toBeLessThan(loCells.length);   // margin exists for hi to end up with more
+    for (let i = loKeep; i < loCells.length; i++) setOwner(s, loCells[i], hi);
+    expect(shareOf(s, lo)).toBeGreaterThanOrEqual(VICTORY_SHARE);
+    expect(shareOf(s, hi)).toBeGreaterThan(shareOf(s, lo));   // hi is the one actually leading
+    expect(outcome(s, player)).toEqual({ kind: "outpaced", by: hi });
+  });
+
+  // Deliberate fixtures for pinning aiStep's target-selection contract, rather than relying on
+  // whatever neighbours the generated map happens to give nation 0: build a small owned block for
+  // nation `a` and hand its bordering cells to specific other nations (or leave them unowned) so
+  // the test controls exactly what candidates aiStep sees.
+  function growBlock(s: ReturnType<typeof fresh>, owner: number, size: number, land: number[]) {
+    setOwner(s, land[0], owner);
+    for (let i = 1; i < land.length && s.tiles[owner] < size; i++) {
+      if (s.world.grid.neighbors[land[i]].some((q) => s.owner[q] === owner)) setOwner(s, land[i], owner);
+    }
+  }
+
+  // `a` (nation 0) owns a compact block; every land cell touching it is handed alternately to `b`
+  // (nation 1) and `c` (nation 2), so `a` borders exactly two nations and nothing unowned.
+  function twoNationFixture(seed: number) {
+    const s = fresh(seed);
+    const a = 0, b = 1, c = 2;
+    for (let cell = 0; cell < s.n; cell++) if (s.owner[cell] !== SEA) setOwner(s, cell, UNOWNED);
+    const land = [...Array(s.n).keys()].filter((cell) => s.owner[cell] !== SEA);
+    growBlock(s, a, 12, land);
+    let toggle = 0;
+    for (let cell = 0; cell < s.n; cell++) {
+      if (s.owner[cell] !== UNOWNED) continue;
+      if (s.world.grid.neighbors[cell].some((q) => s.owner[q] === a)) {
+        setOwner(s, cell, toggle % 2 === 0 ? b : c);
+        toggle++;
+      }
+    }
+    expect(s.tiles[b]).toBeGreaterThan(0);
+    expect(s.tiles[c]).toBeGreaterThan(0);
+    s.troops[a] = 1000;
+    return { s, a, b, c };
+  }
+
+  // Same block for `a`, but only SOME of its bordering cells go to `b` — the rest are left unowned,
+  // so `a` borders both a nation and empty land.
+  function nationAndUnownedFixture(seed: number) {
+    const s = fresh(seed);
+    const a = 0, b = 1;
+    for (let cell = 0; cell < s.n; cell++) if (s.owner[cell] !== SEA) setOwner(s, cell, UNOWNED);
+    const land = [...Array(s.n).keys()].filter((cell) => s.owner[cell] !== SEA);
+    growBlock(s, a, 12, land);
+    const touching = [...Array(s.n).keys()].filter((cell) =>
+      s.owner[cell] === UNOWNED && s.world.grid.neighbors[cell].some((q) => s.owner[q] === a));
+    expect(touching.length).toBeGreaterThan(1);   // need at least one cell left unowned after this
+    setOwner(s, touching[0], b);                  // just one cell becomes a (very weak) nation
+    expect(s.tiles[b]).toBe(1);
+    s.troops[a] = 1000;
+    return { s, a, b };
+  }
+
+  // No real "player" in these fixtures — passing an id no nation ever has (-1) lets every AI nation
+  // that owns land act, and the assertions only look at what `a` did.
+  const NO_PLAYER = -1;
+
+  it("picks the weaker of two reachable nations to attack", () => {
+    const { s, a, b, c } = twoNationFixture(11);
+    s.troops[b] = 50; s.troops[c] = 900;   // b is unambiguously the weaker target
+    aiStep(s, NO_PLAYER);
+    const atk = s.attacks.find((x) => x.attacker === a);
+    expect(atk).toBeDefined();
+    expect(atk!.target).toBe(b);
+  });
+
+  it("prefers unowned land over an even weaker nation", () => {
+    const { s, a, b } = nationAndUnownedFixture(11);
+    s.troops[b] = 1;   // about as weak as a nation can be, yet still loses to empty land
+    aiStep(s, NO_PLAYER);
+    const atk = s.attacks.find((x) => x.attacker === a);
+    expect(atk).toBeDefined();
+    expect(atk!.target).toBe(UNOWNED);
+  });
+
+  it("breaks a tie between two equally weak nations by attacking the lower id", () => {
+    const { s, a, b, c } = twoNationFixture(11);
+    s.troops[b] = 300; s.troops[c] = 300;   // exactly tied
+    expect(b).toBeLessThan(c);
+    aiStep(s, NO_PLAYER);
+    const atk = s.attacks.find((x) => x.attacker === a);
+    expect(atk).toBeDefined();
+    expect(atk!.target).toBe(b);
   });
 
   it("stays deterministic with the AI running", () => {

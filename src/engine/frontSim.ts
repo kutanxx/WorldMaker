@@ -36,20 +36,25 @@ export interface FrontState {
   troops: Float64Array;   // nation -> troop pool
   attacks: Attack[];
   tick: number;
+  landCount: number;      // non-sea cell count, fixed for the life of a game: SEA is assigned only
+                           // here in initFrontSim and nothing ever assigns it afterward, so land never
+                           // becomes sea or vice versa. Computed once so landTotal need not rescan.
 }
 
 export function initFrontSim(world: World): FrontState {
   const n = world.grid.count;
   const owner = new Int32Array(n);
   const tiles = new Int32Array(world.polities.length);
+  let landCount = 0;
   for (let c = 0; c < n; c++) {
     if (world.terrain[c] === OCEAN) { owner[c] = SEA; continue; }
+    landCount++;
     const p = world.polityOf[c];
     owner[c] = p >= 0 && p < tiles.length ? p : UNOWNED;
     if (owner[c] >= 0) tiles[owner[c]]++;
   }
   const troops = new Float64Array(tiles.length).fill(TROOP_BASE / 2);
-  return { world, n, owner, tiles, troops, attacks: [], tick: 0 };
+  return { world, n, owner, tiles, troops, attacks: [], tick: 0, landCount };
 }
 
 // The only way ownership changes. Going through one door is what keeps `tiles` from drifting out of
@@ -192,9 +197,7 @@ export function tick(s: FrontState): void {
 export const VICTORY_SHARE = 0.4;
 
 export function landTotal(s: FrontState): number {
-  let k = 0;
-  for (let c = 0; c < s.n; c++) if (s.owner[c] !== SEA) k++;
-  return k;
+  return s.landCount;
 }
 
 export function shareOf(s: FrontState, nation: number): number {
@@ -209,14 +212,20 @@ export type Outcome =
   | null;
 
 // Death first, then your own win, then a rival's. Ties go to the player, who is checked first.
+// When more than one rival is over the line — arithmetically possible — the player is told about
+// whichever is actually leading, not whichever happens to have the smallest id: scan every rival
+// and keep the largest share seen, with a strict `>` so the first (lowest-id) rival at a given
+// share wins any tie.
 export function outcome(s: FrontState, playerNation: number): Outcome {
   if ((s.tiles[playerNation] ?? 0) === 0) return { kind: "defeat" };
   if (shareOf(s, playerNation) >= VICTORY_SHARE) return { kind: "victory" };
+  let leader = -1, leaderShare = -1;
   for (let p = 0; p < s.tiles.length; p++) {
     if (p === playerNation) continue;
-    if (shareOf(s, p) >= VICTORY_SHARE) return { kind: "outpaced", by: p };
+    const share = shareOf(s, p);
+    if (share >= VICTORY_SHARE && share > leaderShare) { leaderShare = share; leader = p; }
   }
-  return null;
+  return leader >= 0 ? { kind: "outpaced", by: leader } : null;
 }
 
 // Deliberately simple, in the spirit of the army game's AI: each nation that is not already pushing
