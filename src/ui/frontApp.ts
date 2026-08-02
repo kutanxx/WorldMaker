@@ -1,8 +1,8 @@
 import { generateWorld } from "../engine/world";
 import { DEFAULT_PARAMS } from "../types/world";
 import {
-  initFrontSim, tick, aiStep, startAttack, outcome, maxTroops, regenPerTick,
-  SEA, UNOWNED, TICK_HZ, type FrontState,
+  initFrontSim, tick, aiStep, startAttack, cancelAttack, outcome, maxTroops, regenPerTick,
+  goalGain, gainOf, SEA, UNOWNED, TICK_HZ, type FrontState,
 } from "../engine/frontSim";
 import { nationColor, PLAYER_COLOR } from "./nationPalette";
 
@@ -26,12 +26,43 @@ export function paintPlan(s: FrontState, player: number): { cell: number; fill: 
 // getContext("2d") is always null, which makes ctx.isPointInPath untestable — but the decision of
 // what a click DOES (attack, or nothing) does not need a canvas at all, so it is pulled out here the
 // same way paintPlan pulls the paint decision out of draw(). Returns the nation id to attack, or
-// null when the click should do nothing: out of range, sea, or the player's own land.
+// null when the click should do nothing: out of range, sea, the player's own land, or the game
+// already being over. The outcome check lives HERE rather than in each event handler so both the
+// left-click (attack) and right-click (cancel) paths go inert together, for free, by sharing this
+// one function — and so the guard can be tested without a canvas at all: a click on a real rival
+// cell against a state that already has an outcome must still return null.
 export function clickTarget(s: FrontState, player: number, cell: number): number | null {
+  if (outcome(s, player)) return null;
   if (cell < 0 || cell >= s.n) return null;
   const o = s.owner[cell];
   if (o === SEA || o === player) return null;
   return o;
+}
+
+// The player's own live fronts, ascending by target so the HUD reads in a stable order even though
+// `s.attacks` itself can reshuffle (re-committing against an existing front splices it out and
+// re-pushes at the end). Troops rounded for display only — the engine keeps the exact float.
+export function playerFronts(s: FrontState, player: number): { target: number; pool: number }[] {
+  return s.attacks
+    .filter((a) => a.attacker === player)
+    .map((a) => ({ target: a.target, pool: Math.round(a.pool) }))
+    .sort((a, b) => a.target - b.target);
+}
+
+// The rival actually being raced toward the same goal, mirroring `leadingRival` in armySim.ts for
+// the identical HUD problem — that function lives in the engine because armySim's goal is scoped to
+// a theater; frontSim has no such scope, and the constraint here is "do not touch frontSim.ts", so
+// the equivalent is built from frontSim's exported primitives (`gainOf`) instead of duplicated there.
+// Ascending nation id with a strict `>` so ties go to the lower id, same tie-break as armySim's.
+// Dead nations (no tiles) are not a rival worth naming.
+export function leadingRival(s: FrontState, player: number): { nation: number; gained: number } | null {
+  let best: { nation: number; gained: number } | null = null;
+  for (let n = 0; n < s.tiles.length; n++) {
+    if (n === player || s.tiles[n] === 0) continue;
+    const gained = gainOf(s, n);
+    if (!best || gained > best.gained) best = { nation: n, gained };
+  }
+  return best;
 }
 
 // A backgrounded tab can deliver a `now - last` gap of minutes when it resumes. Without a clamp,
@@ -101,33 +132,75 @@ export function mountFrontApp(root: HTMLElement, opts: { seed?: number } = {}): 
     }
   }
 
+  // Display name for a nation id, including the UNOWNED case that both the front list and the
+  // rival line can hit — unowned land has no polity entry to fall back on.
+  function nationLabel(n: number): string {
+    return n === UNOWNED ? "미개척지" : world.polities[n]?.name ?? String(n);
+  }
+
   function renderHud(): void {
     const pool = Math.round(s.troops[player]);
     const cap = Math.round(maxTroops(s, player));
     const rate = Math.round(regenPerTick(s, player) * TICK_HZ);
+    const goal = goalGain(s);
+    const gained = gainOf(s, player);
+    const gainStr = `${gained >= 0 ? "+" : ""}${gained}`;
+    const fronts = playerFronts(s, player);
+    // Compact by design: a one-line HUD, not a panel — so the label carries "how many" and "against
+    // whom", and the parenthesised list carries "how many troops are out" per front.
+    const frontSeg = fronts.length
+      ? ` · 전선 ${fronts.length}곳: ${fronts.map((f) => `${nationLabel(f.target)} ${f.pool}`).join(", ")}`
+      : "";
+    const rival = leadingRival(s, player);
+    const rivalSeg = rival
+      ? ` · 추격 ${nationLabel(rival.nation)} ${rival.gained >= 0 ? "+" : ""}${rival.gained}/${goal}`
+      : "";
     const oc = outcome(s, player);
     hud.textContent =
-      `병력 ${pool} / ${cap} · +${rate}/s · 영토 ${s.tiles[player]}` +
+      `병력 ${pool} / ${cap} · +${rate}/s · 영토 ${s.tiles[player]} · 정복 ${gainStr}/${goal}` +
+      `${frontSeg}${rivalSeg}` +
       (oc ? ` · ${oc.kind === "victory" ? "승리" : oc.kind === "defeat" ? "패배" : "추월당함"}` : "");
     label.textContent = `${slider.value}% (${Math.round(s.troops[player] * commit)})`;
+    // The map's own CSS class defaults to cursor: pointer; once there is an outcome a click does
+    // nothing (clickTarget already refuses), so the pointer cursor becomes a lie inviting a click
+    // that goes nowhere. An empty string falls back to that class rule when the game is still live.
+    canvas.style.cursor = oc ? "default" : "";
   }
 
   slider.addEventListener("input", () => { commit = Number(slider.value) / 100; renderHud(); });
 
-  canvas.addEventListener("click", (ev) => {
-    if (!ctx) return;
+  // Shared by the left-click (attack) and right-click (cancel) handlers below, so the coordinate
+  // math that converts a DOM event into a cell id exists exactly once.
+  function hitTest(ev: MouseEvent): number {
+    if (!ctx) return -1;
     const rect = canvas.getBoundingClientRect();
     const x = ((ev.clientX - rect.left) / rect.width) * canvas.width;
     const y = ((ev.clientY - rect.top) / rect.height) * canvas.height;
-    let hit = -1;
     for (let c = 0; c < s.n; c++) {
       const path = paths[c];
-      if (path && ctx.isPointInPath(path, x, y)) { hit = c; break; }
+      if (path && ctx.isPointInPath(path, x, y)) return c;
     }
-    // Hit-testing only; clickTarget owns the decision of what the click means.
-    const target = clickTarget(s, player, hit);
+    return -1;
+  }
+
+  canvas.addEventListener("click", (ev) => {
+    // Hit-testing only; clickTarget owns the decision of what the click means — including refusing
+    // once the game has an outcome, so there is nothing more to gate here.
+    const target = clickTarget(s, player, hitTest(ev));
     if (target === null) return;
     startAttack(s, player, target, commit);
+    renderHud();
+  });
+
+  // The natural undo affordance for a commitment that is otherwise irrevocable: right-click a
+  // target you are attacking to call its troops home. preventDefault always fires so the browser's
+  // own context menu never covers the map, win or lose; clickTarget's outcome check is what makes
+  // the cancel itself a no-op once the game is over.
+  canvas.addEventListener("contextmenu", (ev) => {
+    ev.preventDefault();
+    const target = clickTarget(s, player, hitTest(ev));
+    if (target === null) return;
+    cancelAttack(s, player, target);
     renderHud();
   });
 

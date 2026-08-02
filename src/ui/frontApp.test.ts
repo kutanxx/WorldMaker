@@ -1,9 +1,11 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { mountFrontApp, paintPlan, clickTarget } from "./frontApp";
+import { mountFrontApp, paintPlan, clickTarget, playerFronts, leadingRival } from "./frontApp";
 import { generateWorld } from "../engine/world";
 import { DEFAULT_PARAMS } from "../types/world";
-import { initFrontSim, setOwner, SEA, UNOWNED, TICK_HZ, tick } from "../engine/frontSim";
+import {
+  initFrontSim, setOwner, SEA, UNOWNED, TICK_HZ, tick, outcome, goalGain, startAttack,
+} from "../engine/frontSim";
 import { nationColor, PLAYER_COLOR } from "./nationPalette";
 
 // vitest hoists this above the imports above; it wraps the real `tick` so calls can be counted
@@ -78,6 +80,31 @@ describe("frontApp", () => {
     expect(commit).toMatch(/\(\d+\)/);                     // absolute troops in brackets
   });
 
+  it("shows conquest progress toward the goal, and the leading rival's progress toward the same goal", () => {
+    dispose = mountFrontApp(root, { seed: 11 });
+    const text = root.querySelector(".front-hud")!.textContent!;
+    // Fresh mount: nobody has gained anything yet, so both segments read "+0/goal" — but they must
+    // be present at all, which is the whole point of the finding (no progress was shown before).
+    expect(text).toMatch(/정복 [+-]?\d+\/\d+/);
+    expect(text).toMatch(/추격 .+ [+-]?\d+\/\d+/);
+    expect(text).not.toMatch(/전선/); // no committed fronts yet, so the segment should not appear at all
+  });
+
+  it("keeps the pointer cursor available while the game is still live", () => {
+    dispose = mountFrontApp(root, { seed: 11 });
+    const canvas = root.querySelector("canvas.front-map") as HTMLCanvasElement;
+    expect(canvas.style.cursor).not.toBe("default");
+  });
+
+  it("right-click on the map always prevents the browser's own context menu, live or not", () => {
+    dispose = mountFrontApp(root, { seed: 11 });
+    const canvas = root.querySelector("canvas.front-map")!;
+    const ev = new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: 0, clientY: 0 });
+    const spy = vi.spyOn(ev, "preventDefault");
+    canvas.dispatchEvent(ev);
+    expect(spy).toHaveBeenCalled();
+  });
+
   it("moving the slider changes the troops it says it will send", () => {
     dispose = mountFrontApp(root, { seed: 11 });
     const slider = root.querySelector("input.front-commit") as HTMLInputElement;
@@ -127,6 +154,112 @@ describe("frontApp", () => {
       const player = [...s.owner].find((o) => o >= 0)!;
       expect(clickTarget(s, player, -1)).toBeNull();
       expect(clickTarget(s, player, s.n)).toBeNull();
+    });
+
+    // The map must go inert once there is an outcome: a click that still ran startAttack would
+    // deduct troops and repaint the HUD for a simulation that will never step again. clickTarget is
+    // where both the click and the right-click handlers get this guard, so it is the guard to pin.
+    describe("once the game has an outcome", () => {
+      it("returns null instead of a target when the player has been defeated, and a click changes nothing", () => {
+        const s = initFrontSim(generateWorld({ ...DEFAULT_PARAMS, seed: 11 }).world);
+        const nations = [...new Set([...s.owner].filter((o) => o >= 0))].sort((a, b) => a - b);
+        const player = nations[0], rival = nations[1];
+        // Hand every one of the player's cells to a rival: the only way to reach s.tiles[player] === 0
+        // without touching frontSim's internals directly.
+        for (let c = 0; c < s.n; c++) if (s.owner[c] === player) setOwner(s, c, rival);
+        expect(outcome(s, player)).toEqual({ kind: "defeat" });
+        const theirs = [...Array(s.n).keys()].find((c) => s.owner[c] === rival)!;
+        const troopsBefore = s.troops[player];
+        expect(clickTarget(s, player, theirs)).toBeNull();
+        // What the real click handler does with a null target: nothing. Pin that a click landing on
+        // a perfectly valid rival cell still leaves the player's pool untouched once defeated.
+        expect(s.troops[player]).toBe(troopsBefore);
+      });
+
+      it("returns null instead of a target once the player has won, and a click changes nothing", () => {
+        const s = initFrontSim(generateWorld({ ...DEFAULT_PARAMS, seed: 11 }).world);
+        const nations = [...new Set([...s.owner].filter((o) => o >= 0))].sort((a, b) => a - b);
+        const player = nations[0];
+        const goal = goalGain(s);
+        const grabbable = [...Array(s.n).keys()].filter((c) => s.owner[c] !== SEA && s.owner[c] !== player);
+        expect(grabbable.length).toBeGreaterThanOrEqual(goal); // sanity: this seed has enough land to win from
+        for (const c of grabbable.slice(0, goal)) setOwner(s, c, player);
+        expect(outcome(s, player)).toEqual({ kind: "victory" });
+        const stillHostile = [...Array(s.n).keys()].find((c) => s.owner[c] !== SEA && s.owner[c] !== player)!;
+        const troopsBefore = s.troops[player];
+        expect(clickTarget(s, player, stillHostile)).toBeNull();
+        expect(s.troops[player]).toBe(troopsBefore);
+      });
+
+      it("returns null instead of a target once outpaced by a rival who reached the goal first", () => {
+        const s = initFrontSim(generateWorld({ ...DEFAULT_PARAMS, seed: 11 }).world);
+        const nations = [...new Set([...s.owner].filter((o) => o >= 0))].sort((a, b) => a - b);
+        const player = nations[0], rival = nations[1];
+        const goal = goalGain(s);
+        const grabbable = [...Array(s.n).keys()]
+          .filter((c) => s.owner[c] !== SEA && s.owner[c] !== player && s.owner[c] !== rival);
+        expect(grabbable.length).toBeGreaterThanOrEqual(goal);
+        for (const c of grabbable.slice(0, goal)) setOwner(s, c, rival);
+        expect(outcome(s, player)).toEqual({ kind: "outpaced", by: rival });
+        const theirs = [...Array(s.n).keys()].find((c) => s.owner[c] === rival)!;
+        expect(clickTarget(s, player, theirs)).toBeNull();
+      });
+    });
+  });
+
+  describe("playerFronts", () => {
+    it("is empty when the player has no live attacks", () => {
+      const s = initFrontSim(generateWorld({ ...DEFAULT_PARAMS, seed: 11 }).world);
+      const player = [...s.owner].find((o) => o >= 0)!;
+      expect(playerFronts(s, player)).toEqual([]);
+    });
+
+    it("lists the player's own fronts, not a rival's, with the troops committed", () => {
+      const s = initFrontSim(generateWorld({ ...DEFAULT_PARAMS, seed: 11 }).world);
+      const nations = [...new Set([...s.owner].filter((o) => o >= 0))].sort((a, b) => a - b);
+      const player = nations[0], rival = nations[1];
+      expect(startAttack(s, player, rival, 0.3)).toBe(true);
+      expect(startAttack(s, rival, player, 0.3)).toBe(true); // a rival's own front — must not leak in
+      const fronts = playerFronts(s, player);
+      expect(fronts).toHaveLength(1);
+      expect(fronts[0].target).toBe(rival);
+      expect(fronts[0].pool).toBeGreaterThan(0);
+    });
+  });
+
+  describe("leadingRival", () => {
+    it("returns the rival with the greatest gain, not merely the nearest neighbour", () => {
+      const s = initFrontSim(generateWorld({ ...DEFAULT_PARAMS, seed: 11 }).world);
+      const nations = [...new Set([...s.owner].filter((o) => o >= 0))].sort((a, b) => a - b);
+      if (nations.length < 3) return; // this seed needs at least two rivals; nothing to compare otherwise
+      const [player, rivalA, rivalB] = nations;
+      const empty = [...Array(s.n).keys()].filter((c) => s.owner[c] === UNOWNED);
+      if (empty.length < 4) return; // needs enough unclaimed land to give the two rivals different gains
+      setOwner(s, empty[0], rivalA);
+      setOwner(s, empty[1], rivalB);
+      setOwner(s, empty[2], rivalB);
+      setOwner(s, empty[3], rivalB);
+      expect(leadingRival(s, player)).toEqual({ nation: rivalB, gained: 3 });
+    });
+
+    it("breaks a tie by the lower nation id", () => {
+      const s = initFrontSim(generateWorld({ ...DEFAULT_PARAMS, seed: 11 }).world);
+      const nations = [...new Set([...s.owner].filter((o) => o >= 0))].sort((a, b) => a - b);
+      if (nations.length < 3) return;
+      const [player, rivalA] = nations;
+      // Nobody has gained anything yet, so every living rival is tied at 0 — the lowest id must win.
+      expect(leadingRival(s, player)).toEqual({ nation: rivalA, gained: 0 });
+    });
+
+    it("excludes a rival that has been fully conquered", () => {
+      const s = initFrontSim(generateWorld({ ...DEFAULT_PARAMS, seed: 11 }).world);
+      const nations = [...new Set([...s.owner].filter((o) => o >= 0))].sort((a, b) => a - b);
+      if (nations.length < 3) return;
+      const [player, rivalA, rivalB] = nations;
+      for (let c = 0; c < s.n; c++) if (s.owner[c] === rivalA) setOwner(s, c, player);
+      const result = leadingRival(s, player);
+      expect(result?.nation).not.toBe(rivalA);
+      expect(result?.nation).toBe(rivalB);
     });
   });
 
