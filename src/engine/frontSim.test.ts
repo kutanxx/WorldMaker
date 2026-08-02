@@ -575,6 +575,23 @@ describe("frontSim opponents and victory", () => {
     expect(atk!.target).toBe(b);
   });
 
+  it("picks the weaker nation even when it sits at the higher id", () => {
+    // Same fixture as above with the troop levels inverted: c (the higher id) is now the weaker
+    // target. A tie-break-only implementation that forgets the score comparison would pick b (the
+    // lower id) here and this test would catch it, unlike the version above where the weakest
+    // nation and the lowest id happen to be the same candidate.
+    const { s, a, b, c } = twoNationFixture(11);
+    s.troops[b] = 900; s.troops[c] = 50;   // c is unambiguously the weaker target despite the higher id
+    aiStep(s, NO_PLAYER);
+    const atk = s.attacks.find((x) => x.attacker === a);
+    expect(atk).toBeDefined();
+    expect(atk!.target).toBe(c);
+  });
+
+  // This test cannot separate "prefers unowned" from "prefers the lowest id": UNOWNED is -1 and every
+  // real nation id is >= 0, so unowned land is *always* the lowest-id candidate whenever it appears —
+  // no fixture can put a nation below it. The two contracts happen to coincide here by construction of
+  // the id space, not by an accident of this particular map.
   it("prefers unowned land over an even weaker nation", () => {
     const { s, a, b } = nationAndUnownedFixture(11);
     s.troops[b] = 1;   // about as weak as a nation can be, yet still loses to empty land
