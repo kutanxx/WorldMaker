@@ -86,7 +86,12 @@ export function borderCells(s: FrontState, attacker: number, target: number): nu
 // Committing is instant and visible: the troops leave the pool now, not when they arrive. Returns
 // false — and costs nothing — when there is nothing to attack across.
 export function startAttack(s: FrontState, attacker: number, target: number, fraction: number): boolean {
-  if (attacker === target || s.troops[attacker] === undefined) return false;
+  // SEA is not a nation and holds no troops: reaching it here would let advanceAttacks treat ocean
+  // cells as unowned land (its only check is `target >= 0`) and permanently annex them as territory.
+  if (attacker === target || target === SEA || s.troops[attacker] === undefined) return false;
+  // A non-finite fraction survives Math.min/Math.max unclamped (NaN <= 0 is false), which would push
+  // a front with pool = NaN that can never advance and never runs out — an attack that lives forever.
+  if (!Number.isFinite(fraction)) return false;
   if (borderCells(s, attacker, target).length === 0) return false;
   const pool = s.troops[attacker] * Math.min(1, Math.max(0, fraction));
   if (pool <= 0) return false;
@@ -96,12 +101,19 @@ export function startAttack(s: FrontState, attacker: number, target: number, fra
   return true;
 }
 
+// The one rule for troops coming back into a reserve, however they get there: a nation can never hold
+// more than its own cap. Without this, cancelling a front after the reserve has regenerated back up
+// is free money — repeat it and the pool grows without bound, defeating the whole point of the cap.
+function refundToPool(s: FrontState, nation: number, amount: number): void {
+  s.troops[nation] = Math.min(maxTroops(s, nation), s.troops[nation] + amount);
+}
+
 // Calling off a front hands its survivors back rather than deleting them, so probing an enemy is not
 // punished by the accounting.
 export function cancelAttack(s: FrontState, attacker: number, target: number): void {
   const i = s.attacks.findIndex((a) => a.attacker === attacker && a.target === target);
   if (i < 0) return;
-  s.troops[attacker] += s.attacks[i].pool;
+  refundToPool(s, attacker, s.attacks[i].pool);
   s.attacks.splice(i, 1);
 }
 
@@ -127,7 +139,16 @@ export function regenPerTick(s: FrontState, nation: number): number {
 function advanceAttacks(s: FrontState): void {
   for (const atk of [...s.attacks]) {
     const border = borderCells(s, atk.attacker, atk.target);
-    if (border.length === 0 || atk.pool <= 0) { s.attacks = s.attacks.filter((x) => x !== atk); continue; }
+    if (border.length === 0) {
+      // The target is gone (fully conquered) or the attacker's own border cells were lost elsewhere —
+      // either way there is nothing left to fight. That is not the same as the pool running out in
+      // combat: refund the survivors, or finishing a conquest would annihilate the army that did it
+      // and cancelling one cell early would always beat seeing the attack through.
+      refundToPool(s, atk.attacker, atk.pool);
+      s.attacks = s.attacks.filter((x) => x !== atk);
+      continue;
+    }
+    if (atk.pool <= 0) { s.attacks = s.attacks.filter((x) => x !== atk); continue; }
     const defence = atk.target >= 0 ? Math.max(1, s.troops[atk.target]) : 0;
     // Unowned land has nobody to hold it, so a front there always runs at full speed.
     const force = defence === 0
