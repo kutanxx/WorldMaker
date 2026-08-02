@@ -6,15 +6,13 @@ import { BIOME_DEF } from "./armySim";
 import { GRASSLAND, ALPINE } from "./biome";
 import {
   initFrontSim, setOwner, maxTroops, regenPerTick, tick, terrainDef,
-  TROOP_BASE, TROOP_EXP, UNOWNED, SEA,
+  TROOP_EXP, TROOP_START_FRAC, UNOWNED, SEA,
 } from "./frontSim";
-
-const INITIAL_TROOPS = TROOP_BASE / 2; // not "the floor" — a nation starts with half the base, not TROOP_BASE itself
 
 const fresh = (seed: number) => initFrontSim(generateWorld({ ...DEFAULT_PARAMS, seed }).world);
 
 describe("frontSim state", () => {
-  it("owns land cell by cell, marks the sea, and starts every nation at half the troop base", () => {
+  it("owns land cell by cell, marks the sea, and starts every nation at a fraction of its own cap", () => {
     const s = fresh(11);
     expect(s.n).toBe(s.world.grid.count);
     for (let c = 0; c < s.n; c++) {
@@ -23,7 +21,16 @@ describe("frontSim state", () => {
     }
     // at least one nation actually holds land, or every later test is vacuous
     expect([...s.tiles].some((k) => k > 0)).toBe(true);
-    expect([...s.troops].every((t) => t === INITIAL_TROOPS)).toBe(true);
+    // Opening strength scales with what a nation holds, so this is per-nation, not one flat number —
+    // pin it against maxTroops itself (computed independently here) rather than a literal, since caps
+    // vary nation to nation on this generator and a single expected value would only fit one of them.
+    // Also confirms two nations of different sizes actually start at different troop counts.
+    const sizes = new Set<number>();
+    for (let p = 0; p < s.troops.length; p++) {
+      expect(s.troops[p]).toBeCloseTo(TROOP_START_FRAC * maxTroops(s, p), 6);
+      sizes.add(s.tiles[p]);
+    }
+    expect(sizes.size).toBeGreaterThan(1); // or the per-nation check above is vacuous too
     expect(s.attacks).toEqual([]);
     expect(s.tick).toBe(0);
   });
@@ -426,13 +433,17 @@ describe("frontSim attacks", () => {
 
   it("pins the shipped tuning constants", () => {
     // Nothing else in this file references these by value, so any of them drifting (say
-    // ATTACK_SPEED going from 0.0075 to 0.05) would change every front's speed with no test noticing.
-    expect(ATTACK_SPEED).toBe(0.0075);
+    // ATTACK_SPEED silently sliding back toward 0.0075) would change every front's speed and every
+    // game's length with no test noticing. Retuned 2026-08-03: ATTACK_SPEED back up from 0.0075
+    // toward its original 0.05 (measurement showed 0.05 itself destabilizes some seeds — see the
+    // spec's "Balance correction" section), with VICTORY_GAIN_FRAC raised from 0.15 to recover a
+    // 2-4 minute game length from the goal instead of from crawling combat.
+    expect(ATTACK_SPEED).toBe(0.02);
     expect(FORCE_MIN).toBe(0.2);
     expect(FORCE_MAX).toBe(3);
     expect(COST_ATK).toBe(1.0);
     expect(COST_DEF).toBe(0.6);
-    expect(VICTORY_GAIN_FRAC).toBe(0.15);
+    expect(VICTORY_GAIN_FRAC).toBe(0.35);
   });
 });
 

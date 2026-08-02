@@ -43,6 +43,11 @@ Three more things only visible in play:
   to 7.57K on the spot. Over-commit and you are naked; under-commit and nothing happens.
 - **Eating a neighbour takes seconds, not a campaign.** A wide shared border absorbed an entire
   nation in 11 seconds. This is absorption, not warfare.
+  *(Correction, 2026-08-03: this framing does not transfer. Measured across the 18 adjacent nation
+  pairs on this generator's map, shared borders run min 5 / median 8 / max 16 cells — nothing here
+  is the wide OpenFront-scale border "eating a neighbour in 11 seconds" assumed. Most fronts on this
+  map fight over a border in the single digits, not a wide one; see "Opening-play correction" below
+  for what that did to the actual play experience.)*
 - **You never move anything.** There are no army units. One troop pool, one click, and the whole
   shared border advances.
 
@@ -183,13 +188,14 @@ corrected numbers and the current constant values.
 | `TROOP_EXP` | 0.6 | taken from OpenFront unchanged — it is the shape, not a magnitude |
 | `TROOP_BASE` | 200 | a floor so a one-cell nation is not starved out instantly |
 | `TROOP_SCALE` | 60 | 20 cells → cap 562; 200 cells → 1,640; 800 cells → 3,540. Ten times the land yields about 2.9× the cap |
+| `TROOP_START_FRAC` | **0.4** (new, 2026-08-03) | fraction of a nation's own cap it starts with — see "Opening-play correction" |
 | `REGEN_BASE` | 1 | keeps a nearly-dead nation twitching |
 | `REGEN_K` | 0.25 | at 500 troops and an empty pool this is ~23/tick, i.e. ~230/s against a cap of ~1,600 |
-| `ATTACK_SPEED` | **0.0075** (was 0.05) | retuned so a typical game lasts 2-4 minutes instead of 25-75 seconds — see "Balance correction" |
+| `ATTACK_SPEED` | **0.02** (2026-08-03; was 0.0075, was originally 0.05) | raised back toward the original after the 0.0075 retune turned out to have slowed every front 6.7×, not just fixed game length — see "Opening-play correction" |
 | `FORCE_MIN` / `FORCE_MAX` | 0.2 / 3 | a hopeless attack still crawls; an overwhelming one is capped so numbers alone cannot instantly delete a nation |
 | `COST_ATK` | 1.0 | attacker pays per cell taken, scaled by terrain |
 | `COST_DEF` | 0.6 | the defender bleeds less per cell than the attacker spends, so attacking is genuinely expensive |
-| `VICTORY_GAIN_FRAC` | **0.15** (replaces `VICTORY_SHARE = 0.4`) | fraction of theater land a nation must *gain* from its own starting count to win — see "Balance correction" |
+| `VICTORY_GAIN_FRAC` | **0.35** (2026-08-03; was 0.15; replaces `VICTORY_SHARE = 0.4`) | fraction of theater land a nation must *gain* from its own starting count to win — raised to put game length back on the goal instead of on combat speed, see "Opening-play correction" |
 
 `terrainDef(cell)` reuses the existing biome defence weighting rather than inventing a second one.
 
@@ -281,6 +287,104 @@ and 7 flipped their win/loss outcome** between the two runs (3: loss to win; 7: 
 effect of `aiStep`'s rivals getting far more ticks to act once the game runs longer, not a defect;
 flagged here because a result flip is the kind of thing measurement write-ups in this repo have
 previously omitted.
+
+## Opening-play correction (2026-08-03)
+
+Live play surfaced a second problem, separate from the balance correction above: **territory did
+not spread.** It grew at one or two spots and crept outward in a thin line from there.
+
+Two measurements explain why:
+
+- **Shared borders on this map are narrow.** Across the 18 adjacent nation pairs generated, border
+  width runs **min 5, median 8, max 16 cells** — this is what the "wide border absorbs a whole
+  nation in eleven seconds" framing borrowed from OpenFront (see the correction note under "What
+  playing it actually showed" above) missed: there is no map-wide wide border here to absorb
+  anything quickly, only narrow ones by default.
+- **Nations started at 4% of their own cap.** `initFrontSim` filled every nation's troop pool with a
+  flat `TROOP_BASE / 2 = 100`, a number written before the cap formula (`maxTroops`) existed and
+  never revisited — against a typical cap in the low thousands, 100 troops is nothing. With a pool
+  that small, `force = pool / troops[target]` clamped to `FORCE_MIN` on nearly every front, and a
+  median-width (8-cell) front took **8.3 seconds per cell** to advance. That is the dead opening the
+  user described.
+
+### Starting troops now scale with the nation, not a flat number
+
+`initFrontSim` now fills each nation's pool to `TROOP_START_FRAC * maxTroops(nation)` — a fraction
+of what that specific nation's own land already supports, instead of one constant shared by a
+1-cell nation and a 40-cell one alike.
+
+The fraction was derived, not picked by feel. `regenPerTick(t) = (REGEN_BASE + t^REGEN_EXP * REGEN_K)
+* (1 - t/max)` peaks partway to the cap — sitting there is where a nation's economy is doing the most
+work per tick, so starting there means a fresh nation begins at its most productive point instead of
+the starved corner the `(1 - t/max)` term was built to punish. Dropping the additive `REGEN_BASE` term
+(negligible once `t` is more than a handful of troops), the peak has a closed form:
+`t/max = REGEN_EXP / (1 + REGEN_EXP) = 0.73 / 1.73 ≈ 0.422`. Measured numerically **with**
+`REGEN_BASE` included, across caps from 562 (a 20-cell nation) to 3,540 (an 800-cell one), the true
+optimum sits at **0.40–0.42** of the cap. `TROOP_START_FRAC = 0.4` was chosen from that range.
+
+### Game length belongs on the goal, not on combat speed
+
+The balance correction above fixed game length by cutting `ATTACK_SPEED` from 0.05 to 0.0075 — a
+6.7× slowdown of every front on the map, opening included, which is the other half of why the game
+felt dead at the start. **Combat speed and game length are different knobs**: `ATTACK_SPEED`
+controls how alive a single front feels tick to tick, while `VICTORY_GAIN_FRAC` controls how much
+territory a game actually requires — stretching a game by making combat crawl pays for length by
+spending the one thing (a responsive front) this whole engine exists to deliver.
+
+`ATTACK_SPEED` is raised back toward 0.05, to **0.02** — not all the way, because at 0.05 the far
+larger starting pools above make the early game so decisive that several seeds' greedy playouts
+either resolved in a few hundred ticks regardless of `VICTORY_GAIN_FRAC`, or (past a `VICTORY_GAIN_FRAC`
+threshold around 0.45) stopped resolving at all within 8,000 ticks — two greedy nations locked in a
+back-and-forth neither could break. `0.02` was the fastest speed that stayed stable across all seven
+measured seeds while still landing typical games in the target window. Game length itself is
+recovered by raising `VICTORY_GAIN_FRAC` from 0.15 to **0.35**, so the goal — not the front — is what
+now sets how long a game runs.
+
+Measured with a throwaway driver (`aiStep` applied to *every* nation each tick, including the one
+being measured — the same greedy "always attack the weakest reachable neighbour with half the pool"
+logic `aiStep` already uses for opponents, run against itself). For each of the seven seeds already
+used in the balance correction above, the tracked nation is the one that started with the most land;
+ticks are counted until `outcome()` returns non-null:
+
+| seed | before (flat troops, `ATTACK_SPEED=0.0075`, `VICTORY_GAIN_FRAC=0.15`) | after (`TROOP_START_FRAC=0.4`, `ATTACK_SPEED=0.02`, `VICTORY_GAIN_FRAC=0.35`) | outcome after |
+|---|---|---|---|
+| 1 | 2,013 ticks | 1,576 ticks | victory |
+| 2 | 4,437 ticks | 1,506 ticks | victory |
+| 3 | 1,606 ticks | 1,827 ticks | outpaced by nation 4 |
+| 4 | 2,135 ticks | **901 ticks** | defeat |
+| 5 | 1,841 ticks | 2,399 ticks | victory |
+| 6 | 1,162 ticks | 1,447 ticks | victory |
+| 7 | 1,721 ticks | 1,217 ticks | outpaced by nation 2 |
+
+Six of the seven land inside the 1,200-2,400 tick (2-4 minute) target, five of them comfortably so.
+**Seed 4 is the one seed that moved against the change**, and by a lot: from 2,135 ticks (outpaced)
+under the old constants to 901 ticks (defeat) under the new ones — the tracked nation is eliminated
+entirely, well under the floor. This is not something `VICTORY_GAIN_FRAC` can fix: elimination
+(`s.tiles[player] === 0`) is independent of the goal fraction, and 901 ticks came out identical
+across every `VICTORY_GAIN_FRAC` value tried in the sweep that produced 0.35. The larger starting
+pools mean an early misstep against a stronger neighbour is now fatal much faster than it was when
+everyone opened at a flat, nearly-defenceless 100 troops — a real behavioural change from committing
+is instant and heavy applying from the very first tick, not a bug in the tuning. It is left as a
+known outlier rather than chased, the same way the prior correction left seed 6 under its own floor
+rather than push seed 5 over its ceiling.
+
+The number the user actually feels — how long it takes a median-width (8-cell) front to take one
+cell, committing the entire pool, from the fresh starting state — dropped from 8.3s (old constants,
+`FORCE_MIN`-clamped) to **0.43-0.91s** across the same seven seeds (`force` now varies 0.68-1.45,
+no longer clamped, because both sides start with troop counts proportional to their own land instead
+of an equal flat number):
+
+| seed | force | ticks/cell | sec/cell |
+|---|---|---|---|
+| 1 | 0.684 | 9.14 | 0.914 |
+| 2 | 1.275 | 4.90 | 0.490 |
+| 3 | 0.923 | 6.77 | 0.677 |
+| 4 | 0.752 | 8.31 | 0.831 |
+| 5 | 0.766 | 8.16 | 0.816 |
+| 6 | 1.185 | 5.27 | 0.527 |
+| 7 | 1.454 | 4.30 | 0.430 |
+
+Every seed lands under a second, most well under it.
 
 ## What this does not do
 

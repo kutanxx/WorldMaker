@@ -13,11 +13,18 @@ export const REGEN_K = 0.25;
 // Growth scales with the pool you already have, but sublinearly, so a large realm does not simply
 // refill proportionally faster than a small one. Taken from the reference game unchanged.
 export const REGEN_EXP = 0.73;
+// Where regenPerTick(t) peaks. Dropping the additive REGEN_BASE term (negligible once t is more than
+// a handful of troops), regen is proportional to t^REGEN_EXP * (1 - t/max), maximised where
+// t/max = REGEN_EXP / (1 + REGEN_EXP) = 0.73/1.73 ~= 0.422. Measured numerically WITH REGEN_BASE
+// included, across caps from 562 (20 cells) to 3540 (800 cells), the true optimum sits at
+// 0.40-0.42 of the cap — 0.4 lands a fresh nation at its most productive point instead of the
+// starved corner regenPerTick was designed to punish.
+export const TROOP_START_FRAC = 0.4;
 
 export const UNOWNED = -1;
 export const SEA = -2;
 
-export const ATTACK_SPEED = 0.0075;
+export const ATTACK_SPEED = 0.02;
 export const FORCE_MIN = 0.2;
 export const FORCE_MAX = 3;
 export const COST_ATK = 1.0;
@@ -57,8 +64,13 @@ export function initFrontSim(world: World): FrontState {
     if (owner[c] >= 0) tiles[owner[c]]++;
   }
   const startCounts = Int32Array.from(tiles);
-  const troops = new Float64Array(tiles.length).fill(TROOP_BASE / 2);
-  return { world, n, owner, tiles, startCounts, troops, attacks: [], tick: 0, landCount };
+  const troops = new Float64Array(tiles.length);
+  const s: FrontState = { world, n, owner, tiles, startCounts, troops, attacks: [], tick: 0, landCount };
+  // Opening strength scales with what a nation actually holds, not a flat number that was four
+  // percent of the cap for anyone starting with real territory. maxTroops only reads s.tiles, which
+  // is already populated above, so this can run before s is returned.
+  for (let p = 0; p < troops.length; p++) troops[p] = TROOP_START_FRAC * maxTroops(s, p);
+  return s;
 }
 
 // The only way ownership changes. Going through one door is what keeps `tiles` from drifting out of
@@ -204,7 +216,7 @@ export function tick(s: FrontState): void {
 // might never get there at all. Additive and start-fair instead, the same fix the army game already
 // made for the identical problem (see `goalGain` in armySim.ts): every nation must gain the same
 // absolute number of cells from wherever it began.
-export const VICTORY_GAIN_FRAC = 0.15;
+export const VICTORY_GAIN_FRAC = 0.35;
 
 export function landTotal(s: FrontState): number {
   return s.landCount;
