@@ -17,7 +17,7 @@ export const REGEN_EXP = 0.73;
 export const UNOWNED = -1;
 export const SEA = -2;
 
-export const ATTACK_SPEED = 0.05;
+export const ATTACK_SPEED = 0.0075;
 export const FORCE_MIN = 0.2;
 export const FORCE_MAX = 3;
 export const COST_ATK = 1.0;
@@ -33,6 +33,9 @@ export interface FrontState {
   n: number;              // cell count
   owner: Int32Array;      // cell -> nation, UNOWNED, or SEA
   tiles: Int32Array;      // nation -> cells held; maintained incrementally, never recounted per tick
+  startCounts: Int32Array; // nation -> cells held at kickoff, fixed for the life of a game: what
+                           // victory measures gain against, so a nation that started big is not
+                           // already sitting near the line and one that started tiny is not shut out.
   troops: Float64Array;   // nation -> troop pool
   attacks: Attack[];
   tick: number;
@@ -53,8 +56,9 @@ export function initFrontSim(world: World): FrontState {
     owner[c] = p >= 0 && p < tiles.length ? p : UNOWNED;
     if (owner[c] >= 0) tiles[owner[c]]++;
   }
+  const startCounts = Int32Array.from(tiles);
   const troops = new Float64Array(tiles.length).fill(TROOP_BASE / 2);
-  return { world, n, owner, tiles, troops, attacks: [], tick: 0, landCount };
+  return { world, n, owner, tiles, startCounts, troops, attacks: [], tick: 0, landCount };
 }
 
 // The only way ownership changes. Going through one door is what keeps `tiles` from drifting out of
@@ -194,7 +198,13 @@ export function tick(s: FrontState): void {
   s.tick++;
 }
 
-export const VICTORY_SHARE = 0.4;
+// Victory is measured by what you GAINED, not by what you happen to hold. A fixed share of the
+// map cannot be fair when starting shares vary four-fold on this generator (measured 9%-37% across
+// seven seeds) — a nation that starts at 37% would need almost nothing, and one that starts at 9%
+// might never get there at all. Additive and start-fair instead, the same fix the army game already
+// made for the identical problem (see `goalGain` in armySim.ts): every nation must gain the same
+// absolute number of cells from wherever it began.
+export const VICTORY_GAIN_FRAC = 0.15;
 
 export function landTotal(s: FrontState): number {
   return s.landCount;
@@ -203,6 +213,18 @@ export function landTotal(s: FrontState): number {
 export function shareOf(s: FrontState, nation: number): number {
   const total = landTotal(s);
   return total === 0 ? 0 : (s.tiles[nation] ?? 0) / total;
+}
+
+// The number of cells any nation must gain, from its own starting count, to win. One number shared
+// by every nation, derived from the theater rather than hand-tuned per map size.
+export function goalGain(s: FrontState): number {
+  return Math.round(VICTORY_GAIN_FRAC * landTotal(s));
+}
+
+// Deliberately NOT clamped at 0: a nation that has shrunk below its start is the losing state, and
+// callers (the HUD included) need to be able to show a negative number rather than a floor of it.
+export function gainOf(s: FrontState, nation: number): number {
+  return (s.tiles[nation] ?? 0) - (s.startCounts[nation] ?? 0);
 }
 
 export type Outcome =
@@ -214,16 +236,17 @@ export type Outcome =
 // Death first, then your own win, then a rival's. Ties go to the player, who is checked first.
 // When more than one rival is over the line — arithmetically possible — the player is told about
 // whichever is actually leading, not whichever happens to have the smallest id: scan every rival
-// and keep the largest share seen, with a strict `>` so the first (lowest-id) rival at a given
-// share wins any tie.
+// and keep the largest gain seen, with a strict `>` so the first (lowest-id) rival at a given
+// gain wins any tie.
 export function outcome(s: FrontState, playerNation: number): Outcome {
   if ((s.tiles[playerNation] ?? 0) === 0) return { kind: "defeat" };
-  if (shareOf(s, playerNation) >= VICTORY_SHARE) return { kind: "victory" };
-  let leader = -1, leaderShare = -1;
+  const goal = goalGain(s);
+  if (gainOf(s, playerNation) >= goal) return { kind: "victory" };
+  let leader = -1, leaderGain = -1;
   for (let p = 0; p < s.tiles.length; p++) {
     if (p === playerNation) continue;
-    const share = shareOf(s, p);
-    if (share >= VICTORY_SHARE && share > leaderShare) { leaderShare = share; leader = p; }
+    const gain = gainOf(s, p);
+    if (gain >= goal && gain > leaderGain) { leaderGain = gain; leader = p; }
   }
   return leader >= 0 ? { kind: "outpaced", by: leader } : null;
 }

@@ -331,7 +331,9 @@ describe("frontSim attacks", () => {
                                              // keeps regeneration's own contribution small
     expect(startAttack(s, a, b, 1)).toBe(true); // commit the entire reserve, so it starts at 0
     const committed = s.attacks[0].pool;
-    for (let t = 0; t < 300 && s.attacks.length > 0; t++) tick(s);
+    // 3000, not 300: at the game-length-tuned ATTACK_SPEED a full ring realistically takes low
+    // thousands of ticks to fall, not hundreds — this is still "a couple thousand", not "forever".
+    for (let t = 0; t < 3000 && s.attacks.length > 0; t++) tick(s);
     expect(s.attacks).toHaveLength(0);      // the front ended because the border vanished...
     expect(s.tiles[b]).toBe(0);             // ...specifically because b has no land left at all
     // Regen alone from a reserve of 0 — the only source of growth if the pool were discarded instead
@@ -424,16 +426,17 @@ describe("frontSim attacks", () => {
 
   it("pins the shipped tuning constants", () => {
     // Nothing else in this file references these by value, so any of them drifting (say
-    // ATTACK_SPEED going from 0.05 to 0.5) would change every front's speed with no test noticing.
-    expect(ATTACK_SPEED).toBe(0.05);
+    // ATTACK_SPEED going from 0.0075 to 0.05) would change every front's speed with no test noticing.
+    expect(ATTACK_SPEED).toBe(0.0075);
     expect(FORCE_MIN).toBe(0.2);
     expect(FORCE_MAX).toBe(3);
     expect(COST_ATK).toBe(1.0);
     expect(COST_DEF).toBe(0.6);
+    expect(VICTORY_GAIN_FRAC).toBe(0.15);
   });
 });
 
-import { aiStep, landTotal, shareOf, outcome, VICTORY_SHARE } from "./frontSim";
+import { aiStep, landTotal, shareOf, goalGain, gainOf, outcome, VICTORY_GAIN_FRAC } from "./frontSim";
 
 describe("frontSim opponents and victory", () => {
   it("measures a nation's share of the land, ignoring the sea", () => {
@@ -469,16 +472,62 @@ describe("frontSim opponents and victory", () => {
     expect(s.attacks.some((a) => a.attacker === player)).toBe(false);
   });
 
-  it("declares victory at the configured share and defeat at nothing left", () => {
+  it("declares victory once the gain goal is reached, and defeat at nothing left", () => {
     const s = fresh(11);
     const player = [...s.owner].find((o) => o >= 0)!;
     expect(outcome(s, player)).toBeNull();
-    // hand the player everything: unambiguously over the line
+    // hand the player everything: unambiguously over the gain line, whatever it started with
     for (let c = 0; c < s.n; c++) if (s.owner[c] !== SEA) setOwner(s, c, player);
-    expect(shareOf(s, player)).toBeGreaterThan(VICTORY_SHARE);
+    expect(gainOf(s, player)).toBeGreaterThanOrEqual(goalGain(s));
     expect(outcome(s, player)).toEqual({ kind: "victory" });
     for (let c = 0; c < s.n; c++) if (s.owner[c] !== SEA) setOwner(s, c, UNOWNED);
     expect(outcome(s, player)).toEqual({ kind: "defeat" });
+  });
+
+  it("does not already credit a nation that starts with a large share of the map", () => {
+    const s = fresh(11);
+    const nations = [...new Set([...s.owner].filter((o) => o >= 0))].sort((a, b) => a - b);
+    const biggest = [...nations].sort((a, b) => s.startCounts[b] - s.startCounts[a])[0];
+    // Not a vacuous check: seed 11's biggest starter really does hold a large slice of the map —
+    // exactly the situation a fixed-share rule would already call a near-win at t=0.
+    expect(shareOf(s, biggest)).toBeGreaterThan(0.15);
+    expect(gainOf(s, biggest)).toBe(0);        // fresh state: nobody has gained anything yet
+    expect(outcome(s, biggest)).not.toEqual({ kind: "victory" });
+  });
+
+  it("is start-fair: a huge starter and a tiny starter need the exact same absolute gain to win", () => {
+    const s = fresh(11);
+    const nations = [...new Set([...s.owner].filter((o) => o >= 0))].sort((a, b) => a - b);
+    expect(nations.length).toBeGreaterThanOrEqual(2);
+    // Pick the two nations by their ACTUAL starting size, not by id order — nation id says nothing
+    // about how much land the generator gave it.
+    const byStart = [...nations].sort((a, b) => s.startCounts[b] - s.startCounts[a]);
+    const big = byStart[0], small = byStart[byStart.length - 1];
+    expect(s.startCounts[big]).toBeGreaterThan(s.startCounts[small] * 2);   // genuinely different sizes
+    const goal = goalGain(s);
+    expect(goal).toBeGreaterThan(1);    // room for "one short of goal" to mean something
+
+    // Hands `count` cells (deterministic ascending order) to `nation` from whoever else holds them,
+    // without ever touching `nation`'s own land — how much a nation started with does not matter to
+    // this helper, only how much it is handed.
+    const growBy = (state: ReturnType<typeof fresh>, nation: number, count: number) => {
+      const donors = [...Array(state.n).keys()].filter((c) => state.owner[c] !== SEA && state.owner[c] !== nation);
+      expect(donors.length).toBeGreaterThanOrEqual(count);
+      for (let i = 0; i < count; i++) setOwner(state, donors[i], nation);
+    };
+
+    // Two independent copies of the same start (fresh(11) is a pure function of its seed), one grown
+    // through `big` and one through `small`, so growing one cannot affect the other's land.
+    const bigState = fresh(11), smallState = fresh(11);
+    growBy(bigState, big, goal - 1);
+    expect(outcome(bigState, big)).not.toEqual({ kind: "victory" });   // one short, even starting huge
+    growBy(bigState, big, 1);
+    expect(outcome(bigState, big)).toEqual({ kind: "victory" });
+
+    growBy(smallState, small, goal - 1);
+    expect(outcome(smallState, small)).not.toEqual({ kind: "victory" }); // one short, even starting tiny
+    growBy(smallState, small, 1);
+    expect(outcome(smallState, small)).toEqual({ kind: "victory" });
   });
 
   it("reports being outpaced when a rival crosses the line first", () => {
@@ -498,17 +547,17 @@ describe("frontSim opponents and victory", () => {
     const player = nations[0], lo = nations[1], hi = nations[2];
     expect(hi).toBeGreaterThan(lo);   // the fixture depends on the higher-id rival ending up ahead
     for (let c = 0; c < s.n; c++) if (s.owner[c] !== SEA) setOwner(s, c, lo);
-    const total = landTotal(s);
     const land = [...Array(s.n).keys()].filter((c) => s.owner[c] !== SEA);
     setOwner(s, land[0], player);          // player survives on a single cell
-    // Split what is left between lo and hi: lo keeps just enough to stay over VICTORY_SHARE, hi gets
-    // the (larger) remainder — so a first-match-by-id scan would wrongly report `lo`.
+    // Split what is left between lo and hi: lo keeps just enough gain to clear the goal, hi gets the
+    // (larger) remainder — so a first-match-by-id scan would wrongly report `lo`.
+    const goal = goalGain(s);
     const loCells = [...Array(s.n).keys()].filter((c) => s.owner[c] === lo);
-    const loKeep = Math.ceil(total * VICTORY_SHARE) + 5;
+    const loKeep = s.startCounts[lo] + goal + 5;
     expect(loKeep).toBeLessThan(loCells.length);   // margin exists for hi to end up with more
     for (let i = loKeep; i < loCells.length; i++) setOwner(s, loCells[i], hi);
-    expect(shareOf(s, lo)).toBeGreaterThanOrEqual(VICTORY_SHARE);
-    expect(shareOf(s, hi)).toBeGreaterThan(shareOf(s, lo));   // hi is the one actually leading
+    expect(gainOf(s, lo)).toBeGreaterThanOrEqual(goal);
+    expect(gainOf(s, hi)).toBeGreaterThan(gainOf(s, lo));   // hi is the one actually leading
     expect(outcome(s, player)).toEqual({ kind: "outpaced", by: hi });
   });
 

@@ -144,6 +144,11 @@ owner[cell]    = attacker
 `FORCE_MAX` and `COST_DEF` is not applied. Early expansion into empty land is fast; taking it off a
 neighbour is not.
 
+*(Correction, 2026-08-03: measured across seven seeds, unowned land is only 3.5%-20% of cells at
+kickoff, not the "meaningful buffer" this spec assumed when it was written. Most of a game is fought
+over already-owned land, so this cheap path matters far less to how a game actually plays out than
+the section above implies — see "Balance correction" below.)*
+
 Capture order is by an explicit priority — rougher terrain last, cells with more already-owned
 neighbours first — so pockets fill in and the result never depends on iteration order.
 
@@ -166,9 +171,11 @@ against.
 
 ### Starting constants
 
-These are **starting values, not final ones** — the whole point of the measurement section is to
-move them. They are derived for a map of ~4,000 cells (roughly 2,000 of them land) with 8–12
-nations, and they exist so the implementation is not blocked on a judgement call.
+These were **starting values, not final ones** — the whole point of the measurement section was to
+move them, and the "Balance correction" section below records that it happened. They were derived
+for a map of ~4,000 cells assumed to hold roughly 2,000 land cells with 8–12 nations; measurement
+found the real figure is **1,297–1,844** (seven seeds), not ~2,000 — the table below carries the
+corrected numbers and the current constant values.
 
 | constant | value | why this size |
 |---|---|---|
@@ -178,11 +185,11 @@ nations, and they exist so the implementation is not blocked on a judgement call
 | `TROOP_SCALE` | 60 | 20 cells → cap 562; 200 cells → 1,640; 800 cells → 3,540. Ten times the land yields about 2.9× the cap |
 | `REGEN_BASE` | 1 | keeps a nearly-dead nation twitching |
 | `REGEN_K` | 0.25 | at 500 troops and an empty pool this is ~23/tick, i.e. ~230/s against a cap of ~1,600 |
-| `ATTACK_SPEED` | 0.05 | with a 20-cell border at parity this is ~1 cell/tick, so a 200-cell realm falls in roughly 20 seconds — OpenFront's pace |
+| `ATTACK_SPEED` | **0.0075** (was 0.05) | retuned so a typical game lasts 2-4 minutes instead of 25-75 seconds — see "Balance correction" |
 | `FORCE_MIN` / `FORCE_MAX` | 0.2 / 3 | a hopeless attack still crawls; an overwhelming one is capped so numbers alone cannot instantly delete a nation |
 | `COST_ATK` | 1.0 | attacker pays per cell taken, scaled by terrain |
 | `COST_DEF` | 0.6 | the defender bleeds less per cell than the attacker spends, so attacking is genuinely expensive |
-| `VICTORY_SHARE` | 0.4 | share of theater land needed to win. OpenFront uses 0.8 with hundreds of players; with ~10 nations that would be a formality |
+| `VICTORY_GAIN_FRAC` | **0.15** (replaces `VICTORY_SHARE = 0.4`) | fraction of theater land a nation must *gain* from its own starting count to win — see "Balance correction" |
 
 `terrainDef(cell)` reuses the existing biome defence weighting rather than inventing a second one.
 
@@ -207,7 +214,8 @@ form alliances and does not check the leaderboard.
 - Committing troops deducts them from the pool immediately.
 - An attack ends when its pool is exhausted.
 - Capture order is stable — running the same tick twice from the same state gives the same cells.
-- Victory triggers at the configured share of theater land.
+- Victory triggers once a nation has gained `VICTORY_GAIN_FRAC` of theater land from its own
+  starting count — not at a fixed share of the map (see "Balance correction").
 - UI: the HUD shows pool, cap and income; the commit slider shows both percentage and absolute
   troops; clicking a non-adjacent nation does nothing.
 
@@ -219,6 +227,60 @@ form alliances and does not check the leaderboard.
 3. How fast does the map resolve? In OpenFront I was first in 40 seconds — if ours resolves that
    fast, the constants need stretching.
 4. **The runaway, which this does not claim to fix:** does one nation still run away? Expect yes.
+
+## Balance correction (2026-08-03)
+
+A review measured seven seeds against the v1 constants above and found the balance unusable:
+
+- **Starting share varied four-fold**, 9%-37% of the map, against a single fixed 40% victory line —
+  so a fixed-share goal was never remotely fair between games, or between nations within a game.
+- **On seed 7 the player started 2.9 percentage points from victory** (48 cells out of 1,608):
+  effectively already won at t=0 by nothing but map-generation luck.
+- **Every game resolved in 25-75 seconds**, tripping this spec's own criterion above (`## Measurement
+  after it runs`, item 3) for "the constants need stretching."
+- **The outcome was decided at t=0.** Across seven seeds, a greedy proxy won in all four where the
+  player happened to start as the largest nation, and lost in all three where it did not.
+
+Two derivation errors in this spec's original "Starting constants" section contributed: it sized
+`TROOP_SCALE` and the map for "~2,000 land cells" against a measured **1,297-1,844**, and it treated
+unowned land as a meaningful buffer when it is only **3.5%-20%** of cells — see the correction note
+under "Attacks are state, not events" above.
+
+**Victory is now start-fair, not share-based.** `VICTORY_SHARE = 0.4` (hold 40% of the map) is
+replaced by `VICTORY_GAIN_FRAC = 0.15`: a nation must *gain* 15% of theater land from wherever it
+personally started, tracked via a new `startCounts` snapshot taken once in `initFrontSim`. This is
+the same fix the army game (`armySim.ts`) already made for the identical problem — see `goalGain` /
+`goalProgress` / `nationProgress` there — reapplied to this engine rather than shared as code, since
+the two engines' state shapes differ. `shareOf` and `landTotal` are unchanged and still power the
+HUD; only what counts as *winning* changed.
+
+**Game length was retuned separately.** `ATTACK_SPEED` moved from 0.05 to 0.0075 (a front now
+advances roughly 6.7x slower per tick) to bring games into a 2-4 minute target instead of 25-75
+seconds. Measured with a greedy proxy (always attacks the weakest reachable neighbour with 50% of
+pool) playing as the nation that started largest, `aiStep` running every other nation, both engine
+changes applied together:
+
+| seed | before (ticks / seconds) | after (ticks / seconds) | outcome after |
+|---|---|---|---|
+| 1 | 313 / 31.3s | 2,197 / 219.7s | outpaced by nation 2 |
+| 2 | 386 / 38.6s | 1,269 / 126.9s | victory |
+| 3 | 322 / 32.2s | 1,605 / 160.5s | victory |
+| 4 | 302 / 30.2s | 2,134 / 213.4s | outpaced by nation 5 |
+| 5 | 387 / 38.7s | 2,394 / 239.4s | outpaced by nation 2 |
+| 6 | 175 / 17.5s | 1,161 / 116.1s | victory |
+| 7 | 353 / 35.3s | 1,720 / 172.0s | outpaced by nation 6 |
+
+("before" already has the start-fair victory rule applied, at the original `ATTACK_SPEED = 0.05` —
+it isolates what the speed retune alone changed.)
+
+Every seed moved into or within a few percent of the 2-4 minute (1,200-2,400 tick) target — none got
+shorter. **Seed 6 landed 39 ticks (3.9s) under the 1,200-tick floor**, the one seed that did not
+fully clear the target window; it was left as-is rather than chasing it exactly, since tightening
+further would have pushed seed 5 (already at 2,394) over the 2,400-tick ceiling instead. **Seeds 3
+and 7 flipped their win/loss outcome** between the two runs (3: loss to win; 7: win to loss) — a side
+effect of `aiStep`'s rivals getting far more ticks to act once the game runs longer, not a defect;
+flagged here because a result flip is the kind of thing measurement write-ups in this repo have
+previously omitted.
 
 ## What this does not do
 
