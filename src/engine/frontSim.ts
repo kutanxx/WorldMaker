@@ -9,6 +9,9 @@ export const TROOP_BASE = 200;      // floor, so a one-cell nation is not starve
 export const TROOP_SCALE = 60;
 export const REGEN_BASE = 1;
 export const REGEN_K = 0.25;
+// Growth scales with the pool you already have, but sublinearly, so a large realm does not simply
+// refill proportionally faster than a small one. Taken from the reference game unchanged.
+export const REGEN_EXP = 0.73;
 
 export const UNOWNED = -1;
 export const SEA = -2;
@@ -67,7 +70,7 @@ export function regenPerTick(s: FrontState, nation: number): number {
   const max = maxTroops(s, nation);
   const t = s.troops[nation];
   if (t >= max) return 0;
-  return (REGEN_BASE + Math.pow(t, 0.73) * REGEN_K) * (1 - t / max);
+  return (REGEN_BASE + Math.pow(t, REGEN_EXP) * REGEN_K) * (1 - t / max);
 }
 
 export function tick(s: FrontState): void {
