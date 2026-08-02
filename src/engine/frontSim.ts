@@ -96,10 +96,10 @@ export function startAttack(s: FrontState, attacker: number, target: number, fra
   const frac = Math.min(1, Math.max(0, fraction));
   // Re-committing against a front that already exists must size the new pool from the reserve that
   // results AFTER that front's survivors come home, not from the reserve as it stands with those
-  // survivors still tied up — otherwise "commit everything" strands the old front's troops at home,
-  // and once refunds are capped, sizing from the pre-refund reserve can destroy troops outright (a
-  // refund that clamps away part of the returning pool, followed by spending a fraction of what's
-  // left, loses whatever the clamp cut).
+  // survivors still tied up — otherwise "commit everything" quietly leaves the old front's troops
+  // sitting at home. The defect is stranding, not loss: both orderings conserve reserve + pool to
+  // min(cap, reserve + pool). That was measured against the engine rather than argued, because the
+  // review that raised this claimed outright destruction and the arithmetic does not support it.
   const existing = s.attacks.findIndex((a) => a.attacker === attacker && a.target === target);
   const reserve = existing >= 0
     ? Math.min(maxTroops(s, attacker), s.troops[attacker] + s.attacks[existing].pool)
