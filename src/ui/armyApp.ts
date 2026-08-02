@@ -19,23 +19,6 @@ export function leadWarning(bias: number, isLeader: boolean): string {
   return bias > 1 && isLeader ? " · ⚠ 당신이 선두 — 주변국이 노립니다" : "";
 }
 
-// Three distinct reasons the button can read, and rawness must be checked before the
-// empty-population case: a province can be both raw AND too poor to levy by other routes
-// (over-levying or attrition hollow out digested land the same way). Rawness is the reason
-// that will not clear next turn — the player needs to know that, not "+0명" — so it must win
-// the precedence, not lose to an amount === 0 check that happens to also be true.
-// Pulled out to a pure function so the precedence can be unit-tested directly instead of
-// driven through the UI on a lucky seed.
-export function levyLabel({ canLevy, raw, amount }: { canLevy: boolean; raw: boolean; amount: number }): string {
-  return canLevy
-    ? `징집 (+${amount}명, 인구 −${amount})`
-    // two different reasons the button is dead, and the player needs to tell them apart: one
-    // clears next turn, the other clears when the realm has digested what it swallowed.
-    : raw ? "소화 중 — 징집 불가, 주민도 싸우지 않음"
-    : amount === 0 ? `징집 (+${amount}명, 인구 −${amount})`
-    : "징집 완료 (이번 턴)";
-}
-
 // PROTOTYPE UI. Click a province of yours to select it; levy and march/attack are both issued from
 // the panel's buttons (never by clicking the map), so a misclick on a hostile neighbour can never
 // destroy an army by accident. Everything the rules use is printed on the map.
@@ -154,11 +137,13 @@ export function mountArmyApp(root: HTMLElement, opts: { seed?: number } = {}): v
         });
         // ⌛ on the number rather than a new map layer: the label is already where this province's
         // numbers live, and a raw province's population is exactly the number that is not available.
-        // Shown for EVERY nation's raw land, not just the player's: raw land musters no militia, so
-        // an enemy's hourglass marks the softest target on the board — the most actionable thing
-        // this feature produces. The HUD's counter says "내 소화 대기" precisely so that showing all
-        // of them here cannot be read as a claim about the player's own backlog.
-        const digesting = isRaw(s, p) ? "⌛" : "";
+        // Scoped to the player's own land (`mine`), not every raw province in the theater: raw land
+        // defends exactly as normal (militiaOf/defenceOf never consult `raw`), so an enemy's
+        // hourglass conveys nothing the player can act on — and worse, it would make the on-map
+        // hourglass count disagree with the HUD's "소화 대기 N", which only counts the player's own
+        // backlog. data-raw stays set for every province regardless (it is a test hook, not a
+        // visual), only the glyph is scoped.
+        const digesting = mine && isRaw(s, p) ? "⌛" : "";
         label.textContent = army
           ? `${digesting}${Math.round(s.pop[p])}·⚔${army.men}`
           : `${digesting}${Math.round(s.pop[p])}`;
@@ -240,7 +225,19 @@ export function mountArmyApp(root: HTMLElement, opts: { seed?: number } = {}): v
     const canLevyNow = canLevy(s, p, player!);
     const btn = document.createElement("button");
     btn.className = "army-levy";
-    btn.textContent = levyLabel({ canLevy: canLevyNow, raw: isRaw(s, p), amount: levyAmount });
+    // Three distinct reasons the button can read, and rawness must be checked before the
+    // empty-population case: a freshly captured province can be both raw AND under-populated
+    // (a capture strips militia, so a near-empty province is exactly what raw land looks like
+    // right after it changes hands). Rawness is the reason that will not clear next turn — the
+    // player needs to know that, not "+0명" — so it must win the precedence, not lose to a
+    // levyAmount === 0 check that happens to also be true.
+    btn.textContent = canLevyNow
+      ? `징집 (+${levyAmount}명, 인구 −${levyAmount})`
+      // two different reasons the button is dead, and the player needs to tell them apart: one
+      // clears next turn, the other clears when the realm has digested what it swallowed.
+      : isRaw(s, p) ? "소화 중 — 아직 징집할 수 없습니다"
+      : levyAmount === 0 ? `징집 (+${levyAmount}명, 인구 −${levyAmount})`
+      : "징집 완료 (이번 턴)";
     btn.disabled = !canLevyNow;
     btn.addEventListener("click", () => { const m = levy(s, p, player!); if (m > 0) say(`징집 ${name} +${m}`); render(); });
     box.appendChild(btn);
@@ -294,12 +291,9 @@ export function mountArmyApp(root: HTMLElement, opts: { seed?: number } = {}): v
     // Being in front now changes how the AI plays, so it has to be on screen: an unannounced
     // dogpile reads as the game being unfair rather than as a rule the player can play around.
     const leadSeg = leadWarning(AI_LEADER_BIAS, raceLeader(s) === me);
-    // Only when there is one: a permanent "내 소화 대기 0" is noise, and this line is already long.
-    // "내" (mine) is load-bearing: the map now marks every nation's raw land with ⌛, so without the
-    // possessive this counter would read as a claim about the whole theater instead of the player's
-    // own backlog, which is the only thing it actually counts.
+    // Only when there is one: a permanent "소화 대기 0" is noise, and this line is already long.
     const backlog = backlogOf(s, me);
-    const digestSeg = backlog > 0 ? ` · 내 소화 대기 ${backlog}` : "";
+    const digestSeg = backlog > 0 ? ` · 소화 대기 ${backlog}` : "";
     const hud = document.createElement("div");
     hud.className = "army-hud";
     hud.dataset.nation = String(me);

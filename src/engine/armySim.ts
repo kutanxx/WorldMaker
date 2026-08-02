@@ -127,9 +127,8 @@ function rawArr(s: ArmyState): Int32Array {
   return s.raw;
 }
 
-// Still being digested: it cannot be levied, and its people will not take up arms as militia when
-// it is attacked either — they will not march or fight for a conqueror they met last week. Holding
-// it means leaving a garrison, not trusting the population.
+// Still being digested: it cannot be levied. Its people do still take up arms as militia when it is
+// attacked — they are there, they just will not march for a conqueror they met last week.
 export function isRaw(s: ArmyState, prov: number): boolean {
   if (prov < 0 || prov >= s.n) return false;
   return rawArr(s)[prov] >= 0;
@@ -181,19 +180,11 @@ export function regrow(s: ArmyState): void {
   }
 }
 
-// What a conquered province's militia is worth to its new owner. 0: they will not fight for someone
-// they met last week. This is what gives RESTRAINT a benefit rather than giving greed another cost —
-// holding fresh land now means leaving troops on it, which splits the army that would take the next
-// province. Set to 1 to restore the previous behaviour exactly.
-export const RAW_MILITIA_FRAC = 0;
-
 // the province's own people take up arms when attacked. Computed at battle time, so a province
-// hollowed out by over-levying really is defenceless. Militia cannot move. Land still being
-// digested musters nobody — the factor goes INSIDE the floor so RAW_MILITIA_FRAC = 1 is bit-identical
-// to the un-factored expression rather than drifting by a man on some populations.
+// hollowed out by over-levying really is defenceless. Militia cannot move.
 export function militiaOf(s: ArmyState, prov: number): number {
   if (prov < 0 || prov >= s.n) return 0;
-  return Math.floor(s.pop[prov] * MILITIA_FRAC * (isRaw(s, prov) ? RAW_MILITIA_FRAC : 1));
+  return Math.floor(s.pop[prov] * MILITIA_FRAC);
 }
 
 // effective defence of `prov` against `attacker`: every non-attacker army standing there plus the
