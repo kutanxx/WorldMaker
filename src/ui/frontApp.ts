@@ -5,9 +5,9 @@ import {
   initFrontSim, tick, aiStep, startAttack, outcome, maxTroops, regenPerTick,
   SEA, UNOWNED, TICK_HZ, type FrontState,
 } from "../engine/frontSim";
-import { nationColor } from "./nationPalette";
+import { nationColor, PLAYER_COLOR } from "./nationPalette";
 
-const PLAYER_FILL = "#c0392b";
+const PLAYER_FILL = PLAYER_COLOR;
 const EMPTY_FILL = "#c8bfa6";
 
 // What to draw, separated from drawing it. jsdom has no canvas backend, so this is the only part of
@@ -23,7 +23,26 @@ export function paintPlan(s: FrontState, player: number): { cell: number; fill: 
   return out;
 }
 
-export function mountFrontApp(root: HTMLElement, opts: { seed?: number } = {}): void {
+// What a click on a cell means, separated from the hit-testing that finds the cell. jsdom's
+// getContext("2d") is always null, which makes ctx.isPointInPath untestable — but the decision of
+// what a click DOES (attack, or nothing) does not need a canvas at all, so it is pulled out here the
+// same way paintPlan pulls the paint decision out of draw(). Returns the nation id to attack, or
+// null when the click should do nothing: out of range, sea, or the player's own land.
+export function clickTarget(s: FrontState, player: number, cell: number): number | null {
+  if (cell < 0 || cell >= s.n) return null;
+  const o = s.owner[cell];
+  if (o === SEA || o === player) return null;
+  return o;
+}
+
+// A backgrounded tab can deliver a `now - last` gap of minutes when it resumes. Without a clamp,
+// the catch-up loop below would try to simulate the entire gap synchronously in one frame — ten
+// minutes is 6,000 ticks, each an O(cells) border scan — and lock up the tab on resume. A tab that
+// was away must not try to relive the time it missed, so cap how much elapsed time ever reaches the
+// accumulator; the rest is simply lost, same as a dropped frame.
+const MAX_FRAME_MS = 250; // a handful of ticks at TICK_HZ, never the whole background gap
+
+export function mountFrontApp(root: HTMLElement, opts: { seed?: number } = {}): () => void {
   const seed = opts.seed ?? 1;
   const { world } = generateWorld({ ...DEFAULT_PARAMS, seed });
   const s = initFrontSim(world);
@@ -106,8 +125,10 @@ export function mountFrontApp(root: HTMLElement, opts: { seed?: number } = {}): 
       const path = paths[c];
       if (path && ctx.isPointInPath(path, x, y)) { hit = c; break; }
     }
-    if (hit < 0 || s.owner[hit] === SEA || s.owner[hit] === player) return;
-    startAttack(s, player, s.owner[hit], commit);
+    // Hit-testing only; clickTarget owns the decision of what the click means.
+    const target = clickTarget(s, player, hit);
+    if (target === null) return;
+    startAttack(s, player, target, commit);
     renderHud();
   });
 
@@ -118,16 +139,33 @@ export function mountFrontApp(root: HTMLElement, opts: { seed?: number } = {}): 
   // step is. An accumulator keeps the simulation rate fixed regardless of framerate, which is what
   // keeps a replay of the same commands identical.
   let last = 0, acc = 0;
+  let rafHandle: number | null = null;
+  let stopped = false;
   function frame(now: number): void {
+    if (stopped) return; // a frame already queued before stop() must not resurrect the loop
     if (last) {
-      acc += now - last;
+      acc += Math.min(now - last, MAX_FRAME_MS);
       const step = 1000 / TICK_HZ;
       while (acc >= step) { aiStep(s, player); tick(s); acc -= step; }
       renderHud();
       draw();
     }
     last = now;
-    if (!outcome(s, player)) requestAnimationFrame(frame);
+    rafHandle = !outcome(s, player) && typeof requestAnimationFrame === "function"
+      ? requestAnimationFrame(frame)
+      : null;
   }
-  if (typeof requestAnimationFrame === "function") requestAnimationFrame(frame);
+  if (typeof requestAnimationFrame === "function") rafHandle = requestAnimationFrame(frame);
+
+  // Stops the loop for good: reaching an outcome does this on its own (frame() stops rescheduling),
+  // but nothing previously let a caller do it early. Without this, mounting twice — a restart
+  // button, or a second mount in a test — leaves the first simulation's loop ticking forever against
+  // a now-detached DOM.
+  function stop(): void {
+    if (stopped) return;
+    stopped = true;
+    if (rafHandle !== null && typeof cancelAnimationFrame === "function") cancelAnimationFrame(rafHandle);
+    rafHandle = null;
+  }
+  return stop;
 }
