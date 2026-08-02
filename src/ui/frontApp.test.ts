@@ -153,13 +153,20 @@ describe("frontApp", () => {
       const { queued } = stubRaf();
       dispose = mountFrontApp(root, { seed: 11 });
       const frame = queued[queued.length - 1];
-      frame(0);                    // establishes `last`; no ticks yet
+      // `last` is only established inside `if (last)`, and 0 is falsy — priming with frame(0) would
+      // never set it, leaving every later frame() a no-op that skips the tick loop entirely and
+      // passes for the wrong reason. A genuine nonzero timestamp is required to prime the loop.
+      frame(1000);                 // establishes `last`; no ticks yet, acc starts at 0
       (tick as any).mockClear();
       const gapMs = 10 * 60 * 1000;               // ten minutes, as after a backgrounded tab
       const unclampedTicks = Math.floor(gapMs / (1000 / TICK_HZ));
-      frame(gapMs);
-      // Unclamped this gap is thousands of ticks (unclampedTicks); a real clamp keeps it to a handful.
+      frame(1000 + gapMs);
+      // Unclamped this gap is thousands of ticks (unclampedTicks); the clamp caps elapsed time to
+      // MAX_FRAME_MS before it reaches the accumulator, so only a couple of ticks actually fire.
+      // Counting real (unmocked-behaviour) calls to `tick` counts real simulation steps — each call
+      // increments the state's own `tick` counter — so this cannot pass just because the loop never ran.
       expect(unclampedTicks).toBeGreaterThan(1000);
+      expect((tick as any).mock.calls.length).toBeGreaterThan(0);
       expect((tick as any).mock.calls.length).toBeLessThan(10);
     });
 
