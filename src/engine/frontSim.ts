@@ -1,5 +1,6 @@
 import type { World } from "../types/world";
 import { OCEAN } from "./terrain";
+import { BIOME_DEF } from "./armySim";
 
 // One troop pool per nation and no army units at all: a nation's whole military is a single number,
 // and attacking is committing part of it to a front rather than moving something across the map.
@@ -15,6 +16,12 @@ export const REGEN_EXP = 0.73;
 
 export const UNOWNED = -1;
 export const SEA = -2;
+
+export const ATTACK_SPEED = 0.05;
+export const FORCE_MIN = 0.2;
+export const FORCE_MAX = 3;
+export const COST_ATK = 1.0;
+export const COST_DEF = 0.6;
 
 // `progress` carries the fraction of a cell left over from the previous tick. Without it a front
 // whose per-tick budget is below one cell would never move at all — and at these constants most
@@ -56,6 +63,48 @@ export function setOwner(s: FrontState, cell: number, nation: number): void {
   if (nation >= 0) s.tiles[nation]++;
 }
 
+// Rough ground costs more to take. Deliberately the same weighting the army game uses rather than a
+// second table that could drift away from it.
+export function terrainDef(s: FrontState, cell: number): number {
+  return BIOME_DEF[s.world.biome[cell]] ?? 1;
+}
+
+// The target's cells that touch the attacker. Its LENGTH is the border, and the border is what sets
+// how fast a front moves — a realm with a long frontier is taken quickly and a compact one is not.
+// Ascending cell order so every consumer sees the same sequence.
+export function borderCells(s: FrontState, attacker: number, target: number): number[] {
+  const out: number[] = [];
+  for (let c = 0; c < s.n; c++) {
+    if (s.owner[c] !== target) continue;
+    for (const q of s.world.grid.neighbors[c]) {
+      if (s.owner[q] === attacker) { out.push(c); break; }
+    }
+  }
+  return out;
+}
+
+// Committing is instant and visible: the troops leave the pool now, not when they arrive. Returns
+// false — and costs nothing — when there is nothing to attack across.
+export function startAttack(s: FrontState, attacker: number, target: number, fraction: number): boolean {
+  if (attacker === target || s.troops[attacker] === undefined) return false;
+  if (borderCells(s, attacker, target).length === 0) return false;
+  const pool = s.troops[attacker] * Math.min(1, Math.max(0, fraction));
+  if (pool <= 0) return false;
+  cancelAttack(s, attacker, target);                 // one front per pair; re-committing replaces it
+  s.troops[attacker] -= pool;
+  s.attacks.push({ attacker, target, pool, progress: 0 });
+  return true;
+}
+
+// Calling off a front hands its survivors back rather than deleting them, so probing an enemy is not
+// punished by the accounting.
+export function cancelAttack(s: FrontState, attacker: number, target: number): void {
+  const i = s.attacks.findIndex((a) => a.attacker === attacker && a.target === target);
+  if (i < 0) return;
+  s.troops[attacker] += s.attacks[i].pool;
+  s.attacks.splice(i, 1);
+}
+
 // Sublinear in territory: ten times the land is about 2.9x the ceiling. Conquest yields land faster
 // than it yields power, which is the damper this genre runs on. It slows the runaway; it does not
 // stop it, and the spec is explicit that this game does not claim to.
@@ -73,9 +122,36 @@ export function regenPerTick(s: FrontState, nation: number): number {
   return (REGEN_BASE + Math.pow(t, REGEN_EXP) * REGEN_K) * (1 - t / max);
 }
 
+// One step of every front. Deterministic throughout: fronts run in array order, and within a front
+// the border is walked in ascending cell id, so the same state always yields the same captures.
+function advanceAttacks(s: FrontState): void {
+  for (const atk of [...s.attacks]) {
+    const border = borderCells(s, atk.attacker, atk.target);
+    if (border.length === 0 || atk.pool <= 0) { s.attacks = s.attacks.filter((x) => x !== atk); continue; }
+    const defence = atk.target >= 0 ? Math.max(1, s.troops[atk.target]) : 0;
+    // Unowned land has nobody to hold it, so a front there always runs at full speed.
+    const force = defence === 0
+      ? FORCE_MAX
+      : Math.min(FORCE_MAX, Math.max(FORCE_MIN, atk.pool / defence));
+    // Accumulate rather than round down: a front whose budget is a fraction of a cell per tick has
+    // to creep, not stall. Dropping the remainder would freeze every slow push permanently.
+    atk.progress += force * border.length * ATTACK_SPEED;
+    for (const cell of border) {
+      if (atk.progress < 1 || atk.pool <= 0) break;
+      const def = terrainDef(s, cell);
+      atk.pool -= COST_ATK * def;
+      if (atk.target >= 0) s.troops[atk.target] = Math.max(0, s.troops[atk.target] - COST_DEF * def);
+      setOwner(s, cell, atk.attacker);
+      atk.progress -= 1;
+    }
+    if (atk.pool <= 0) s.attacks = s.attacks.filter((x) => x !== atk);
+  }
+}
+
 export function tick(s: FrontState): void {
   for (let p = 0; p < s.troops.length; p++) {
     s.troops[p] = Math.min(maxTroops(s, p), s.troops[p] + regenPerTick(s, p));
   }
+  advanceAttacks(s);
   s.tick++;
 }
