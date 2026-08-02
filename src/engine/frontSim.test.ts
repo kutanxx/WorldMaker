@@ -432,3 +432,55 @@ describe("frontSim attacks", () => {
     expect(COST_DEF).toBe(0.6);
   });
 });
+
+import { aiStep, landTotal, shareOf, outcome, VICTORY_SHARE } from "./frontSim";
+
+describe("frontSim opponents and victory", () => {
+  it("measures a nation's share of the land, ignoring the sea", () => {
+    const s = fresh(11);
+    const total = landTotal(s);
+    expect(total).toBeGreaterThan(0);
+    expect(total).toBe([...s.owner].filter((o) => o !== SEA).length);
+    const nation = [...s.owner].find((o) => o >= 0)!;
+    expect(shareOf(s, nation)).toBeCloseTo(s.tiles[nation] / total, 9);
+  });
+
+  it("has the AI open fronts, and never for the player", () => {
+    const s = fresh(11);
+    const player = [...s.owner].find((o) => o >= 0)!;
+    for (let p = 0; p < s.troops.length; p++) s.troops[p] = 800;
+    for (let t = 0; t < 5; t++) { aiStep(s, player); tick(s); }
+    expect(s.attacks.length).toBeGreaterThan(0);
+    expect(s.attacks.some((a) => a.attacker === player)).toBe(false);
+  });
+
+  it("declares victory at the configured share and defeat at nothing left", () => {
+    const s = fresh(11);
+    const player = [...s.owner].find((o) => o >= 0)!;
+    expect(outcome(s, player)).toBeNull();
+    // hand the player everything: unambiguously over the line
+    for (let c = 0; c < s.n; c++) if (s.owner[c] !== SEA) setOwner(s, c, player);
+    expect(shareOf(s, player)).toBeGreaterThan(VICTORY_SHARE);
+    expect(outcome(s, player)).toEqual({ kind: "victory" });
+    for (let c = 0; c < s.n; c++) if (s.owner[c] !== SEA) setOwner(s, c, UNOWNED);
+    expect(outcome(s, player)).toEqual({ kind: "defeat" });
+  });
+
+  it("reports being outpaced when a rival crosses the line first", () => {
+    const s = fresh(11);
+    const nations = [...new Set([...s.owner].filter((o) => o >= 0))].sort((a, b) => a - b);
+    const player = nations[0], rival = nations[1];
+    for (let c = 0; c < s.n; c++) if (s.owner[c] !== SEA) setOwner(s, c, rival);
+    const oneCell = [...Array(s.n).keys()].find((c) => s.owner[c] === rival)!;
+    setOwner(s, oneCell, player);          // the player survives but is nowhere near winning
+    expect(outcome(s, player)).toEqual({ kind: "outpaced", by: rival });
+  });
+
+  it("stays deterministic with the AI running", () => {
+    const a = fresh(11), b = fresh(11);
+    const player = [...a.owner].find((o) => o >= 0)!;
+    for (let t = 0; t < 40; t++) { aiStep(a, player); tick(a); aiStep(b, player); tick(b); }
+    expect([...a.owner]).toEqual([...b.owner]);
+    expect([...a.troops]).toEqual([...b.troops]);
+  });
+});

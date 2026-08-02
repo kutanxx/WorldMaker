@@ -188,3 +188,59 @@ export function tick(s: FrontState): void {
   advanceAttacks(s);
   s.tick++;
 }
+
+export const VICTORY_SHARE = 0.4;
+
+export function landTotal(s: FrontState): number {
+  let k = 0;
+  for (let c = 0; c < s.n; c++) if (s.owner[c] !== SEA) k++;
+  return k;
+}
+
+export function shareOf(s: FrontState, nation: number): number {
+  const total = landTotal(s);
+  return total === 0 ? 0 : (s.tiles[nation] ?? 0) / total;
+}
+
+export type Outcome =
+  | { kind: "victory" }
+  | { kind: "defeat" }
+  | { kind: "outpaced"; by: number }
+  | null;
+
+// Death first, then your own win, then a rival's. Ties go to the player, who is checked first.
+export function outcome(s: FrontState, playerNation: number): Outcome {
+  if ((s.tiles[playerNation] ?? 0) === 0) return { kind: "defeat" };
+  if (shareOf(s, playerNation) >= VICTORY_SHARE) return { kind: "victory" };
+  for (let p = 0; p < s.tiles.length; p++) {
+    if (p === playerNation) continue;
+    if (shareOf(s, p) >= VICTORY_SHARE) return { kind: "outpaced", by: p };
+  }
+  return null;
+}
+
+// Deliberately simple, in the spirit of the army game's AI: each nation that is not already pushing
+// somewhere opens a front against its weakest neighbour. It does not read the leaderboard and does
+// not coordinate — the spec is explicit that a coalition against the leader is separate work.
+// Deterministic: nations ascending, candidates ascending, ties to the lower id.
+export function aiStep(s: FrontState, playerNation: number): void {
+  for (let nation = 0; nation < s.tiles.length; nation++) {
+    if (nation === playerNation || s.tiles[nation] === 0) continue;
+    if (s.attacks.some((a) => a.attacker === nation)) continue;
+    if (s.troops[nation] < TROOP_BASE / 2) continue;      // wait until there is something to send
+    const seen = new Set<number>();
+    for (let c = 0; c < s.n; c++) {
+      if (s.owner[c] !== nation) continue;
+      for (const q of s.world.grid.neighbors[c]) {
+        const o = s.owner[q];
+        if (o !== SEA && o !== nation) seen.add(o);
+      }
+    }
+    let best = -3, bestScore = Infinity;
+    for (const cand of [...seen].sort((a, b) => a - b)) {
+      const score = cand === UNOWNED ? 0 : s.troops[cand];   // empty land first, then the weakest
+      if (score < bestScore) { bestScore = score; best = cand; }
+    }
+    if (best !== -3) startAttack(s, nation, best, 0.5);
+  }
+}
