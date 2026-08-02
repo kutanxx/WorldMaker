@@ -2,8 +2,10 @@ import { describe, it, expect } from "vitest";
 import { generateWorld } from "./world";
 import { DEFAULT_PARAMS } from "../types/world";
 import { OCEAN } from "./terrain";
+import { BIOME_DEF } from "./armySim";
+import { GRASSLAND, ALPINE } from "./biome";
 import {
-  initFrontSim, setOwner, maxTroops, regenPerTick, tick,
+  initFrontSim, setOwner, maxTroops, regenPerTick, tick, terrainDef,
   TROOP_BASE, TROOP_EXP, UNOWNED, SEA,
 } from "./frontSim";
 
@@ -38,6 +40,28 @@ describe("frontSim state", () => {
     // and the derived count still matches a full recount, which is the invariant that matters
     const counted = [...s.owner].filter((o) => o === nation).length;
     expect(s.tiles[nation]).toBe(counted);
+  });
+});
+
+describe("frontSim terrain", () => {
+  it("reads the biome defence table rather than returning a constant", () => {
+    const s = fresh(11);
+    const cellA = 0, cellB = 1;
+    // Two biomes chosen for their weights actually differing, so a `terrainDef` that always
+    // returned (say) 1 could not pass both assertions.
+    expect(BIOME_DEF[GRASSLAND]).not.toBe(BIOME_DEF[ALPINE]);
+    s.world.biome[cellA] = GRASSLAND;
+    s.world.biome[cellB] = ALPINE;
+    expect(terrainDef(s, cellA)).toBe(BIOME_DEF[GRASSLAND]);
+    expect(terrainDef(s, cellB)).toBe(BIOME_DEF[ALPINE]);
+  });
+
+  it("falls back to 1 for a biome id absent from the table", () => {
+    const s = fresh(11);
+    const cell = 0;
+    s.world.biome[cell] = 255; // no biome classifier ever produces this id
+    expect(BIOME_DEF[255]).toBeUndefined();
+    expect(terrainDef(s, cell)).toBe(1);
   });
 });
 
@@ -205,11 +229,15 @@ describe("frontSim attacks", () => {
     // this test by leaving `narrow` at 0 captures — silently deleting half the experiment.
     expect(startAttack(narrow.s, narrow.a, narrow.b, 0.5)).toBe(true);
     expect(startAttack(wide.s, wide.a, wide.b, 0.5)).toBe(true);
+    // Several ticks, not one: measure — not assume — that the narrow front's own per-tick budget is
+    // below a full cell, so a one-tick comparison would risk pitting a real capture against zero for
+    // reasons that have nothing to do with border width.
+    const nAtk = narrow.s.attacks[0];
+    const nDefence = Math.max(1, narrow.s.troops[narrow.b]);
+    const nForce = Math.min(FORCE_MAX, Math.max(FORCE_MIN, nAtk.pool / nDefence));
+    const nBudget = nForce * borderCells(narrow.s, narrow.a, narrow.b).length * ATTACK_SPEED;
+    expect(nBudget).toBeLessThan(1);
     const nBefore = narrow.s.tiles[narrow.a], wBefore = wide.s.tiles[wide.a];
-    // Several ticks, not one: at this pool and defence the wide fixture's border is already long
-    // enough to clear a cell on the very first tick, but the narrow fixture's budget is a fraction of
-    // a cell per tick — a one-tick comparison would pit a real capture against zero for reasons that
-    // have nothing to do with border width.
     for (let t = 0; t < 30; t++) { tick(narrow.s); tick(wide.s); }
     const nCaptured = narrow.s.tiles[narrow.a] - nBefore;
     const wCaptured = wide.s.tiles[wide.a] - wBefore;
@@ -341,6 +369,48 @@ describe("frontSim attacks", () => {
                                                       // while the front is still out
     cancelAttack(s, a, b);                          // handing the committed pool back on top of a full reserve
     expect(s.troops[a]).toBeLessThanOrEqual(cap + 1e-9);
+  });
+
+  it("sizes a re-commit from the reserve AFTER the old front's survivors return, not before", () => {
+    const { s, a, b } = strip(11, true);
+    s.troops[a] = 700; s.troops[b] = 5000;   // strong defender: the first front barely dents it, so
+                                               // its pool stays intact for the redirect that follows
+    expect(startAttack(s, a, b, 0.9)).toBe(true);
+    const existingPool = s.attacks[0].pool;
+    s.troops[a] = 700;   // simulate the reserve regenerating back up while the front is still out
+    const cap = maxTroops(s, a);
+    const expectedFront = Math.min(cap, s.troops[a] + existingPool); // the whole refunded reserve
+    expect(startAttack(s, a, b, 1)).toBe(true);   // redirect everything into one front
+    // The entire refunded reserve — survivors from the old front included — must land in the new
+    // front, not just a fraction of the pre-refund reserve with the survivors stranded at home.
+    expect(s.attacks[0].pool).toBeCloseTo(expectedFront, 6);
+    expect(s.troops[a]).toBeCloseTo(0, 6);
+  });
+
+  it("never loses troops beyond what the cap legitimately clamps when re-committing", () => {
+    const { s, a, b } = strip(11, true);
+    s.troops[a] = 700; s.troops[b] = 5000;
+    expect(startAttack(s, a, b, 0.9)).toBe(true);
+    const existingPool = s.attacks[0].pool;
+    s.troops[a] = 700;
+    const cap = maxTroops(s, a);
+    // What the cap alone allows to survive the refund — the only loss this operation may legitimately
+    // cause. Anything beyond this is the reserve+pool total actually vanishing.
+    const legitimateTotal = Math.min(cap, s.troops[a] + existingPool);
+    expect(startAttack(s, a, b, 0.5)).toBe(true);
+    const totalAfter = s.troops[a] + s.attacks[0].pool;
+    expect(totalAfter).toBeCloseTo(legitimateTotal, 6);
+  });
+
+  it("leaves an existing front untouched when a re-commit against the same pair is rejected", () => {
+    const { s, a, b } = strip(11, true);
+    expect(startAttack(s, a, b, 0.5)).toBe(true);
+    const before = { ...s.attacks[0] };
+    const reserveBefore = s.troops[a];
+    expect(startAttack(s, a, b, NaN)).toBe(false);   // rejected: non-finite fraction
+    expect(s.attacks).toHaveLength(1);
+    expect(s.attacks[0]).toEqual(before);
+    expect(s.troops[a]).toBe(reserveBefore);
   });
 
   it("captures the same cells when the same tick is run from the same state", () => {

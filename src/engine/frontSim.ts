@@ -93,9 +93,21 @@ export function startAttack(s: FrontState, attacker: number, target: number, fra
   // a front with pool = NaN that can never advance and never runs out — an attack that lives forever.
   if (!Number.isFinite(fraction)) return false;
   if (borderCells(s, attacker, target).length === 0) return false;
-  const pool = s.troops[attacker] * Math.min(1, Math.max(0, fraction));
+  const frac = Math.min(1, Math.max(0, fraction));
+  // Re-committing against a front that already exists must size the new pool from the reserve that
+  // results AFTER that front's survivors come home, not from the reserve as it stands with those
+  // survivors still tied up — otherwise "commit everything" strands the old front's troops at home,
+  // and once refunds are capped, sizing from the pre-refund reserve can destroy troops outright (a
+  // refund that clamps away part of the returning pool, followed by spending a fraction of what's
+  // left, loses whatever the clamp cut).
+  const existing = s.attacks.findIndex((a) => a.attacker === attacker && a.target === target);
+  const reserve = existing >= 0
+    ? Math.min(maxTroops(s, attacker), s.troops[attacker] + s.attacks[existing].pool)
+    : s.troops[attacker];
+  const pool = reserve * frac;
+  // Nothing has been mutated yet, so a rejection here leaves any existing front untouched.
   if (pool <= 0) return false;
-  cancelAttack(s, attacker, target);                 // one front per pair; re-committing replaces it
+  if (existing >= 0) { s.troops[attacker] = reserve; s.attacks.splice(existing, 1); }
   s.troops[attacker] -= pool;
   s.attacks.push({ attacker, target, pool, progress: 0 });
   return true;
