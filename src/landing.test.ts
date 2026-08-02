@@ -37,6 +37,15 @@ describe("renderChooser", () => {
     expect(card).not.toBeUndefined();
     expect(card!.querySelector(".choice-sub")!.textContent).toBe("군대로 플레이");
   });
+
+  it("renders a card linking to playFront.html with the Korean sub text", () => {
+    const root = document.createElement("div");
+    renderChooser(root);
+    const link = [...root.querySelectorAll("a.choice-card")]
+      .find((a) => a.getAttribute("href") === "playFront.html");
+    expect(link).toBeTruthy();
+    expect(link!.textContent).toContain("실시간");
+  });
 });
 
 import { nameTargets } from "./landing";

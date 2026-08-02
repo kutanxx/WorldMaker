@@ -63,6 +63,10 @@ export function renderChooser(root: HTMLElement): void {
         <p class="choice-desc">Levy men from your provinces, march them to the border, and take land by force.</p>
         <div class="choice-sub">군대로 플레이</div>
       </a>
+      <a class="choice-card" href="playFront.html">
+        <span class="choice-title">⚡ Hold the Front</span>
+        <span class="choice-sub">실시간 전선 — 국경 전체로 밀어붙이기</span>
+      </a>
     </div>
     <div class="landing-name">
       <input class="name-seed" maxlength="40" placeholder="세계의 이름으로 시작 · start from a name (e.g. Narnia)" />

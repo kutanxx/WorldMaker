@@ -1,4 +1,3 @@
-import "../theme.css";
 import { generateWorld } from "../engine/world";
 import { DEFAULT_PARAMS } from "../types/world";
 import {

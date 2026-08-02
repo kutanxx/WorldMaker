@@ -475,3 +475,10 @@ svg.world .legend { pointer-events: none; }
 .army-pick-label { font-size: 10px; fill: #2b2113; paint-order: stroke; stroke: #f6ecd2; stroke-width: 3px; }
 .army-over { font-size: 17px; padding: 10px 2px; color: #3c2f1c; text-align: center; }
 .army-restart { margin: 4px 0; }
+
+/* ── Real-time front (playFront.html) ── */
+.front-hud { font-size: 15px; padding: 6px 2px; color: #3c2f1c; }
+.front-map { display: block; width: 100%; max-width: 900px; margin: 6px auto; background: #eadfc2;
+  border: 1px solid #cbb784; border-radius: 5px; max-height: 60vh; cursor: pointer; }
+.front-controls { display: flex; gap: 8px; align-items: center; font-size: 14px; padding: 4px 2px; }
+.front-commit { width: 220px; }

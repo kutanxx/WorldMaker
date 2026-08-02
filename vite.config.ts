@@ -13,6 +13,7 @@ export default defineConfig({
         play: "play.html",
         playProvince: "playProvince.html",
         playArmy: "playArmy.html",
+        playFront: "playFront.html",
       },
     },
   },
