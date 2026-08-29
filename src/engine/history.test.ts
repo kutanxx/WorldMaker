@@ -142,10 +142,18 @@ describe("simulateHistory golden anchor (behaviour lock)", () => {
   const fold = (h: number, x: number) => { h ^= x >>> 0; return Math.imul(h, 16777619) >>> 0; };
   const fnvArr = (arr: ArrayLike<number>) => { let h = 2166136261 >>> 0; for (let i = 0; i < arr.length; i++) h = fold(h, arr[i] + 1); return h >>> 0; };
   const fnvStr = (str: string) => { let h = 2166136261 >>> 0; for (let i = 0; i < str.length; i++) h = fold(h, str.charCodeAt(i)); return h >>> 0; };
+  // Re-pinned 2026-08-30 for the name-repair change in `names.ts` (joins no longer double a letter).
+  // Only the two hashes that fold NAME TEXT moved — `events` folds `e.text`, `polities` folds
+  // `p.name`. Everything that describes the world's shape and history is byte-identical to the
+  // previous anchors: all four counts, and `allSnap` (2796185232 / 999977846 / 4292460260), which
+  // hashes territory ownership across all 51 snapshots and contains no strings at all. That is the
+  // evidence the repair consumed no extra rng draws and moved nothing on the map — the property
+  // `names.test.ts` calls geometry-safe. If a future name change moves `allSnap` or a count, it is
+  // NOT name-only and must not be re-pinned without finding out why.
   const anchors: Record<number, { snaps: number; pols: number; evs: number; econ: number; allSnap: number; events: number; polities: number }> = {
-    1: { snaps: 51, pols: 14, evs: 31, econ: 3, allSnap: 2796185232, events: 3677329610, polities: 4247206507 },
-    2: { snaps: 51, pols: 15, evs: 38, econ: 3, allSnap:  999977846, events: 1287836464, polities: 1375770347 },
-    3: { snaps: 51, pols: 16, evs: 44, econ: 3, allSnap: 4292460260, events: 4115537623, polities: 2430550014 },
+    1: { snaps: 51, pols: 14, evs: 31, econ: 3, allSnap: 2796185232, events: 3897577330, polities: 2288921961 },
+    2: { snaps: 51, pols: 15, evs: 38, econ: 3, allSnap:  999977846, events:  228199169, polities:  328912791 },
+    3: { snaps: 51, pols: 16, evs: 44, econ: 3, allSnap: 4292460260, events: 4127237510, polities: 3357213832 },
   };
   for (const seed of [1, 2, 3]) {
     it(`reproduces the pinned hashes for seed ${seed}`, () => {
