@@ -2,6 +2,7 @@ import { OCEAN } from "./terrain";
 import type { World } from "../types/world";
 import { mulberry32, deriveSeed, type Rng } from "./rng";
 import { makeNameGen, type NameGen } from "./names";
+import { withJosa } from "./korean";
 
 export const TICKS = 50, YEARS_PER_TICK = 10;
 const SOL_INIT = 0.5, SOL_RISE = 0.03, SOL_DECAY = 0.02;
@@ -404,7 +405,7 @@ export function stepSim(s: SimState): void {
     if (capOwner >= 0 && capOwner !== o) {
       for (let c = 0; c < n; c++) if (owner[c] === o) owner[c] = capOwner;
       s.alive[o] = false; s.polities[o].endedYear = year;
-      s.events.push({ year, type: "conquer", text: `${year}년, ${s.polities[capOwner].name}이(가) ${s.polities[o].name}을(를) 정복`, polityId: capOwner, otherId: o, cell: s.capitals[o] });
+      s.events.push({ year, type: "conquer", text: `${year}년, ${withJosa(s.polities[capOwner].name, "이/가")} ${withJosa(s.polities[o].name, "을/를")} 정복`, polityId: capOwner, otherId: o, cell: s.capitals[o] });
     }
   }
 
@@ -435,7 +436,7 @@ export function stepSim(s: SimState): void {
       owner[c] = capPolity[bi];
       s.solidarity[c] = CIVILWAR_BIRTH_SOL; // fresh cohesion so successors can stand on their own
     }
-    s.events.push({ year, type: "civilwar", text: `${year}년, 내란이 ${s.polities[o].name}을(를) ${names.join("·")}(으)로 쪼갬`, polityId: o, cell: s.capitals[o] });
+    s.events.push({ year, type: "civilwar", text: `${year}년, 내란이 ${withJosa(s.polities[o].name, "을/를")} ${withJosa(names.join("·"), "으로/로")} 쪼갬`, polityId: o, cell: s.capitals[o] });
     break;
   }
 
@@ -482,7 +483,7 @@ export function stepSim(s: SimState): void {
     if (!s.alive[o] || s.polities[o].free || agg4[o].cells < 40) continue;
     if (agg4[o].avg < 0.42) continue;
     if (s.rng() > 0.14) continue;
-    s.events.push({ year, type: "newCity", text: `${year}년, ${s.polities[o].name}이(가) ${s.nameGen.place()} 건설`, polityId: o, cell: s.capitals[o] });
+    s.events.push({ year, type: "newCity", text: `${year}년, ${withJosa(s.polities[o].name, "이/가")} ${s.nameGen.place()} 건설`, polityId: o, cell: s.capitals[o] });
     break;
   }
 

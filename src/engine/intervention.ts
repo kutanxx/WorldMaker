@@ -1,6 +1,7 @@
 import { OCEAN } from "./terrain";
 import type { SimState } from "./historySim";
 import { aggregate, contestStrength, CONQUEST_SOL, AMPHIB_MULT, EXPEDITION_MULT, CONTEST_THRESH, CITY_MIN_GAP, PEACE_TICKS, YEARS_PER_TICK, type Agg } from "./historySim";
+import { withJosa } from "./korean";
 
 export type Action =
   | { type: "attack"; cell: number }
@@ -228,7 +229,7 @@ export function applyIntervention(s: SimState, action: Action): InterventionResu
     const name = s.nameGen.place();
     s.foundedCities.add(cell);
     const year = s.tick * YEARS_PER_TICK;
-    s.events.push({ year, type: "newCity", text: `${year}년, ${s.polities[s.playerPolity].name}이(가) ${name} 건설`, polityId: s.playerPolity, cell });
+    s.events.push({ year, type: "newCity", text: `${year}년, ${withJosa(s.polities[s.playerPolity].name, "이/가")} ${name} 건설`, polityId: s.playerPolity, cell });
     return { ok: true, message: `Founded the city of ${name}.`, code: "founded", data: { name } };
   }
   if (action.type === "peace") {

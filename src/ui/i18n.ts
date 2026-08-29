@@ -5,6 +5,7 @@ import {
   TUNDRA, TAIGA, TEMPERATE_FOREST, GRASSLAND, DESERT, TROPICAL, WETLAND, ALPINE, BIOME_NAMES,
 } from "../engine/biome";
 import type { ChoicePreview } from "../engine/dilemma";
+import { withJosa } from "../engine/korean";
 
 export type Lang = "en" | "ko";
 
@@ -122,7 +123,7 @@ export const PLAY_UI: Record<Lang, Record<string, string>> = {
     factIAttacked: "you attacked them {n} turns ago · grudge", factIAttackedNow: "you attacked them this turn · grudge",
   },
   ko: {
-    chooseRealm: "국가를 선택하세요", home: "🏠 홈", startRealm: "▶ {name}(으)로 시작", cells: "칸", cohesion: "안정도", threats: "위협",
+    chooseRealm: "국가를 선택하세요", home: "🏠 홈", startRealm: "▶ {name}{josa} 시작", cells: "칸", cohesion: "안정도", threats: "위협",
     diffEasy: "쉬움", diffNormal: "보통", diffHard: "어려움",
     civilWarRisk: "내전 위험", fallen: "멸망",
     aggressive: "공격적", defensive: "방어적", internal: "내치",
@@ -231,7 +232,7 @@ export function playLog(lang: Lang, code: string | undefined, data: Record<strin
       case "landed": return cnt > 1 ? `${name}에 상륙하여 칸 ${cnt}개를 점령했습니다.` : `${name}에 상륙하여 칸을 점령했습니다.`;
       case "repulsed": return `${name} 공격이 격퇴당했습니다.`;
       case "invested": return `${where}에 투자: ${n}개 칸의 안정도이 올랐습니다.`;
-      case "founded": return `${name}을(를) 건설했습니다.`;
+      case "founded": return `${withJosa(name, "을/를")} 건설했습니다.`;
       case "badSite": return "도시를 세울 수 없는 곳입니다.";
       case "peaceMade": return `${name}과(와) ${Number(data.years ?? 0)}년 강화를 맺었습니다.`;
       case "notHostile": return "접경한 적국이 아닙니다.";
@@ -267,7 +268,7 @@ export function playDilemma(lang: Lang, code: string, data: Record<string, strin
       case "defector": return { title: `${name}의 제후가 망명을 청합니다.`, a: "받아들인다 (영지 획득, 관계 악화)", b: "돌려보낸다 (10년 불가침)" };
       case "prophecy1": return { title: "떠돌이 예언자가 왕국의 영광을 예언합니다.", a: "예언자를 후원한다 (지금 ▼, 다음 십년에 심판)", b: "내친다 (변화 없음)" };
       case "prophecy2": return { title: "예언의 시간이 왔습니다 — 나라의 안정도이 심판대에 오릅니다.", a: "성취를 선포한다 (안정도 ≥50%: ▲▲ / 미만: ▼)", b: "조용히 묻는다 (변화 없음)" };
-      case "hegemon1": return { title: `${name}이(가) 패권국으로 부상했습니다. 그 그림자가 국경에 드리웁니다.`, a: "측면을 규합한다 (이웃과 휴전)", b: "군비를 증강한다 (국경 ▲▲, 내지 ▼)" };
+      case "hegemon1": return { title: `${withJosa(name, "이/가")} 패권국으로 부상했습니다. 그 그림자가 국경에 드리웁니다.`, a: "측면을 규합한다 (이웃과 휴전)", b: "군비를 증강한다 (국경 ▲▲, 내지 ▼)" };
       case "hegemon2": return { title: `${name}의 최후통첩 — 조공이냐, 전쟁이냐.`, a: "조공을 바친다 (안정도 ▼▼, 30년 휴전)", b: "항전을 결의한다 (안정도 ▲, 결전으로)" };
       case "hegemon3": return { title: `결전의 날 — ${name}의 대군이 국경에 집결했습니다.`, a: "결전에 나선다 (도박 — 승률은 안정도이 정한다)", b: "무릎 꿇는다 (안정도 ▼▼, 30년 휴전)" };
     }
@@ -299,14 +300,14 @@ export function playDilemmaOutcome(lang: Lang, code: string, data: Record<string
       case "raidersRaid": return `보복 원정이 ${name}에게서 칸 ${n}개를 빼앗았다.`;
       case "raidersNoTarget": return "원정대가 마땅한 목표를 찾지 못했다.";
       case "warwearyLevy": return `국경 ${n}개 칸에 병력을 증강했다.`;
-      case "warwearyTerms": return `${name}와(과) 20년 화의를 맺었다. 제후들은 못마땅해한다.`;
+      case "warwearyTerms": return `${withJosa(name, "와/과")} 20년 화의를 맺었다. 제후들은 못마땅해한다.`;
       case "warwearyNoFoe": return "화의를 청할 상대가 없었다.";
       case "boomtownCharter": return "시장 특허가 온 나라의 상인을 불러모은다.";
       case "boomtownWall": return `성벽이 올라가 주변 ${n}개 칸이 든든해졌다.`;
       case "prosperityFeast": return "대축제가 열렸다. 온 나라가 하나가 된다.";
       case "prosperityFrontier": return `변경 ${n}개 칸에 개척민이 들어섰다.`;
       case "defectorAccept": return `${name}의 영지가 귀부했다.`;
-      case "defectorReturn": return `${name}이(가) 10년 불가침을 약속했다.`;
+      case "defectorReturn": return `${withJosa(name, "이/가")} 10년 불가침을 약속했다.`;
       case "prophecySponsor": return "예언자가 왕실의 이름으로 순회를 시작했다.";
       case "prophecyIgnore": return "예언자는 다른 나라로 떠났다.";
       case "prophecyFulfilled": return "예언이 이루어졌다! 백성이 왕조를 칭송한다.";
@@ -360,7 +361,7 @@ export function playLegacyEpitaph(lang: Lang, code: string, data: Record<string,
     switch (code) {
       case "epiFallen": return `${name}의 손에 무너졌다`;
       case "epiUnified": return "천하를 통일했다";
-      case "epiSlewHegemon": return `패권국 ${name}을(를) 결전에서 꺾었다`;
+      case "epiSlewHegemon": return `패권국 ${withJosa(name, "을/를")} 결전에서 꺾었다`;
       case "epiSurvivedShadow": return `${name}의 그림자 아래에서 살아남았다`;
       case "epiProphecy": return "예언을 이루었다";
       case "epiGoldenAge": return "황금기를 이루었다";
@@ -379,7 +380,7 @@ export function playLegacyEpitaph(lang: Lang, code: string, data: Record<string,
 }
 // intro + end-screen lines that interpolate values
 export function playRuleIntro(lang: Lang, name: string): string {
-  return lang === "ko" ? `0년 — 당신은 ${name}을(를) 다스립니다.` : `Year 0 — you rule ${name}.`;
+  return lang === "ko" ? `0년 — 당신은 ${withJosa(name, "을/를")} 다스립니다.` : `Year 0 — you rule ${name}.`;
 }
 export function playFell(lang: Lang, years: number): string {
   return lang === "ko" ? `당신의 나라는 ${years}년 만에 멸망했습니다.` : `Your realm fell in ${years} years.`;

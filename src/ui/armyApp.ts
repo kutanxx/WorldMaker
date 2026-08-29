@@ -11,6 +11,7 @@ import { politicalLayer } from "./politicalLayer";
 import { politicalBorders } from "../engine/borders";
 import { svgEl } from "./renderer";
 import { cellPath, segPath } from "./svgPaths";
+import { withJosa } from "../engine/korean";
 
 // The documented revert for AI_LEADER_BIAS is "set it to 1", and the HUD must not keep warning
 // about a dogpile the AI has stopped doing — so the gate lives here, in the one place that decides
@@ -307,7 +308,7 @@ export function mountArmyApp(root: HTMLElement, opts: { seed?: number } = {}): v
       over.textContent =
         oc.kind === "defeat" ? "패배 — 모든 영토를 잃었습니다"
         : oc.kind === "victory" ? `승리 — 세계의 ${Math.round(GOAL_GAIN_FRAC * 100)}%를 새로 정복했습니다`
-        : oc.kind === "outpaced" ? `패배 — ${world.polities[oc.by]?.name ?? oc.by}이(가) 먼저 목표를 달성했습니다`
+        : oc.kind === "outpaced" ? `패배 — ${withJosa(String(world.polities[oc.by]?.name ?? oc.by), "이/가")} 먼저 목표를 달성했습니다`
         : `${HORIZON}턴 종료 — ${oc.rank}위 / ${oc.of}`;
       root.appendChild(over);
       const again = document.createElement("button");

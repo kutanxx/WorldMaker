@@ -25,6 +25,7 @@ import { dailyName } from "./daily";
 import { installTipStrip } from "./tipStrip";
 import { attachZoomPan, type ZoomPan } from "./zoomPan";
 import { CHALLENGES, type ChallengeCtx } from "./challenges";
+import { josa } from "../engine/korean";
 
 const STANCES: Stance[] = ["aggressive", "defensive", "internal"];
 const NEIGHBOR_SHOW = 6;
@@ -123,7 +124,11 @@ export function createPlayApp(root: HTMLElement, seed: number): void {
     const arm = (id: number) => {
       selectedId = id;
       show(id);
-      confirmBtn.textContent = playT(lang, "startRealm").replace("{name}", nameOf(id));
+      // The particle is resolved here, where the realm's name is known — the template can only carry
+      // a slot for it. English renders no particle at all, so the slot simply empties.
+      confirmBtn.textContent = playT(lang, "startRealm")
+        .replace("{name}", nameOf(id))
+        .replace("{josa}", lang === "ko" ? josa(nameOf(id), "으로/로") : "");
       confirmBtn.style.display = "";
     };
     mapBox.addEventListener("mouseover", (e) => { const id = polityUnder(e); if (id >= 0) show(id); });

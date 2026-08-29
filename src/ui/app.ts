@@ -218,7 +218,9 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     downloadBlob("world.svg", new Blob([svgToString(svg)], { type: "image/svg+xml" }));
   });
   gazBtn.addEventListener("click", () => {
-    const md = worldToGazetteer(generated.world, history);
+    // The exported document follows the language the user is reading the app in — a Korean
+    // session was producing an English gazetteer with Korean chronicle lines inside it.
+    const md = worldToGazetteer(generated.world, history, lang);
     const fname = (generated.world.name.replace(/[^A-Za-z0-9]+/g, "_").replace(/^_+|_+$/g, "") || "gazetteer") + ".md";
     downloadBlob(fname, new Blob([md], { type: "text/markdown" }));
   });
