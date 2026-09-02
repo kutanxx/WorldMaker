@@ -8,6 +8,10 @@ describe("worldToGazetteer", () => {
   const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });
   const history = simulateHistory(world, 1);
   const md = worldToGazetteer(world, history);
+  // Foundings are rendered as one grouped line, so "an event appears verbatim" has to be checked
+  // against an event that is not folded — otherwise the assertion tests the grouping, not the
+  // chronicle.
+  const ungrouped = history.events.find((e) => e.type !== "found")!;
 
   it("opens with the world title and carries every section header", () => {
     const title = world.name.charAt(0).toUpperCase() + world.name.slice(1);
@@ -18,7 +22,7 @@ describe("worldToGazetteer", () => {
     expect(md).toContain(world.regions[0].name);
     expect(md).toContain(world.cultures[0].name);
     expect(md).toContain(`### ${world.polities[0].name}`);
-    expect(md).toContain(history.events[0].text);
+    expect(md).toContain(ungrouped.text);
   });
   it("is deterministic", () => {
     expect(worldToGazetteer(world, history)).toBe(md);
@@ -47,7 +51,7 @@ describe("worldToGazetteer", () => {
     for (const h of ["## The Land", "## Peoples", "## Realms"]) expect(ko).not.toContain(h);
     // The chronicle events are generated in Korean by the simulation, so a Korean document is now
     // one language throughout — which is the whole point of taking a `lang` at all.
-    expect(ko).toContain(history.events[0].text);
+    expect(ko).toContain(ungrouped.text);
   });
 
   it("picks the Korean object particle by the final consonant, not a placeholder", () => {

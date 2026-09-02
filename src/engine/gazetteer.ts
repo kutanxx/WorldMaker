@@ -253,9 +253,27 @@ export function worldToGazetteer(world: World, history: History, lang: Gazetteer
   // ── Chronicle ───────────────────────────────────────────────────────────────
   L.push(ko ? `## 연대기 (0–${history.years}년)` : `## Chronicle (Years 0–${history.years})`, "");
   let lastCentury = -1;
+  // Every chronicle opened with one "founded" line per realm — eight identical-shaped lines before
+  // anything happened, on every seed and in both languages. They are one event in the world's life,
+  // so they are told as one line. Only the RENDERING changes: the simulation still records each
+  // founding separately, which is what keeps the history itself (and its behaviour lock) untouched.
+  const founded = history.events.filter((e) => e.type === "found");
+  const groupedFoundYear = founded.length >= 3 ? founded[0].year : null;
+  const groupedAllSameYear = groupedFoundYear !== null && founded.every((e) => e.year === groupedFoundYear);
+
   for (const ev of history.events) {
     const century = Math.floor(ev.year / 100);
     if (century !== lastCentury) { lastCentury = century; L.push("", ko ? `### ${century * 100}년대` : `### ${century * 100}s`); }
+    if (groupedAllSameYear && ev.type === "found") {
+      if (ev !== founded[0]) continue;            // the rest are folded into the line below
+      const names = founded
+        .map((e) => history.polities.find((p) => p.id === e.polityId)?.name)
+        .filter((n): n is string => !!n);
+      L.push(ko
+        ? `- ${ev.year}년, ${names.length}개 나라가 서다 — ${names.join(", ")}`
+        : `- Year ${ev.year} — ${names.length} realms stand: ${names.join(", ")}`);
+      continue;
+    }
     L.push(`- ${ev.text}`);
   }
 

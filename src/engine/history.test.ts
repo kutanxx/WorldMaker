@@ -142,8 +142,12 @@ describe("simulateHistory golden anchor (behaviour lock)", () => {
   const fold = (h: number, x: number) => { h ^= x >>> 0; return Math.imul(h, 16777619) >>> 0; };
   const fnvArr = (arr: ArrayLike<number>) => { let h = 2166136261 >>> 0; for (let i = 0; i < arr.length; i++) h = fold(h, arr[i] + 1); return h >>> 0; };
   const fnvStr = (str: string) => { let h = 2166136261 >>> 0; for (let i = 0; i < str.length; i++) h = fold(h, str.charCodeAt(i)); return h >>> 0; };
-  // Re-pinned 2026-08-30, twice: first for the name repair in `names.ts`, then for Korean particle
-  // selection replacing the "이(가)" placeholders in event text.
+  // Re-pinned 2026-08-30, three times: the name repair in `names.ts`, then Korean particle
+  // selection replacing the "이(가)" placeholders, then an 11-character cap on generated names.
+  // Every time, the four counts and `allSnap` (territory ownership across 51 snapshots, no
+  // strings in it) came back byte-identical — that is the check that says a change moved WORDS
+  // and not the world. Seed 2 did not move at all for the length cap, since no name on it was
+  // over the cap.
   // Only the two hashes that fold NAME TEXT moved — `events` folds `e.text`, `polities` folds
   // `p.name`. Everything that describes the world's shape and history is byte-identical to the
   // previous anchors: all four counts, and `allSnap` (2796185232 / 999977846 / 4292460260), which
@@ -152,9 +156,9 @@ describe("simulateHistory golden anchor (behaviour lock)", () => {
   // `names.test.ts` calls geometry-safe. If a future name change moves `allSnap` or a count, it is
   // NOT name-only and must not be re-pinned without finding out why.
   const anchors: Record<number, { snaps: number; pols: number; evs: number; econ: number; allSnap: number; events: number; polities: number }> = {
-    1: { snaps: 51, pols: 14, evs: 31, econ: 3, allSnap: 2796185232, events:  193126664, polities: 2288921961 },
+    1: { snaps: 51, pols: 14, evs: 31, econ: 3, allSnap: 2796185232, events: 1481129128, polities: 2675077029 },
     2: { snaps: 51, pols: 15, evs: 38, econ: 3, allSnap:  999977846, events:   98103408, polities:  328912791 },
-    3: { snaps: 51, pols: 16, evs: 44, econ: 3, allSnap: 4292460260, events:  159444049, polities: 3357213832 },
+    3: { snaps: 51, pols: 16, evs: 44, econ: 3, allSnap: 4292460260, events: 2078606065, polities: 4030259824 },
   };
   for (const seed of [1, 2, 3]) {
     it(`reproduces the pinned hashes for seed ${seed}`, () => {
