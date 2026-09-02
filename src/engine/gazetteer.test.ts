@@ -87,4 +87,43 @@ describe("worldToGazetteer", () => {
     expect(worldToGazetteer(world, history, "ko")).toBe(ko);
     expect(worldToGazetteer(world, history, "en")).toContain("## The Land");
   });
+
+  it("tells the moments the simulation lived through but never recorded", () => {
+    // The 51 territory snapshots were read by nobody: the chronicle carried 31-44 events across five
+    // centuries, more than half its recorded moments silent. Peaks, sudden losses and changes of the
+    // greatest realm all already happened and are now told.
+    const chron = ko.slice(ko.indexOf("## 연대기"));
+    const lines = chron.split("\n").filter((l) => l.startsWith("- "));
+    const recorded = history.events.filter((e) => e.type !== "found").length + 1;  // +1 grouped founding
+    expect(lines.length).toBeGreaterThan(recorded);
+    expect(chron).toContain("최대 판도에 이르다");
+  });
+
+  it("says a realm fell rather than that it lost 100% of itself", () => {
+    // A destroyed realm used to be reported as a percentage, which is arithmetic where the chronicle
+    // wants an ending.
+    expect(ko).not.toContain("영토의 100%를 잃다");
+  });
+
+  it("keeps the chronicle in year order however entries were derived", () => {
+    const years = [...ko.slice(ko.indexOf("## 연대기")).matchAll(/^- (\d+)년/gm)].map((m) => Number(m[1]));
+    expect(years.length).toBeGreaterThan(10);
+    for (let i = 1; i < years.length; i++) expect(years[i]).toBeGreaterThanOrEqual(years[i - 1]);
+  });
+
+  it("gives every century a line, so a quiet one still says what the world looked like", () => {
+    // Measured across seven seeds, the opening century carried 17-21 entries and later ones dropped
+    // to one or none — the simulation reaches equilibrium and stops emitting events. A century in
+    // which the borders held is still information; it just had to be said.
+    const chron = ko.slice(ko.indexOf("## 연대기"));
+    const centuries = [...chron.matchAll(/^### (\d+)년대/gm)].map((m) => Number(m[1]) / 100);
+    expect(centuries.length).toBeGreaterThan(3);
+    for (const c of centuries) {
+      const body = chron.slice(chron.indexOf(`### ${c * 100}년대`));
+      const nextHeader = body.indexOf("### ", 4);
+      const section = nextHeader > 0 ? body.slice(0, nextHeader) : body;
+      expect((section.match(/^- /gm) ?? []).length).toBeGreaterThan(0);
+    }
+    expect(chron).toContain("년 현재 —");
+  });
 });

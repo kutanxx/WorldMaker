@@ -3,6 +3,7 @@ import type { History } from "./history";
 import {
   OCEAN, TUNDRA, TAIGA, TEMPERATE_FOREST, GRASSLAND, DESERT, TROPICAL, WETLAND, ALPINE,
 } from "./biome";
+import { withJosa } from "./korean";
 
 // Declared here rather than imported from `src/ui/i18n.ts`: the engine is DOM-free and must not
 // depend on the presentation layer. The union is deliberately the same one the UI uses, so the app
@@ -100,6 +101,106 @@ const RIVER_SIZE: Record<GazetteerLang, Record<string, string>> = {
   en: { large: "a great river", mid: "a river", small: "a slender stream" },
   ko: { large: "큰 강", mid: "강", small: "가느다란 물줄기" },
 };
+
+// A chronicle entry the simulation lived through but never wrote down. `rank` only orders entries
+// that share a year, so the output is stable.
+interface Told { year: number; rank: number; text: string }
+
+// The simulation keeps 51 territory snapshots and the chronicle read none of them: measured across
+// seven seeds it recorded 31-44 events over five centuries — one entry per sixteen years, with more
+// than half the recorded moments silent. Everything below already happened; it was simply never
+// told. Deriving it here rather than emitting it from the simulation means the world's history is
+// unchanged — only the telling of it grows.
+function minedChronicle(history: History, lang: GazetteerLang): Told[] {
+  const ko = lang === "ko";
+  const n = history.polities.length;
+  if (!history.snapshots.length || n === 0) return [];
+
+  // `id` is assigned as `polities.length` at every push, so an id is always its own array index.
+  const series: number[][] = history.snapshots.map((snap) => {
+    const c = new Array<number>(n).fill(0);
+    for (let i = 0; i < snap.owner.length; i++) { const o = snap.owner[i]; if (o >= 0 && o < n) c[o]++; }
+    return c;
+  });
+  const nameOf = (p: number) => history.polities[p]?.name ?? String(p);
+  const out: Told[] = [];
+
+  // The greatest extent a realm ever reached. Skipped at the first and last snapshot: a realm that
+  // peaks at its founding never rose, and one still peaking at the end has not yet fallen.
+  for (let p = 0; p < n; p++) {
+    let best = 0, bestT = -1;
+    for (let t = 0; t < series.length; t++) if (series[t][p] > best) { best = series[t][p]; bestT = t; }
+    if (best < 20 || bestT <= 0 || bestT >= series.length - 1) continue;
+    const year = history.snapshots[bestT].year;
+    out.push({ year, rank: 2, text: ko
+      ? `${year}년, ${withJosa(nameOf(p), "이/가")} 최대 판도에 이르다 — ${best}칸`
+      : `Year ${year} — ${nameOf(p)} reaches its greatest extent, ${best} tiles` });
+  }
+
+  // Sudden losses and gains between two snapshots. A cooldown keeps one long decline from being
+  // reported every decade as though it were news each time.
+  const lastLoss = new Array<number>(n).fill(-99);
+  const lastGain = new Array<number>(n).fill(-99);
+  for (let t = 1; t < series.length; t++) {
+    const year = history.snapshots[t].year;
+    for (let p = 0; p < n; p++) {
+      const a = series[t - 1][p], b = series[t][p];
+      if (a >= 15 && b <= a * 0.66 && t - lastLoss[p] >= 3) {
+        lastLoss[p] = t;
+        // Losing everything is a fall, not a percentage: "lost 100% of its land" is arithmetic
+        // where the chronicle wants an ending.
+        const share = Math.round(100 * (1 - b / a));
+        out.push({ year, rank: 3, text: b === 0
+          ? (ko ? `${year}년, ${withJosa(nameOf(p), "이/가")} 멸망하다 — 마지막까지 ${a}칸을 지켰다`
+                : `Year ${year} — ${nameOf(p)} falls, holding ${a} tiles to the last`)
+          : (ko ? `${year}년, ${withJosa(nameOf(p), "이/가")} 한 세대 만에 영토의 ${share}%를 잃다 (${a} → ${b}칸)`
+                : `Year ${year} — ${nameOf(p)} loses ${share}% of its land in a generation (${a} → ${b} tiles)`) });
+      } else if (a >= 10 && b >= a * 1.5 && t - lastGain[p] >= 3) {
+        lastGain[p] = t;
+        out.push({ year, rank: 3, text: ko
+          ? `${year}년, ${withJosa(nameOf(p), "이/가")} 영토를 크게 넓히다 (${a} → ${b}칸)`
+          : `Year ${year} — ${nameOf(p)} expands sharply (${a} → ${b} tiles)` });
+      }
+    }
+  }
+
+  // Which realm is largest, and when that passes to another.
+  let lastTop = -1;
+  for (let t = 0; t < series.length; t++) {
+    let top = -1, tv = 0;
+    for (let p = 0; p < n; p++) if (series[t][p] > tv) { tv = series[t][p]; top = p; }
+    if (top < 0 || top === lastTop) continue;
+    if (lastTop >= 0) {
+      const year = history.snapshots[t].year;
+      out.push({ year, rank: 1, text: ko
+        ? `${year}년, ${withJosa(nameOf(top), "이/가")} ${nameOf(lastTop)}를 제치고 가장 큰 나라가 되다`
+        : `Year ${year} — ${nameOf(top)} overtakes ${nameOf(lastTop)} as the greatest realm` });
+    }
+    lastTop = top;
+  }
+
+  // Where the centuries stand. The chronicle is front-loaded by nature: measured across seven seeds
+  // the opening century carries 17-21 entries and later ones drop to one or none, because the
+  // simulation reaches equilibrium and simply stops producing events. A century with nothing in it
+  // is not an absence of history — it is a century in which the borders held, and saying so is
+  // worth a line to anyone reading this for material.
+  for (let t = 0; t < series.length; t++) {
+    const year = history.snapshots[t].year;
+    if (year % 100 !== 0) continue;
+    let alive = 0, top = -1, tv = 0, held = 0;
+    for (let q = 0; q < n; q++) {
+      const v = series[t][q];
+      if (v > 0) { alive++; held += v; }
+      if (v > tv) { tv = v; top = q; }
+    }
+    if (alive === 0) continue;
+    out.push({ year, rank: -1, text: ko
+      ? `${year}년 현재 — ${alive}개 나라가 서 있고, 가장 큰 나라는 ${nameOf(top)}(${tv}칸). 사람의 땅은 ${held}칸.`
+      : `Year ${year} — ${alive} realms stand; the greatest is ${nameOf(top)} at ${tv} tiles, of ${held} tiles settled.` });
+  }
+
+  return out;
+}
 
 export function worldToGazetteer(world: World, history: History, lang: GazetteerLang = "en"): string {
   const { grid } = world;
@@ -261,20 +362,32 @@ export function worldToGazetteer(world: World, history: History, lang: Gazetteer
   const groupedFoundYear = founded.length >= 3 ? founded[0].year : null;
   const groupedAllSameYear = groupedFoundYear !== null && founded.every((e) => e.year === groupedFoundYear);
 
+  // The recorded events and the moments mined out of the snapshots are one chronicle, told in order.
+  const told: Told[] = [];
   for (const ev of history.events) {
-    const century = Math.floor(ev.year / 100);
-    if (century !== lastCentury) { lastCentury = century; L.push("", ko ? `### ${century * 100}년대` : `### ${century * 100}s`); }
     if (groupedAllSameYear && ev.type === "found") {
       if (ev !== founded[0]) continue;            // the rest are folded into the line below
       const names = founded
         .map((e) => history.polities.find((p) => p.id === e.polityId)?.name)
         .filter((n): n is string => !!n);
-      L.push(ko
-        ? `- ${ev.year}년, ${names.length}개 나라가 서다 — ${names.join(", ")}`
-        : `- Year ${ev.year} — ${names.length} realms stand: ${names.join(", ")}`);
+      told.push({ year: ev.year, rank: 0, text: ko
+        ? `${ev.year}년, ${names.length}개 나라가 서다 — ${names.join(", ")}`
+        : `Year ${ev.year} — ${names.length} realms stand: ${names.join(", ")}` });
       continue;
     }
-    L.push(`- ${ev.text}`);
+    told.push({ year: ev.year, rank: 0, text: ev.text });
+  }
+  told.push(...minedChronicle(history, lang));
+  // Stable: year, then kind, then the order each was produced in — no comparison falls through to
+  // chance, so the same world always reads the same way.
+  told.forEach((t, i) => ((t as Told & { i: number }).i = i));
+  told.sort((a, b) => a.year - b.year || a.rank - b.rank
+    || ((a as Told & { i: number }).i - (b as Told & { i: number }).i));
+
+  for (const t of told) {
+    const century = Math.floor(t.year / 100);
+    if (century !== lastCentury) { lastCentury = century; L.push("", ko ? `### ${century * 100}년대` : `### ${century * 100}s`); }
+    L.push(`- ${t.text}`);
   }
 
   return L.join("\n") + "\n";
