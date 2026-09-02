@@ -4,6 +4,7 @@ import {
   OCEAN, TUNDRA, TAIGA, TEMPERATE_FOREST, GRASSLAND, DESERT, TROPICAL, WETLAND, ALPINE,
 } from "./biome";
 import { withJosa } from "./korean";
+import { buildDynasties, rulerAt, type Reign } from "./dynasty";
 
 // Declared here rather than imported from `src/ui/i18n.ts`: the engine is DOM-free and must not
 // depend on the presentation layer. The union is deliberately the same one the UI uses, so the app
@@ -111,7 +112,8 @@ interface Told { year: number; rank: number; text: string }
 // than half the recorded moments silent. Everything below already happened; it was simply never
 // told. Deriving it here rather than emitting it from the simulation means the world's history is
 // unchanged — only the telling of it grows.
-function minedChronicle(history: History, lang: GazetteerLang): Told[] {
+function minedChronicle(world: World, history: History, lang: GazetteerLang,
+                        dyn: Map<number, Reign[]>): Told[] {
   const ko = lang === "ko";
   const n = history.polities.length;
   if (!history.snapshots.length || n === 0) return [];
@@ -123,6 +125,13 @@ function minedChronicle(history: History, lang: GazetteerLang): Told[] {
     return c;
   });
   const nameOf = (p: number) => history.polities[p]?.name ?? String(p);
+  // Who held the realm when it happened. A peak or a collapse with a name on it is a person's
+  // reign; without one it is a statistic.
+  const underOf = (p: number, year: number) => {
+    const r = rulerAt(dyn.get(p) ?? [], year);
+    if (!r) return "";
+    return ko ? ` (${r.name} 치세)` : ` (under ${r.name})`;
+  };
   const out: Told[] = [];
 
   // The greatest extent a realm ever reached. Skipped at the first and last snapshot: a realm that
@@ -133,8 +142,8 @@ function minedChronicle(history: History, lang: GazetteerLang): Told[] {
     if (best < 20 || bestT <= 0 || bestT >= series.length - 1) continue;
     const year = history.snapshots[bestT].year;
     out.push({ year, rank: 2, text: ko
-      ? `${year}년, ${withJosa(nameOf(p), "이/가")} 최대 판도에 이르다 — ${best}칸`
-      : `Year ${year} — ${nameOf(p)} reaches its greatest extent, ${best} tiles` });
+      ? `${year}년, ${withJosa(nameOf(p), "이/가")} 최대 판도에 이르다 — ${best}칸${underOf(p, year)}`
+      : `Year ${year} — ${nameOf(p)} reaches its greatest extent, ${best} tiles${underOf(p, year)}` });
   }
 
   // Sudden losses and gains between two snapshots. A cooldown keeps one long decline from being
@@ -151,8 +160,8 @@ function minedChronicle(history: History, lang: GazetteerLang): Told[] {
         // where the chronicle wants an ending.
         const share = Math.round(100 * (1 - b / a));
         out.push({ year, rank: 3, text: b === 0
-          ? (ko ? `${year}년, ${withJosa(nameOf(p), "이/가")} 멸망하다 — 마지막까지 ${a}칸을 지켰다`
-                : `Year ${year} — ${nameOf(p)} falls, holding ${a} tiles to the last`)
+          ? (ko ? `${year}년, ${withJosa(nameOf(p), "이/가")} 멸망하다 — ${a}칸을 지키던 끝${underOf(p, year - 10)}`
+                : `Year ${year} — ${nameOf(p)} falls, holding ${a} tiles to the last${underOf(p, year - 10)}`)
           : (ko ? `${year}년, ${withJosa(nameOf(p), "이/가")} 한 세대 만에 영토의 ${share}%를 잃다 (${a} → ${b}칸)`
                 : `Year ${year} — ${nameOf(p)} loses ${share}% of its land in a generation (${a} → ${b} tiles)`) });
       } else if (a >= 10 && b >= a * 1.5 && t - lastGain[p] >= 3) {
@@ -199,6 +208,70 @@ function minedChronicle(history: History, lang: GazetteerLang): Told[] {
       : `Year ${year} — ${alive} realms stand; the greatest is ${nameOf(top)} at ${tv} tiles, of ${held} tiles settled.` });
   }
 
+  // Which peoples a realm comes to rule. The generator gives every world five cultures and the
+  // chronicle never mentioned one of them — yet a realm reaching over a second people's land is the
+  // kind of turn a story is built on, and it is sitting in `cultureOf` crossed with the snapshots.
+  // Only the first time counts: a realm holds that ground for centuries afterwards.
+  const seenCulture = new Set<string>();
+  for (let t = 0; t < history.snapshots.length; t++) {
+    const snap = history.snapshots[t];
+    const holds: Set<number>[] = Array.from({ length: n }, () => new Set<number>());
+    for (let i = 0; i < snap.owner.length; i++) {
+      const o = snap.owner[i];
+      if (o < 0 || o >= n) continue;
+      const c = world.cultureOf[i];
+      if (c >= 0 && c < world.cultures.length) holds[o].add(c);
+    }
+    for (let p = 0; p < n; p++) {
+      // A realm's own people are not a conquest, so the culture its seat stands in never counts.
+      const home = world.cultureOf[history.polities[p]?.capital ?? -1] ?? -1;
+      const gained: string[] = [];
+      for (const c of [...holds[p]].sort((a, b) => a - b)) {
+        const key = p + ":" + c;
+        if (c === home || seenCulture.has(key)) continue;
+        seenCulture.add(key);
+        if (t === 0) continue;                 // held from the first day: not a moment, just a fact
+        gained.push(world.cultures[c]?.name ?? String(c));
+      }
+      // One conquest can reach two peoples at once; that is one line, not two identical ones.
+      if (!gained.length) continue;
+      const year = snap.year;
+      out.push({ year, rank: 2, text: ko
+        ? `${year}년, ${withJosa(nameOf(p), "이/가")} ${gained.join("·")} 민족의 땅을 다스리게 되다${underOf(p, year)}`
+        : `Year ${year} — ${nameOf(p)} comes to rule land of the ${gained.join(" and ")}${underOf(p, year)}` });
+    }
+  }
+
+  // Accessions, but only where a realm is large enough for its succession to be news. Narrating
+  // every crowning of every realm would bury the chronicle: eight to sixteen realms across five
+  // centuries make far more successions than events.
+  const snapAt = (year: number) => {
+    let t = 0;
+    for (let i = 0; i < history.snapshots.length; i++) if (history.snapshots[i].year <= year) t = i;
+    return t;
+  };
+  // 1 = largest realm standing that year. Realms holding nothing rank last.
+  const rankAt = (p: number, year: number) => {
+    const row = series[snapAt(year)];
+    if (!row || !row[p]) return Number.MAX_SAFE_INTEGER;
+    let rank = 1;
+    for (let q = 0; q < n; q++) if (row[q] > row[p]) rank++;
+    return rank;
+  };
+  for (const [pid, reigns] of [...dyn.entries()].sort((a, b) => a[0] - b[0])) {
+    for (const r of reigns) {
+      if (r.ordinal === 1) continue;                 // the founding is already told
+      // Only the great powers' successions. A flat size threshold still let every middling realm
+      // crown someone: accessions came to 48-63 of 85-115 chronicle lines, turning the record into a
+      // king list — the same monotony in a different key. Being among the three largest realms of
+      // the moment is what makes a succession matter to anyone outside the realm.
+      if (rankAt(pid, r.from) > 3) continue;
+      out.push({ year: r.from, rank: 4, text: ko
+        ? `${r.from}년, ${nameOf(pid)}의 ${r.ordinal}대 ${r.name} 즉위`
+        : `Year ${r.from} — ${r.name}, ${r.ordinal}th of ${nameOf(pid)}, takes the seat` });
+    }
+  }
+
   return out;
 }
 
@@ -207,6 +280,7 @@ export function worldToGazetteer(world: World, history: History, lang: Gazetteer
   const b = landBounds(world);
   const bio = BIOME_PHRASE[lang];
   const ko = lang === "ko";
+  const dyn = buildDynasties(world, history);
   const title = world.name.charAt(0).toUpperCase() + world.name.slice(1);
   const L: string[] = [];
 
@@ -325,12 +399,18 @@ export function worldToGazetteer(world: World, history: History, lang: Gazetteer
       const where = land ? `${land}에 자리한 나라.` : "";
       const seat = cap ? ` 도읍은 ${seatTrait}**${cap.name}**.` : " 정해진 도읍이 없다.";
       const towns = e.towns.length ? ` 성읍은 ${e.towns.join(", ")}.` : "";
-      L.push(`${where}${seat}${towns}`.trim(), "");
+      L.push(`${where}${seat}${towns}`.trim());
+      const line = dyn.get(p.id) ?? [];
+      if (line.length) L.push("", `역대 군주 — ${line.map((r) => `${r.name} (${r.from}–${r.to})`).join(", ")}`);
+      L.push("");
     } else {
       const where = land ? `A realm of the ${land}.` : "";
       const seat = cap ? ` ${seatTrait.charAt(0).toUpperCase()}${seatTrait.slice(1)}**${cap.name}**.` : " It keeps no fixed seat.";
       const towns = e.towns.length ? ` Its towns are ${e.towns.join(", ")}.` : "";
-      L.push(`${where}${seat}${towns}`.trim(), "");
+      L.push(`${where}${seat}${towns}`.trim());
+      const line = dyn.get(p.id) ?? [];
+      if (line.length) L.push("", `Rulers — ${line.map((r) => `${r.name} (${r.from}–${r.to})`).join(", ")}`);
+      L.push("");
     }
   }
 
@@ -377,7 +457,7 @@ export function worldToGazetteer(world: World, history: History, lang: Gazetteer
     }
     told.push({ year: ev.year, rank: 0, text: ev.text });
   }
-  told.push(...minedChronicle(history, lang));
+  told.push(...minedChronicle(world, history, lang, dyn));
   // Stable: year, then kind, then the order each was produced in — no comparison falls through to
   // chance, so the same world always reads the same way.
   told.forEach((t, i) => ((t as Told & { i: number }).i = i));

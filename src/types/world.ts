@@ -1,4 +1,5 @@
 import type { Province } from "../engine/provinces";
+import type { Phonetics } from "../engine/names";
 
 export interface WorldParams {
   seed: number;
@@ -51,7 +52,10 @@ export interface River {
   mouth: [number, number];
 }
 
-export interface CultureInfo { name: string; color: string }
+// `phon` rides along so anything naming something inside a culture's lands can sound like that
+// culture — a ruler of the guttural north should not be named like a southerner. It was dropped
+// on the way out of the generator until rulers needed it.
+export interface CultureInfo { name: string; color: string; phon: Phonetics }
 
 export interface World {
   params: WorldParams;

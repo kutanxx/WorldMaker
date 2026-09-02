@@ -126,4 +126,27 @@ describe("worldToGazetteer", () => {
     }
     expect(chron).toContain("년 현재 —");
   });
+
+  it("names the people who ruled, not only the realms", () => {
+    // The chronicle recorded realms conquering realms and never once named a person, which is why it
+    // read as a campaign log. Rulers are invented — nothing in the simulation models one — but they
+    // are drawn from the phonetics of the people their seat stands among and are derived off the
+    // world's own rng, so they cannot move a single cell on the map.
+    expect(ko).toContain("역대 군주 —");
+    expect(ko).toMatch(/\d+대 .+ 즉위/);
+    expect(ko).toContain("치세)");
+  });
+
+  it("mentions the peoples a realm came to rule", () => {
+    // Every world generates five cultures and the chronicle never mentioned one of them, though a
+    // realm reaching over a second people's land sits in `cultureOf` crossed with the snapshots.
+    expect(ko).toContain("민족의 땅을 다스리게 되다");
+  });
+
+  it("does not repeat one realm's name twice in a year for the same kind of turn", () => {
+    // A single conquest can reach two peoples at once; that is one line, not two identical ones.
+    const lines = (ko.slice(ko.indexOf("## 연대기")).match(/^- .*민족의 땅.*$/gm) ?? []);
+    const keys = lines.map((l) => l.replace(/—.*$/, "").trim());
+    expect(new Set(keys).size).toBe(keys.length);
+  });
 });

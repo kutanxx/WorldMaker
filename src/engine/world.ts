@@ -108,7 +108,7 @@ export function generateWorld(params: WorldParams): GeneratedWorld {
     name,
     regions,
     cultureOf: Array.from(cultureOf),
-    cultures: cultures.map((c) => ({ name: c.name, color: c.color })),
+    cultures: cultures.map((c) => ({ name: c.name, color: c.color, phon: c.phon })),
     grid: {
       width: grid.width,
       height: grid.height,
