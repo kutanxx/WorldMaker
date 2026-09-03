@@ -38,6 +38,69 @@ function compassRose(cx: number, cy: number, r: number, north: string): SVGEleme
   return g;
 }
 
+// How big the world is. Nothing in the generator ever said, so a reader had no way to answer the
+// question a map is mostly asked — how far is that, and how long does it take. The span is fixed in
+// kilometres rather than derived from the render width, so enlarging the image changes the picture
+// and not the world. Five thousand kilometres across is a continent on the scale of Europe or the
+// contiguous United States, which is the size this generator's eight-or-so realms imply.
+export const WORLD_SPAN_KM = 5000;
+const WALK_KM_PER_DAY = 30;   // a person on foot over mixed country — the yardstick fantasy maps use
+
+// Round distances a scale bar is allowed to show. A bar reading "537 km" is arithmetic; a reader
+// wants to lay a round number against the map and count.
+const NICE_KM = [50, 100, 200, 250, 500, 1000, 2000];
+
+export function scaleBarKm(mapWidthPx: number): number {
+  const kmPerPx = WORLD_SPAN_KM / mapWidthPx;
+  // Long enough to measure against, short enough to sit in a corner: between an eighth and a fifth
+  // of the map's width.
+  const fits = NICE_KM.filter((d) => d / kmPerPx >= mapWidthPx * 0.12 && d / kmPerPx <= mapWidthPx * 0.22);
+  return fits.length ? fits[fits.length - 1] : NICE_KM[Math.floor(NICE_KM.length / 2)];
+}
+
+function scaleBar(w: number, h: number, lang: Lang): SVGElement {
+  const g = svgEl("g", { class: "scale-bar" });
+  const km = scaleBarKm(w);
+  const len = km / (WORLD_SPAN_KM / w);
+  // Bottom right: the compass holds the top right, the legend the bottom left, the title the top
+  // centre. This is the one corner left, and the corner a scale bar conventionally takes.
+  // The decorative frame's inner line sits 8 units in, so the panel is placed to clear it rather
+  // than to sit on it: at h - 24 the walking line rendered two units past the frame's bottom edge.
+  const x1 = w - 20, x0 = x1 - len, y = h - 30;
+  const SEG = 4, segW = len / SEG, barH = 4;
+
+  g.appendChild(svgEl("rect", {
+    x: x0 - 8, y: y - 16, width: len + 16, height: 34, rx: 3,
+    fill: "#f7f2e6", "fill-opacity": 0.92, stroke: "#cbb784", "stroke-width": 0.5,
+  }));
+  // Alternating filled and empty segments — the checker a reader counts along.
+  for (let i = 0; i < SEG; i++) {
+    g.appendChild(svgEl("rect", {
+      class: "scale-seg", x: x0 + i * segW, y, width: segW, height: barH,
+      fill: i % 2 === 0 ? INK : PARCHMENT, stroke: INK, "stroke-width": 0.5,
+    }));
+  }
+  const tick = (x: number, label: string, anchorPos: string) => {
+    const tx = svgEl("text", {
+      class: "scale-label", x, y: y - 3, "text-anchor": anchorPos, "font-size": 7.5, fill: INK,
+    });
+    tx.textContent = label;
+    g.appendChild(tx);
+  };
+  tick(x0, "0", "middle");
+  tick(x1, `${km.toLocaleString("en-US")} km`, "end");
+
+  // What a writer actually wants from a distance: how long it takes to walk it.
+  const days = Math.max(1, Math.round(km / WALK_KM_PER_DAY));
+  const foot = svgEl("text", {
+    class: "scale-foot", x: x1, y: y + barH + 9, "text-anchor": "end",
+    "font-size": 7, fill: "#6b5d42", "font-style": "italic",
+  });
+  foot.textContent = t(lang, "scaleFoot").replace("{n}", String(days));
+  g.appendChild(foot);
+  return g;
+}
+
 function mapFrame(w: number, h: number): SVGElement {
   const g = svgEl("g", { class: "map-frame" });
   g.appendChild(svgEl("rect", { x: 4, y: 4, width: w - 8, height: h - 8, fill: "none", stroke: INK, "stroke-width": 2 }));
@@ -251,6 +314,7 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
   }
 
   root.appendChild(compassRose(grid.width - 26, 28, 14, t(lang, "compassN")));
+  root.appendChild(scaleBar(grid.width, grid.height, lang));
 
   // the world's name, an atlas title cartouche at the top-centre
   const title = svgEl("g", { class: "world-name" });

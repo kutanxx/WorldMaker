@@ -73,7 +73,14 @@ export function deconflictLabels(svg: SVGSVGElement): void {
   }
 
   labels.sort((a, b) => b.prio - a.prio); // place the important ones first
+  // The legend and the scale bar are opaque panels drawn over the map, and a label underneath one
+  // was left "visible" while being covered — at 92% panel opacity that is not a name, it is a smudge
+  // showing through. Seeding them as already-occupied space makes a covered label properly hidden,
+  // and lets the culling below reason about the room that is actually free.
   const kept: DOMRect[] = [];
+  for (const panel of svg.querySelectorAll<SVGGraphicsElement>(".legend, .scale-bar")) {
+    try { kept.push(panel.getBBox()); } catch { /* no layout (jsdom): nothing to reserve */ }
+  }
   for (const l of labels) {
     if (kept.some((k) => hit(k, l.box))) l.el.style.visibility = "hidden";
     else kept.push(l.box);
