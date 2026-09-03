@@ -25,26 +25,11 @@ describe("renderChooser", () => {
     renderChooser(root);
     const hrefs = Array.from(root.querySelectorAll("a.choice-card")).map((a) => a.getAttribute("href"));
     expect(hrefs).toContain("map.html");
-    expect(hrefs).toContain("play.html");
-    expect(hrefs).toContain("playProvince.html");
-  });
-
-  it("renders a card linking to playArmy.html with the Korean sub text", () => {
-    const root = document.createElement("div");
-    renderChooser(root);
-    const card = Array.from(root.querySelectorAll("a.choice-card"))
-      .find((a) => a.getAttribute("href") === "playArmy.html");
-    expect(card).not.toBeUndefined();
-    expect(card!.querySelector(".choice-sub")!.textContent).toBe("군대로 플레이");
-  });
-
-  it("renders a card linking to playFront.html with the Korean sub text", () => {
-    const root = document.createElement("div");
-    renderChooser(root);
-    const link = [...root.querySelectorAll("a.choice-card")]
-      .find((a) => a.getAttribute("href") === "playFront.html");
-    expect(link).toBeTruthy();
-    expect(link!.textContent).toContain("실시간");
+    // The five games this landing used to offer are gone; nothing here may point at one again by
+    // accident, since the pages themselves no longer exist and a card would be a dead link.
+    for (const dead of ["play.html", "playProvince.html", "playArmy.html", "playFront.html"]) {
+      expect(hrefs).not.toContain(dead);
+    }
   });
 });
 
@@ -53,12 +38,11 @@ import { hashStringToSeed } from "./engine/rng";
 import { decodeParams } from "./ui/urlState";
 
 describe("nameTargets", () => {
-  it("routes a name to play (string hash, URL-encoded) and map (numeric blob, same world)", () => {
+  it("routes a name to the map it names, the same world every time", () => {
     const t = nameTargets("Narnia")!;
-    expect(t.play).toBe("play.html#seed=Narnia");
     expect(decodeParams(t.map.replace(/^map\.html/, "")).seed).toBe(hashStringToSeed("Narnia"));
     const ko = nameTargets("나니아")!;
-    expect(ko.play).toBe("play.html#seed=" + encodeURIComponent("나니아"));
+    expect(decodeParams(ko.map.replace(/^map\.html/, "")).seed).toBe(hashStringToSeed("나니아"));
   });
   it("empty/whitespace names route nowhere", () => {
     expect(nameTargets("")).toBeNull();
@@ -67,12 +51,13 @@ describe("nameTargets", () => {
 });
 
 describe("renderChooser name input", () => {
-  it("renders the name input and both start buttons", () => {
+  it("renders the name input and the one button left to press", () => {
     const root = document.createElement("div");
     renderChooser(root);
     expect(root.querySelector(".name-seed")).not.toBeNull();
-    expect(root.querySelector(".name-play")).not.toBeNull();
     expect(root.querySelector(".name-map")).not.toBeNull();
+    // "▶ Play" opened a game that no longer exists; a name now only ever opens a map.
+    expect(root.querySelector(".name-play")).toBeNull();
   });
 });
 

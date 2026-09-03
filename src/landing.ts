@@ -21,15 +21,12 @@ export function redirectTarget(hash: string): string | null {
   }
 }
 
-// "Narnia" → shareable targets: play keeps the NAME in the URL; map converts to the numeric
-// params blob Version A already understands (same hashStringToSeed world either way).
-export function nameTargets(name: string): { play: string; map: string } | null {
+// "Narnia" → a shareable map URL. The name is hashed to a seed, so the same word always opens the
+// same world. It used to also return a `play` target; the games it pointed at are gone.
+export function nameTargets(name: string): { map: string } | null {
   const t = name.trim();
   if (t.length === 0) return null;
-  return {
-    play: "play.html#seed=" + encodeURIComponent(t),
-    map: "map.html" + encodeParams({ ...DEFAULT_PARAMS, seed: hashStringToSeed(t) }),
-  };
+  return { map: "map.html" + encodeParams({ ...DEFAULT_PARAMS, seed: hashStringToSeed(t) }) };
 }
 
 export function renderChooser(root: HTMLElement): void {
@@ -45,33 +42,10 @@ export function renderChooser(root: HTMLElement): void {
         <p class="choice-desc">Generate a random fantasy world — explore its map, cities, rivers, history, and gazetteer.</p>
         <div class="choice-sub">세계 지도 만들기</div>
       </a>
-      <a class="choice-card" href="play.html">
-        <div class="choice-icon">🏛</div>
-        <div class="choice-title">Play an Empire</div>
-        <p class="choice-desc">Rule a nation, advance the years, and shape the fate of your realm.</p>
-        <div class="choice-sub">제국 플레이</div>
-      </a>
-      <a class="choice-card" href="playProvince.html">
-        <div class="choice-icon">🗺️</div>
-        <div class="choice-title">Play in Provinces</div>
-        <p class="choice-desc">Rule a nation and conquer whole provinces on the map, EU4-style.</p>
-        <div class="choice-sub">영토로 플레이</div>
-      </a>
-      <a class="choice-card" href="playArmy.html">
-        <div class="choice-icon">⚔</div>
-        <div class="choice-title">Raise an Army</div>
-        <p class="choice-desc">Levy men from your provinces, march them to the border, and take land by force.</p>
-        <div class="choice-sub">군대로 플레이</div>
-      </a>
-      <a class="choice-card" href="playFront.html">
-        <span class="choice-title">⚡ Hold the Front</span>
-        <span class="choice-sub">실시간 전선 — 국경 전체로 밀어붙이기</span>
-      </a>
     </div>
     <div class="landing-name">
       <input class="name-seed" maxlength="40" placeholder="세계의 이름으로 시작 · start from a name (e.g. Narnia)" />
-      <button class="name-play">▶ Play</button>
-      <button class="name-map">🗺 Map</button>
+      <button class="name-map">🗺 세계 만들기 · Create</button>
     </div>
     <div class="landing-daily">
       <button class="name-daily">🗓 오늘의 세계 · Daily World — ${dailyName(new Date()).slice(6)}</button>
@@ -79,14 +53,13 @@ export function renderChooser(root: HTMLElement): void {
     </div>`;
 
   const input = root.querySelector(".name-seed") as HTMLInputElement;
-  const go = (kind: "play" | "map") => {
+  const go = () => {
     const t = nameTargets(input.value);
-    if (t) location.assign(t[kind]);
+    if (t) location.assign(t.map);
   };
-  (root.querySelector(".name-play") as HTMLButtonElement).addEventListener("click", () => go("play"));
-  (root.querySelector(".name-map") as HTMLButtonElement).addEventListener("click", () => go("map"));
+  (root.querySelector(".name-map") as HTMLButtonElement).addEventListener("click", go);
   (root.querySelector(".name-daily") as HTMLButtonElement).addEventListener("click", () => location.assign(dailyTarget(new Date())));
-  input.addEventListener("keydown", (e) => { if (e.key === "Enter") go("play"); });
+  input.addEventListener("keydown", (e) => { if (e.key === "Enter") go(); });
 }
 
 const root = document.getElementById("landing");

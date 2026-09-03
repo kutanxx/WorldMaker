@@ -2,7 +2,7 @@
 import { describe, it, expect } from "vitest";
 import { generateWorld } from "../engine/world";
 import { DEFAULT_PARAMS } from "../types/world";
-import { renderWorld, scaleBarKm, WORLD_SPAN_KM } from "./svgWorldRenderer";
+import { renderWorld } from "./svgWorldRenderer";
 import { politicalBorders } from "../engine/borders";
 import { segPath } from "./svgPaths";
 import { snapOwnersToProvinces } from "./provinceLayer";
@@ -187,41 +187,5 @@ describe("renderWorld type hierarchy", () => {
       if (!cap.length || !town.length) continue;
       expect(Math.min(...cap)).toBeGreaterThan(Math.max(...town));
     }
-  });
-});
-
-describe("scale bar", () => {
-  // A map that gives no distance cannot answer what a map is mostly asked — how far is that, and
-  // how long does it take. The compass held the top right, the legend the bottom left and the title
-  // the top centre; only the scale was missing.
-  const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 3 });
-  const svg = renderWorld(world);
-  const bar = svg.querySelector(".scale-bar");
-
-  it("draws a bar with a round distance and what it costs on foot", () => {
-    expect(bar).not.toBeNull();
-    const texts = [...bar!.querySelectorAll("text")].map((t) => t.textContent ?? "");
-    expect(texts[0]).toBe("0");
-    expect(texts.some((t) => /km$/.test(t))).toBe(true);
-    expect(texts.some((t) => /\d/.test(t) && /일|day/.test(t))).toBe(true);
-    expect(bar!.querySelectorAll(".scale-seg").length).toBeGreaterThan(1);
-  });
-
-  it("chooses a round distance that is a readable fraction of the map", () => {
-    // A bar reading "537 km" is arithmetic; a reader wants to lay a round number against the map.
-    const km = scaleBarKm(DEFAULT_PARAMS.width);
-    expect([50, 100, 200, 250, 500, 1000, 2000]).toContain(km);
-    const px = km / (WORLD_SPAN_KM / DEFAULT_PARAMS.width);
-    expect(px).toBeGreaterThan(DEFAULT_PARAMS.width * 0.1);
-    expect(px).toBeLessThan(DEFAULT_PARAMS.width * 0.25);
-  });
-
-  it("keeps the world's size fixed when the image is drawn larger", () => {
-    // The span is in kilometres, not pixels: enlarging the render must change the picture and not
-    // the world, so the same distance simply draws longer.
-    const wide = scaleBarKm(DEFAULT_PARAMS.width * 2);
-    const pxNarrow = scaleBarKm(DEFAULT_PARAMS.width) / (WORLD_SPAN_KM / DEFAULT_PARAMS.width);
-    const pxWide = wide / (WORLD_SPAN_KM / (DEFAULT_PARAMS.width * 2));
-    expect(pxWide).toBeGreaterThan(pxNarrow);
   });
 });

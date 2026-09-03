@@ -10,10 +10,6 @@ export default defineConfig({
       input: {
         main: "index.html",
         map: "map.html",
-        play: "play.html",
-        playProvince: "playProvince.html",
-        playArmy: "playArmy.html",
-        playFront: "playFront.html",
       },
     },
   },

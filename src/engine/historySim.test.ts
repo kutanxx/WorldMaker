@@ -1,8 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { generateWorld } from "./world";
 import { DEFAULT_PARAMS } from "../types/world";
-import { initSim, stepSim, TICKS, aggregate, contestStrength, W_CONSTS_FOR_TEST, CONQUEST_SOL, CONTEST_THRESH, buildStraitLinks, buildSeaLanes, STRAIT_HOPS, GRUDGE_TICKS, REVENGE_MULT, ASCENSION_SOL_DELTA, ASCENSION_CAP, type Stance } from "./historySim";
-import { initPlaySim, playTurn } from "./playSim";
+import { initSim, stepSim, TICKS, aggregate, contestStrength, W_CONSTS_FOR_TEST, CONQUEST_SOL, CONTEST_THRESH, buildStraitLinks, buildSeaLanes, STRAIT_HOPS, type Stance } from "./historySim";
 import { OCEAN, LAND } from "./terrain";
 
 describe("historySim", () => {
@@ -241,121 +240,5 @@ describe("sea lanes", () => {
       nc++;
     }
     expect(new Set(world.polities.map((p) => comp[p.capital])).size).toBe(1);
-  });
-
-  it("pure path carries no lanes; play init populates them; a lane conquest records the grudge", () => {
-    const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 2 });
-    expect(initSim(world, 2).seaLanes).toEqual([]);
-    const s = initPlaySim(world, 2, 0, "aggressive");
-    expect(s.seaLanes.length).toBeGreaterThan(0);
-    // ROBUST staging (contest margins are seed-sensitive: the distance penalty and stance mults
-    // can sink a marginal setup): the player owns EVERYTHING except the foe's single cell b,
-    // which is also the foe's capital; b's land neighbours are carved to unclaimed so only the
-    // lane can strike it this tick.
-    const { a, b } = s.seaLanes[0];
-    const player = 0, foe = 1;
-    s.playerPolity = player;
-    for (let c = 0; c < s.n; c++) if (s.owner[c] >= 0) s.owner[c] = player;
-    s.owner[b] = foe;
-    s.capitals[foe] = b; // annexation cannot pre-empt the lane flip
-    for (const nb of s.grid.neighbors[b]) if (s.terrain[nb] !== OCEAN) s.owner[nb] = -1;
-    s.owner[a] = player;
-    for (let c = 0; c < s.n; c++) s.solidarity[c] = s.owner[c] === player ? 0.9 : 0.1;
-    playTurn(s, null);
-    expect(s.owner[b]).toBe(player);                       // the expedition landed
-    expect(s.attacksByPlayer.get(foe)).toBe(s.tick - 1);   // recorded during the tick (tick has advanced)
-  });
-
-  // ROBUST staging (contest margins are seed-sensitive): the FOE owns everything except the
-  // player's single cell t; t's solidarity is tuned into the sandwich window where the foe's
-  // attack holds WITHOUT a grudge but flips WITH one — that sandwich IS the proof of the mult.
-  function stageRevenge(seed: number, playerSol: number) {
-    const { world } = generateWorld({ ...DEFAULT_PARAMS, seed });
-    const s = initPlaySim(world, seed, 0, "internal");
-    const player = 0, foe = 1;
-    // find a player-owned cell with at least one land neighbor to become the lone holdout
-    let t = -1;
-    for (let c = 0; c < s.n; c++) {
-      if (s.owner[c] < 0 || s.terrain[c] === OCEAN) continue;
-      if (s.grid.neighbors[c].some((nb) => s.terrain[nb] !== OCEAN)) { t = c; break; }
-    }
-    for (let c = 0; c < s.n; c++) if (s.owner[c] >= 0) s.owner[c] = foe;
-    s.owner[t] = player;
-    // neutralize the 3 economic zones' global +ECON_BONUS-per-zone atk bonus (zoneBonus() in
-    // historySim.ts is NOT locality-gated — it just checks ownership anywhere on the map). With
-    // the foe owning ~everything else, it would otherwise also own all 3 zones for a flat +0.36
-    // atk that swamps any player solidarity up to 1.0 (verified empirically: with the zones left
-    // to the foe, atk beats the best possible defense at every playerSol in [0,1] and every seed
-    // 1-60 — the mult alone can't be isolated). Dropping them to unclaimed removes that fixed
-    // term so the sandwich becomes reachable via playerSol alone, as intended.
-    for (const z of s.economicZones) if (z.cell !== t) s.owner[z.cell] = -1;
-    // foe's capital on a neighbor: kills the admin-distance penalty for the attack
-    const nb = s.grid.neighbors[t].find((x) => s.terrain[x] !== OCEAN)!;
-    s.capitals[foe] = nb;
-    s.capitals[player] = t;
-    for (let c = 0; c < s.n; c++) s.solidarity[c] = s.owner[c] === foe ? 0.5 : s.owner[c] === player ? playerSol : 0;
-    return { s, t, foe, player };
-  }
-
-  it("a fresh grudge flips a contest the foe would otherwise lose (REVENGE_MULT bites)", () => {
-    expect(REVENGE_MULT).toBeGreaterThan(1);
-    // sandwich: same staging, only the grudge differs
-    const clean = stageRevenge(3, 0.9);
-    playTurn(clean.s, null);
-    const held = clean.s.owner[clean.t] === clean.player;
-
-    const grudged = stageRevenge(3, 0.9);
-    grudged.s.attacksByPlayer.set(grudged.foe, grudged.s.tick); // the player struck them this tick
-    playTurn(grudged.s, null);
-    const fell = grudged.s.owner[grudged.t] === grudged.foe;
-
-    expect(held).toBe(true);  // without a grudge the internal-stance defense holds
-    expect(fell).toBe(true);  // with one, REVENGE_MULT (1.2) tips the same contest
-  });
-
-  it("the grudge expires after GRUDGE_TICKS — the same contest holds again", () => {
-    const stale = stageRevenge(3, 0.9);
-    stale.s.tick = GRUDGE_TICKS; // age the ledger entry set at tick 0 to exactly-expired
-    stale.s.attacksByPlayer.set(stale.foe, 0);
-    playTurn(stale.s, null);
-    expect(stale.s.owner[stale.t]).toBe(stale.player);
-  });
-});
-
-describe("ascension", () => {
-  it("rivals regenerate faster, the player does not; pure init stays at 0", () => {
-    const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 4 });
-    expect(initSim(world, 4).ascension).toBe(0);
-
-    const a0 = initPlaySim(world, 4, 0, "internal");
-    const a5 = initPlaySim(world, 4, 0, "internal", 5);
-    expect(a0.ascension).toBe(0);
-    expect(a5.ascension).toBe(5);
-    playTurn(a0, null);
-    playTurn(a5, null);
-    // robust cell pick: the owner must MATCH across both runs (contests read the post-nudge
-    // solidarity the same tick, so ownership CAN diverge within tick 1) and still be the
-    // INITIAL owner (a fresh conquest overwrites solidarity with CONQUEST_SOL); the cell must
-    // sit off the econ-zone floor and be mid-range in BOTH runs so no floor/clamp eats the delta.
-    const midRange = (sol: Float32Array, c: number) => sol[c] >= 0.2 && sol[c] <= 0.8;
-    const stable = (c: number) =>
-      a0.owner[c] === a5.owner[c] && a0.owner[c] === world.polityOf[c] &&
-      !a0.zoneCells.has(c) && midRange(a0.solidarity, c) && midRange(a5.solidarity, c);
-    let rival = -1, mine = -1;
-    for (let c = 0; c < a0.n && (rival < 0 || mine < 0); c++) {
-      if (!stable(c)) continue;
-      if (rival < 0 && a0.owner[c] > 0 && !a0.polities[a0.owner[c]].free) rival = c;
-      if (mine < 0 && a0.owner[c] === 0) mine = c;
-    }
-    expect(rival).toBeGreaterThanOrEqual(0);
-    expect(mine).toBeGreaterThanOrEqual(0);
-    expect(a5.solidarity[rival]).toBeCloseTo(a0.solidarity[rival] + 5 * ASCENSION_SOL_DELTA, 5);
-    expect(a5.solidarity[mine]).toBeCloseTo(a0.solidarity[mine], 5);
-  });
-
-  it("initPlaySim clamps ascension into [0, cap]", () => {
-    const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 4 });
-    expect(initPlaySim(world, 4, 0, "internal", 99).ascension).toBe(ASCENSION_CAP);
-    expect(initPlaySim(world, 4, 0, "internal", -3).ascension).toBe(0);
   });
 });
