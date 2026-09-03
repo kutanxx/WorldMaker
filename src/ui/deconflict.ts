@@ -18,6 +18,40 @@ export function deconflictLabels(svg: SVGSVGElement): void {
   } catch {
     return; // getBBox unavailable (e.g. jsdom) → skip culling, keep all labels visible
   }
+  const hit = (a: DOMRect, b: DOMRect) => a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
+
+  // separation pass, before any culling: a nation's name sits at the centroid of its territory and
+  // its capital usually sits near that centroid too, so the two overlap — and the capital, being the
+  // lower tier, is what vanished. Measured on seed 7's political view, three of eight capitals were
+  // lost this way, on the one view where a capital matters most. The nation's name is what moves:
+  // the capital's label is tied to a marker on the map and cannot be shifted without pointing at the
+  // wrong place, while a nation's name only has to sit somewhere inside its own territory. Runs
+  // before the clamp pass so a name lifted past the frame is brought back inside.
+  const CAPITAL_GAP = 3;
+  const capitals = labels.filter((l) => l.el.classList.contains("city-capital"));
+  if (capitals.length) {
+    // How much else a name would sit on top of, if it moved by dy. Moving a nation's name off its
+    // capital costs nothing if it lands on open parchment and costs a region name if it does not —
+    // measured over seven seeds, always lifting it upward recovered five capitals but buried three
+    // region names, so the direction is chosen rather than assumed.
+    const collisionsAt = (self: typeof labels[number], dy: number) => {
+      const moved = { x: self.box.x, y: self.box.y + dy, width: self.box.width, height: self.box.height } as DOMRect;
+      let k = 0;
+      for (const o of labels) if (o !== self && hit(moved, o.box)) k++;
+      return k;
+    };
+    for (const nat of labels) {
+      if (!nat.el.classList.contains("nation-label")) continue;
+      const clash = capitals.find((c) => hit(nat.box, c.box));
+      if (!clash) continue;
+      const up = clash.box.y - CAPITAL_GAP - (nat.box.y + nat.box.height);
+      const down = clash.box.y + clash.box.height + CAPITAL_GAP - nat.box.y;
+      const dy = collisionsAt(nat, up) <= collisionsAt(nat, down) ? up : down;
+      nat.el.setAttribute("y", String(Number(nat.el.getAttribute("y") || 0) + dy));
+      nat.box.y += dy;
+    }
+  }
+
   // clamp pass: a label anchored near the map edge spills past the viewBox (text-anchor:middle
   // at an edge centroid), and the HUD shell's stretched svg renders that spill on the parchment
   // letterbox band instead of clipping it. Shift such labels back inside the frame. Rivers are
@@ -40,7 +74,6 @@ export function deconflictLabels(svg: SVGSVGElement): void {
 
   labels.sort((a, b) => b.prio - a.prio); // place the important ones first
   const kept: DOMRect[] = [];
-  const hit = (a: DOMRect, b: DOMRect) => a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
   for (const l of labels) {
     if (kept.some((k) => hit(k, l.box))) l.el.style.visibility = "hidden";
     else kept.push(l.box);

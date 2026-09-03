@@ -63,4 +63,30 @@ describe("deconflictLabels", () => {
     deconflictLabels(svg);
     expect(Number(t.getAttribute("x"))).toBe(20);
   });
+
+  it("lifts a nation's name clear of a capital instead of deleting the capital", () => {
+    // A nation's name is placed at the centroid of its territory and its capital usually sits near
+    // that centroid too, so the two collide — and the capital, being the lower tier, was what
+    // disappeared. Measured on seed 7's political view, three of eight capitals were lost this way.
+    // A political map wants both.
+    const svg = document.createElementNS(NS, "svg") as SVGSVGElement;
+    svg.setAttribute("viewBox", "0 0 1000 700");
+    const nation = mkLabel(svg, "nation-label", { x: 300, y: 300, width: 80, height: 12 });
+    nation.setAttribute("y", "310");
+    const capital = mkLabel(svg, "city-label city-capital", { x: 320, y: 305, width: 60, height: 10 });
+    deconflictLabels(svg);
+    expect(capital.style.visibility).toBe("");        // the capital survives
+    expect(nation.style.visibility).toBe("");         // and so does the nation
+    expect(Number(nation.getAttribute("y"))).toBeLessThan(310);   // by moving the nation up
+  });
+
+  it("leaves a nation's name alone when no capital is under it", () => {
+    const svg = document.createElementNS(NS, "svg") as SVGSVGElement;
+    svg.setAttribute("viewBox", "0 0 1000 700");
+    const nation = mkLabel(svg, "nation-label", { x: 300, y: 300, width: 80, height: 12 });
+    nation.setAttribute("y", "310");
+    mkLabel(svg, "city-label city-capital", { x: 700, y: 100, width: 60, height: 10 });
+    deconflictLabels(svg);
+    expect(Number(nation.getAttribute("y"))).toBe(310);
+  });
 });
