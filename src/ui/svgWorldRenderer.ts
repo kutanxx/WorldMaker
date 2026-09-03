@@ -140,7 +140,12 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
   // letter-spacing to reinforce their extent; WATER (seas) are italic + blue like rivers.
   const regionLabels = svgEl("g", { class: "region-labels" });
   for (const r of world.regions) {
-    const fs = 9 + Math.min(7, r.cells / 90);
+    // Type size is a map's first signal of what kind of thing a word names, and the three classes
+    // used to overlap: regions ran 9.4-16.0, cities 8.5-10.5, rivers 9.4-10.4, so anything in the
+    // 9.4-10.5 band gave the reader no way to tell a mountain range from a village. The bands are
+    // now separated in the order an atlas uses — the land's own features largest, settlements
+    // smallest, since a town's prominence comes from its marker rather than its type.
+    const fs = 10.5 + Math.min(9.5, r.cells / 60);
     const isSea = r.kind === OCEAN;
     const t = svgEl("text", {
       class: "region-label " + (isSea ? "region-sea" : "region-land"),
@@ -166,7 +171,7 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
     const dx = b[0] - a[0], dy = b[1] - a[1], len = Math.hypot(dx, dy) || 1;
     let deg = (Math.atan2(dy, dx) * 180) / Math.PI;
     if (deg > 90) deg -= 180; else if (deg < -90) deg += 180; // keep it readable
-    const fs = 8 + Math.min(5, r.flux / 40);
+    const fs = 9 + Math.min(3, r.flux / 60);   // between the settlements and the regions
     // offset perpendicular to the flow, toward the upper side
     let nx = -dy / len, ny = dx / len; if (ny > 0) { nx = -nx; ny = -ny; }
     const lx = mid[0] + nx * fs * 0.5, ly = mid[1] + ny * fs * 0.5;
@@ -200,7 +205,7 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
     // (smaller, muted brown) so the eye reads the capitals first.
     const label = svgEl("text", {
       class: "city-label " + (c.isCapital ? "city-capital" : "city-town"),
-      x: c.x + 5, y: c.y + 3, "font-size": c.isCapital ? 10.5 : 8.5,
+      x: c.x + 5, y: c.y + 3, "font-size": c.isCapital ? 10 : 8,
       "font-weight": c.isCapital ? 600 : 400,
       fill: c.isCapital ? "#2a2118" : "#6b5d42",
       stroke: PARCHMENT, "stroke-width": 1.6, "paint-order": "stroke",

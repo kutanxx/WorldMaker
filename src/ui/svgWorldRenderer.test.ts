@@ -151,3 +151,41 @@ describe("renderWorld label hierarchy (cartographic conventions)", () => {
     expect(town?.getAttribute("font-weight")).toBe("400");
   });
 });
+
+describe("renderWorld type hierarchy", () => {
+  // Size is a map's first signal of what kind of thing a word names. The three classes used to
+  // overlap — regions 9.4-16.0, cities 8.5-10.5, rivers 9.4-10.4 — so a word in the 9.4-10.5 band
+  // gave the reader no way to tell a mountain range from a village. The bands are separated in the
+  // order an atlas uses: the land's own features largest, settlements smallest, since a town's
+  // prominence comes from its marker rather than from its type.
+  const worlds = [1, 3, 7].map((seed) => renderWorld(generateWorld({ ...DEFAULT_PARAMS, seed }).world));
+  const sizes = (svg: SVGSVGElement, sel: string) =>
+    [...svg.querySelectorAll(sel)].map((e) => Number(e.getAttribute("font-size"))).filter(Number.isFinite);
+
+  it("never lets a region name be set smaller than a settlement or a river name", () => {
+    for (const svg of worlds) {
+      const reg = sizes(svg, ".region-label"), city = sizes(svg, ".city-label"), riv = sizes(svg, ".river-label");
+      expect(reg.length).toBeGreaterThan(0);
+      expect(city.length).toBeGreaterThan(0);
+      expect(Math.min(...reg)).toBeGreaterThan(Math.max(...city));
+      if (riv.length) expect(Math.min(...reg)).toBeGreaterThan(Math.max(...riv));
+    }
+  });
+
+  it("still scales a region's name with how much land it covers", () => {
+    // A flat size would separate the bands too, and say nothing about the map. The largest region
+    // must actually read larger than the smallest.
+    for (const svg of worlds) {
+      const reg = sizes(svg, ".region-label");
+      expect(Math.max(...reg)).toBeGreaterThan(Math.min(...reg) + 2);
+    }
+  });
+
+  it("keeps a capital's name larger than a town's", () => {
+    for (const svg of worlds) {
+      const cap = sizes(svg, ".city-capital"), town = sizes(svg, ".city-town");
+      if (!cap.length || !town.length) continue;
+      expect(Math.min(...cap)).toBeGreaterThan(Math.max(...town));
+    }
+  });
+});
