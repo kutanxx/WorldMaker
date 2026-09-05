@@ -9,6 +9,34 @@ export function svgEl(tag: string, attrs?: Record<string, string | number>): SVG
   return e;
 }
 
+// The parchment atlas palette, shared by everything that draws on the map so a panel cannot drift
+// into a colour of its own.
+export const INK = "#3c2f1c";
+export const PARCHMENT = "#f3ead2";
+
+// The enclosure a legend sits in. Every legend on this map — biomes, nations, cultures — used to be
+// a rounded white card with a thin tan edge: the one thing on the page that looked like browser UI
+// rather than cartography, next to a compass rose and a double-ruled border. Historically the box
+// holding a map's key is a cartouche, and the restrained end of that tradition — the plain ruled
+// tablet, not Baroque strapwork — is what suits a map whose own frame is already two plain rules and
+// four dots. So the panel simply borrows that frame at panel scale: heavy rule, fine rule inside it,
+// a dot at each corner, all in the map's own ink.
+export function legendPanel(x: number, y: number, w: number, h: number): SVGElement {
+  const g = svgEl("g", { class: "legend-panel" });
+  const rule = { fill: "none", stroke: INK, "vector-effect": "non-scaling-stroke" };
+  g.appendChild(svgEl("rect", {
+    x, y, width: w, height: h, ...rule,
+    fill: PARCHMENT, "fill-opacity": 0.96, "stroke-width": 1.2,
+  }));
+  g.appendChild(svgEl("rect", {
+    x: x + 3, y: y + 3, width: w - 6, height: h - 6, ...rule, "stroke-width": 0.5,
+  }));
+  for (const [cx, cy] of [[x, y], [x + w, y], [x, y + h], [x + w, y + h]]) {
+    g.appendChild(svgEl("circle", { cx, cy, r: 1.2, fill: INK }));
+  }
+  return g;
+}
+
 export interface Renderer {
   renderWorld(world: World): SVGSVGElement;
   renderCity(layout: CityLayout): SVGSVGElement;

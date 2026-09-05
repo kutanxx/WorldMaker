@@ -1,5 +1,5 @@
 import type { World } from "../types/world";
-import { svgEl } from "./renderer";
+import { svgEl, legendPanel, INK, PARCHMENT } from "./renderer";
 import { OCEAN, ALPINE, BIOME_COLORS } from "../engine/biome";
 import { type Lang, biomeName, t } from "./i18n";
 import { coastline, type Segment } from "../engine/borders";
@@ -14,8 +14,6 @@ export function politicalOpts(view: MapView): PoliticalOpts {
   return view === "political" ? { fills: true, labels: true, legend: true } : {};
 }
 
-const INK = "#3c2f1c";
-const PARCHMENT = "#f3ead2";
 
 // n-point star centered at (cx,cy), alternating outer/inner radius, tip pointing up.
 function starPath(cx: number, cy: number, points: number, outer: number, inner: number): string {
@@ -222,14 +220,11 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
     const present = [...byBiome.keys()].sort((a, b) => a - b);
     const legend = svgEl("g", { class: "legend biome-legend" });
     const x0 = 14, y0 = grid.height - 14 - present.length * 14;
-    legend.appendChild(svgEl("rect", {
-      x: x0 - 5, y: y0 - 10, width: 104, height: present.length * 14 + 14, rx: 3,
-      fill: "#f7f2e6", "fill-opacity": 0.92, stroke: "#cbb784", "stroke-width": 0.5,
-    }));
+    legend.appendChild(legendPanel(x0 - 5, y0 - 10, 104, present.length * 14 + 14));
     present.forEach((bm, i) => {
       const y = y0 + i * 14;
-      legend.appendChild(svgEl("rect", { class: "legend-item", x: x0, y: y - 8, width: 10, height: 10, fill: BIOME_COLORS[bm], stroke: "#9a8a70", "stroke-width": 0.4 }));
-      const t = svgEl("text", { x: x0 + 16, y: y, "font-size": 9, fill: "#4a3f2c" });
+      legend.appendChild(svgEl("rect", { class: "legend-item", x: x0, y: y - 8, width: 10, height: 10, fill: BIOME_COLORS[bm], stroke: INK, "stroke-width": 0.6, "vector-effect": "non-scaling-stroke" }));
+      const t = svgEl("text", { x: x0 + 16, y: y, "font-size": 9, fill: "#42341f", "letter-spacing": 0.3 });
       t.textContent = biomeName(lang, bm);
       legend.appendChild(t);
     });

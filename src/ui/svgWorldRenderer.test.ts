@@ -287,3 +287,36 @@ describe("renderWorld world title", () => {
     expect(Number(rule.getAttribute("y1"))).toBeGreaterThan(Number(t.getAttribute("y")));
   });
 });
+
+// deconflictLabels reserves the space under `.legend` so a name is not left "visible" while an
+// opaque panel covers it. Only the biome legend carried that class, so the nation and culture
+// legends — the same panel, in the views where they replace it — quietly went on covering names.
+describe("renderWorld legends all claim their space", () => {
+  const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });
+  it("marks every legend as a legend, in every view that draws one", () => {
+    for (const [view, sel] of [["terrain", ".biome-legend"], ["political", ".nation-legend"],
+                               ["culture", ".culture-legend"]] as const) {
+      const el = renderWorld(world, view).querySelector(sel);
+      expect(el, `${view} view draws ${sel}`).not.toBeNull();
+      expect(el!.classList.contains("legend"), `${sel} is reserved space`).toBe(true);
+    }
+  });
+});
+
+// Only one legend is ever drawn — biomes in terrain, nations in political, cultures in culture — so
+// they can all live in the same corner, and the key stops wandering as the reader switches views.
+// It also gets them out from under the zoom controls, an HTML overlay pinned bottom-right: measured
+// in a browser, all three buttons sat on top of the nation legend, covering the right 30px of every
+// nation's name.
+describe("renderWorld legend placement", () => {
+  const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });
+  it("anchors every legend to the same corner, clear of the bottom-right controls", () => {
+    for (const [view, sel] of [["terrain", ".biome-legend"], ["political", ".nation-legend"],
+                               ["culture", ".culture-legend"]] as const) {
+      const svg = renderWorld(world, view);
+      const panel = svg.querySelector(`${sel} .legend-panel rect`)!;
+      const right = Number(panel.getAttribute("x")) + Number(panel.getAttribute("width"));
+      expect(right, `${sel} stays out of the right half`).toBeLessThan(world.grid.width / 2);
+    }
+  });
+});

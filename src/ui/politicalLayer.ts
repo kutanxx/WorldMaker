@@ -1,5 +1,5 @@
 import type { World } from "../types/world";
-import { svgEl } from "./renderer";
+import { svgEl, legendPanel, INK } from "./renderer";
 import { cellPath, segPath } from "./svgPaths";
 import { politicalBorders } from "../engine/borders";
 import { nationColor, nationCentroids, PLAYER_LABEL_COLOR } from "./nationPalette";
@@ -115,20 +115,19 @@ export function politicalLayer(
         .filter(([id]) => nameOf.get(id))
         .sort((a, b) => b[1].cells - a[1].cells)
         .slice(0, 10);
-      const legend = svgEl("g", { class: "nation-legend" });
-      const x0 = grid.width - LEGEND_W - 10;
+      const legend = svgEl("g", { class: "legend nation-legend" });
+      // bottom-LEFT, matching the biome legend: only one legend is drawn per view, and the
+      // bottom-right corner belongs to the zoom controls, which were sitting on top of this one.
+      const x0 = 14;
       const y0 = grid.height - 14 - rows.length * 14;
-      legend.appendChild(svgEl("rect", {
-        x: x0 - 5, y: y0 - 10, width: LEGEND_W, height: rows.length * 14 + 14, rx: 3,
-        fill: "#f7f2e6", "fill-opacity": 0.92, stroke: "#cbb784", "stroke-width": 0.5,
-      }));
+      legend.appendChild(legendPanel(x0 - 5, y0 - 10, LEGEND_W, rows.length * 14 + 14));
       rows.forEach(([id], i) => {
         const y = y0 + i * 14;
         legend.appendChild(svgEl("rect", {
           class: "legend-item", x: x0, y: y - 8, width: 10, height: 10,
-          fill: nationColor(id), stroke: "#9a8a70", "stroke-width": 0.4,
+          fill: nationColor(id), stroke: INK, "stroke-width": 0.6, "vector-effect": "non-scaling-stroke",
         }));
-        const t = svgEl("text", { x: x0 + 16, y, "font-size": 9, fill: "#4a3f2c" });
+        const t = svgEl("text", { x: x0 + 16, y, "font-size": 9, fill: "#42341f", "letter-spacing": 0.3 });
         t.textContent = nameOf.get(id) ?? "";
         legend.appendChild(t);
       });
