@@ -256,12 +256,15 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
   // the world's name, an atlas title cartouche at the top-centre
   const title = svgEl("g", { class: "world-name" });
   const wt = svgEl("text", {
-    class: "world-name-text", x: grid.width / 2, y: 30, "text-anchor": "middle",
+    class: "world-name-text", x: grid.width / 2, y: 36, "text-anchor": "middle",
     "font-size": 22, fill: INK, stroke: PARCHMENT, "stroke-width": 3, "paint-order": "stroke",
   });
   wt.textContent = world.name;
   title.appendChild(wt);
-  title.appendChild(svgEl("line", { x1: grid.width / 2 - 70, y1: 38, x2: grid.width / 2 + 70, y2: 38, stroke: INK, "stroke-width": 0.6 }));
+  title.appendChild(svgEl("line", {
+    x1: grid.width / 2 - 70, y1: 44, x2: grid.width / 2 + 70, y2: 44,
+    stroke: INK, "stroke-width": 0.9, "vector-effect": "non-scaling-stroke",
+  }));
   root.appendChild(title);
 
   root.appendChild(mapFrame(grid.width, grid.height));

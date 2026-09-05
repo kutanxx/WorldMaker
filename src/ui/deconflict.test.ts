@@ -90,3 +90,38 @@ describe("deconflictLabels", () => {
     expect(Number(nation.getAttribute("y"))).toBe(310);
   });
 });
+
+describe("deconflictLabels air gap", () => {
+  it("hides a label that merely misses a kept one — a stack needs air, not just no collision", () => {
+    const svg = document.createElementNS(NS, "svg") as SVGSVGElement;
+    // measured on seed 7: two region names 3 units apart with 29 units of horizontal overlap, both
+    // kept, reading as one two-line stack.
+    const upper = mkLabel(svg, "region-label", { x: 0, y: 0, width: 100, height: 14 });
+    const stacked = mkLabel(svg, "region-label", { x: 10, y: 17, width: 90, height: 14 });
+    deconflictLabels(svg);
+    expect(upper.style.visibility).toBe("");
+    expect(stacked.style.visibility).toBe("hidden");
+  });
+
+  it("still keeps a label that clears the gap", () => {
+    const svg = document.createElementNS(NS, "svg") as SVGSVGElement;
+    const upper = mkLabel(svg, "region-label", { x: 0, y: 0, width: 100, height: 14 });
+    const below = mkLabel(svg, "region-label", { x: 10, y: 40, width: 90, height: 14 });
+    deconflictLabels(svg);
+    expect(upper.style.visibility).toBe("");
+    expect(below.style.visibility).toBe("");
+  });
+});
+
+describe("deconflictLabels and the world's title", () => {
+  it("reserves the title's space, so a region name cannot sit under it", () => {
+    const svg = document.createElementNS(NS, "svg") as SVGSVGElement;
+    const title = mkLabel(svg, "world-name-text", { x: 400, y: 14, width: 200, height: 22 });
+    const under = mkLabel(svg, "region-label", { x: 420, y: 38, width: 160, height: 14 });
+    const elsewhere = mkLabel(svg, "region-label", { x: 100, y: 300, width: 160, height: 14 });
+    deconflictLabels(svg);
+    expect(title.style.visibility).toBe("");      // a title is never the thing that yields
+    expect(under.style.visibility).toBe("hidden");
+    expect(elsewhere.style.visibility).toBe("");
+  });
+});

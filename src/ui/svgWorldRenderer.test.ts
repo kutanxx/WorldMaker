@@ -268,3 +268,22 @@ describe("renderWorld sea and ink (the page's own palette)", () => {
     expect(lum).toBeLessThanOrEqual(60);            // was 74: #5a4a34
   });
 });
+
+describe("renderWorld world title", () => {
+  const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });
+  const svg = renderWorld(world);
+  it("hangs the world's name clear of the decorative frame", () => {
+    const t = svg.querySelector(".world-name-text")!;
+    const y = Number(t.getAttribute("y"));
+    const fs = Number(t.getAttribute("font-size"));
+    // Measured in a browser: EB Garamond's cap-top lands ~0.98em above the baseline, and the frame's
+    // inner rule sits at y=8. At the old y=30 the title's top cleared it by 0.4 units on every seed
+    // — touching, and clipped once the letters had ascenders. Ask for real air.
+    expect(y - fs * 0.98).toBeGreaterThanOrEqual(8 + 5);
+  });
+  it("keeps its rule under the name, not through it", () => {
+    const t = svg.querySelector(".world-name-text")!;
+    const rule = svg.querySelector(".world-name line")!;
+    expect(Number(rule.getAttribute("y1"))).toBeGreaterThan(Number(t.getAttribute("y")));
+  });
+});

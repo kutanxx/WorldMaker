@@ -20,6 +20,13 @@ export function deconflictLabels(svg: SVGSVGElement): void {
   }
   const hit = (a: DOMRect, b: DOMRect) => a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
 
+  // Two names that merely miss each other still read as one stack: measured on seed 7, a pair of
+  // region names sat 3 units apart with 29 units of horizontal overlap and both survived, because
+  // their boxes did not strictly intersect. A label needs air around it, not just the absence of a
+  // collision. Only the candidate is grown when culling, so the clearance asked for is AIR and not
+  // twice it, and the legend goes on occupying exactly the space it covers.
+  const AIR = 4;
+
   // separation pass, before any culling: a nation's name sits at the centroid of its territory and
   // its capital usually sits near that centroid too, so the two overlap — and the capital, being the
   // lower tier, is what vanished. Measured on seed 7's political view, three of eight capitals were
@@ -27,7 +34,9 @@ export function deconflictLabels(svg: SVGSVGElement): void {
   // the capital's label is tied to a marker on the map and cannot be shifted without pointing at the
   // wrong place, while a nation's name only has to sit somewhere inside its own territory. Runs
   // before the clamp pass so a name lifted past the frame is brought back inside.
-  const CAPITAL_GAP = 3;
+  // Must clear AIR (the culling gap below), or the separation pass lifts a nation's name off its
+  // capital only for the culling pass to delete it for sitting too close to what it just cleared.
+  const CAPITAL_GAP = AIR + 1;
   const capitals = labels.filter((l) => l.el.classList.contains("city-capital"));
   if (capitals.length) {
     // How much else a name would sit on top of, if it moved by dy. Moving a nation's name off its
@@ -73,16 +82,20 @@ export function deconflictLabels(svg: SVGSVGElement): void {
   }
 
   labels.sort((a, b) => b.prio - a.prio); // place the important ones first
-  // The legend is an opaque panel drawn over the map, and a label underneath it was left "visible"
-  // while being covered — at 92% panel opacity that is not a name, it is a smudge showing through.
-  // Seeding it as already-occupied space makes a covered label properly hidden, and lets the culling
-  // below reason about the room that is actually free.
+  // Things the map draws that are not in the tiers above, and that nothing may sit on. The legend is
+  // an opaque panel, and a label underneath it was left "visible" while being covered — at 92% panel
+  // opacity that is not a name, it is a smudge showing through. The world's title is the same case
+  // from the other side: it was invisible to this pass, so it neither ceded space nor claimed any,
+  // and a region name would come to rest just below it and read as a subtitle. Seeding both as
+  // already-occupied lets the culling below reason about the room that is actually free.
   const kept: DOMRect[] = [];
-  for (const panel of svg.querySelectorAll<SVGGraphicsElement>(".legend")) {
+  for (const panel of svg.querySelectorAll<SVGGraphicsElement>(".legend, .world-name-text")) {
     try { kept.push(panel.getBBox()); } catch { /* no layout (jsdom): nothing to reserve */ }
   }
+  const withAir = (b: DOMRect) =>
+    ({ x: b.x - AIR, y: b.y - AIR, width: b.width + AIR * 2, height: b.height + AIR * 2 }) as DOMRect;
   for (const l of labels) {
-    if (kept.some((k) => hit(k, l.box))) l.el.style.visibility = "hidden";
+    if (kept.some((k) => hit(k, withAir(l.box)))) l.el.style.visibility = "hidden";
     else kept.push(l.box);
   }
 }
