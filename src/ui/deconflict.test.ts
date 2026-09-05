@@ -18,7 +18,7 @@ describe("deconflictLabels", () => {
     const nation = mkLabel(svg, "nation-label", { x: 0, y: 0, width: 50, height: 10 });
     const townOverlap = mkLabel(svg, "city-label city-town", { x: 10, y: 2, width: 40, height: 10 });
     const townFar = mkLabel(svg, "city-label city-town", { x: 200, y: 200, width: 30, height: 10 });
-    deconflictLabels(svg);
+    deconflictLabels(svg, 4);
     expect(nation.style.visibility).toBe("");
     expect(townOverlap.style.visibility).toBe("hidden");
     expect(townFar.style.visibility).toBe("");
@@ -28,7 +28,7 @@ describe("deconflictLabels", () => {
     const svg = document.createElementNS(NS, "svg") as SVGSVGElement;
     const other = mkLabel(svg, "nation-label", { x: 0, y: 0, width: 50, height: 10 });
     const player = mkLabel(svg, "nation-label player", { x: 5, y: 1, width: 50, height: 10 });
-    deconflictLabels(svg);
+    deconflictLabels(svg, 4);
     expect(player.style.visibility).toBe("");
     expect(other.style.visibility).toBe("hidden");
   });
@@ -48,7 +48,7 @@ describe("deconflictLabels", () => {
     // a river label is ROTATED: its local-space bbox can't be shifted via x/y — must not be touched
     const river = mkLabel(svg, "river-label", { x: -30, y: 100, width: 60, height: 8 });
     river.setAttribute("x", "5");
-    deconflictLabels(svg);
+    deconflictLabels(svg, 4);
     expect(Number(west.getAttribute("x"))).toBe(70);  // +50: box.x -40 → 10 (pad)
     expect(Number(east.getAttribute("x"))).toBe(965); // -20: right 1010 → 990
     expect(Number(north.getAttribute("y"))).toBe(20); // +16: box.y -6 → 10
@@ -60,7 +60,7 @@ describe("deconflictLabels", () => {
     const svg = document.createElementNS(NS, "svg") as SVGSVGElement;
     const t = mkLabel(svg, "nation-label", { x: -40, y: 0, width: 120, height: 18 });
     t.setAttribute("x", "20");
-    deconflictLabels(svg);
+    deconflictLabels(svg, 4);
     expect(Number(t.getAttribute("x"))).toBe(20);
   });
 
@@ -74,7 +74,7 @@ describe("deconflictLabels", () => {
     const nation = mkLabel(svg, "nation-label", { x: 300, y: 300, width: 80, height: 12 });
     nation.setAttribute("y", "310");
     const capital = mkLabel(svg, "city-label city-capital", { x: 320, y: 305, width: 60, height: 10 });
-    deconflictLabels(svg);
+    deconflictLabels(svg, 4);
     expect(capital.style.visibility).toBe("");        // the capital survives
     expect(nation.style.visibility).toBe("");         // and so does the nation
     expect(Number(nation.getAttribute("y"))).toBeLessThan(310);   // by moving the nation up
@@ -86,7 +86,7 @@ describe("deconflictLabels", () => {
     const nation = mkLabel(svg, "nation-label", { x: 300, y: 300, width: 80, height: 12 });
     nation.setAttribute("y", "310");
     mkLabel(svg, "city-label city-capital", { x: 700, y: 100, width: 60, height: 10 });
-    deconflictLabels(svg);
+    deconflictLabels(svg, 4);
     expect(Number(nation.getAttribute("y"))).toBe(310);
   });
 });
@@ -98,7 +98,7 @@ describe("deconflictLabels air gap", () => {
     // kept, reading as one two-line stack.
     const upper = mkLabel(svg, "region-label", { x: 0, y: 0, width: 100, height: 14 });
     const stacked = mkLabel(svg, "region-label", { x: 10, y: 17, width: 90, height: 14 });
-    deconflictLabels(svg);
+    deconflictLabels(svg, 4);
     expect(upper.style.visibility).toBe("");
     expect(stacked.style.visibility).toBe("hidden");
   });
@@ -107,7 +107,7 @@ describe("deconflictLabels air gap", () => {
     const svg = document.createElementNS(NS, "svg") as SVGSVGElement;
     const upper = mkLabel(svg, "region-label", { x: 0, y: 0, width: 100, height: 14 });
     const below = mkLabel(svg, "region-label", { x: 10, y: 40, width: 90, height: 14 });
-    deconflictLabels(svg);
+    deconflictLabels(svg, 4);
     expect(upper.style.visibility).toBe("");
     expect(below.style.visibility).toBe("");
   });
@@ -119,7 +119,7 @@ describe("deconflictLabels and the world's title", () => {
     const title = mkLabel(svg, "world-name-text", { x: 400, y: 14, width: 200, height: 22 });
     const under = mkLabel(svg, "region-label", { x: 420, y: 38, width: 160, height: 14 });
     const elsewhere = mkLabel(svg, "region-label", { x: 100, y: 300, width: 160, height: 14 });
-    deconflictLabels(svg);
+    deconflictLabels(svg, 4);
     expect(title.style.visibility).toBe("");      // a title is never the thing that yields
     expect(under.style.visibility).toBe("hidden");
     expect(elsewhere.style.visibility).toBe("");
@@ -145,12 +145,12 @@ describe("deconflictLabels run more than once", () => {
     svg.setAttribute("viewBox", "0 0 500 500");
     const nation = mkMoving(svg, "nation-label", 100, 112, 60, 12);
     const capital = mkMoving(svg, "city-label city-capital", 110, 114, 40, 10);
-    deconflictLabels(svg);
+    deconflictLabels(svg, 4);
     const afterOne = nation.getAttribute("y");
     expect(afterOne).not.toBe("112");           // it did move off the capital
-    deconflictLabels(svg);
+    deconflictLabels(svg, 4);
     expect(nation.getAttribute("y")).toBe(afterOne);
-    deconflictLabels(svg);
+    deconflictLabels(svg, 4);
     expect(nation.getAttribute("y")).toBe(afterOne);
     expect(capital.style.visibility).toBe("");
   });
@@ -168,5 +168,67 @@ describe("deconflictLabels run more than once", () => {
     deconflictLabels(svg);
     expect(far.getAttribute("x")).toBe("300");
     expect(far.getAttribute("y")).toBe("312");
+  });
+});
+
+// Scale thresholds: at rest the map carries only the names of large things, and the smaller ones
+// arrive as the reader leans in. Marks are not names — a town's dot stays, so the map still shows
+// where the settlements are; it is the word beside it that waits for the zoom.
+describe("deconflictLabels scale thresholds", () => {
+  const build = () => {
+    const svg = document.createElementNS(NS, "svg") as SVGSVGElement;
+    svg.setAttribute("viewBox", "0 0 1000 700");
+    return {
+      svg,
+      region: mkLabel(svg, "region-label", { x: 10, y: 10, width: 80, height: 14 }),
+      capital: mkLabel(svg, "city-label city-capital", { x: 300, y: 300, width: 40, height: 10 }),
+      river: mkLabel(svg, "river-label", { x: 500, y: 100, width: 50, height: 10 }),
+      town: mkLabel(svg, "city-label city-town", { x: 700, y: 500, width: 30, height: 8 }),
+    };
+  };
+  const shown = (el: SVGGraphicsElement) => el.style.visibility !== "hidden";
+
+  it("shows only the big names at rest", () => {
+    const { svg, region, capital, river, town } = build();
+    deconflictLabels(svg, 1);
+    expect(shown(region)).toBe(true);
+    expect(shown(capital)).toBe(false);
+    expect(shown(river)).toBe(false);
+    expect(shown(town)).toBe(false);
+  });
+
+  it("lets them in as the reader leans in, biggest first", () => {
+    const { svg, capital, river, town } = build();
+    deconflictLabels(svg, 1.5);
+    expect([shown(capital), shown(river), shown(town)]).toEqual([true, false, false]);
+    deconflictLabels(svg, 2);
+    expect([shown(capital), shown(river), shown(town)]).toEqual([true, true, false]);
+    deconflictLabels(svg, 2.6);
+    expect([shown(capital), shown(river), shown(town)]).toEqual([true, true, true]);
+  });
+
+  it("takes them away again on the way back out", () => {
+    const { svg, town } = build();
+    deconflictLabels(svg, 4);
+    expect(shown(town)).toBe(true);
+    deconflictLabels(svg, 1);
+    expect(shown(town)).toBe(false);
+  });
+
+  it("defaults to the resting scale when no zoom is given", () => {
+    const { svg, region, town } = build();
+    deconflictLabels(svg);
+    expect(shown(region)).toBe(true);
+    expect(shown(town)).toBe(false);
+  });
+
+  it("never lets a name held back for scale take up room a visible one could use", () => {
+    const svg = document.createElementNS(NS, "svg") as SVGSVGElement;
+    svg.setAttribute("viewBox", "0 0 1000 700");
+    const town = mkLabel(svg, "city-label city-town", { x: 100, y: 100, width: 90, height: 12 });
+    const region = mkLabel(svg, "region-label", { x: 100, y: 100, width: 90, height: 12 });
+    deconflictLabels(svg, 1);   // the town is out of scale; it must not cull the region under it
+    expect(shown(region)).toBe(true);
+    expect(shown(town)).toBe(false);
   });
 });

@@ -2,16 +2,32 @@
 // capital > region > river > town), so nation names and place names don't collide. Runs post-mount
 // because it needs getBBox (real layout); jsdom lacks getBBox, so it's a no-op in tests unless
 // getBBox is stubbed. Pure DOM — not seeded, safe for determinism.
-export function deconflictLabels(svg: SVGSVGElement): void {
-  const tiers: [string, number][] = [
-    [".nation-label.player", 6], [".nation-label:not(.player)", 5], [".city-capital", 4],
-    [".region-label", 3], [".province-label", 3], [".river-label", 2], [".city-town", 1],
+/**
+ * `scale` is the map's current zoom, 1 at rest. At rest the map carries only the names of large
+ * things — realms and regions — and the smaller ones arrive as the reader leans in: the realm's
+ * seat first, then rivers, then towns. Marks are not names: a settlement's dot stays at every zoom,
+ * so the map always shows WHERE the towns are, and it is the word beside it that waits.
+ *
+ * The thresholds below are the one place in this pass with hand-chosen numbers. Everything else
+ * follows from what fits.
+ */
+export function deconflictLabels(svg: SVGSVGElement, scale = 1): void {
+  // selector, priority when they compete, and the zoom at which the name is worth the room
+  const tiers: [string, number, number][] = [
+    [".nation-label.player", 6, 0], [".nation-label:not(.player)", 5, 0], [".city-capital", 4, 1.5],
+    [".region-label", 3, 0], [".province-label", 3, 2], [".river-label", 2, 2], [".city-town", 1, 2.6],
   ];
   const labels: { el: SVGGraphicsElement; box: DOMRect; prio: number }[] = [];
   try {
-    for (const [sel, prio] of tiers) {
+    for (const [sel, prio, minScale] of tiers) {
       for (const el of svg.querySelectorAll<SVGGraphicsElement>(sel)) {
         el.style.visibility = ""; // reset any prior pass
+        if (scale < minScale) {
+          // Held back for scale, and left out of `labels` entirely — a name nobody can see must not
+          // occupy room a visible one could have used.
+          el.style.visibility = "hidden";
+          continue;
+        }
         labels.push({ el, box: el.getBBox(), prio });
       }
     }

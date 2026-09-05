@@ -138,7 +138,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
           relayout = 0;
           applyLabelScale(svg, pendingScale);
           applyMarkerScale(svg, pendingScale);
-          deconflictLabels(svg);
+          deconflictLabels(svg, pendingScale);
         });
       },
     });
@@ -166,7 +166,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
       const z = worldZoom?.scale() ?? 1;
       applyLabelScale(svg, z);
       applyMarkerScale(svg, z);
-      deconflictLabels(svg); // hide colliding lower-priority labels after the year's labels are in place
+      deconflictLabels(svg, z); // hide colliding lower-priority labels, and those the zoom has not earned yet
     };
 
     timeline = createTimeline(history, renderYear);
