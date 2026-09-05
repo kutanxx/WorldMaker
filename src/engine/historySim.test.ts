@@ -203,14 +203,14 @@ describe("sea lanes", () => {
   }
 
   it("bridges a blocked world (capitals in split components) and leaves a connected one alone", () => {
-    const blocked = lanesFor(2);
+    const blocked = lanesFor(4);   // seeds 4, 11, 17, 21-23, 27, 29 split their capitals across water
     expect(blocked.lanes.length).toBeGreaterThan(0);
     const connected = lanesFor(1);
     expect(connected.lanes.length).toBe(0);
   });
 
   it("lanes are deterministic, coastal-anchored, and unite the capitals' reach graph", () => {
-    const { world, links, lanes } = lanesFor(2);
+    const { world, links, lanes } = lanesFor(4);
     expect(buildSeaLanes(world.grid, world.terrain, links, world.polities.map((p) => p.capital))).toEqual(lanes);
     const { grid, terrain } = world;
     for (const { a, b } of lanes) {

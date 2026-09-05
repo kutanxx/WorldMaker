@@ -145,9 +145,9 @@ describe("simulateHistory skeleton", () => {
       if (e.type === "newCity") { cities++; expect(e.name).toBeTruthy(); }
       if (e.type === "civilwar") { wars++; expect(e.intoIds!.length).toBeGreaterThanOrEqual(1); }
     }
-    expect(ports).toBe(3);   // seed 1: three free ports
-    expect(cities).toBe(6);  // six cities founded
-    expect(wars).toBe(1);    // one civil war
+    expect(ports).toBe(3);    // seed 1: three free ports
+    expect(cities).toBe(19);  // nineteen cities founded
+    expect(wars).toBe(5);     // five civil wars
   });
 });
 
@@ -173,10 +173,20 @@ describe("simulateHistory golden anchor (behaviour lock)", () => {
   // eventText.ts. This fold renders the Korean line instead, and because that rendering is
   // byte-identical, NOTHING here was re-pinned. The rendered line also contains the new `name` and
   // `intoIds` values, so a wrong value in either fails this anchor.
+  //
+  // 2026-09-06: EVERYTHING here was re-pinned, deliberately, and this is the one entry where the
+  // rule above does not apply — because the world itself was meant to change. The heightmap's edge
+  // falloff was radial, distance from the centre over the half-diagonal, which reaches its full
+  // value only at the corners: on a 1000x700 canvas the middle of the top edge got barely half of
+  // it. Measured over twelve seeds, all twelve had land running off at least three sides of the
+  // map, sliced flat by a box the reader cannot see. The falloff is now per axis with a drowned
+  // rim, so every world has a coast. Different worlds, different histories: a shared seed link
+  // made before this renders a different map, which was the price agreed for the fix. From here
+  // the old rule stands again — a change that is not meant to move the world must not move these.
   const anchors: Record<number, { snaps: number; pols: number; evs: number; econ: number; allSnap: number; events: number; polities: number }> = {
-    1: { snaps: 51, pols: 14, evs: 31, econ: 3, allSnap: 2796185232, events: 1481129128, polities: 2675077029 },
-    2: { snaps: 51, pols: 15, evs: 38, econ: 3, allSnap:  999977846, events:   98103408, polities:  328912791 },
-    3: { snaps: 51, pols: 16, evs: 44, econ: 3, allSnap: 4292460260, events: 2078606065, polities: 4030259824 },
+    1: { snaps: 51, pols: 20, evs: 56, econ: 3, allSnap: 1648675569, events: 2831389653, polities: 1102447988 },
+    2: { snaps: 51, pols: 17, evs: 48, econ: 3, allSnap: 4266384045, events: 2111645432, polities: 1525729082 },
+    3: { snaps: 51, pols: 17, evs: 42, econ: 3, allSnap:  325069013, events: 3576030188, polities: 1274101309 },
   };
   for (const seed of [1, 2, 3]) {
     it(`reproduces the pinned hashes for seed ${seed}`, () => {

@@ -10,8 +10,8 @@ describe("biome integration", () => {
     for (const p of world.polityOf) { h ^= (p + 1); h = Math.imul(h, 16777619) >>> 0; }
     let ch = 2166136261 >>> 0;
     for (const c of world.cities) { ch ^= c.cell; ch = Math.imul(ch, 16777619) >>> 0; }
-    expect(h >>> 0).toBe(1350115163);
-    expect(ch >>> 0).toBe(4294534188);
+    expect(h >>> 0).toBe(1026682088);
+    expect(ch >>> 0).toBe(2824879792);
     expect(world.cities.length).toBe(28);
   });
   it("exposes a biome per cell and per city", () => {
@@ -83,7 +83,7 @@ describe("world rivers", () => {
     const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });
     let h = 2166136261 >>> 0;
     for (const p of world.polityOf) { h ^= (p + 1); h = Math.imul(h, 16777619) >>> 0; }
-    expect(h >>> 0).toBe(1350115163);
+    expect(h >>> 0).toBe(1026682088);
     expect(world.cities.length).toBe(28);
   });
   it("exposes a named river network for a normal seed", () => {
@@ -110,7 +110,7 @@ describe("province partition", () => {
     // regression: the political golden hash is byte-identical (provinces use a separate rng stream)
     let h = 2166136261 >>> 0;
     for (const p of world.polityOf) { h ^= (p + 1); h = Math.imul(h, 16777619) >>> 0; }
-    expect(h >>> 0).toBe(1350115163);
+    expect(h >>> 0).toBe(1026682088);
     // partition invariants
     expect(world.provinceOf.length).toBe(world.grid.count);
     for (let c = 0; c < world.grid.count; c++) {
@@ -120,7 +120,7 @@ describe("province partition", () => {
     // golden partition hash (locks the deterministic province map)
     let ph = 2166136261 >>> 0;
     for (const p of world.provinceOf) { ph ^= (p + 1); ph = Math.imul(ph, 16777619) >>> 0; }
-    expect(ph >>> 0).toBe(2955931295);     // golden province partition hash (seed 1)
-    expect(world.provinces.length).toBe(102); // 100 target + 2 seedless-island cleanup provinces
+    expect(ph >>> 0).toBe(2545381283);     // golden province partition hash (seed 1)
+    expect(world.provinces.length).toBe(101); // 100 target + 1 seedless-island cleanup province
   });
 });
