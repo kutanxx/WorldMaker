@@ -65,7 +65,13 @@ export function deconflictLabels(svg: SVGSVGElement): void {
   // at an edge centroid), and the HUD shell's stretched svg renders that spill on the parchment
   // letterbox band instead of clipping it. Shift such labels back inside the frame. Rivers are
   // excluded — they're rotated, so their local-space bbox can't be corrected with an x/y shift.
-  const vb = (svg.getAttribute("viewBox") || "").split(/[\s,]+/).map(Number);
+  //
+  // Clamped against the map, not against the CURRENT viewBox. Zooming rewrites the viewBox to a
+  // sub-rectangle, and clamping to that would drag every off-screen label into the visible corner —
+  // a region's name yanked hundreds of units from the land it names. The map's own box is captured
+  // the first time this runs, before any zoom has touched it.
+  if (!svg.dataset.baseViewbox) svg.dataset.baseViewbox = svg.getAttribute("viewBox") || "";
+  const vb = (svg.dataset.baseViewbox || "").split(/[\s,]+/).map(Number);
   if (vb.length === 4 && vb.every(Number.isFinite)) {
     const [vx, vy, vw, vh] = vb;
     const PAD = 10; // stay inside the decorative border (inset 8) with a little air

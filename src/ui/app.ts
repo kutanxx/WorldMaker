@@ -15,6 +15,7 @@ import { politicalLayer } from "./politicalLayer";
 import { cultureLayer } from "./cultureLayer";
 import { provinceLayer, snapOwnersToProvinces } from "./provinceLayer";
 import { deconflictLabels } from "./deconflict";
+import { applyLabelScale, applyMarkerScale } from "./labelScale";
 import { type Lang, t } from "./i18n";
 import { detectLang, saveLang } from "./lang";
 
@@ -123,7 +124,24 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     stage.appendChild(frame);
     cityZoom?.destroy(); cityZoom = null;
     worldZoom?.destroy();
-    worldZoom = attachZoomPan(svg, frame);
+    // Zooming holds the lettering at its on-screen size and then asks deconflictLabels what fits
+    // now. That is the whole of the "more names as you lean in" behaviour: the land spreads out,
+    // the words do not, and the room that opens up is filled from the priority order the pass
+    // already has — nation, capital, region, river, town. No per-tier zoom thresholds to tune.
+    // Coalesced to one pass per frame: a wheel gesture fires dozens of scale changes.
+    let relayout = 0, pendingScale = 1;
+    worldZoom = attachZoomPan(svg, frame, {
+      onScale: (scale) => {
+        pendingScale = scale;   // the newest scale of the gesture, not the one that scheduled the frame
+        if (relayout) return;
+        relayout = requestAnimationFrame(() => {
+          relayout = 0;
+          applyLabelScale(svg, pendingScale);
+          applyMarkerScale(svg, pendingScale);
+          deconflictLabels(svg);
+        });
+      },
+    });
 
     const chronicle = renderChronicle(history, lang);
     const slot = svg.querySelector(".political-slot") as SVGGElement;
@@ -142,6 +160,12 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
         slot.replaceChildren(politicalLayer(world.grid, snapped, history.polities, politicalOpts(currentView)));
       }
       applyChronicleYear(chronicle, snap.year);
+      // Scrubbing a year replaces the political layer, so its labels arrive at their base size.
+      // Bring them to whatever zoom the reader is at before working out what fits, or a nation's
+      // name would come back full-size on a map zoomed to 8x.
+      const z = worldZoom?.scale() ?? 1;
+      applyLabelScale(svg, z);
+      applyMarkerScale(svg, z);
       deconflictLabels(svg); // hide colliding lower-priority labels after the year's labels are in place
     };
 

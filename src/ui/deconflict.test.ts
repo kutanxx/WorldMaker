@@ -125,3 +125,48 @@ describe("deconflictLabels and the world's title", () => {
     expect(elsewhere.style.visibility).toBe("");
   });
 });
+
+// The pass has to survive being run again: once the map re-runs it on every zoom step, a pass that
+// nudges a label by a delta each time would walk it off the map.
+describe("deconflictLabels run more than once", () => {
+  // A stub that follows the element, the way a real getBBox does — with a fixed box, moving a label
+  // and re-measuring it look the same, and the drift this test is here to catch is invisible.
+  const mkMoving = (svg: SVGSVGElement, cls: string, x: number, y: number, w: number, h: number) => {
+    const t = document.createElementNS(NS, "text");
+    t.setAttribute("class", cls); t.setAttribute("x", String(x)); t.setAttribute("y", String(y));
+    (t as unknown as { getBBox: () => Box }).getBBox = () =>
+      ({ x: Number(t.getAttribute("x")), y: Number(t.getAttribute("y")) - h, width: w, height: h });
+    svg.appendChild(t);
+    return t as unknown as SVGGraphicsElement;
+  };
+
+  it("puts a lifted nation label in the same place the second time", () => {
+    const svg = document.createElementNS(NS, "svg") as SVGSVGElement;
+    svg.setAttribute("viewBox", "0 0 500 500");
+    const nation = mkMoving(svg, "nation-label", 100, 112, 60, 12);
+    const capital = mkMoving(svg, "city-label city-capital", 110, 114, 40, 10);
+    deconflictLabels(svg);
+    const afterOne = nation.getAttribute("y");
+    expect(afterOne).not.toBe("112");           // it did move off the capital
+    deconflictLabels(svg);
+    expect(nation.getAttribute("y")).toBe(afterOne);
+    deconflictLabels(svg);
+    expect(nation.getAttribute("y")).toBe(afterOne);
+    expect(capital.style.visibility).toBe("");
+  });
+
+  it("clamps against the map, not against whatever the viewBox is zoomed to", () => {
+    const svg = document.createElementNS(NS, "svg") as SVGSVGElement;
+    svg.setAttribute("viewBox", "0 0 500 500");
+    // a label sitting comfortably inside the map, far from the corner the zoom will show
+    const far = mkLabel(svg, "region-label", { x: 300, y: 300, width: 80, height: 14 });
+    far.setAttribute("x", "300"); far.setAttribute("y", "312");
+    deconflictLabels(svg);
+    expect(far.getAttribute("x")).toBe("300");   // nothing to clamp at base scale
+    // now zoom into the top-left corner: the label is off-screen, and must NOT be dragged into view
+    svg.setAttribute("viewBox", "0 0 125 125");
+    deconflictLabels(svg);
+    expect(far.getAttribute("x")).toBe("300");
+    expect(far.getAttribute("y")).toBe("312");
+  });
+});

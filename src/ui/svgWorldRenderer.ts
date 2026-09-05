@@ -196,7 +196,7 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
   for (const c of world.cities) {
     if (c.isCapital) {
       markers.appendChild(svgEl("path", {
-        class: "marker-capital", d: starPath(c.x, c.y, 5, 4.2, 1.9),
+        class: "marker-capital", d: starPath(c.x, c.y, 5, 4.2, 1.9), "data-cx": c.x.toFixed(1), "data-cy": c.y.toFixed(1),
         fill: INK, stroke: PARCHMENT, "stroke-width": 0.7,
         "data-city": c.id, style: "cursor:pointer",
       }));
@@ -245,7 +245,7 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
     for (const cell of econZones) {
       const x = grid.points[cell * 2], y = grid.points[cell * 2 + 1];
       eg.appendChild(svgEl("path", {
-        class: "econ-zone", "data-zone": cell,
+        class: "econ-zone", "data-zone": cell, "data-cx": x.toFixed(1), "data-cy": y.toFixed(1),
         d: `M${x.toFixed(1)},${(y - 4).toFixed(1)}L${(x + 4).toFixed(1)},${y.toFixed(1)}L${x.toFixed(1)},${(y + 4).toFixed(1)}L${(x - 4).toFixed(1)},${y.toFixed(1)}Z`,
         fill: "#e0a83a", stroke: "#7a5a1a", "stroke-width": 0.8,
       }));

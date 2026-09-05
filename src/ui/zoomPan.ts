@@ -1,7 +1,7 @@
 // viewBox-based zoom/pan for an SVG map (world or city). Simple visual zoom — markers/labels
 // scale with the map. No dependencies. Read/write the viewBox as an attribute string (jsdom
 // does not implement svg.viewBox.baseVal).
-export interface ZoomPan { reset(): void; destroy(): void; viewBox(): string; }
+export interface ZoomPan { reset(): void; destroy(): void; viewBox(): string; scale(): number; }
 
 const MIN_SCALE = 1, MAX_SCALE = 8;
 // straight-line px from the press point beyond which a pointer sequence is a drag (pan), not a
@@ -9,14 +9,28 @@ const MIN_SCALE = 1, MAX_SCALE = 8;
 // click — otherwise the map swallows the click and the city never opens.
 const DRAG_PX = 8;
 
-export function attachZoomPan(svg: SVGSVGElement, container: HTMLElement, opts?: { restore?: string | null }): ZoomPan {
+export function attachZoomPan(
+  svg: SVGSVGElement,
+  container: HTMLElement,
+  // `onScale` fires whenever the zoom changes, so the caller can hold the lettering at its
+  // on-screen size and let deconflictLabels work out what now fits (see labelScale.ts).
+  opts?: { restore?: string | null; onScale?: (scale: number) => void },
+): ZoomPan {
   const parse = (s: string | null) => { const a = (s || "0 0 100 100").split(/[\s,]+/).map(Number); return { x: a[0], y: a[1], w: a[2], h: a[3] }; };
   const base = parse(svg.getAttribute("viewBox"));
   let cur = { ...base };
   // at base scale the map yields the touch surface to the page (scroll passes through, taps
   // still land); zoomed in, the map owns it (one-finger pan, and pinch arrives as pointers)
   const syncTouchAction = () => { svg.style.touchAction = cur.w < base.w - 1e-9 ? "none" : "pan-y"; };
-  const apply = () => { svg.setAttribute("viewBox", `${cur.x} ${cur.y} ${cur.w} ${cur.h}`); syncTouchAction(); };
+  let lastScale = 0;
+  const apply = () => {
+    svg.setAttribute("viewBox", `${cur.x} ${cur.y} ${cur.w} ${cur.h}`);
+    syncTouchAction();
+    // panning does not change the scale, and re-laying every label out on each pointermove would be
+    // wasted work, so only a real zoom notifies.
+    const s = base.w / cur.w;
+    if (Math.abs(s - lastScale) > 1e-9) { lastScale = s; opts?.onScale?.(s); }
+  };
   const rectOf = () => { const r = svg.getBoundingClientRect(); return r && r.width ? r : ({ left: 0, top: 0, width: base.w, height: base.h } as DOMRect); };
 
   const clampPan = () => {
@@ -105,6 +119,7 @@ export function attachZoomPan(svg: SVGSVGElement, container: HTMLElement, opts?:
   return {
     reset,
     viewBox() { return `${cur.x} ${cur.y} ${cur.w} ${cur.h}`; },
+    scale() { return base.w / cur.w; },
     destroy() {
       endDrag(); // tear down any in-progress drag's window listeners
       svg.removeEventListener("wheel", onWheel);
