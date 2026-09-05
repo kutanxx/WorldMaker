@@ -3,6 +3,7 @@ import { generateWorld } from "./world";
 import { DEFAULT_PARAMS } from "../types/world";
 import { simulateHistory } from "./history";
 import { worldToGazetteer } from "./gazetteer";
+import { eventText } from "./eventText";
 
 describe("worldToGazetteer", () => {
   const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });
@@ -22,7 +23,7 @@ describe("worldToGazetteer", () => {
     expect(md).toContain(world.regions[0].name);
     expect(md).toContain(world.cultures[0].name);
     expect(md).toContain(`### ${world.polities[0].name}`);
-    expect(md).toContain(ungrouped.text);
+    expect(md).toContain(eventText(ungrouped, history.polities, "en"));
   });
   it("is deterministic", () => {
     expect(worldToGazetteer(world, history)).toBe(md);
@@ -51,7 +52,7 @@ describe("worldToGazetteer", () => {
     for (const h of ["## The Land", "## Peoples", "## Realms"]) expect(ko).not.toContain(h);
     // The chronicle events are generated in Korean by the simulation, so a Korean document is now
     // one language throughout — which is the whole point of taking a `lang` at all.
-    expect(ko).toContain(ungrouped.text);
+    expect(ko).toContain(eventText(ungrouped, history.polities, "ko"));
   });
 
   it("picks the Korean object particle by the final consonant, not a placeholder", () => {
@@ -148,5 +149,19 @@ describe("worldToGazetteer", () => {
     const lines = (ko.slice(ko.indexOf("## 연대기")).match(/^- .*민족의 땅.*$/gm) ?? []);
     const keys = lines.map((l) => l.replace(/—.*$/, "").trim());
     expect(new Set(keys).size).toBe(keys.length);
+  });
+
+  it("writes an English document with no Korean left in it", () => {
+    const en = worldToGazetteer(world, history, "en");
+    const hangul = en.match(/[가-힣]/g) ?? [];
+    expect(hangul).toEqual([]);          // shows the offending characters when it fails
+  });
+
+  it("still writes the Korean document in Korean", () => {
+    const kr = worldToGazetteer(world, history, "ko");
+    // Seed 1 groups its 8 foundings into one "N개 나라가 서다" line, so "건국" itself doesn't
+    // appear; "자유무역항 지정" (the free-port namings) is unconditional and Korean-only.
+    expect(kr).toContain("자유무역항 지정");
+    expect(kr).toContain("## 연대기");
   });
 });

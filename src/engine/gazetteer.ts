@@ -5,6 +5,7 @@ import {
 } from "./biome";
 import { withJosa } from "./korean";
 import { buildDynasties, rulerAt, type Reign } from "./dynasty";
+import { eventText } from "./eventText";
 
 // Declared here rather than imported from `src/ui/i18n.ts`: the engine is DOM-free and must not
 // depend on the presentation layer. The union is deliberately the same one the UI uses, so the app
@@ -455,7 +456,7 @@ export function worldToGazetteer(world: World, history: History, lang: Gazetteer
         : `Year ${ev.year} — ${names.length} realms stand: ${names.join(", ")}` });
       continue;
     }
-    told.push({ year: ev.year, rank: 0, text: ev.text });
+    told.push({ year: ev.year, rank: 0, text: eventText(ev, history.polities, lang) });
   }
   told.push(...minedChronicle(world, history, lang, dyn));
   // Stable: year, then kind, then the order each was produced in — no comparison falls through to

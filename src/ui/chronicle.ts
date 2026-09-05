@@ -1,4 +1,5 @@
 import type { History } from "../engine/history";
+import { eventText } from "../engine/eventText";
 
 export function renderChronicle(history: History): HTMLElement {
   const root = document.createElement("div");
@@ -25,7 +26,7 @@ export function renderChronicle(history: History): HTMLElement {
     const row = document.createElement("li");
     row.className = `chronicle-event evt-${e.type}`;
     row.dataset.year = String(e.year);
-    row.textContent = e.text;
+    row.textContent = eventText(e, history.polities, "ko"); // Task 4 gives the panel its language
     list!.appendChild(row);
   }
   return root;

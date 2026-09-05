@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { generateWorld } from "./world";
 import { DEFAULT_PARAMS } from "../types/world";
 import { simulateHistory } from "./history";
+import { eventText } from "./eventText";
 
 function build(seed: number) {
   const { world } = generateWorld({ ...DEFAULT_PARAMS, seed });
@@ -140,14 +141,9 @@ describe("simulateHistory skeleton", () => {
     const h = simulateHistory(build(1), 1);
     let ports = 0, cities = 0, wars = 0;
     for (const e of h.events) {
-      if (e.type === "staple") { ports++; expect(e.name).toBeTruthy(); expect(e.text).toContain(e.name!); }
-      if (e.type === "newCity") { cities++; expect(e.name).toBeTruthy(); expect(e.text).toContain(e.name!); }
-      if (e.type === "civilwar") {
-        wars++;
-        expect(e.intoIds!.length).toBeGreaterThanOrEqual(1);
-        // the successors named in the sentence are exactly the ids recorded, in the same order
-        expect(e.text).toContain(e.intoIds!.map((id) => h.polities[id].name).join("·"));
-      }
+      if (e.type === "staple") { ports++; expect(e.name).toBeTruthy(); }
+      if (e.type === "newCity") { cities++; expect(e.name).toBeTruthy(); }
+      if (e.type === "civilwar") { wars++; expect(e.intoIds!.length).toBeGreaterThanOrEqual(1); }
     }
     expect(ports).toBe(3);   // seed 1: three free ports
     expect(cities).toBe(6);  // six cities founded
@@ -172,6 +168,11 @@ describe("simulateHistory golden anchor (behaviour lock)", () => {
   // evidence the repair consumed no extra rng draws and moved nothing on the map — the property
   // `names.test.ts` calls geometry-safe. If a future name change moves `allSnap` or a count, it is
   // NOT name-only and must not be re-pinned without finding out why.
+  //
+  // 2026-09-05: `HistoryEvent.text` was removed — the sentence is now assembled at display time by
+  // eventText.ts. This fold renders the Korean line instead, and because that rendering is
+  // byte-identical, NOTHING here was re-pinned. The rendered line also contains the new `name` and
+  // `intoIds` values, so a wrong value in either fails this anchor.
   const anchors: Record<number, { snaps: number; pols: number; evs: number; econ: number; allSnap: number; events: number; polities: number }> = {
     1: { snaps: 51, pols: 14, evs: 31, econ: 3, allSnap: 2796185232, events: 1481129128, polities: 2675077029 },
     2: { snaps: 51, pols: 15, evs: 38, econ: 3, allSnap:  999977846, events:   98103408, polities:  328912791 },
@@ -185,7 +186,8 @@ describe("simulateHistory golden anchor (behaviour lock)", () => {
       let ev = 2166136261 >>> 0;
       for (const e of h.events) {
         ev = fold(ev, e.year); ev = fold(ev, fnvStr(e.type)); ev = fold(ev, e.polityId + 1);
-        ev = fold(ev, (e.otherId ?? -1) + 1); ev = fold(ev, (e.cell ?? -1) + 1); ev = fold(ev, fnvStr(e.text));
+        ev = fold(ev, (e.otherId ?? -1) + 1); ev = fold(ev, (e.cell ?? -1) + 1);
+        ev = fold(ev, fnvStr(eventText(e, h.polities, "ko")));
       }
       let pol = 2166136261 >>> 0;
       for (const p of h.polities) {

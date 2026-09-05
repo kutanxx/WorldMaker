@@ -12,15 +12,9 @@ const P = (id: number, name: string): HistoryPolity =>
   ({ id, name, color: "#000", capital: 0, foundedYear: 0, endedYear: null, origin: "initial", free: false });
 
 describe("eventText — Korean is byte-identical to what the simulation used to write", () => {
-  // The temporary equivalence proof. `text` is removed in the next task; from then on the events
-  // golden anchor in history.test.ts enforces this same property across seeds 1, 2 and 3.
-  for (const seed of [1, 2, 3]) {
-    it(`reproduces every recorded sentence on seed ${seed}`, () => {
-      const h = simulateHistory(build(seed), seed);
-      expect(h.events.length).toBeGreaterThan(0);
-      for (const e of h.events) expect(eventText(e, h.polities, "ko")).toBe(e.text);
-    });
-  }
+  // The across-seeds equivalence check lived here while `HistoryEvent.text` still existed. It is
+  // now the events golden anchor in history.test.ts, which folds this exact rendering on seeds
+  // 1, 2 and 3 and reproduces its pre-existing pinned values.
 
   it("reproduces seed 1's chronicle line for line", () => {
     const h = simulateHistory(build(1), 1);
@@ -107,7 +101,7 @@ describe("eventText — English", () => {
 describe("eventText — the parts a single seed does not exercise", () => {
   const pols = [P(0, "Aeltha"), P(1, "Bryn"), P(2, "Corran"), P(3, "Dhaish")];
   const war = (intoIds: number[]): HistoryEvent =>
-    ({ year: 300, type: "civilwar", text: "", polityId: 0, intoIds });
+    ({ year: 300, type: "civilwar", polityId: 0, intoIds });
 
   it("joins three successors as a sentence, not as an array", () => {
     expect(eventText(war([1, 2, 3]), pols, "en"))
@@ -123,13 +117,13 @@ describe("eventText — the parts a single seed does not exercise", () => {
     const consonant = [P(0, "Vaealelael"), P(1, "Khokgraur")];
     const vowel = [P(0, "Vaealelael"), P(1, "Kaarkgruau")];
     const conquer = (year: number): HistoryEvent =>
-      ({ year, type: "conquer", text: "", polityId: 0, otherId: 1 });
+      ({ year, type: "conquer", polityId: 0, otherId: 1 });
     expect(eventText(conquer(30), consonant, "ko")).toBe("30년, Vaealelael이 Khokgraur을 정복");
     expect(eventText(conquer(70), vowel, "ko")).toBe("70년, Vaealelael이 Kaarkgruau를 정복");
   });
 
   it("prints an unknown id rather than throwing", () => {
-    const orphan: HistoryEvent = { year: 10, type: "conquer", text: "", polityId: 0, otherId: 99 };
+    const orphan: HistoryEvent = { year: 10, type: "conquer", polityId: 0, otherId: 99 };
     expect(() => eventText(orphan, pols, "en")).not.toThrow();
     expect(eventText(orphan, pols, "en")).toBe("Year 10 — Aeltha conquers 99");
   });

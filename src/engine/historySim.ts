@@ -2,7 +2,6 @@ import { OCEAN } from "./terrain";
 import type { World } from "../types/world";
 import { mulberry32, deriveSeed, type Rng } from "./rng";
 import { makeNameGen, type NameGen } from "./names";
-import { withJosa } from "./korean";
 
 export const TICKS = 50, YEARS_PER_TICK = 10;
 const SOL_INIT = 0.5, SOL_RISE = 0.03, SOL_DECAY = 0.02;
@@ -67,7 +66,7 @@ export interface HistoryPolity {
 }
 export type HistoryEventType = "found" | "newCity" | "conquer" | "civilwar" | "independence" | "staple" | "goldenage";
 export interface HistoryEvent {
-  year: number; type: HistoryEventType; text: string;
+  year: number; type: HistoryEventType;
   polityId: number; otherId?: number; cell?: number;
   /** a name the simulation coined that no id can recover: the city `newCity` founds,
       the free port `staple` designates */
@@ -268,7 +267,7 @@ export function initSim(world: World, worldSeed: number): SimState {
   const golden: boolean[] = polities.map(() => false);
 
   const events: HistoryEvent[] = [];
-  for (const p of polities) events.push({ year: 0, type: "found", text: `0년, ${p.name} 건국`, polityId: p.id, cell: p.capital });
+  for (const p of polities) events.push({ year: 0, type: "found", polityId: p.id, cell: p.capital });
 
   // economic zones: prefer coastal, then large cities (deterministic, no rng draw)
   const zoneCities = [...world.cities]
@@ -276,7 +275,7 @@ export function initSim(world: World, worldSeed: number): SimState {
     .slice(0, ECON_COUNT);
   const economicZones: EconomicZone[] = zoneCities.map((c) => ({ cell: c.cell, name: c.name }));
   const zoneCells = new Set(economicZones.map((z) => z.cell));
-  for (const z of economicZones) events.push({ year: 0, type: "staple", text: `0년, ${z.name} 자유무역항 지정`, name: z.name, polityId: owner[z.cell] >= 0 ? owner[z.cell] : -1, cell: z.cell });
+  for (const z of economicZones) events.push({ year: 0, type: "staple", name: z.name, polityId: owner[z.cell] >= 0 ? owner[z.cell] : -1, cell: z.cell });
 
   const snapshots: HistorySnapshot[] = [{ year: 0, owner: owner.slice() }];
   const cityCells = world.cities.map((c) => ({ cell: c.cell, name: c.name }));
@@ -410,7 +409,7 @@ export function stepSim(s: SimState): void {
     if (capOwner >= 0 && capOwner !== o) {
       for (let c = 0; c < n; c++) if (owner[c] === o) owner[c] = capOwner;
       s.alive[o] = false; s.polities[o].endedYear = year;
-      s.events.push({ year, type: "conquer", text: `${year}년, ${withJosa(s.polities[capOwner].name, "이/가")} ${withJosa(s.polities[o].name, "을/를")} 정복`, polityId: capOwner, otherId: o, cell: s.capitals[o] });
+      s.events.push({ year, type: "conquer", polityId: capOwner, otherId: o, cell: s.capitals[o] });
     }
   }
 
@@ -427,11 +426,9 @@ export function stepSim(s: SimState): void {
     if (newCaps.length === 0) continue;
     const allCaps = [s.capitals[o], ...newCaps];
     const capPolity = allCaps.map((_, i) => (i === 0 ? o : s.polities.length + i - 1));
-    const names: string[] = [];
     for (let i = 1; i < allCaps.length; i++) {
       const id = s.polities.length;
       const nm = s.nameGen.nation();
-      names.push(nm);
       s.polities.push({ id, name: nm, color: HPALETTE[id % HPALETTE.length], capital: allCaps[i], foundedYear: year, endedYear: null, origin: "fragment", free: false });
       s.capitals.push(allCaps[i]); s.alive.push(true); s.golden.push(false);
     }
@@ -441,7 +438,7 @@ export function stepSim(s: SimState): void {
       owner[c] = capPolity[bi];
       s.solidarity[c] = CIVILWAR_BIRTH_SOL; // fresh cohesion so successors can stand on their own
     }
-    s.events.push({ year, type: "civilwar", text: `${year}년, 내란이 ${withJosa(s.polities[o].name, "을/를")} ${withJosa(names.join("·"), "으로/로")} 쪼갬`, intoIds: capPolity.slice(1), polityId: o, cell: s.capitals[o] });
+    s.events.push({ year, type: "civilwar", intoIds: capPolity.slice(1), polityId: o, cell: s.capitals[o] });
     break;
   }
 
@@ -468,7 +465,7 @@ export function stepSim(s: SimState): void {
     s.polities.push({ id, name, color: FREE_COLOR, capital: c, foundedYear: year, endedYear: null, origin: "free", free: true });
     s.capitals.push(c); s.alive.push(true); s.golden.push(false);
     for (const cc of cluster) owner[cc] = id;
-    s.events.push({ year, type: "independence", text: `${year}년, 자유도시 ${name} 독립 선포`, polityId: id, otherId: o, cell: c });
+    s.events.push({ year, type: "independence", polityId: id, otherId: o, cell: c });
     break;
   }
 
@@ -478,7 +475,7 @@ export function stepSim(s: SimState): void {
     if (!s.alive[o] || s.golden[o] || s.polities[o].free) continue;
     if (agg4[o].cells >= GOLDEN_MIN_CELLS && agg4[o].avg >= GOLDEN_MIN_ASA) {
       s.golden[o] = true;
-      s.events.push({ year, type: "goldenage", text: `${year}년, ${s.polities[o].name} 황금기 도래`, polityId: o, cell: s.capitals[o] });
+      s.events.push({ year, type: "goldenage", polityId: o, cell: s.capitals[o] });
       break;
     }
   }
@@ -489,7 +486,7 @@ export function stepSim(s: SimState): void {
     if (agg4[o].avg < 0.42) continue;
     if (s.rng() > 0.14) continue;
     const cityName = s.nameGen.place();
-    s.events.push({ year, type: "newCity", text: `${year}년, ${withJosa(s.polities[o].name, "이/가")} ${cityName} 건설`, name: cityName, polityId: o, cell: s.capitals[o] });
+    s.events.push({ year, type: "newCity", name: cityName, polityId: o, cell: s.capitals[o] });
     break;
   }
 
