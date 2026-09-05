@@ -94,6 +94,7 @@ describe("eventText — English", () => {
 
   it("says nothing in Korean", () => {
     const h = simulateHistory(build(1), 1);
+    expect(h.events.length).toBe(31);
     for (const e of h.events) expect(eventText(e, h.polities, "en")).not.toMatch(/[가-힣]/);
   });
 });

@@ -161,7 +161,7 @@ describe("simulateHistory golden anchor (behaviour lock)", () => {
   // strings in it) came back byte-identical — that is the check that says a change moved WORDS
   // and not the world. Seed 2 did not move at all for the length cap, since no name on it was
   // over the cap.
-  // Only the two hashes that fold NAME TEXT moved — `events` folds `e.text`, `polities` folds
+  // Only the two hashes that fold NAME TEXT moved — `events` folded `e.text`, `polities` folds
   // `p.name`. Everything that describes the world's shape and history is byte-identical to the
   // previous anchors: all four counts, and `allSnap` (2796185232 / 999977846 / 4292460260), which
   // hashes territory ownership across all 51 snapshots and contains no strings at all. That is the

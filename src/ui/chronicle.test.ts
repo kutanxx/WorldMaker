@@ -30,7 +30,7 @@ describe("renderChronicle", () => {
     const h = simulateHistory(world, 1);
     const el = renderChronicle(h, "en");
     expect(el.textContent).not.toMatch(/[가-힣]/);
-    expect(el.querySelector("h3")!.textContent).toBe(`Chronicle (years 0–${h.years})`);
+    expect(el.querySelector("h3")!.textContent).toBe(`Chronicle (Years 0–${h.years})`);
     expect(el.querySelector(".chronicle-era")!.textContent).toBe("0s");
     expect(el.querySelector(".chronicle-event")!.textContent).toBe("Year 0 — Dhaishdhar is founded");
   });

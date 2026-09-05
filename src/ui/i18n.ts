@@ -34,7 +34,7 @@ export function biomeName(lang: Lang, bm: number): string {
 // The chronicle panel's own chrome. The chronicle's LINES are assembled by `eventText.ts`, not
 // here — these two interpolate a number, which is why they are functions and not `UI` keys.
 export function chronicleTitle(lang: Lang, years: number): string {
-  return lang === "ko" ? `연대기 (0–${years}년)` : `Chronicle (years 0–${years})`;
+  return lang === "ko" ? `연대기 (0–${years}년)` : `Chronicle (Years 0–${years})`;
 }
 // matches the gazetteer's century headers: "100년대" / "100s"
 export function eraLabel(lang: Lang, startYear: number): string {

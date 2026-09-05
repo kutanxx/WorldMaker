@@ -151,11 +151,15 @@ describe("worldToGazetteer", () => {
     expect(new Set(keys).size).toBe(keys.length);
   });
 
-  it("writes an English document with no Korean left in it", () => {
-    const en = worldToGazetteer(world, history, "en");
-    const hangul = en.match(/[가-힣]/g) ?? [];
-    expect(hangul).toEqual([]);          // shows the offending characters when it fails
-  });
+  for (const s of [1, 2, 3]) {
+    it(`writes an English document with no Korean left in it (seed ${s})`, () => {
+      const { world: w } = generateWorld({ ...DEFAULT_PARAMS, seed: s });
+      const h = simulateHistory(w, s);
+      const en = worldToGazetteer(w, h, "en");
+      const hangul = en.match(/[가-힣]/g) ?? [];
+      expect(hangul).toEqual([]);          // shows the offending characters when it fails
+    });
+  }
 
   it("still writes the Korean document in Korean", () => {
     const kr = worldToGazetteer(world, history, "ko");
