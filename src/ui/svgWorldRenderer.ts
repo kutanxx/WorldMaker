@@ -1,5 +1,6 @@
 import type { World } from "../types/world";
 import { svgEl, legendPanel, INK, PARCHMENT } from "./renderer";
+import { displayBiomes } from "./displayBiome";
 import { OCEAN, ALPINE, BIOME_COLORS } from "../engine/biome";
 import { type Lang, biomeName, t } from "./i18n";
 import { coastline, type Segment } from "../engine/borders";
@@ -69,10 +70,16 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
   }
   root.appendChild(waterlines);
 
+  // Specks — half the biome patches on a world are one or two cells, and together they hold a
+  // twentieth of the land — are merged for DRAWING ONLY; world.biome is untouched. The fills and the
+  // mountain glyphs below read this same array, so a range is never hatched over a colour that has
+  // stopped saying mountain.
+  const shownBiome = displayBiomes(grid, world.biome);
+
   // biome fills (ocean is the background rect, so skip OCEAN cells)
   const byBiome = new Map<number, string>();
   for (let i = 0; i < grid.count; i++) {
-    const bm = world.biome[i];
+    const bm = shownBiome[i];
     if (bm === OCEAN) continue;
     byBiome.set(bm, (byBiome.get(bm) ?? "") + cellPath(grid.polygons[i]));
   }
@@ -101,8 +108,8 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
   // than a flat grey fill (antique/fantasy convention). Above the overlay fills, below rivers/labels.
   let reliefD = "";
   for (let i = 0; i < grid.count; i++) {
-    if (world.biome[i] !== ALPINE) continue;
-    if (!grid.neighbors[i].some((nb) => world.biome[nb] === ALPINE)) continue; // skip lone peaks in the plains — only draw where mountains cluster into a range
+    if (shownBiome[i] !== ALPINE) continue;
+    if (!grid.neighbors[i].some((nb) => shownBiome[nb] === ALPINE)) continue; // skip lone peaks in the plains — only draw where mountains cluster into a range
     const x = grid.points[i * 2], y = grid.points[i * 2 + 1];
     reliefD += `M${(x - 3).toFixed(1)},${(y + 2).toFixed(1)}L${x.toFixed(1)},${(y - 2.6).toFixed(1)}L${(x + 3).toFixed(1)},${(y + 2).toFixed(1)}`;
   }

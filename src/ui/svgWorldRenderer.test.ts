@@ -6,6 +6,8 @@ import { renderWorld } from "./svgWorldRenderer";
 import { politicalBorders } from "../engine/borders";
 import { segPath } from "./svgPaths";
 import { snapOwnersToProvinces } from "./provinceLayer";
+import { displayBiomes } from "./displayBiome";
+import { OCEAN } from "../engine/terrain";
 
 describe("renderWorld biomes", () => {
   const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });
@@ -318,5 +320,27 @@ describe("renderWorld legend placement", () => {
       const right = Number(panel.getAttribute("x")) + Number(panel.getAttribute("width"));
       expect(right, `${sel} stays out of the right half`).toBeLessThan(world.grid.width / 2);
     }
+  });
+});
+
+// The fills and the mountain glyphs must read the SAME biomes, or a range gets hatched over a
+// colour that no longer says mountain. Counting subpaths is exact: cellPath emits one "M" per cell.
+describe("renderWorld draws the smoothed biomes, not the raw ones", () => {
+  const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });
+  const svg = renderWorld(world);
+  const cellsPerBiome = (b: ArrayLike<number>) => {
+    const m = new Map<number, number>();
+    for (let c = 0; c < world.grid.count; c++) {
+      if (b[c] === OCEAN) continue;              // the ocean is the background rect, never a fill
+      m.set(b[c], (m.get(b[c]) ?? 0) + 1);
+    }
+    return [...m].sort((x, y) => x[0] - y[0]);
+  };
+  it("fills exactly the cells the display pass assigns", () => {
+    const drawn = [...svg.querySelectorAll(".biomes path.biome")]
+      .map((p) => [Number(p.getAttribute("data-biome")), (p.getAttribute("d")!.match(/M/g) ?? []).length] as [number, number])
+      .sort((x, y) => x[0] - y[0]);
+    expect(drawn).toEqual(cellsPerBiome(displayBiomes(world.grid, world.biome)));
+    expect(drawn).not.toEqual(cellsPerBiome(world.biome));   // and the smoothing actually did something
   });
 });
