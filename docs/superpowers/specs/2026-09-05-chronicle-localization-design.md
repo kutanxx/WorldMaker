@@ -133,15 +133,26 @@ historySim  →  HistoryEvent{type, ids, name?, intoIds?}
 
 ## What must not move, and how we prove it
 
-`history.test.ts:171` folds `e.text` and `p.name` into two golden hashes. Removing `text` moves
-both, and they will be re-pinned deliberately. That is not a licence to move anything else:
+The design was written expecting to re-pin two golden hashes. Reading them closely, **no anchor
+needs to move at all** — and that is a far stronger claim, so it becomes a requirement:
 
-- **The snapshot territory hash folds no strings at all.** It must reproduce its pinned value
-  untouched. That is the proof the world's history is unchanged.
+- The `polities` hash folds `p.id`, `capital`, `foundedYear`, `endedYear`, `origin`, `name` and
+  `free`. No event text. Removing `HistoryEvent.text` cannot touch it. **It must reproduce
+  untouched.**
+- The `events` hash is the only one that folds `e.text`. Change that one fold to
+  `fnvStr(eventText(e, h.polities, "ko"))` and, because Korean output is byte-identical by design,
+  **it must reproduce untouched too.** This also covers the two new fields transitively: the
+  rendered Korean line contains the city `name` and every successor named by `intoIds`, so a wrong
+  value in either fails the anchor.
+- **The snapshot territory hash folds no strings at all.** It must reproduce untouched. That is the
+  proof the world's history is unchanged.
 - **`world.test.ts`'s `polityOf` and `cityCells` hashes must reproduce untouched.** That is the
   proof no rng draw shifted and no city moved.
 - **Korean output stays byte-identical.** Seed 1's 31 recorded lines are pinned as a literal
   fixture; a single changed character fails. This task fixes English, it does not rewrite Korean.
+
+So the acceptance bar is: **every existing golden number in the repo stays exactly as it is.** If
+any of them moves, the change is not text-only and must not be re-pinned without finding out why.
 
 ## Testing
 
@@ -149,8 +160,8 @@ both, and they will be re-pinned deliberately. That is not a licence to move any
    in a consonant (`Khokgraur을`) and one ending in a vowel (`Kaarkgruau를`); successor joins at two
    and at three.
 2. Korean regression lock — the 31-line seed-1 fixture above.
-3. `history.test.ts` — golden hashes fold `name` and `intoIds` in place of `text`; events and
-   polities hashes re-pinned, territory hash asserted unchanged.
+3. `history.test.ts` — the events hash folds the Korean rendering in place of `e.text`; all three
+   hashes and all four counts keep their existing pinned values on seeds 1, 2 and 3.
 4. `chronicle.test.ts` — with `lang: "en"`, rows, title and century headers are all English.
 5. `gazetteer.test.ts` — **the acceptance criterion: an English gazetteer contains zero `[가-힣]`
    characters.**
