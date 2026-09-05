@@ -17,7 +17,7 @@ export const ALPINE = 8;
 // muted parchment-friendly palette spread across lightness + hue so all
 // biomes stay distinguishable (every CIELAB pairwise ΔE >= ~20)
 export const BIOME_COLORS: Record<number, string> = {
-  [OCEAN]: "#a9c7e0",
+  [OCEAN]: "#c9dae4",
   [TUNDRA]: "#dadcd3",
   [TAIGA]: "#487460",
   [TEMPERATE_FOREST]: "#87a861",

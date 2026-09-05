@@ -50,7 +50,7 @@ export function politicalLayer(
 
   g.appendChild(svgEl("path", {
     class: "border", d: segPath(politicalBorders(grid, owner)),
-    fill: "none", stroke: "#3c2f1c", "stroke-width": opts.fills ? 1.0 : 0.7,
+    fill: "none", stroke: "#3c2f1c", "stroke-width": opts.fills ? 1.5 : 1.2, "vector-effect": "non-scaling-stroke",
     "stroke-linejoin": "round",
   }));
 

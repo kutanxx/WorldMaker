@@ -63,7 +63,7 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
   // off a flat ocean. Coastline segments computed once and reused for the crisp line below.
   const coastD = segPath(coastline(grid, world.terrain));
   const waterlines = svgEl("g", { class: "waterlines" });
-  for (const [w, op] of [[9, 0.1], [6, 0.16], [3, 0.26]] as const) {
+  for (const [w, op] of [[9, 0.14], [6, 0.24], [3, 0.38]] as const) {
     waterlines.appendChild(svgEl("path", {
       d: coastD, fill: "none", stroke: "#7ba2c0", "stroke-width": w, "stroke-opacity": op,
       "stroke-linecap": "round", "stroke-linejoin": "round",
@@ -88,7 +88,7 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
 
   root.appendChild(svgEl("path", {
     class: "coastline", d: coastD,
-    fill: "none", stroke: "#5f7888", "stroke-width": 0.6,
+    fill: "none", stroke: "#4a6373", "stroke-width": 2.4, "vector-effect": "non-scaling-stroke",
   }));
   const slot = svgEl("g", { class: "political-slot" });
   slot.appendChild(
@@ -110,7 +110,7 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
   }
   if (reliefD) {
     root.appendChild(svgEl("g", { class: "reliefs" })).appendChild(svgEl("path", {
-      class: "relief", d: reliefD, fill: "none", stroke: "#6b5f4c", "stroke-width": 0.6,
+      class: "relief", d: reliefD, fill: "none", stroke: "#6b5f4c", "stroke-width": 0.9, "vector-effect": "non-scaling-stroke",
       "stroke-linecap": "round", "stroke-linejoin": "round",
     }));
   }
@@ -119,7 +119,7 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
   if (world.riverNet.length) {
     const maxF = world.riverNet.reduce((m, s) => Math.max(m, s.f), 0);
     const tierSegs: Segment[][] = [[], [], []];
-    const tierW = [0.5, 1.0, 1.8];
+    const tierW = [0.9, 1.5, 2.1];
     for (const s of world.riverNet) {
       const t = s.f < 0.15 * maxF ? 0 : s.f < 0.5 * maxF ? 1 : 2;
       tierSegs[t].push([[s.x1, s.y1], [s.x2, s.y2]]);
@@ -129,7 +129,8 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
       if (!segs.length) return;
       rivers.appendChild(svgEl("path", {
         class: "river", d: segPath(segs), fill: "none", stroke: "#5b83a6",
-        "stroke-width": tierW[t], "stroke-linecap": "round", "stroke-linejoin": "round",
+        "stroke-width": tierW[t], "vector-effect": "non-scaling-stroke",
+        "stroke-linecap": "round", "stroke-linejoin": "round",
       }));
     });
     root.appendChild(rivers);
@@ -151,7 +152,7 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
       class: "region-label " + (isSea ? "region-sea" : "region-land"),
       x: r.centroid[0].toFixed(1), y: r.centroid[1].toFixed(1),
       "text-anchor": "middle", "font-size": fs.toFixed(1),
-      fill: isSea ? "#3f5d78" : "#5a4a34",
+      fill: isSea ? "#3f5d78" : "#42341f",
       "font-style": isSea ? "italic" : "normal",
       "letter-spacing": isSea ? "0" : (fs * 0.16).toFixed(1),
       stroke: PARCHMENT, "stroke-width": 2, "paint-order": "stroke",

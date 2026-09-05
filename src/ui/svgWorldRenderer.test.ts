@@ -189,3 +189,82 @@ describe("renderWorld type hierarchy", () => {
     }
   });
 });
+
+// The map is fitted to the page at roughly one user unit per CSS pixel, so a line drawn at 0.6
+// units antialiases to a grey smear and the continent loses its silhouette. Cartographic practice
+// asks for a spread of about 4:1 between the heaviest and lightest line, with the coast heaviest.
+// Because zoom rewrites the viewBox, the weights only hold at every zoom if the strokes are pinned
+// to the screen rather than to user space.
+describe("renderWorld line weights (legible at the fitted view, stable under zoom)", () => {
+  const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });
+  const svg = renderWorld(world);
+  const w = (el: Element | null) => Number(el?.getAttribute("stroke-width"));
+  const widths = (sel: string) => [...svg.querySelectorAll(sel)].map((e) => w(e));
+
+  it("draws the coast as the heaviest line on the map", () => {
+    const coast = w(svg.querySelector(".coastline"));
+    expect(coast).toBeGreaterThanOrEqual(2);
+    for (const sel of [".relief", ".river", ".nation-border"]) {
+      for (const other of widths(sel)) expect(other).toBeLessThanOrEqual(coast);
+    }
+  });
+
+  // Not a ratio band — a hand-tuned number would block a later legitimate retune. What matters is
+  // that the three kinds of line are actually told apart, and that rivers keep their own three
+  // tiers so a great river still outranks a stream.
+  it("gives the coast, a great river and a border three distinct weights", () => {
+    const coast = w(svg.querySelector(".coastline"));
+    const river = Math.max(...widths(".river"));
+    const border = Math.max(...widths(".nation-border"));
+    expect(new Set([coast, river, border]).size).toBe(3);
+    expect(new Set(widths(".river")).size).toBe(3);
+  });
+
+  it("leaves no line below one screen pixel at the fitted view", () => {
+    for (const sel of [".coastline", ".river", ".nation-border"]) {
+      for (const width of widths(sel)) expect(width).toBeGreaterThanOrEqual(0.9);
+    }
+  });
+
+  // vector-effect is an ATTRIBUTE, not a stylesheet rule: the SVG and PNG exports carry no external
+  // CSS, so a line pinned only in theme.css would come back hairline in an exported file.
+  it("pins every map line to the screen so zooming does not fatten it", () => {
+    for (const sel of [".coastline", ".relief", ".river"]) {
+      const els = [...svg.querySelectorAll(sel)];
+      expect(els.length).toBeGreaterThan(0);
+      for (const el of els) expect(el.getAttribute("vector-effect")).toBe("non-scaling-stroke");
+    }
+  });
+});
+
+// The ocean is the largest single area on the page and it was the one colour that did not belong
+// to the palette around it — a saturated sky blue against parchment. Pulling it toward the page
+// also gives the coastal waterlines, which were laid down at 0.10-0.26 opacity, something they can
+// actually be seen against.
+describe("renderWorld sea and ink (the page's own palette)", () => {
+  const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });
+  const svg = renderWorld(world);
+  const chroma = (hex: string) => {
+    const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+    return Math.max(r, g, b) - Math.min(r, g, b);
+  };
+
+  it("keeps the sea calmer than the land it frames", () => {
+    const sea = svg.querySelector("rect")!.getAttribute("fill")!;
+    expect(chroma(sea)).toBeLessThanOrEqual(32);   // was 55: #a9c7e0
+  });
+
+  it("makes the coastal waterlines visible against it", () => {
+    const ops = [...svg.querySelectorAll(".waterlines path")]
+      .map((p) => Number(p.getAttribute("stroke-opacity")));
+    expect(ops.length).toBe(3);                     // three echoing bands, widest faintest
+    expect(Math.max(...ops)).toBeGreaterThanOrEqual(0.35);
+    expect(ops).toEqual([...ops].sort((a, b) => a - b));
+  });
+
+  it("darkens a land region's name so the letters carry it, not the halo", () => {
+    const land = svg.querySelector(".region-land")!.getAttribute("fill")!;
+    const lum = [1, 3, 5].map((i) => parseInt(land.slice(i, i + 2), 16)).reduce((a, b) => a + b) / 3;
+    expect(lum).toBeLessThanOrEqual(60);            // was 74: #5a4a34
+  });
+});
