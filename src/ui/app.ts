@@ -125,7 +125,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     worldZoom?.destroy();
     worldZoom = attachZoomPan(svg, frame);
 
-    const chronicle = renderChronicle(history);
+    const chronicle = renderChronicle(history, lang);
     const slot = svg.querySelector(".political-slot") as SVGGElement;
     const world = generated.world;
     const renderYear = (index: number): void => {

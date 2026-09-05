@@ -1,5 +1,6 @@
 // UI + label localisation (KO/EN). Scope: UI chrome, city district names, biome legend names,
-// compass. NOT generated content (world/region/city/nation/river names, chronicle, gazetteer).
+// compass, and the chronicle panel's chrome. NOT generated content (world/region/city/nation/river
+// names) and NOT the chronicle's own lines — those are assembled by `engine/eventText.ts`.
 import type { WardType } from "../engine/city/zoning";
 import {
   TUNDRA, TAIGA, TEMPERATE_FOREST, GRASSLAND, DESERT, TROPICAL, WETLAND, ALPINE, BIOME_NAMES,
@@ -28,6 +29,16 @@ const BIOME_KO: Record<number, string> = {
 };
 export function biomeName(lang: Lang, bm: number): string {
   return (lang === "ko" ? BIOME_KO[bm] : BIOME_NAMES[bm]) ?? "";
+}
+
+// The chronicle panel's own chrome. The chronicle's LINES are assembled by `eventText.ts`, not
+// here — these two interpolate a number, which is why they are functions and not `UI` keys.
+export function chronicleTitle(lang: Lang, years: number): string {
+  return lang === "ko" ? `연대기 (0–${years}년)` : `Chronicle (years 0–${years})`;
+}
+// matches the gazetteer's century headers: "100년대" / "100s"
+export function eraLabel(lang: Lang, startYear: number): string {
+  return lang === "ko" ? `${startYear}년대` : `${startYear}s`;
 }
 
 // UI chrome strings, keyed for both languages

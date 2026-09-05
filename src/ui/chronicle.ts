@@ -1,11 +1,13 @@
 import type { History } from "../engine/history";
+import type { Lang } from "./i18n";
+import { chronicleTitle, eraLabel } from "./i18n";
 import { eventText } from "../engine/eventText";
 
-export function renderChronicle(history: History): HTMLElement {
+export function renderChronicle(history: History, lang: Lang): HTMLElement {
   const root = document.createElement("div");
   root.className = "chronicle";
   const title = document.createElement("h3");
-  title.textContent = `연대기 (0–${history.years}년)`;
+  title.textContent = chronicleTitle(lang, history.years);
   root.appendChild(title);
   // group events by century: each century is a header (a section divider, NOT a list item) followed
   // by its own <ol> of event rows — valid markup, since an <ol> may only contain <li> children.
@@ -17,7 +19,7 @@ export function renderChronicle(history: History): HTMLElement {
       lastCentury = century;
       const h = document.createElement("div");
       h.className = "chronicle-era";
-      h.textContent = `${century * 100}년대`;
+      h.textContent = eraLabel(lang, century * 100);
       root.appendChild(h);
       list = document.createElement("ol");
       list.className = "chronicle-list";
@@ -26,7 +28,7 @@ export function renderChronicle(history: History): HTMLElement {
     const row = document.createElement("li");
     row.className = `chronicle-event evt-${e.type}`;
     row.dataset.year = String(e.year);
-    row.textContent = eventText(e, history.polities, "ko"); // Task 4 gives the panel its language
+    row.textContent = eventText(e, history.polities, lang);
     list!.appendChild(row);
   }
   return root;
