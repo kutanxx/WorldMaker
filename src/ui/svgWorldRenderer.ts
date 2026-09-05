@@ -133,7 +133,7 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
     tierSegs.forEach((segs, t) => {
       if (!segs.length) return;
       rivers.appendChild(svgEl("path", {
-        class: "river", d: segPath(segs), fill: "none", stroke: "#5b83a6",
+        class: "river", d: segPath(segs, false), fill: "none", stroke: "#5b83a6", // rivers run between cell centres, not along cell edges
         "stroke-width": tierW[t], "vector-effect": "non-scaling-stroke",
         "stroke-linecap": "round", "stroke-linejoin": "round",
       }));
