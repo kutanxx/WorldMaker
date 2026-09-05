@@ -136,6 +136,23 @@ describe("simulateHistory skeleton", () => {
     expect(hegemony).toBeLessThanOrEqual(4);
     expect(multiPower).toBeGreaterThanOrEqual(6);  // most worlds stay genuinely multipolar
   });
+  it("carries the names a sentence cannot recover from ids", () => {
+    const h = simulateHistory(build(1), 1);
+    let ports = 0, cities = 0, wars = 0;
+    for (const e of h.events) {
+      if (e.type === "staple") { ports++; expect(e.name).toBeTruthy(); expect(e.text).toContain(e.name!); }
+      if (e.type === "newCity") { cities++; expect(e.name).toBeTruthy(); expect(e.text).toContain(e.name!); }
+      if (e.type === "civilwar") {
+        wars++;
+        expect(e.intoIds!.length).toBeGreaterThanOrEqual(1);
+        // the successors named in the sentence are exactly the ids recorded, in the same order
+        expect(e.text).toContain(e.intoIds!.map((id) => h.polities[id].name).join("·"));
+      }
+    }
+    expect(ports).toBe(3);   // seed 1: three free ports
+    expect(cities).toBe(6);  // six cities founded
+    expect(wars).toBe(1);    // one civil war
+  });
 });
 
 describe("simulateHistory golden anchor (behaviour lock)", () => {

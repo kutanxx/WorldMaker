@@ -69,6 +69,11 @@ export type HistoryEventType = "found" | "newCity" | "conquer" | "civilwar" | "i
 export interface HistoryEvent {
   year: number; type: HistoryEventType; text: string;
   polityId: number; otherId?: number; cell?: number;
+  /** a name the simulation coined that no id can recover: the city `newCity` founds,
+      the free port `staple` designates */
+  name?: string;
+  /** the successor states a civil war split a realm into (ids into `polities`) */
+  intoIds?: number[];
 }
 export interface HistorySnapshot { year: number; owner: Int32Array; }
 export interface EconomicZone { cell: number; name: string; }
@@ -271,7 +276,7 @@ export function initSim(world: World, worldSeed: number): SimState {
     .slice(0, ECON_COUNT);
   const economicZones: EconomicZone[] = zoneCities.map((c) => ({ cell: c.cell, name: c.name }));
   const zoneCells = new Set(economicZones.map((z) => z.cell));
-  for (const z of economicZones) events.push({ year: 0, type: "staple", text: `0년, ${z.name} 자유무역항 지정`, polityId: owner[z.cell] >= 0 ? owner[z.cell] : -1, cell: z.cell });
+  for (const z of economicZones) events.push({ year: 0, type: "staple", text: `0년, ${z.name} 자유무역항 지정`, name: z.name, polityId: owner[z.cell] >= 0 ? owner[z.cell] : -1, cell: z.cell });
 
   const snapshots: HistorySnapshot[] = [{ year: 0, owner: owner.slice() }];
   const cityCells = world.cities.map((c) => ({ cell: c.cell, name: c.name }));
@@ -436,7 +441,7 @@ export function stepSim(s: SimState): void {
       owner[c] = capPolity[bi];
       s.solidarity[c] = CIVILWAR_BIRTH_SOL; // fresh cohesion so successors can stand on their own
     }
-    s.events.push({ year, type: "civilwar", text: `${year}년, 내란이 ${withJosa(s.polities[o].name, "을/를")} ${withJosa(names.join("·"), "으로/로")} 쪼갬`, polityId: o, cell: s.capitals[o] });
+    s.events.push({ year, type: "civilwar", text: `${year}년, 내란이 ${withJosa(s.polities[o].name, "을/를")} ${withJosa(names.join("·"), "으로/로")} 쪼갬`, intoIds: capPolity.slice(1), polityId: o, cell: s.capitals[o] });
     break;
   }
 
@@ -483,7 +488,8 @@ export function stepSim(s: SimState): void {
     if (!s.alive[o] || s.polities[o].free || agg4[o].cells < 40) continue;
     if (agg4[o].avg < 0.42) continue;
     if (s.rng() > 0.14) continue;
-    s.events.push({ year, type: "newCity", text: `${year}년, ${withJosa(s.polities[o].name, "이/가")} ${s.nameGen.place()} 건설`, polityId: o, cell: s.capitals[o] });
+    const cityName = s.nameGen.place();
+    s.events.push({ year, type: "newCity", text: `${year}년, ${withJosa(s.polities[o].name, "이/가")} ${cityName} 건설`, name: cityName, polityId: o, cell: s.capitals[o] });
     break;
   }
 
