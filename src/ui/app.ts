@@ -16,6 +16,7 @@ import { cultureLayer } from "./cultureLayer";
 import { provinceLayer, snapOwnersToProvinces } from "./provinceLayer";
 import { deconflictLabels } from "./deconflict";
 import { applyLabelScale, applyMarkerScale } from "./labelScale";
+import { layOutLabelsForExport } from "./exportLabels";
 import { type Lang, t } from "./i18n";
 import { detectLang, saveLang } from "./lang";
 
@@ -212,6 +213,9 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
       const snap = history.snapshots[currentYearIndex];
       slot.replaceChildren(politicalLayer(generated.world.grid, snap.owner, history.polities, politicalOpts(currentView)));
     }
+    // This is a fresh render that has never been in the document, so its labels have never been laid
+    // out against each other — left alone, every name in the world goes into the file, stacked.
+    layOutLabelsForExport(svg);
     return svg;
   }
 
