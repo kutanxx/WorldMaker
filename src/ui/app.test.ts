@@ -165,3 +165,64 @@ describe("createApp", () => {
     expect(root.querySelector("svg .province")).not.toBeNull();
   });
 });
+
+// A reader who has drilled into a city and presses "export" means the city in front of them. The
+// buttons rendered the world regardless, so the one thing the drilldown produces could not be saved.
+describe("export follows the screen", () => {
+  // jsdom's Blob has no .text(); FileReader is what it does have.
+  const blobText = (b: Blob) => new Promise<string>((res, rej) => {
+    const fr = new FileReader();
+    fr.onload = () => res(String(fr.result));
+    fr.onerror = () => rej(fr.error);
+    fr.readAsText(b);
+  });
+
+  async function captureDownload(fn: () => void): Promise<{ name: string; text: string } | null> {
+    const created: Blob[] = [];
+    const names: string[] = [];
+    const url = URL.createObjectURL, revoke = URL.revokeObjectURL;
+    URL.createObjectURL = ((b: Blob) => { created.push(b); return "blob:stub"; }) as typeof URL.createObjectURL;
+    URL.revokeObjectURL = (() => {}) as typeof URL.revokeObjectURL;
+    const click = HTMLAnchorElement.prototype.click;
+    HTMLAnchorElement.prototype.click = function (this: HTMLAnchorElement) { names.push(this.download); };
+    try { fn(); await new Promise((r) => setTimeout(r, 60)); } finally {
+      URL.createObjectURL = url; URL.revokeObjectURL = revoke;
+      HTMLAnchorElement.prototype.click = click;
+    }
+    return created.length ? { name: names[names.length - 1], text: await blobText(created[created.length - 1]) } : null;
+  }
+
+  it("writes the city a reader is looking at, not the world behind it", async () => {
+    const root = document.createElement("div");
+    const app = createApp(root, small);
+    app.openCity(0);
+    const svgBtn = [...root.querySelectorAll("button")].find((b) => /SVG/i.test(b.textContent || ""))!;
+    const got = await captureDownload(() => svgBtn.click());
+    expect(got).not.toBeNull();
+    const text = got!.text;
+    expect(text).toContain('class="city"');
+    expect(text).not.toContain("coastline");
+  });
+
+  it("names the file after the city, so a folder of them can be told apart", async () => {
+    const root = document.createElement("div");
+    const app = createApp(root, small);
+    app.openCity(0);
+    const svgBtn = [...root.querySelectorAll("button")].find((b) => /SVG/i.test(b.textContent || ""))!;
+    const got = await captureDownload(() => svgBtn.click());
+    expect(got!.name).not.toBe("world.svg");
+    expect(got!.name).toMatch(/^[\w-]+\.svg$/);
+  });
+
+  it("still writes the world when that is what is on screen", async () => {
+    const root = document.createElement("div");
+    const app = createApp(root, small);
+    app.openCity(0);
+    app.showWorld();
+    const svgBtn = [...root.querySelectorAll("button")].find((b) => /SVG/i.test(b.textContent || ""))!;
+    const got = await captureDownload(() => svgBtn.click());
+    const text = got!.text;
+    expect(text).toContain('class="world');
+    expect(got!.name).toBe("world.svg");
+  });
+});

@@ -205,6 +205,30 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     showWorld();
   }
 
+  // What a reader means by "export" is the map in front of them. Drilled into a city, that is the
+  // city — the buttons used to render the world regardless, so the one thing the drilldown produces
+  // could not be saved at all. Carries its own name and pixel size, since a city's proportions are
+  // its own and nothing like the world's.
+  interface ScreenExport { svg: SVGSVGElement; name: string; width: number; height: number }
+
+  const CITY_PNG_SCALE = 2;   // a city is drawn small; at 1:1 its 7px ward names come out unreadable
+
+  function exportScreenSvg(): ScreenExport {
+    if (openCityId !== null) {
+      const marker = generated.world.cities.find((c) => c.id === openCityId);
+      if (marker) {
+        const svg = renderCity(generateCityLayout(cityContext(marker), params.seed), lang);
+        layOutLabelsForExport(svg);
+        const [, , w, h] = (svg.getAttribute("viewBox") || "0 0 1000 700").split(/[\s,]+/).map(Number);
+        return {
+          svg, name: marker.name.replace(/[^\w-]+/g, "_") || "city",
+          width: Math.round(w * CITY_PNG_SCALE), height: Math.round(h * CITY_PNG_SCALE),
+        };
+      }
+    }
+    return { svg: exportWorldSvg(), name: "world", width: params.width, height: params.height };
+  }
+
   // Export the world at the year + view the timeline is currently showing.
   function exportWorldSvg(): SVGSVGElement {
     const svg = renderWorld(generated.world, currentView, history.economicZones.map((z) => z.cell), lang);
@@ -221,11 +245,11 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
 
   // The embedded Cinzel woff2 (~20 KB) is only needed when exporting, so it lives in a lazy chunk —
   // keeps the initial map bundle lean for the majority who never export.
-  async function exportWorldSvgWithFonts(): Promise<SVGSVGElement> {
-    const svg = exportWorldSvg();
+  async function exportScreenSvgWithFonts(): Promise<ScreenExport> {
+    const out = exportScreenSvg();
     const { embedExportFonts } = await import("./exportFont");
-    embedExportFonts(svg); // standalone SVG/PNG carry the Cinzel display face (no external stylesheet)
-    return svg;
+    embedExportFonts(out.svg); // standalone SVG/PNG carry the Cinzel display face (no external stylesheet)
+    return out;
   }
 
   regenBtn.addEventListener("click", () => regenerate({ ...params, seed: Number(seedInput.value) }));
@@ -235,15 +259,15 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
   );
   pngBtn.addEventListener("click", async () => {
     try {
-      const blob = await svgToPngBlob(await exportWorldSvgWithFonts(), params.width, params.height);
-      downloadBlob("world.png", blob);
+      const { svg, name, width, height } = await exportScreenSvgWithFonts();
+      downloadBlob(`${name}.png`, await svgToPngBlob(svg, width, height));
     } catch (e) {
       console.error("PNG export failed", e);
     }
   });
   svgBtn.addEventListener("click", async () => {
-    const svg = await exportWorldSvgWithFonts();
-    downloadBlob("world.svg", new Blob([svgToString(svg)], { type: "image/svg+xml" }));
+    const { svg, name } = await exportScreenSvgWithFonts();
+    downloadBlob(`${name}.svg`, new Blob([svgToString(svg)], { type: "image/svg+xml" }));
   });
   gazBtn.addEventListener("click", () => {
     // The exported document follows the language the user is reading the app in — a Korean
