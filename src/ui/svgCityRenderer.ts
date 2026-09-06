@@ -372,7 +372,7 @@ export function renderCity(layout: CityLayout, lang: Lang = "en"): SVGSVGElement
     // One text with a real halo. This used to be the same word drawn twice, cream under dark, which
     // is what you do without paint-order — and paint-order is what the rest of the atlas uses.
     const tx = svgEl("text", {
-      class: "ward-label", x: l.x, y: l.y, "font-size": 7, "text-anchor": "middle",
+      class: "ward-label" + (l.landmark ? " ward-landmark" : ""), x: l.x, y: l.y, "font-size": 7, "text-anchor": "middle",
       fill: "#42341f", stroke: PARCHMENT, "stroke-width": 2.2, "paint-order": "stroke",
     });
     tx.textContent = WARD_NAME[lang][l.type] ?? "";

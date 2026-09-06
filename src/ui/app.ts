@@ -195,6 +195,9 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     cityZoom?.destroy();
     // the ward names hold their size here for the same reason the world's names do
     let cityRelayout = 0, cityScale = 1;
+    // the plan's own names have to be laid out too — it is in the document by now, so they can
+    // be measured
+    deconflictLabels(citySvg);
     cityZoom = attachZoomPan(citySvg, frame, {
       onScale: (scale) => {
         cityScale = scale;
@@ -202,6 +205,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
         cityRelayout = requestAnimationFrame(() => {
           cityRelayout = 0;
           applyLabelScale(citySvg, cityScale);
+          deconflictLabels(citySvg);
         });
       },
     });

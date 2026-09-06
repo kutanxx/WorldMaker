@@ -61,7 +61,7 @@ export interface CityLayout {
   minorRoads: Polyline[];
   wards: Ward[];
   parks: Polygon[];
-  labels: { x: number; y: number; type: WardType }[];
+  labels: { x: number; y: number; type: WardType; landmark: boolean }[];
   features: CityFeatures;
   suburbRoads: Polyline[];
   suburbs: Polygon[];
@@ -285,10 +285,23 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
 
   // landmark districts get an on-map label; the display TEXT is localised at render time from
   // the ward type (so KO/EN can switch without regenerating the city).
-  const LABELLED: WardType[] = ["plaza", "castle", "cathedral", "guildhall", "harbor"];
-  const labels: { x: number; y: number; type: WardType }[] = [];
+  // Name what is singular. Measured over eight cities, the civic landmarks are always one apiece —
+  // one plaza, one cathedral, one guildhall, one castle — while the living quarters repeat, up to
+  // thirteen craftsmen wards and eight slums in a single town. Naming every ward would print the
+  // same word down the length of a city; so a kind of quarter earns its name on the plan only when
+  // the city has exactly one of it, and the reader is sent to the key for the rest.
+  //
+  // The landmarks are named regardless of size — a cramped guildhall is still the guildhall — and
+  // this also picks up the market, the merchant quarter and the harbour, which are one place in most
+  // cities and went unnamed under the old fixed list of five.
+  const LANDMARKS: WardType[] = ["plaza", "castle", "cathedral", "guildhall", "harbor"];
+  const count = new Map<WardType, number>();
+  for (const z of zoned) count.set(z.type, (count.get(z.type) ?? 0) + 1);
+  const labels: { x: number; y: number; type: WardType; landmark: boolean }[] = [];
   for (const z of zoned) {
-    if (LABELLED.includes(z.type)) { const c = centroid(z.polygon); labels.push({ x: c[0], y: c[1], type: z.type }); }
+    if (!LANDMARKS.includes(z.type) && count.get(z.type) !== 1) continue;
+    const c = centroid(z.polygon);
+    labels.push({ x: c[0], y: c[1], type: z.type, landmark: LANDMARKS.includes(z.type) });
   }
 
   // the lord's castle: built from the zoned castle ward polygon, right after wards/labels

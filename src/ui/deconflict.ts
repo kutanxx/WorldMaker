@@ -16,6 +16,9 @@ export function deconflictLabels(svg: SVGSVGElement, scale = 1): void {
   const tiers: [string, number, number][] = [
     [".nation-label.player", 6, 0], [".nation-label:not(.player)", 5, 0], [".city-capital", 4, 1.5],
     [".region-label", 3, 0], [".province-label", 3, 2], [".river-label", 2, 2], [".city-town", 1, 2.6],
+    // the city plan: its landmarks outrank its ordinary quarters, and both belong to a drawing
+    // read at one scale, so neither waits for a zoom
+    [".ward-landmark", 4, 0], [".ward-label:not(.ward-landmark)", 2, 0],
   ];
   const labels: { el: SVGGraphicsElement; box: DOMRect; prio: number }[] = [];
   try {

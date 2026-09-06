@@ -5,6 +5,8 @@ import { inWater } from "./city/water";
 import { inMountains } from "./city/mountain";
 import { GRASSLAND } from "./biome";
 import type { CityMarker } from "../types/world";
+import { generateWorld } from "./world";
+import { DEFAULT_PARAMS } from "../types/world";
 
 const base: CityMarker = {
   id: 2, cell: 0, x: 0, y: 0, name: "Testburg",
@@ -499,5 +501,53 @@ describe("waterside trades", () => {
     // inland dry (elevation<0.7, non-coastal, no water archetype) → empty
     const dry = generateCityLayout({ id: 7, name: "T", size: 3, coastal: false, isCapital: false, elevation: 0.4, biome: GRASSLAND }, 9);
     if (!dry.water.bodies.length) expect(dry.riversideTrades.length).toBe(0);
+  });
+});
+
+// Which quarters get their name on the plan. Measured across eight cities: the civic landmarks are
+// always singular — one plaza, one cathedral, one guildhall, one castle — while the living quarters
+// repeat, craftsmen up to thirteen times and slums up to eight. Naming every ward would print the
+// same word down the length of a city; naming only the five landmarks left the market, the merchant
+// quarter and the harbour unnamed even where the city had exactly one of each.
+describe("city labels name what is singular", () => {
+  const build = (seed: number, pick: (c: CityMarker) => boolean = () => true) => {
+    const { world } = generateWorld({ ...DEFAULT_PARAMS, seed });
+    const marker = world.cities.filter(pick)[0];
+    return generateCityLayout(cityContext(marker), seed);
+  };
+
+  it("never names a kind of quarter the city has more than one of", () => {
+    for (const seed of [1, 7, 42]) {
+      const L = build(seed, (c) => c.isCapital);
+      const counts = new Map<string, number>();
+      for (const w of L.wards) counts.set(w.type, (counts.get(w.type) ?? 0) + 1);
+      for (const l of L.labels) {
+        expect(counts.get(l.type), `seed ${seed}: ${l.type} appears ${counts.get(l.type)} times`).toBe(1);
+      }
+      // and no label is printed twice
+      expect(new Set(L.labels.map((l) => l.type)).size).toBe(L.labels.length);
+    }
+  });
+
+  it("always names the civic landmarks, whatever their size", () => {
+    const L = build(1, (c) => c.isCapital);
+    const present = new Set(L.wards.map((w) => w.type));
+    for (const t of ["plaza", "castle", "cathedral", "guildhall"]) {
+      if (present.has(t as never)) {
+        expect(L.labels.some((l) => l.type === t), `${t} is a landmark and should be named`).toBe(true);
+      }
+    }
+  });
+
+  it("names the market too, which is one place in a city and was left off", () => {
+    const L = build(1, (c) => c.isCapital);
+    const markets = L.wards.filter((w) => w.type === "market").length;
+    expect(markets).toBe(1);                                   // the measurement this rests on
+    expect(L.labels.some((l) => l.type === "market")).toBe(true);
+  });
+
+  it("puts more names on the plan than the old five-type list did", () => {
+    const L = build(1, (c) => c.isCapital);
+    expect(L.labels.length).toBeGreaterThan(4);
   });
 });
