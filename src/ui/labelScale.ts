@@ -29,6 +29,15 @@ const READER_SIZE: [string, number][] = [
 const readerSize = (el: Element) =>
   READER_SIZE.find(([cls]) => el.classList.contains(cls))?.[1] ?? 1;
 
+// How fast the lettering grows as the reader zooms in. 0 would hold every name at a fixed size on
+// screen — what a map application does, and at 8x it leaves the words looking detached from a land
+// eight times their size. 1 would let them grow with the map, which is what this map used to do: a
+// region's name eight times over, filling the view. Just under a half sits between the two, and the
+// growth stops entirely past a point, so no amount of zooming turns a name into a banner.
+const GROWTH = 0.45;
+const MAX_GROWTH = 2.6;
+const growth = (scale: number) => Math.min(Math.pow(scale, GROWTH), MAX_GROWTH);
+
 /**
  * Hold every map label at the size it has on screen at zoom 1, whatever the zoom is now.
  * The size each label started at is remembered on the element, so this is safe to call repeatedly
@@ -40,12 +49,13 @@ export function applyLabelScale(svg: SVGSVGElement, scale: number): void {
     const base = el.dataset.fs ?? el.getAttribute("font-size");
     if (base === null) continue;
     el.dataset.fs = base;
-    el.setAttribute("font-size", ((Number(base) * readerSize(el)) / scale).toFixed(2));
-    // the parchment halo behind the letters has to thin out with them, or at 8x it swallows the word
+    const k = (readerSize(el) * growth(scale)) / scale;
+    el.setAttribute("font-size", (Number(base) * k).toFixed(2));
+    // the parchment halo behind the letters follows them exactly, or at 8x it swallows the word
     const hw = el.dataset.sw ?? el.getAttribute("stroke-width");
     if (hw !== null) {
       el.dataset.sw = hw;
-      el.setAttribute("stroke-width", (Number(hw) / scale).toFixed(2));
+      el.setAttribute("stroke-width", (Number(hw) * k).toFixed(2));
     }
   }
 }
@@ -62,7 +72,10 @@ export function applyMarkerScale(svg: SVGSVGElement, scale: number): void {
     const cx = el.getAttribute("cx") ?? el.dataset.cx;
     const cy = el.getAttribute("cy") ?? el.dataset.cy;
     if (cx === undefined || cy === undefined || cx === null || cy === null) continue;
-    // scale about the mark's own point, so it shrinks in place instead of sliding toward the origin
-    el.setAttribute("transform", `translate(${cx},${cy}) scale(${(1 / scale).toFixed(4)}) translate(${-Number(cx)},${-Number(cy)})`);
+    // About the mark's own point, so it changes size in place instead of sliding toward the origin,
+    // and by the same law the lettering follows — a mark that held still while its name grew would
+    // read as a pin dropped beside a word rather than as the settlement the word names.
+    const k = growth(scale) / scale;
+    el.setAttribute("transform", `translate(${cx},${cy}) scale(${k.toFixed(4)}) translate(${-Number(cx)},${-Number(cy)})`);
   }
 }
