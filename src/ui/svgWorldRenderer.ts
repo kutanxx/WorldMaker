@@ -244,10 +244,20 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
 
     for (const cell of econZones) {
       const x = grid.points[cell * 2], y = grid.points[cell * 2 + 1];
+      const d = `M${x.toFixed(1)},${(y - 4).toFixed(1)}L${(x + 4).toFixed(1)},${y.toFixed(1)}L${x.toFixed(1)},${(y + 4).toFixed(1)}L${(x - 4).toFixed(1)},${y.toFixed(1)}Z`;
+      const at = { "data-cx": x.toFixed(1), "data-cy": y.toFixed(1) };
+      // Gold has almost no value contrast on a tan or green biome — measured, #e0a83a came to 1.13:1
+      // against grassland, where a graphical mark wants 3:1 — and no single colour can clear that
+      // against both the palest tundra and the darkest taiga. So the badge is haloed like every name
+      // on the map: the parchment ring lifts it off the dark biomes, its dark outline off the pale
+      // ones, and the gold is left to say what the mark MEANS rather than to be seen.
       eg.appendChild(svgEl("path", {
-        class: "econ-zone", "data-zone": cell, "data-cx": x.toFixed(1), "data-cy": y.toFixed(1),
-        d: `M${x.toFixed(1)},${(y - 4).toFixed(1)}L${(x + 4).toFixed(1)},${y.toFixed(1)}L${x.toFixed(1)},${(y + 4).toFixed(1)}L${(x - 4).toFixed(1)},${y.toFixed(1)}Z`,
-        fill: "#e0a83a", stroke: "#7a5a1a", "stroke-width": 0.8,
+        class: "econ-zone-halo", ...at, d,
+        fill: "none", stroke: PARCHMENT, "stroke-width": 2.6, "stroke-linejoin": "round",
+      }));
+      eg.appendChild(svgEl("path", {
+        class: "econ-zone", "data-zone": cell, ...at, d,
+        fill: "#d69a2c", stroke: "#3d2c08", "stroke-width": 1, "stroke-linejoin": "round",
       }));
     }
     root.appendChild(eg);

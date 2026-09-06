@@ -64,7 +64,7 @@ export function applyLabelScale(svg: SVGSVGElement, scale: number): void {
 // dot grows with the zoom while the word beside it does not, and by 8x the map is a field of blobs
 // with small labels next to them. Circles carry their own centre; the capital star and the free-port
 // diamond are paths built around a point, so the renderer records that point for them.
-const MARKS = ".marker-capital, .marker-town, .econ-zone, .province-seat, .free-city-dot";
+const MARKS = ".marker-capital, .marker-town, .econ-zone, .econ-zone-halo, .province-seat, .free-city-dot";
 
 export function applyMarkerScale(svg: SVGSVGElement, scale: number): void {
   if (!(scale > 0)) return;

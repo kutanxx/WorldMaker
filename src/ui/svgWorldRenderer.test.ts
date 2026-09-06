@@ -8,6 +8,7 @@ import { segPath } from "./svgPaths";
 import { snapOwnersToProvinces } from "./provinceLayer";
 import { displayBiomes } from "./displayBiome";
 import { OCEAN } from "../engine/terrain";
+import { BIOME_COLORS } from "../engine/biome";
 
 describe("renderWorld biomes", () => {
   const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });
@@ -342,5 +343,51 @@ describe("renderWorld draws the smoothed biomes, not the raw ones", () => {
       .sort((x, y) => x[0] - y[0]);
     expect(drawn).toEqual(cellsPerBiome(displayBiomes(world.grid, world.biome)));
     expect(drawn).not.toEqual(cellsPerBiome(world.biome));   // and the smoothing actually did something
+  });
+});
+
+// The free-port badge is the one mark on the map with no halo, and gold on a tan or green biome has
+// almost no value contrast: #e0a83a measured 1.13:1 against grassland and 1.15:1 against wetland,
+// where a graphical mark wants 3:1. A gold body can never win that on parchment either — so the
+// shape is carried by its outline, and a halo lifts it off the darker biomes.
+describe("renderWorld free-port badge", () => {
+  const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });
+  const svg = renderWorld(world, "terrain", [world.cities[0].cell, world.cities[1].cell]);
+  const lin = (c: number) => { c /= 255; return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); };
+  const lum = (hex: string) => {
+    const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+    return 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
+  };
+  const ratio = (a: string, b: string) => {
+    const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p);
+    return (x + 0.05) / (y + 0.05);
+  };
+
+  it("carries a parchment halo, like every name on the map", () => {
+    const halo = svg.querySelector(".econ-zone-halo");
+    expect(halo).not.toBeNull();
+    expect(halo!.getAttribute("stroke")).toBe("#f3ead2");
+    expect(Number(halo!.getAttribute("stroke-width")))
+      .toBeGreaterThan(Number(svg.querySelector(".econ-zone")!.getAttribute("stroke-width")));
+  });
+
+  it("draws the halo under the badge, not over it", () => {
+    const g = svg.querySelector(".econ-zones")!;
+    const kids = [...g.children].map((c) => c.getAttribute("class"));
+    expect(kids.indexOf("econ-zone-halo")).toBeLessThan(kids.indexOf("econ-zone"));
+  });
+
+  // No single colour can clear 3:1 against both the palest tundra and the darkest taiga — which is
+  // exactly why every name on this map is haloed. So the badge reads if, on each biome, EITHER its
+  // outline or its halo separates from what is underneath: the dark outline carries it on the pale
+  // biomes, the parchment halo on the dark ones.
+  it("reads on every biome the map paints, by outline or by halo", () => {
+    const outline = svg.querySelector(".econ-zone")!.getAttribute("stroke")!;
+    const halo = svg.querySelector(".econ-zone-halo")!.getAttribute("stroke")!;
+    expect(ratio(outline, halo)).toBeGreaterThanOrEqual(3);   // and the outline reads on its own halo
+    for (const [bm, colour] of Object.entries(BIOME_COLORS)) {
+      const best = Math.max(ratio(outline, colour as string), ratio(halo, colour as string));
+      expect(best, `biome ${bm} (${colour})`).toBeGreaterThanOrEqual(3);
+    }
   });
 });
