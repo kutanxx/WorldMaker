@@ -13,6 +13,22 @@
 
 const SELECTOR = ".region-label, .city-label, .river-label, .nation-label, .province-label";
 
+// A town's name was set at 8px so that a hundred of them could be crammed onto the resting map, and
+// a river's at 10. They are not on the resting map any more — they wait for a zoom — so the reason
+// to keep them that small is gone, and holding them there meant that a reader who zoomed in far
+// enough to finally be shown one still could not read it. A name that arrives at its own zoom
+// arrives at a size worth reading. Ordered: the first class that matches wins, so a capital is not
+// read as a plain settlement.
+const READER_SIZE: [string, number][] = [
+  ["city-capital", 1.3],    // 10px -> 13
+  ["city-town", 1.5],       //  8px -> 12
+  ["river-label", 1.3],     // 10px -> 13
+  ["province-label", 1.3],
+];
+// realm and region names are already set at the size the map wants them; they need no help
+const readerSize = (el: Element) =>
+  READER_SIZE.find(([cls]) => el.classList.contains(cls))?.[1] ?? 1;
+
 /**
  * Hold every map label at the size it has on screen at zoom 1, whatever the zoom is now.
  * The size each label started at is remembered on the element, so this is safe to call repeatedly
@@ -24,7 +40,7 @@ export function applyLabelScale(svg: SVGSVGElement, scale: number): void {
     const base = el.dataset.fs ?? el.getAttribute("font-size");
     if (base === null) continue;
     el.dataset.fs = base;
-    el.setAttribute("font-size", (Number(base) / scale).toFixed(2));
+    el.setAttribute("font-size", ((Number(base) * readerSize(el)) / scale).toFixed(2));
     // the parchment halo behind the letters has to thin out with them, or at 8x it swallows the word
     const hw = el.dataset.sw ?? el.getAttribute("stroke-width");
     if (hw !== null) {

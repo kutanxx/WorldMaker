@@ -21,8 +21,9 @@ describe("applyLabelScale", () => {
   it("halves the lettering when the map is twice as big, so it holds its size on screen", () => {
     const { svg, region, town } = build();
     applyLabelScale(svg, 2);
-    expect(region.getAttribute("font-size")).toBe("8.00");
-    expect(town.getAttribute("font-size")).toBe("4.00");
+    expect(region.getAttribute("font-size")).toBe("8.00");   // 16 / 2
+    // a town's name also carries its reader size (below), so it is 8 * 1.5 / 2, not 8 / 2
+    expect(town.getAttribute("font-size")).toBe("6.00");
   });
 
   it("thins the halo with the letters", () => {
@@ -51,7 +52,7 @@ describe("applyLabelScale", () => {
   it("writes attributes, not styles, so an export taken while zoomed matches the screen", () => {
     const { svg, river } = build();
     applyLabelScale(svg, 2);
-    expect(river.getAttribute("font-size")).toBe("5.00");
+    expect(river.getAttribute("font-size")).toBe("6.50"); // 10 * 1.3 / 2
     expect(river.style.fontSize).toBe("");
   });
 });
@@ -91,5 +92,57 @@ describe("applyMarkerScale", () => {
     applyMarkerScale(svg, 8);
     applyMarkerScale(svg, 1);
     expect(dot.getAttribute("transform")).toBe("translate(10,10) scale(1.0000) translate(-10,-10)");
+  });
+});
+
+// A town's name was sized 8px so that a hundred of them could be crammed onto the resting map.
+// They no longer appear there at all — they wait for a zoom — so the reason to keep them tiny is
+// gone, and holding them at 8px meant that when a reader finally zoomed in far enough to see one,
+// it was still too small to read.
+describe("applyLabelScale reader sizes", () => {
+  const mk = (svg: SVGSVGElement, cls: string, fs: number) => {
+    const t = document.createElementNS(NS, "text");
+    t.setAttribute("class", cls); t.setAttribute("font-size", String(fs));
+    svg.appendChild(t); return t;
+  };
+  const px = (el: Element, scale: number) => Number(el.getAttribute("font-size")) * scale;
+
+  it("shows a name that waited for the zoom at a size worth reading", () => {
+    const svg = document.createElementNS(NS, "svg") as SVGSVGElement;
+    const town = mk(svg, "city-label city-town", 8);
+    const capital = mk(svg, "city-label city-capital", 10);
+    const river = mk(svg, "river-label", 10);
+    applyLabelScale(svg, 2.6);
+    for (const [name, el] of [["town", town], ["capital", capital], ["river", river]] as const) {
+      expect(px(el, 2.6), `${name} on screen`).toBeGreaterThanOrEqual(11.5);
+    }
+  });
+
+  it("leaves the big names at the size the map already gave them", () => {
+    const svg = document.createElementNS(NS, "svg") as SVGSVGElement;
+    const region = mk(svg, "region-label", 16);
+    applyLabelScale(svg, 4);
+    expect(px(region, 4)).toBe(16);
+  });
+
+  it("keeps a capital's name ahead of a town's, as the map's own hierarchy has it", () => {
+    const svg = document.createElementNS(NS, "svg") as SVGSVGElement;
+    const town = mk(svg, "city-label city-town", 8);
+    const capital = mk(svg, "city-label city-capital", 10);
+    applyLabelScale(svg, 3);
+    expect(px(capital, 3)).toBeGreaterThan(px(town, 3));
+  });
+
+  it("still works from the original size when the scale changes again", () => {
+    const svg = document.createElementNS(NS, "svg") as SVGSVGElement;
+    const town = mk(svg, "city-label city-town", 8);
+    applyLabelScale(svg, 2);
+    applyLabelScale(svg, 4);
+    expect(px(town, 4)).toBeCloseTo(px(town, 4), 5);
+    applyLabelScale(svg, 1);
+    const atRest = Number(town.getAttribute("font-size"));
+    applyLabelScale(svg, 8);
+    applyLabelScale(svg, 1);
+    expect(Number(town.getAttribute("font-size"))).toBe(atRest);
   });
 });
