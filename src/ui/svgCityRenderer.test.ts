@@ -2,7 +2,7 @@
 import { describe, it, expect } from "vitest";
 import { generateCityLayout, cityContext } from "../engine/city";
 import { renderCity } from "./svgCityRenderer";
-import { GRASSLAND } from "../engine/biome";
+import { GRASSLAND, WETLAND } from "../engine/biome";
 import { pointInPolygon } from "../engine/geometry";
 import type { Polygon } from "../engine/geometry";
 import type { CityMarker } from "../types/world";
@@ -188,12 +188,19 @@ describe("renderCity organic", () => {
     // alone is hidden inside the walls → the river looked like a band painted behind the city)
     expect(clipped.querySelectorAll(".water").length).toBeGreaterThan(0);
   });
-  it("does NOT re-draw water over a marsh city (stilt houses must stay visible)", () => {
+  // This used to assert the opposite — that a marsh city gets NO water re-drawn, so its stilt
+  // houses stay visible. The houses were never at risk: the re-draw goes under them. What the
+  // assertion actually bought was a marsh town with no water in it at all, on the one archetype
+  // whose whole idea is a town standing in a marsh. The property worth holding is the one the old
+  // test was reaching for: the water is there, AND the houses are on top of it.
+  it("re-draws water over a marsh city too, with the stilt houses still on top of it", () => {
     const layout = generateCityLayout(cityContext({ ...marker, coastal: false, elevation: 0.5, biome: 7 }), 7);
     expect(layout.features.onStilts).toBe(true);
     const svg = renderCity(layout);
     const clipped = svg.querySelector("g[clip-path]")!;
-    expect(clipped.querySelectorAll(".water").length).toBe(0);
+    expect(clipped.querySelectorAll(".water").length).toBeGreaterThan(0);
+    const kids = [...clipped.children].map((c) => c.getAttribute("class") || "");
+    expect(kids.lastIndexOf("water")).toBeLessThan(kids.indexOf("building"));
   });
   it("renders a workshop per riverside trade", () => {
     let layout = generateCityLayout({ id: 7, name: "T", size: 4, coastal: true, isCapital: false, elevation: 0.4, biome: GRASSLAND }, 1);
@@ -271,5 +278,50 @@ describe("renderCity wears the same atlas chrome as the world", () => {
     // the old way put two texts at the same spot; there should be exactly one per label now
     const seen = new Set(wards.map((w) => `${w.getAttribute("x")},${w.getAttribute("y")}`));
     expect(seen.size).toBe(wards.length);
+  });
+});
+
+// The marsh town is the one kind of settlement defined by its water — measured, 95% of the area
+// inside Dhaa's walls is river — and it was the one kind that never drew any. The channel is laid
+// down at the bottom of the z-order and the opaque ground fill covers it, so it is the re-draw over
+// the ground that makes a river show through a town; marsh was skipped from that re-draw to keep its
+// stilt houses above the water. But the re-draw goes UNDER the buildings, so it already does that.
+// The result was a river that stopped at the wall and picked up again on the far side, and stilt
+// houses standing on dry ground.
+describe("renderCity draws the water inside a marsh town", () => {
+  const marsh = generateCityLayout(
+    { id: 3, name: "Marshtown", size: 4, coastal: false, isCapital: false, elevation: 0.3, biome: WETLAND },
+    99,
+  );
+  const svg = renderCity(marsh, "en");
+  const classesInOrder = () => {
+    const out: string[] = [];
+    const walk = (n: Element) => { for (const c of n.children) { out.push(c.getAttribute("class") || ""); walk(c); } };
+    walk(svg);
+    return out;
+  };
+
+  it("is the archetype this is about", () => {
+    expect(marsh.features.onStilts).toBe(true);
+    expect(marsh.water.bodies.length).toBeGreaterThan(0);
+  });
+
+  it("draws the channel again over the ground, as every other river town gets", () => {
+    // more water polygons than the single pass at the bottom of the stack
+    const waters = svg.querySelectorAll(".water").length;
+    expect(waters).toBeGreaterThan(marsh.water.bodies.length);
+  });
+
+  it("keeps the houses on top of it, which is what standing on stilts looks like", () => {
+    const order = classesInOrder();
+    const lastWater = order.lastIndexOf("water");
+    const firstBuilding = order.indexOf("building");
+    expect(lastWater).toBeGreaterThan(-1);
+    expect(firstBuilding).toBeGreaterThan(-1);
+    expect(lastWater).toBeLessThan(firstBuilding);
+  });
+
+  it("still puts a stilt under each house that stands in the water", () => {
+    expect(svg.querySelectorAll(".stilt").length).toBeGreaterThan(0);
   });
 });

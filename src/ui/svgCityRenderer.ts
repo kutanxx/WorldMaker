@@ -232,15 +232,19 @@ export function renderCity(layout: CityLayout, lang: Lang = "en"): SVGSVGElement
     if (tint) clipped.appendChild(svgEl("polygon", { class: "ward", points: pts(ward.polygon), fill: tint, "fill-opacity": 0.7 }));
   }
 
-  // re-draw the water channel over the ground + district tints but UNDER the buildings, so a
+  // Re-draw the water channel over the ground + district tints but UNDER the buildings, so a
   // river/lake reads as flowing THROUGH the town (the bottom pass is hidden by the opaque ground
   // fill inside the walls) WITHOUT submerging the bank buildings — a building can't sit under the
-  // river. Skip marsh, whose stilt houses deliberately stand OVER the water and must stay visible.
-  if (!layout.features.onStilts) {
-    for (const body of layout.water.bodies) {
-      clipped.appendChild(svgEl("polygon", { class: "water-shallow", points: pts(body), fill: "#bfd8e4" }));
-      clipped.appendChild(svgEl("polygon", { class: "water", points: pts(body), fill: "#9fc1d6", transform: "scale(0.985)", "transform-origin": `${w / 2} ${h / 2}` }));
-    }
+  // river.
+  //
+  // Marsh towns used to be skipped here, to keep their stilt houses above the water. They do not
+  // need to be: this pass goes UNDER the buildings, so the houses stay on top either way. The skip
+  // only meant that the one kind of town defined by its water was the one kind that never drew any
+  // — measured, 95% of the ground inside a marsh town's walls is river — so the channel stopped at
+  // the wall, picked up again on the far side, and the stilt houses stood on dry land.
+  for (const body of layout.water.bodies) {
+    clipped.appendChild(svgEl("polygon", { class: "water-shallow", points: pts(body), fill: "#bfd8e4" }));
+    clipped.appendChild(svgEl("polygon", { class: "water", points: pts(body), fill: "#9fc1d6", transform: "scale(0.985)", "transform-origin": `${w / 2} ${h / 2}` }));
   }
 
   for (const ward of layout.wards) {
