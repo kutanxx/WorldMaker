@@ -193,7 +193,18 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     stage.append(back, frame);
     worldZoom?.destroy(); worldZoom = null;
     cityZoom?.destroy();
-    cityZoom = attachZoomPan(citySvg, frame);
+    // the ward names hold their size here for the same reason the world's names do
+    let cityRelayout = 0, cityScale = 1;
+    cityZoom = attachZoomPan(citySvg, frame, {
+      onScale: (scale) => {
+        cityScale = scale;
+        if (cityRelayout) return;
+        cityRelayout = requestAnimationFrame(() => {
+          cityRelayout = 0;
+          applyLabelScale(citySvg, cityScale);
+        });
+      },
+    });
   }
 
   function regenerate(p: WorldParams): void {

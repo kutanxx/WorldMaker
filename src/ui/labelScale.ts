@@ -11,7 +11,7 @@
 // Sizes are written as attributes rather than styles because the SVG and PNG exports carry no
 // external CSS, and an export taken while zoomed should look like what the reader was looking at.
 
-const SELECTOR = ".region-label, .city-label, .river-label, .nation-label, .province-label";
+const SELECTOR = ".region-label, .city-label, .river-label, .nation-label, .province-label, .ward-label";
 
 // A town's name was set at 8px so that a hundred of them could be crammed onto the resting map, and
 // a river's at 10. They are not on the resting map any more — they wait for a zoom — so the reason

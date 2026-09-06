@@ -236,3 +236,20 @@ describe("applyMarkerScale grows with its name", () => {
     }
   });
 });
+
+describe("applyLabelScale and the city plan", () => {
+  it("holds a ward's name the way it holds every other name", () => {
+    const svg = document.createElementNS(NS, "svg") as SVGSVGElement;
+    const ward = document.createElementNS(NS, "text");
+    ward.setAttribute("class", "ward-label");
+    ward.setAttribute("font-size", "7");
+    svg.appendChild(ward);
+    const rest = 7;
+    applyLabelScale(svg, 4);
+    const onScreen = Number(ward.getAttribute("font-size")) * 4;
+    expect(onScreen).toBeGreaterThan(rest);        // grows with the zoom
+    expect(onScreen).toBeLessThan(rest * 4);       // but nowhere near as fast as the plan does
+    applyLabelScale(svg, 1);
+    expect(ward.getAttribute("font-size")).toBe("7.00");
+  });
+});

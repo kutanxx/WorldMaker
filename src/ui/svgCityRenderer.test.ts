@@ -6,6 +6,8 @@ import { GRASSLAND } from "../engine/biome";
 import { pointInPolygon } from "../engine/geometry";
 import type { Polygon } from "../engine/geometry";
 import type { CityMarker } from "../types/world";
+import { generateWorld } from "../engine/world";
+import { DEFAULT_PARAMS } from "../types/world";
 
 // the renderer anchors a stilt at the building's vertex-mean; replicate it so the test can
 // predict exactly which buildings sit over water.
@@ -224,5 +226,50 @@ describe("renderCity organic", () => {
     const layout = generateCityLayout({ id: 7, name: "T", size: 1, coastal: false, isCapital: false, elevation: 0.4, biome: GRASSLAND }, 1);
     expect(layout.leperHouse).toBeNull(); // size < 2
     expect(layout.fairground).toBeNull(); // size < 3
+  });
+});
+
+// The city plan is a plate from the same atlas as the world map, and until now it did not look like
+// one: no border, no north, a plain 13px name, and the one white-card legend left behind when the
+// world's three were put into cartouches.
+describe("renderCity wears the same atlas chrome as the world", () => {
+  const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });
+  const layout = generateCityLayout(cityContext(world.cities[0]), 1);
+  const svg = renderCity(layout, "en");
+
+  it("is bordered and oriented, like every other map this project draws", () => {
+    expect(svg.querySelectorAll(".map-frame").length).toBe(1);
+    expect(svg.querySelectorAll(".compass").length).toBe(1);
+    expect(svg.querySelector(".compass-n")?.textContent).toBe("N");
+  });
+
+  it("draws the frame and compass last, so nothing is drawn over them", () => {
+    const kids = [...svg.children].map((c) => c.getAttribute("class"));
+    expect(kids[kids.length - 1]).toBe("map-frame");
+    expect(kids.indexOf("compass")).toBeGreaterThan(kids.indexOf("legend"));
+  });
+
+  it("puts its key in the same cartouche the world's legends sit in", () => {
+    const panel = svg.querySelector(".legend .legend-panel");
+    expect(panel).not.toBeNull();
+    expect(panel!.querySelectorAll("rect").length).toBe(2);   // the double rule
+    expect(panel!.querySelectorAll("circle").length).toBe(4); // and a dot at each corner
+  });
+
+  it("names the town the way the world names itself: bigger, haloed, ruled", () => {
+    const t = svg.querySelector(".city-name-text")!;
+    expect(t.textContent).toBe(layout.name);
+    expect(Number(t.getAttribute("font-size"))).toBeGreaterThan(13);
+    expect(t.getAttribute("paint-order")).toBe("stroke");
+    expect(svg.querySelector(".city-name line")).not.toBeNull();
+  });
+
+  it("halos a ward's name with paint-order instead of drawing the word twice", () => {
+    const wards = [...svg.querySelectorAll(".ward-label")];
+    expect(wards.length).toBeGreaterThan(0);
+    for (const w of wards) expect(w.getAttribute("paint-order")).toBe("stroke");
+    // the old way put two texts at the same spot; there should be exactly one per label now
+    const seen = new Set(wards.map((w) => `${w.getAttribute("x")},${w.getAttribute("y")}`));
+    expect(seen.size).toBe(wards.length);
   });
 });

@@ -1,4 +1,4 @@
-import { svgEl } from "./renderer";
+import { svgEl, legendPanel, compassRose, mapFrame, INK, PARCHMENT } from "./renderer";
 import type { CityLayout } from "../engine/city";
 import type { WardType } from "../engine/city/zoning";
 import type { Point, Polygon, Polyline } from "../engine/geometry";
@@ -369,19 +369,29 @@ export function renderCity(layout: CityLayout, lang: Lang = "en"): SVGSVGElement
 
   const labelsG = svgEl("g", { class: "labels" });
   for (const l of layout.labels) {
-    const text = WARD_NAME[lang][l.type] ?? "";
-    const halo = svgEl("text", { x: l.x, y: l.y, "font-size": 7, fill: "#f3efe4", stroke: "#f3efe4", "stroke-width": 2.5, "text-anchor": "middle" });
-    halo.textContent = text;
-    labelsG.appendChild(halo);
-    const tx = svgEl("text", { x: l.x, y: l.y, "font-size": 7, fill: "#4a3f2c", "text-anchor": "middle" });
-    tx.textContent = text;
+    // One text with a real halo. This used to be the same word drawn twice, cream under dark, which
+    // is what you do without paint-order — and paint-order is what the rest of the atlas uses.
+    const tx = svgEl("text", {
+      class: "ward-label", x: l.x, y: l.y, "font-size": 7, "text-anchor": "middle",
+      fill: "#42341f", stroke: PARCHMENT, "stroke-width": 2.2, "paint-order": "stroke",
+    });
+    tx.textContent = WARD_NAME[lang][l.type] ?? "";
     labelsG.appendChild(tx);
   }
   root.appendChild(labelsG);
 
-  const title = svgEl("text", { x: w / 2, y: 14, "font-size": 13, fill: "#3a2f1c", "text-anchor": "middle" });
+  const titleG = svgEl("g", { class: "city-name" });
+  const title = svgEl("text", {
+    class: "city-name-text", x: (w + LEGW) / 2, y: 30, "text-anchor": "middle",
+    "font-size": 18, fill: INK, stroke: PARCHMENT, "stroke-width": 2.5, "paint-order": "stroke",
+  });
   title.textContent = layout.name;
-  root.appendChild(title);
+  titleG.appendChild(title);
+  titleG.appendChild(svgEl("line", {
+    x1: (w + LEGW) / 2 - 46, y1: 38, x2: (w + LEGW) / 2 + 46, y2: 38,
+    stroke: INK, "stroke-width": 0.9,
+  }));
+  root.appendChild(titleG);
 
   const legend = svgEl("g", { class: "legend" });
   // a district key: the present ward types (in functional order) + a couple of base features,
@@ -393,15 +403,19 @@ export function renderCity(layout: CityLayout, lang: Lang = "en"): SVGSVGElement
     ["#9fc1d6", t(lang, "water")], ["#d8b65e", t(lang, "mainRoad")],
   ];
   const x0 = w + 12, y0 = 20; // in the right-hand strip, clear of the map
-  legend.appendChild(svgEl("rect", { x: x0 - 4, y: y0 - 8, width: 92, height: items.length * 11 + 12, rx: 3, fill: "#f7f2e6", stroke: "#cbb784", "stroke-width": 0.5 }));
+  legend.appendChild(legendPanel(x0 - 4, y0 - 8, 92, items.length * 11 + 12));
   items.forEach(([color, label], i) => {
     const y = y0 + i * 11;
-    legend.appendChild(svgEl("rect", { class: "legend-item", x: x0, y: y - 6, width: 8, height: 8, fill: color, stroke: "#9a8a70", "stroke-width": 0.4 }));
-    const txt = svgEl("text", { x: x0 + 12, y, "font-size": 7, fill: "#4a3f2c" });
+    legend.appendChild(svgEl("rect", { class: "legend-item", x: x0, y: y - 6, width: 8, height: 8, fill: color, stroke: INK, "stroke-width": 0.6 }));
+    const txt = svgEl("text", { x: x0 + 12, y, "font-size": 7, fill: "#42341f", "letter-spacing": 0.3 });
     txt.textContent = label;
     legend.appendChild(txt);
   });
   root.appendChild(legend);
+
+  // Bottom of the key strip: the world map's top-right corner is already spoken for on this plan.
+  root.appendChild(compassRose(w + LEGW / 2, h - 34, 13, t(lang, "compassN")));
+  root.appendChild(mapFrame(w + LEGW, h));
 
   return root;
 }
