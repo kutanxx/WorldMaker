@@ -1,9 +1,10 @@
 import type { World } from "../types/world";
 import { svgEl, legendPanel, INK } from "./renderer";
-import { cellPath } from "./svgPaths";
+import { cellPath, segPath } from "./svgPaths";
+import { politicalBorders } from "../engine/borders";
 import { nationCentroids } from "./nationPalette";
 
-type GridLike = Pick<World["grid"], "count" | "polygons" | "points" | "width" | "height">;
+type GridLike = Pick<World["grid"], "count" | "polygons" | "points" | "width" | "height" | "neighbors">;
 
 const MIN_LABEL_CELLS = 20;
 const LEGEND_W = 120;
@@ -27,6 +28,17 @@ export function cultureLayer(
       fill: cultures[id]?.color ?? "#888888", "fill-opacity": 0.55,
     }));
   }
+
+  // Where two cultures meet, draw the line. The political and province views both do; this one had
+  // only its fills, and the palette cannot carry the distinction alone -- composited over the biomes
+  // beneath, the closest pair of culture colours separates by dE 14.8, less than a single culture
+  // varies across the biomes it covers (19.2). Dashed and lighter than a national border, which is
+  // the ethnographic convention: a culture shades into its neighbour, a realm does not.
+  g.appendChild(svgEl("path", {
+    class: "culture-border", d: segPath(politicalBorders(grid, cultureOf)),
+    fill: "none", stroke: INK, "stroke-width": 1.1, "stroke-opacity": 0.75,
+    "stroke-dasharray": "5 3.5", "vector-effect": "non-scaling-stroke", "stroke-linejoin": "round",
+  }));
 
   const cents = nationCentroids(grid, cultureOf);
   const labels = svgEl("g", { class: "culture-labels" });

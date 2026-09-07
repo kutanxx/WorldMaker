@@ -232,3 +232,27 @@ describe("deconflictLabels scale thresholds", () => {
     expect(shown(town)).toBe(false);
   });
 });
+
+// The culture view's names were in no tier at all, so nothing culled them and nothing protected
+// them: measured on three seeds, 5 / 4 / 1 overlapping pairs, and on seed 42 four of the five
+// culture names sat under a region or city name. The culture view is ABOUT its cultures, so the
+// name of one outranks the region and city names drawn under it.
+describe("culture names", () => {
+  it("outranks the region and city names it overlaps in the culture view", () => {
+    const svg = document.createElementNS(NS, "svg") as SVGSVGElement;
+    const culture = mkLabel(svg, "culture-label", { x: 0, y: 0, width: 60, height: 13 });
+    const region = mkLabel(svg, "region-label", { x: 10, y: 2, width: 60, height: 12 });
+    const town = mkLabel(svg, "city-label city-town", { x: 20, y: 4, width: 30, height: 8 });
+    deconflictLabels(svg, 4);
+    expect(culture.style.visibility).toBe("");
+    expect(region.style.visibility).toBe("hidden");
+    expect(town.style.visibility).toBe("hidden");
+  });
+
+  it("is shown at rest, not held back for a zoom (it names the view's own subject)", () => {
+    const svg = document.createElementNS(NS, "svg") as SVGSVGElement;
+    const culture = mkLabel(svg, "culture-label", { x: 0, y: 0, width: 60, height: 13 });
+    deconflictLabels(svg, 1);
+    expect(culture.style.visibility).toBe("");
+  });
+});

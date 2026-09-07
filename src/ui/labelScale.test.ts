@@ -14,7 +14,7 @@ function build() {
     return t;
   };
   return { svg, region: mk("region-label", 16, 2), town: mk("city-label city-town", 8, 1.6),
-           river: mk("river-label", 10, 1.8) };
+           river: mk("river-label", 10, 1.8), culture: mk("culture-label", 13, 2.6) };
 }
 
 describe("applyLabelScale", () => {
@@ -251,5 +251,22 @@ describe("applyLabelScale and the city plan", () => {
     expect(onScreen).toBeLessThan(rest * 4);       // but nowhere near as fast as the plan does
     applyLabelScale(svg, 1);
     expect(ward.getAttribute("font-size")).toBe("7.00");
+  });
+});
+
+// The culture view's names were left out of the selector, so they alone kept growing with the land:
+// measured at 7.53x, a region's name was down to font-size 4.12 and a town's to 4.28 while a
+// culture's still read 13 -- 3.2x every other name on the same map, with nothing to stop it.
+describe("the culture view's names", () => {
+  it("holds its size on screen like every other name on the map", () => {
+    const { svg, culture, region } = build();
+    const rest = Number(culture.getAttribute("font-size"));
+    applyLabelScale(svg, 8);
+    const at8 = Number(culture.getAttribute("font-size"));
+    expect(at8).toBeLessThan(rest);                                  // shrinks in map units
+    expect(at8 * 8).toBeLessThan(rest * 3);                          // grows on screen, far less than the land
+    // and lands in the same band as the region names it sits beside, rather than towering over them
+    const regionOnScreen = Number(region.getAttribute("font-size")) * 8;
+    expect(at8 * 8).toBeLessThan(regionOnScreen * 1.5);
   });
 });
