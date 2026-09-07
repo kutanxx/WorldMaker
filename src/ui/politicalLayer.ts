@@ -1,5 +1,5 @@
 import type { World } from "../types/world";
-import { svgEl, legendPanel, INK } from "./renderer";
+import { svgEl, legendPanel, INK, LEGEND_TITLE_H } from "./renderer";
 import { cellPath, segPath } from "./svgPaths";
 import { politicalBorders } from "../engine/borders";
 import { nationColor, nationCentroids, PLAYER_LABEL_COLOR } from "./nationPalette";
@@ -10,6 +10,7 @@ export interface PoliticalOpts {
   fills?: boolean;
   labels?: boolean;
   legend?: boolean;
+  legendTitle?: string; // what the swatches are a key to, already in the reader's language
   playerPolity?: number; // play mode: render this polity in the reserved player colour + mark its label
   playerColor?: string;
 }
@@ -120,7 +121,7 @@ export function politicalLayer(
       // bottom-right corner belongs to the zoom controls, which were sitting on top of this one.
       const x0 = 14;
       const y0 = grid.height - 14 - rows.length * 14;
-      legend.appendChild(legendPanel(x0 - 5, y0 - 10, LEGEND_W, rows.length * 14 + 14));
+      legend.appendChild(legendPanel(x0 - 5, y0 - 10 - LEGEND_TITLE_H, LEGEND_W, rows.length * 14 + 14 + LEGEND_TITLE_H, opts.legendTitle));
       rows.forEach(([id], i) => {
         const y = y0 + i * 14;
         legend.appendChild(svgEl("rect", {

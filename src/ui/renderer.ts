@@ -21,7 +21,16 @@ export const PARCHMENT = "#f3ead2";
 // tablet, not Baroque strapwork — is what suits a map whose own frame is already two plain rules and
 // four dots. So the panel simply borrows that frame at panel scale: heavy rule, fine rule inside it,
 // a dot at each corner, all in the map's own ink.
-export function legendPanel(x: number, y: number, w: number, h: number): SVGElement {
+// The room a heading needs above the rows. Callers add it to the panel's height and put the panel
+// that much further from the rows, so the swatches do not move.
+export const LEGEND_TITLE_H = 17; // 15 left the heading 2 units off the first swatch; measured
+
+/**
+ * The cartouche a legend sits in. `title` names what the swatches are a key TO — every other titled
+ * thing on these maps is set in the display face, and the legend was the one panel saying nothing
+ * about itself.
+ */
+export function legendPanel(x: number, y: number, w: number, h: number, title?: string, titleSize = 8.5): SVGElement {
   const g = svgEl("g", { class: "legend-panel" });
   const rule = { fill: "none", stroke: INK, "vector-effect": "non-scaling-stroke" };
   g.appendChild(svgEl("rect", {
@@ -33,6 +42,14 @@ export function legendPanel(x: number, y: number, w: number, h: number): SVGElem
   }));
   for (const [cx, cy] of [[x, y], [x + w, y], [x, y + h], [x + w, y + h]]) {
     g.appendChild(svgEl("circle", { cx, cy, r: 1.2, fill: INK }));
+  }
+  if (title) {
+    const t = svgEl("text", {
+      class: "legend-title", x: x + 7, y: y + titleSize + 3.5, "font-size": titleSize,
+      fill: INK, "letter-spacing": 0.9, "font-family": "Cinzel, serif", "font-weight": 600,
+    });
+    t.textContent = title;
+    g.appendChild(t);
   }
   return g;
 }

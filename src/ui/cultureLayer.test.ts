@@ -94,3 +94,10 @@ describe("the culture palette, as the reader sees it", () => {
     expect(between()).toBeGreaterThan(within());
   });
 });
+
+describe("the culture legend", () => {
+  it("says what it is a key to", () => {
+    const g = cultureLayer(grid, [0, 0, 1, -1], cultures, "en");
+    expect(g.querySelector(".culture-legend .legend-title")?.textContent).toBe("Cultures");
+  });
+});

@@ -391,3 +391,20 @@ describe("renderWorld free-port badge", () => {
     }
   });
 });
+
+// Four keys on this map, none of which said what it was a key to.
+describe("every legend says what it is a key to", () => {
+  const w = generateWorld({ ...DEFAULT_PARAMS, seed: 3, width: 300, height: 300, cellCount: 400, townCount: 6 }).world;
+  it("titles the terrain view's legend with the thing its swatches name", () => {
+    const svg = renderWorld(w, "terrain", [], "en");
+    expect(svg.querySelector(".biome-legend .legend-title")?.textContent).toBe("Terrain");
+  });
+  it("titles the political view's legend", () => {
+    const svg = renderWorld(w, "political", [], "en");
+    expect(svg.querySelector(".nation-legend .legend-title")?.textContent).toBe("Realms");
+  });
+  it("speaks the reader's language", () => {
+    const svg = renderWorld(w, "terrain", [], "ko");
+    expect(svg.querySelector(".biome-legend .legend-title")?.textContent).toBe("지형");
+  });
+});

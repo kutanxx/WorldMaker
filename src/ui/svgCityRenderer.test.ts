@@ -336,3 +336,11 @@ describe("renderCity draws the water inside a marsh town", () => {
     expect(svg.querySelectorAll(".stilt").length).toBeGreaterThan(0);
   });
 });
+
+describe("the town plan's district key", () => {
+  it("says what it is a key to", () => {
+    const layout = generateCityLayout(cityContext(marker), 7);
+    const svg = renderCity(layout, "en");
+    expect(svg.querySelector(".legend .legend-title")?.textContent).toBe("Districts");
+  });
+});

@@ -42,3 +42,25 @@ describe("legendPanel", () => {
     expect(Number(outer.getAttribute("fill-opacity"))).toBeGreaterThanOrEqual(0.95);
   });
 });
+
+// A key with no heading makes the reader work out what it is a key TO. Every other titled thing on
+// these maps -- the world's name, a town's name, the chronicle -- is set in the display face; the
+// legend was the one panel that said nothing about itself.
+describe("legendPanel headings", () => {
+  it("sets the heading in the panel when given one, and draws none when not", () => {
+    const titled = legendPanel(10, 10, 100, 60, "Terrain");
+    const head = titled.querySelector(".legend-title");
+    expect(head).not.toBeNull();
+    expect(head!.textContent).toBe("Terrain");
+    expect(legendPanel(10, 10, 100, 60).querySelector(".legend-title")).toBeNull();
+  });
+  it("keeps the heading inside the panel it belongs to", () => {
+    const g = legendPanel(10, 20, 100, 60, "Realms");
+    const head = g.querySelector(".legend-title")!;
+    const x = Number(head.getAttribute("x")), y = Number(head.getAttribute("y"));
+    expect(x).toBeGreaterThan(10);
+    expect(x).toBeLessThan(110);
+    expect(y).toBeGreaterThan(20);
+    expect(y).toBeLessThan(80);
+  });
+});

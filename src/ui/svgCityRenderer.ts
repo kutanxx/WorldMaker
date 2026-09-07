@@ -406,8 +406,11 @@ export function renderCity(layout: CityLayout, lang: Lang = "en"): SVGSVGElement
     ...present.map((wt) => [TINT[wt]!, WARD_NAME[lang][wt] ?? ""] as [string, string]),
     ["#9fc1d6", t(lang, "water")], ["#d8b65e", t(lang, "mainRoad")],
   ];
-  const x0 = w + 12, y0 = 20; // in the right-hand strip, clear of the map
-  legend.appendChild(legendPanel(x0 - 4, y0 - 8, 92, items.length * 11 + 12));
+  const CITY_TITLE_H = 14; // 11 put the heading's descender on the first swatch (measured -0.8)
+  // the strip starts at the top of the plate, so there is no room above it: the heading takes its
+  // place at the top of the panel and the rows start below it
+  const x0 = w + 12, y0 = 20 + CITY_TITLE_H; // in the right-hand strip, clear of the map
+  legend.appendChild(legendPanel(x0 - 4, y0 - 8 - CITY_TITLE_H, 92, items.length * 11 + 12 + CITY_TITLE_H, t(lang, "legendDistricts"), 7.5));
   items.forEach(([color, label], i) => {
     const y = y0 + i * 11;
     legend.appendChild(svgEl("rect", { class: "legend-item", x: x0, y: y - 6, width: 8, height: 8, fill: color, stroke: INK, "stroke-width": 0.6 }));

@@ -160,6 +160,23 @@ describe("createApp", () => {
     expect(polBorder).toBe(provBorder); // same snapped ownership → identical border geometry across views
   });
 
+  // Three call sites build these layers: the first render, and the two the year scrubber uses. The
+  // scrubber's pair was missed when the legends were given headings, so the map's key reverted to
+  // English the moment a reader touched the timeline. Anything the scrubber rebuilds has to be
+  // checked at the scrubber, not only at first paint.
+  it("keeps the legend in the reader's language after the year is scrubbed", () => {
+    const root = document.createElement("div");
+    createApp(root, small);
+    (root.querySelector(".lang-toggle") as HTMLButtonElement).click(); // en -> ko
+    const political = [...root.querySelectorAll(".view-toggle button")].find((b) => /정치/.test(b.textContent || "")) as HTMLButtonElement;
+    political.click();
+    expect(root.querySelector(".nation-legend .legend-title")?.textContent).toBe("나라");
+    const slider = root.querySelector(".timeline input[type=range]") as HTMLInputElement;
+    slider.value = slider.max;
+    slider.dispatchEvent(new Event("input"));
+    expect(root.querySelector(".nation-legend .legend-title")?.textContent).toBe("나라");
+  });
+
   it("has a Provinces view toggle that switches the map to the province layer", () => {
     const root = document.createElement("div");
     createApp(root, small);

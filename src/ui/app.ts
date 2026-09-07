@@ -161,14 +161,14 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
       currentYearIndex = index;
       const snap = history.snapshots[index];
       if (currentView === "culture") {
-        slot.replaceChildren(cultureLayer(world.grid, world.cultureOf, world.cultures)); // time-independent
+        slot.replaceChildren(cultureLayer(world.grid, world.cultureOf, world.cultures, lang)); // time-independent
       } else if (currentView === "province") {
         // provinces are geography (time-independent); nation borders track the scrubbed year via snap.owner
         slot.replaceChildren(provinceLayer(world.grid, world.provinceOf, world.provinces, { owner: snap.owner }));
       } else {
         // nation ownership snapped to whole provinces so terrain/political borders match the province view
         const snapped = snapOwnersToProvinces(world.grid.count, world.provinceOf, world.provinces, snap.owner);
-        slot.replaceChildren(politicalLayer(world.grid, snapped, history.polities, politicalOpts(currentView)));
+        slot.replaceChildren(politicalLayer(world.grid, snapped, history.polities, politicalOpts(currentView, lang)));
       }
       applyChronicleYear(chronicle, snap.year);
       // Scrubbing a year replaces the political layer, so its labels arrive at their base size.
@@ -260,7 +260,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     if (currentView !== "culture") { // culture layer is static; renderWorld already mounted it
       const slot = svg.querySelector(".political-slot") as SVGGElement;
       const snap = history.snapshots[currentYearIndex];
-      slot.replaceChildren(politicalLayer(generated.world.grid, snap.owner, history.polities, politicalOpts(currentView)));
+      slot.replaceChildren(politicalLayer(generated.world.grid, snap.owner, history.polities, politicalOpts(currentView, lang)));
     }
     // This is a fresh render that has never been in the document, so its labels have never been laid
     // out against each other — left alone, every name in the world goes into the file, stacked.

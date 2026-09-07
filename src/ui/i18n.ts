@@ -49,6 +49,7 @@ export const UI: Record<Lang, Record<string, string>> = {
     terrain: "Terrain", political: "Political", culture: "Culture", province: "Provinces",
     backToWorld: "Back to world", water: "Water", mainRoad: "Main road",
     compassN: "N", langToggle: "한국어", home: "🏠", homeLabel: "Home",
+    legendTerrain: "Terrain", legendRealms: "Realms", legendCultures: "Cultures", legendDistricts: "Districts",
   },
   ko: {
     generate: "생성", randomSeed: "랜덤 시드", exportJson: "JSON",
@@ -56,6 +57,7 @@ export const UI: Record<Lang, Record<string, string>> = {
     terrain: "지형", political: "정치", culture: "문화", province: "영토",
     backToWorld: "지도로 돌아가기", water: "물", mainRoad: "큰길",
     compassN: "북", langToggle: "EN", home: "🏠", homeLabel: "홈",
+    legendTerrain: "지형", legendRealms: "나라", legendCultures: "문화", legendDistricts: "구역",
   },
 };
 

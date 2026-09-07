@@ -1,5 +1,5 @@
 import type { World } from "../types/world";
-import { svgEl, legendPanel, starPath, compassRose, mapFrame, INK, PARCHMENT } from "./renderer";
+import { svgEl, legendPanel, starPath, compassRose, mapFrame, INK, PARCHMENT, LEGEND_TITLE_H } from "./renderer";
 import { displayBiomes } from "./displayBiome";
 import { OCEAN, ALPINE, BIOME_COLORS } from "../engine/biome";
 import { type Lang, biomeName, t } from "./i18n";
@@ -15,8 +15,9 @@ export type MapView = "terrain" | "political" | "culture" | "province";
 // reader sees through a culture fill; the palette test reads it.
 export const OVERLAY_BIOME_OPACITY = 0.6;
 
-export function politicalOpts(view: MapView): PoliticalOpts {
-  return view === "political" ? { fills: true, labels: true, legend: true } : {};
+export function politicalOpts(view: MapView, lang: Lang = "en"): PoliticalOpts {
+  // the title comes in as a finished string so politicalLayer stays free of the i18n table
+  return view === "political" ? { fills: true, labels: true, legend: true, legendTitle: t(lang, "legendRealms") } : {};
 }
 
 
@@ -71,11 +72,11 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
   }));
   const slot = svgEl("g", { class: "political-slot" });
   slot.appendChild(
-    view === "culture" ? cultureLayer(grid, world.cultureOf, world.cultures)
+    view === "culture" ? cultureLayer(grid, world.cultureOf, world.cultures, lang)
       : view === "province" ? provinceLayer(grid, world.provinceOf, world.provinces, { owner: world.polityOf })
         // terrain/political: snap nation ownership to whole provinces so borders (and political fills)
         // fall on province edges — the SAME geometry the province view uses, so views stay consistent.
-        : politicalLayer(grid, snapOwnersToProvinces(grid.count, world.provinceOf, world.provinces, world.polityOf), world.polities, politicalOpts(view)));
+        : politicalLayer(grid, snapOwnersToProvinces(grid.count, world.provinceOf, world.provinces, world.polityOf), world.polities, politicalOpts(view, lang)));
   root.appendChild(slot);
 
   // mountain relief: a small peak glyph on each alpine cell so ranges read as mountains rather
@@ -201,7 +202,8 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
     const present = [...byBiome.keys()].sort((a, b) => a - b);
     const legend = svgEl("g", { class: "legend biome-legend" });
     const x0 = 14, y0 = grid.height - 14 - present.length * 14;
-    legend.appendChild(legendPanel(x0 - 5, y0 - 10, 104, present.length * 14 + 14));
+    // the heading grows the panel UPWARD so the key stays anchored to the map's bottom-left corner
+    legend.appendChild(legendPanel(x0 - 5, y0 - 10 - LEGEND_TITLE_H, 104, present.length * 14 + 14 + LEGEND_TITLE_H, t(lang, "legendTerrain")));
     present.forEach((bm, i) => {
       const y = y0 + i * 14;
       legend.appendChild(svgEl("rect", { class: "legend-item", x: x0, y: y - 8, width: 10, height: 10, fill: BIOME_COLORS[bm], stroke: INK, "stroke-width": 0.6, "vector-effect": "non-scaling-stroke" }));

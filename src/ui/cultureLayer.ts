@@ -1,5 +1,7 @@
 import type { World } from "../types/world";
-import { svgEl, legendPanel, INK } from "./renderer";
+import { svgEl, legendPanel, INK, LEGEND_TITLE_H } from "./renderer";
+import { t } from "./i18n";
+import type { Lang } from "./i18n";
 import { cellPath, segPath } from "./svgPaths";
 import { politicalBorders } from "../engine/borders";
 import { nationCentroids } from "./nationPalette";
@@ -20,6 +22,7 @@ export function cultureLayer(
   grid: GridLike,
   cultureOf: ArrayLike<number>,
   cultures: { name: string; color: string }[],
+  lang: Lang = "en",
 ): SVGGElement {
   const g = svgEl("g", { class: "culture" }) as SVGGElement;
 
@@ -67,7 +70,7 @@ export function cultureLayer(
       // bottom-right corner belongs to the zoom controls, which were sitting on top of this one.
       const x0 = 14;
   const y0 = grid.height - 14 - present.length * 14;
-  legend.appendChild(legendPanel(x0 - 5, y0 - 10, LEGEND_W, present.length * 14 + 14));
+  legend.appendChild(legendPanel(x0 - 5, y0 - 10 - LEGEND_TITLE_H, LEGEND_W, present.length * 14 + 14 + LEGEND_TITLE_H, t(lang, "legendCultures")));
   present.forEach((id, i) => {
     const y = y0 + i * 14;
     legend.appendChild(svgEl("rect", { class: "legend-item", x: x0, y: y - 8, width: 10, height: 10, fill: cultures[id]?.color ?? "#888", stroke: INK, "stroke-width": 0.6, "vector-effect": "non-scaling-stroke" }));
