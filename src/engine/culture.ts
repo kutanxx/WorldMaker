@@ -7,20 +7,27 @@ import { OCEAN } from "./terrain";
 export interface Culture { name: string; color: string; phon: Phonetics }
 
 // phonetic profiles spanning harsh↔soft (research: guttural=harsh, bilabial/liquid=soft)
+//
+// The colours are not decoration. They are what tells one culture's ground from another's, and the
+// first five did not: composited over the biomes they cover, the closest pair separated by dE 14.8
+// while a SINGLE culture varied by 19.2 across the biomes beneath it -- so the reader was reading
+// the terrain, not the culture. These five sit wider apart (dE 34.2 pure, against 28.5) in the same
+// muted antique register. The bar they have to clear is a test, not a comment: see cultureLayer.test.
+// Colour never touches a name -- the phonetics do -- so none of this moves a golden anchor.
 export const CULTURE_PROFILES: { color: string; phon: Phonetics }[] = [
-  { color: "#9a5a3a", phon: { // guttural — mountain / barbarian
+  { color: "#8c3b2e", phon: { // guttural — mountain / barbarian
     onset: ["kr", "gr", "dr", "k", "g", "kh", "thr", "gg", "vr", "gru"],
     vowel: ["a", "o", "u", "au", "aa"], coda: ["k", "rk", "gg", "th", "gr", "r", "kh"] } },
-  { color: "#4a7a8a", phon: { // liquid — melodic / southern
+  { color: "#2f6f86", phon: { // liquid — melodic / southern
     onset: ["l", "m", "n", "el", "li", "va", "sy", "ae", "ly", "mel"],
     vowel: ["ae", "ia", "io", "ei", "e", "a", "ea"], coda: ["l", "n", "r", "th", "el", "", "an"] } },
-  { color: "#b89a4a", phon: { // sibilant — desert / silk-road
+  { color: "#c8a53c", phon: { // sibilant — desert / silk-road
     onset: ["s", "sh", "z", "kh", "dh", "sa", "za", "si", "sha"],
     vowel: ["a", "i", "aa", "ai", "ia"], coda: ["s", "r", "n", "h", "", "sh", "z"] } },
-  { color: "#6a5a8a", phon: { // sonorous — classical / imperial
+  { color: "#5b4a7e", phon: { // sonorous — classical / imperial
     onset: ["t", "d", "v", "m", "r", "c", "tr", "l", "cor", "val"],
     vowel: ["a", "e", "o", "u", "i"], coda: ["us", "um", "an", "or", "is", "", "ar"] } },
-  { color: "#5a7a5a", phon: { // nordic — coastal / rugged
+  { color: "#3f7a4a", phon: { // nordic — coastal / rugged
     onset: ["f", "v", "sk", "th", "h", "br", "sv", "fj", "hr"],
     vowel: ["o", "a", "y", "ei", "au"], coda: ["nd", "rn", "k", "r", "", "vik", "fr"] } },
 ];

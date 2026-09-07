@@ -11,6 +11,10 @@ import { provinceLayer, snapOwnersToProvinces } from "./provinceLayer";
 
 export type MapView = "terrain" | "political" | "culture" | "province";
 
+// How far the biomes are muted under an overlay view. Named because it is one half of what the
+// reader sees through a culture fill; the palette test reads it.
+export const OVERLAY_BIOME_OPACITY = 0.6;
+
 export function politicalOpts(view: MapView): PoliticalOpts {
   return view === "political" ? { fills: true, labels: true, legend: true } : {};
 }
@@ -55,7 +59,7 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
   }
   // Mute biomes under the political/culture views so the overlay fills dominate. Inline (not
   // CSS) so an exported standalone SVG/PNG matches the on-screen map.
-  const biomes = svgEl("g", view !== "terrain" ? { class: "biomes", opacity: 0.6 } : { class: "biomes" });
+  const biomes = svgEl("g", view !== "terrain" ? { class: "biomes", opacity: OVERLAY_BIOME_OPACITY } : { class: "biomes" });
   for (const [bm, d] of byBiome) {
     biomes.appendChild(svgEl("path", { class: "biome", "data-biome": bm, d, fill: BIOME_COLORS[bm] }));
   }

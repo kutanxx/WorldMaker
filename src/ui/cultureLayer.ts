@@ -7,6 +7,13 @@ import { nationCentroids } from "./nationPalette";
 type GridLike = Pick<World["grid"], "count" | "polygons" | "points" | "width" | "height" | "neighbors">;
 
 const MIN_LABEL_CELLS = 20;
+// How much of the culture's own colour the reader gets, and so -- since the rest is the biome
+// showing through -- how much of the terrain survives beneath it. The two are the same trade.
+// 0.55 let so much biome through that one culture's ground varied more than two cultures differed.
+// Raising it was measured against the alternative of muting the biomes instead: that lowers the
+// variation without raising the separation, because two cultures meeting on the SAME biome are
+// separated by this number alone.
+export const CULTURE_FILL_OPACITY = 0.7;
 const LEGEND_W = 120;
 
 export function cultureLayer(
@@ -25,7 +32,7 @@ export function cultureLayer(
   for (const [id, d] of byCulture) {
     g.appendChild(svgEl("path", {
       class: "culture-area", "data-culture": id, d,
-      fill: cultures[id]?.color ?? "#888888", "fill-opacity": 0.55,
+      fill: cultures[id]?.color ?? "#888888", "fill-opacity": CULTURE_FILL_OPACITY,
     }));
   }
 

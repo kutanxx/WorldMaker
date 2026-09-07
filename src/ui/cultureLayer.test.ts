@@ -48,3 +48,49 @@ describe("cultureLayer", () => {
     expect(g.querySelector("path.culture-border")?.getAttribute("d") || "").toBe("");
   });
 });
+
+// The palette is not a matter of taste alone: it has a job, and it can be measured doing it. Two
+// cultures are told apart by colour only if their fills, composited over whatever biome they happen
+// to cover, differ by more than one culture's own fill varies across the biomes IT covers. The
+// original five inverted that -- 14.8 between, 19.2 within -- so the reader was reading the biome
+// underneath, not the culture. These two guard the property, not the hex values: change the colours
+// or either opacity however you like, as long as the map still separates.
+import { CULTURE_PROFILES } from "../engine/culture";
+import { BIOME_COLORS } from "../engine/biome";
+import { CULTURE_FILL_OPACITY } from "./cultureLayer";
+import { OVERLAY_BIOME_OPACITY } from "./svgWorldRenderer";
+import { PARCHMENT } from "./renderer";
+
+const rgb = (h: string) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+const over = (a: number[], b: number[], alpha: number) => a.map((v, i) => v * alpha + b[i] * (1 - alpha));
+function lab(c: number[]) {
+  const f = (v: number) => { v /= 255; return v > 0.04045 ? ((v + 0.055) / 1.055) ** 2.4 : v / 12.92; };
+  const [R, G, B] = c.map(f);
+  const X = (R * 0.4124 + G * 0.3576 + B * 0.1805) / 0.95047;
+  const Y = R * 0.2126 + G * 0.7152 + B * 0.0722;
+  const Z = (R * 0.0193 + G * 0.1192 + B * 0.9505) / 1.08883;
+  const g = (t: number) => (t > 0.008856 ? Math.cbrt(t) : 7.787 * t + 16 / 116);
+  return [116 * g(Y) - 16, 500 * (g(X) - g(Y)), 200 * (g(Y) - g(Z))];
+}
+const dE = (a: number[], b: number[]) => { const [p, q] = [lab(a), lab(b)]; return Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]); };
+// what the reader actually sees: the culture fill over the muted biome over the parchment
+const seen = (culture: string, biome: string) =>
+  over(rgb(culture), over(rgb(biome), rgb(PARCHMENT), OVERLAY_BIOME_OPACITY), CULTURE_FILL_OPACITY);
+
+const CULTURE_HUES = CULTURE_PROFILES.map((p) => p.color);
+const BIOMES = Object.values(BIOME_COLORS) as string[];
+const between = () => Math.min(...CULTURE_HUES.flatMap((a, i) =>
+  CULTURE_HUES.slice(i + 1).flatMap((b) => BIOMES.map((bm) => dE(seen(a, bm), seen(b, bm))))));
+const within = () => Math.max(...CULTURE_HUES.flatMap((c) =>
+  BIOMES.flatMap((b1) => BIOMES.map((b2) => dE(seen(c, b1), seen(c, b2))))));
+
+describe("the culture palette, as the reader sees it", () => {
+  it("separates two cultures by more than the map's own colour bar", () => {
+    // the same bar the biome palette was held to when it was tuned
+    expect(between()).toBeGreaterThanOrEqual(20);
+  });
+
+  it("separates two cultures by MORE than one culture varies across the biomes it covers", () => {
+    expect(between()).toBeGreaterThan(within());
+  });
+});
