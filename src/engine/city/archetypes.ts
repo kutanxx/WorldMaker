@@ -40,12 +40,17 @@ const TABLE: Record<ArchetypeId, Archetype> = {
 };
 
 const MOUNTAIN_VARIANTS: ArchetypeId[] = ["hilltopFortress", "hillside", "spur", "valleyPass"];
+// The gate stood at 0.70, and across 840 towns the highest measured 0.741: mountain towns arrived
+// 0.2 times per world of 28, so the four kinds above split seven towns and most worlds had none.
+// 0.60 gives ~1.8 a world -- met once or twice, still rare -- and stays clear of the world map's
+// own alpine line (mountainLevel 0.55) so a foothill town is not drawn as a mountain one.
+const MOUNTAIN_ELEVATION = 0.6;
 
 export function selectArchetype(
   opts: { coastal: boolean; elevation: number; size: number; biome: number; pick?: number; river?: boolean }
 ): Archetype {
   if (opts.coastal) return TABLE.coastalPort;
-  if (opts.elevation >= 0.7) {
+  if (opts.elevation >= MOUNTAIN_ELEVATION) {
     const i = Math.min(MOUNTAIN_VARIANTS.length - 1, Math.floor((opts.pick ?? 0) * MOUNTAIN_VARIANTS.length));
     return TABLE[MOUNTAIN_VARIANTS[i]];
   }

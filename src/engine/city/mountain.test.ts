@@ -45,3 +45,32 @@ describe("makeMountains", () => {
     expect(JSON.stringify(a)).toBe(JSON.stringify(b));
   });
 });
+
+// makeMountains listed hillside, spur and valleyPass and stopped there, so the one mountain variant
+// named for its high ground was the one that never got any: a hilltop fortress was drawn on a flat
+// plain. It gets a single broad shoulder rather than a full collar -- the masses run out to the edge
+// of the plate, and a ring of them would swallow the fields and hamlets outside the wall.
+describe("the fortress on the hill", () => {
+  const ring: Polygon = Array.from({ length: 24 }, (_, i) => {
+    const a = (i / 24) * Math.PI * 2;
+    return [center[0] + Math.cos(a) * 60, center[1] + Math.sin(a) * 60] as Point;
+  });
+  it("stands on high ground like the other mountain kinds", () => {
+    const arch = selectArchetype({ coastal: false, elevation: 0.9, size: 3, biome: 4, pick: 0 });
+    expect(arch.id).toBe("hilltopFortress");
+    expect(makeMountains(mulberry32(5), arch, ring, center, bounds).length).toBeGreaterThan(0);
+  });
+  it("keeps ground open outside the wall for its fields and hamlets", () => {
+    const arch = selectArchetype({ coastal: false, elevation: 0.9, size: 3, biome: 4, pick: 0 });
+    const masses = makeMountains(mulberry32(5), arch, ring, center, bounds);
+    // sample the ring of ground just outside the wall: a collar of rock would leave nowhere to farm
+    let open = 0, total = 0;
+    for (let i = 0; i < 36; i++) {
+      const a = (i / 36) * Math.PI * 2;
+      const p: Point = [center[0] + Math.cos(a) * 80, center[1] + Math.sin(a) * 80];
+      total++;
+      if (!inMountains(masses, p)) open++;
+    }
+    expect(open / total).toBeGreaterThan(0.4);
+  });
+});

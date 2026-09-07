@@ -84,12 +84,30 @@ export function renderCity(layout: CityLayout, lang: Lang = "en"): SVGSVGElement
       const crest = m.steep ? "#5f5648" : "#7a715f";
       mg.appendChild(svgEl("polygon", { class: "mountain", points: pts(m.polygon), fill: m.steep ? "#a99e8c" : "#bcb2a0", stroke: "none" }));
       mg.appendChild(svgEl("polyline", { class: "cliff", points: pts(m.innerEdge), fill: "none", stroke: crest, "stroke-width": m.steep ? 1.4 : 0.9, "stroke-linejoin": "round" }));
+      // Hachures used to be drawn along the crest and nowhere else, while the mass itself runs out
+      // to the edge of the plate: on a spur town that left 45% of the page as one flat shape wearing
+      // 15 tick marks. A hachure field fills the body — a short downhill stroke on a lattice, the
+      // same idea the world map uses when it puts a glyph on every alpine cell. HACH_STEP is the
+      // lattice pitch; below about 8 the strokes merge into a grey wash again and the node count
+      // stops paying for itself.
       const step = m.steep ? 1 : 2, len = m.steep ? 5 : 3.5;
-      for (let i = 0; i < m.innerEdge.length; i += step) {
-        const p = m.innerEdge[i];
-        const dx = p[0] - w / 2, dy = p[1] - h / 2, L = Math.hypot(dx, dy) || 1;
-        const sx = p[0] + (dx / L) * len, sy = p[1] + (dy / L) * len; // start out in the mass, point downhill to the crest
-        mg.appendChild(svgEl("line", { class: "hachure", x1: sx.toFixed(1), y1: sy.toFixed(1), x2: p[0].toFixed(1), y2: p[1].toFixed(1), stroke: crest, "stroke-width": 0.5 }));
+      const tick = (px: number, py: number, l: number): void => {
+        const dx = px - w / 2, dy = py - h / 2, L = Math.hypot(dx, dy) || 1;
+        mg.appendChild(svgEl("line", {
+          class: "hachure", x1: (px + (dx / L) * l).toFixed(1), y1: (py + (dy / L) * l).toFixed(1),
+          x2: px.toFixed(1), y2: py.toFixed(1), stroke: crest, "stroke-width": 0.5,
+        }));
+      };
+      for (let i = 0; i < m.innerEdge.length; i += step) tick(m.innerEdge[i][0], m.innerEdge[i][1], len);
+      const HACH_STEP = 9;
+      let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+      for (const [px, py] of m.polygon) { x0 = Math.min(x0, px); y0 = Math.min(y0, py); x1 = Math.max(x1, px); y1 = Math.max(y1, py); }
+      let row = 0;
+      for (let py = y0 + HACH_STEP / 2; py < y1; py += HACH_STEP, row++) {
+        const off = row % 2 ? HACH_STEP / 2 : 0; // stagger, or the field reads as a printed grid
+        for (let px = x0 + off; px < x1; px += HACH_STEP) {
+          if (pointInPolygon([px, py], m.polygon)) tick(px, py, len * 0.7);
+        }
       }
     }
     root.appendChild(mg);

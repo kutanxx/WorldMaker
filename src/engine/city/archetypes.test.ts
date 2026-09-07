@@ -58,4 +58,14 @@ describe("selectArchetype", () => {
     // pick omitted -> hilltopFortress (backward compatible)
     expect(selectArchetype(mtn).id).toBe("hilltopFortress");
   });
+
+  // The gate stood at 0.70 and the highest town in 840 measured 0.741, so mountain towns arrived
+  // 0.2 times per world of 28 -- the whole mountain-city feature reached under 1% of towns and most
+  // worlds had none at all. At 0.60 it is ~1.8 per world: a reader meets one, and it is still rare.
+  // 0.60 also stays clear of the world map's own alpine line (mountainLevel 0.55), so a foothill
+  // town is not drawn as a mountain one.
+  it("gives the high ground its own kinds of town, at a height towns actually reach", () => {
+    expect(selectArchetype({ ...inland, elevation: 0.60, biome: GRASSLAND, pick: 0 }).id).toBe("hilltopFortress");
+    expect(selectArchetype({ ...inland, elevation: 0.59, biome: GRASSLAND, pick: 0 }).id).toBe("plainsMarket");
+  });
 });

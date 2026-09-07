@@ -344,3 +344,28 @@ describe("the town plan's district key", () => {
     expect(svg.querySelector(".legend .legend-title")?.textContent).toBe("Districts");
   });
 });
+
+// The mass ran out to the edge of the plate but the hachures only ever hugged its crest, so on a
+// spur town nearly half the plate was a single flat #a99e8c shape carrying 15 tick marks. Measured:
+// 45.8% of the plate, 15 hachures. The world map answers the same question with a glyph per alpine
+// cell; the town plan needs the same idea inside the mass, not only along its rim.
+describe("mountain masses are drawn as ground, not as grey paper", () => {
+  const area = (poly: number[][]) => {
+    let a = 0;
+    for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) a += poly[j][0] * poly[i][1] - poly[i][0] * poly[j][1];
+    return Math.abs(a) / 2;
+  };
+  it("carries hachures through the body of the mass, in proportion to its size", () => {
+    let mtn = null;
+    for (let s = 1; s <= 40 && !mtn; s++) {
+      const l = generateCityLayout(cityContext({ ...marker, coastal: false, elevation: 0.9, biome: 4 }), s);
+      if (l.mountains.length) mtn = l;
+    }
+    expect(mtn).not.toBeNull();
+    const svg = renderCity(mtn!, "en");
+    const hachures = svg.querySelectorAll(".hachure").length;
+    const rock = mtn!.mountains.reduce((a, m) => a + area(m.polygon), 0);
+    // one stroke per 400 square units is far below what a hachure field gives and far above a rim
+    expect(hachures).toBeGreaterThan(rock / 400);
+  });
+});

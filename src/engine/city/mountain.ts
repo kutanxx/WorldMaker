@@ -18,8 +18,16 @@ function wrap(a: number): number {
   return a;
 }
 
+// The four archetypes the high ground produces; hilltopFortress was missing from this list, which
+// is how the one kind named for its hill ended up as a walled town on a flat plain.
+const MOUNTAIN_SHAPED = new Set<Archetype["id"]>(["hilltopFortress", "hillside", "spur", "valleyPass"]);
+
 function massSpecs(rng: Rng, id: Archetype["id"]): MassSpec[] {
   const base = rng() * Math.PI * 2;
+  // One broad shoulder, not a collar. These masses run out to the edge of the plate, so a ring of
+  // them would bury the fields, hamlets and mills that live outside the wall; a wide flank reads as
+  // a fortress holding the end of a ridge and leaves the rest of the ground open.
+  if (id === "hilltopFortress") return [{ dir: base, phi: 1.5, steep: true }];
   if (id === "hillside") return [{ dir: base, phi: 0.9, steep: false }];
   if (id === "spur") return [0, 1, 2].map((k) => ({ dir: base + (k * 2 * Math.PI) / 3 + (rng() - 0.5) * 0.3, phi: 0.7, steep: true }));
   // valleyPass: two opposite valley walls
@@ -29,7 +37,7 @@ function massSpecs(rng: Rng, id: Archetype["id"]): MassSpec[] {
 export function makeMountains(
   rng: Rng, archetype: Archetype, boundary: Polygon, center: Point, bounds: { w: number; h: number },
 ): MountainMass[] {
-  if (archetype.id !== "hillside" && archetype.id !== "spur" && archetype.id !== "valleyPass") return [];
+  if (!MOUNTAIN_SHAPED.has(archetype.id)) return [];
   const specs = massSpecs(rng, archetype.id);
   const noise = createNoise2D(rng);
   const vAng = boundary.map((p) => Math.atan2(p[1] - center[1], p[0] - center[0]));
