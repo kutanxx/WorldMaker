@@ -56,9 +56,17 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
   const regenBtn = document.createElement("button");
   const randomBtn = document.createElement("button");
   randomBtn.className = "random-seed";
+  // One control, not three buttons each repeating the verb: the formats name themselves and the
+  // download arrow says what the group does. See the note in theme.css for what that bought.
+  const exportGroup = document.createElement("div");
+  exportGroup.className = "export-group";
+  const exportIcon = document.createElement("span");
+  exportIcon.className = "export-icon";
+  exportIcon.textContent = "⬇";
   const jsonBtn = document.createElement("button");
   const pngBtn = document.createElement("button");
   const svgBtn = document.createElement("button");
+  exportGroup.append(exportIcon, jsonBtn, pngBtn, svgBtn);
   const gazBtn = document.createElement("button");
   gazBtn.className = "gazetteer";
   const langBtn = document.createElement("button");
@@ -70,16 +78,18 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
   const cultureBtn = document.createElement("button");
   const provinceBtn = document.createElement("button");
   viewToggle.append(terrainBtn, politicalBtn, cultureBtn, provinceBtn);
-  controls.append(homeBtn, seedInput, regenBtn, randomBtn, jsonBtn, pngBtn, svgBtn, gazBtn, viewToggle, langBtn);
+  controls.append(homeBtn, seedInput, regenBtn, randomBtn, exportGroup, gazBtn, viewToggle, langBtn);
 
   // set every UI string from the current language (called on init and on language toggle)
   function applyLang(): void {
     homeBtn.textContent = t(lang, "home");
+    homeBtn.title = t(lang, "homeLabel"); // the house carries it; the word cost the toolbar a second row
     regenBtn.textContent = t(lang, "generate");
     randomBtn.textContent = "🎲 " + t(lang, "randomSeed");
     jsonBtn.textContent = t(lang, "exportJson");
     pngBtn.textContent = t(lang, "exportPng");
     svgBtn.textContent = t(lang, "exportSvg");
+    exportIcon.title = t(lang, "exportLabel"); // the verb, said once for the group
     gazBtn.textContent = "📜 " + t(lang, "gazetteer");
     terrainBtn.textContent = t(lang, "terrain");
     politicalBtn.textContent = t(lang, "political");

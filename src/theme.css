@@ -24,7 +24,7 @@ button, input {
   background: #f3ead2; border: 1px solid #b7a071; border-radius: 4px; cursor: pointer;
 }
 button:hover { background: #e7d9b6; }
-input[type=number] { width: 88px; cursor: text; }
+input[type=number] { width: 74px; cursor: text; } /* six digits fit; 88 did not fit the toolbar */
 /* home link (back to the landing chooser): styled to sit among the controls buttons, but a touch
    warmer so it reads as "leave this screen" rather than an action. Anchor, so it navigates natively. */
 a.home {
@@ -92,6 +92,17 @@ svg.world .legend { pointer-events: none; }
 .chronicle-event.evt-independence { color: #2f6f4a; }
 .chronicle-event.evt-goldenage { color: #9a6a1a; }
 .chronicle-event.evt-staple { color: #2f5a7a; }
+/* The three export buttons each repeated the word "export" — 325px of a 1014px toolbar in Korean,
+   274 in English — and that is what pushed the language toggle onto a second row in BOTH languages.
+   (The toolbar's width comes from #app's 1040px cap, so the window's size never entered into it.)
+   One segmented control, the same shape as the view toggle, with the verb carried by the arrow. */
+.export-group { display: inline-flex; align-items: center; gap: 0; }
+.export-group .export-icon { padding: 0 5px 0 1px; color: #6b5a3f; cursor: default; }
+.export-group button { border-radius: 0; }
+.export-group button:first-of-type { border-radius: 4px 0 0 4px; }
+.export-group button:last-of-type { border-radius: 0 4px 4px 0; }
+.export-group button:not(:first-of-type) { border-left: none; }
+
 .view-toggle { display: inline-flex; gap: 0; }
 .view-toggle button { border-radius: 0; }
 .view-toggle button:first-child { border-radius: 4px 0 0 4px; }

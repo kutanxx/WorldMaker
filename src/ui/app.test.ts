@@ -33,11 +33,13 @@ describe("createApp", () => {
     circle.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     expect(root.querySelector("svg.city")).not.toBeNull();
   });
-  it("exposes an SVG export button", () => {
+  // this used to look for the label "Export SVG", which pinned the wording rather than the offer.
+  // The three formats are one segmented control now; what matters is that SVG is on it.
+  it("offers an SVG export", () => {
     const root = document.createElement("div");
     createApp(root, small);
-    const labels = Array.from(root.querySelectorAll(".controls button")).map((b) => b.textContent);
-    expect(labels).toContain("Export SVG");
+    const labels = Array.from(root.querySelectorAll(".export-group button")).map((b) => b.textContent);
+    expect(labels).toContain("SVG");
   });
   it("exposes a gazetteer (markdown) export button", () => {
     const root = document.createElement("div");
@@ -64,7 +66,10 @@ describe("createApp", () => {
     const home = root.querySelector(".controls a.home");
     expect(home).not.toBeNull();
     expect(home!.getAttribute("href")).toBe("index.html");
-    expect(home!.textContent).toMatch(/Home|홈/);
+    // the word moved to the tooltip when the toolbar ran out of room; the house is the visible part,
+    // but the link must still SAY what it is to a hover or a screen reader
+    expect(home!.textContent).toContain("🏠");
+    expect(home!.getAttribute("title")).toMatch(/Home|홈/);
   });
   it("shows a timeline and a political layer over the world", () => {
     const root = document.createElement("div");
@@ -212,6 +217,27 @@ describe("export follows the screen", () => {
     const text = got!.text;
     expect(text).toContain('class="city"');
     expect(text).not.toContain("coastline");
+  });
+
+  // The three export buttons each repeated the word "export": 325px of toolbar in Korean, 274 in
+  // English, for one idea said three times. The toolbar has 1014px to work with (#app is capped at
+  // 1040 and the window's width never enters into it), so it wrapped in BOTH languages -- by 32px in
+  // Korean, 128 in English, which put the language toggle alone on a second row. They are one
+  // segmented control now, the pattern the view toggle already uses, and the verb is carried once.
+  it("offers the three formats as one group, each still writing its own file", async () => {
+    const root = document.createElement("div");
+    createApp(root, small);
+    const group = root.querySelector(".export-group");
+    expect(group).not.toBeNull();
+    const btns = [...group!.querySelectorAll("button")];
+    expect(btns.map((b) => b.textContent)).toEqual(["JSON", "PNG", "SVG"]);
+    // the word "export" is said once for the group, not once per button
+    expect(group!.textContent).not.toMatch(/내보내기|Export/);
+    for (const [i, ext] of [[0, "json"], [2, "svg"]] as const) {
+      const got = await captureDownload(() => btns[i].click());
+      expect(got, ext).not.toBeNull();
+      expect(got!.name).toMatch(new RegExp(`\.${ext}$`));
+    }
   });
 
   it("names the file after the city, so a folder of them can be told apart", async () => {
