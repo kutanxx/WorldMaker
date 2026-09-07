@@ -183,9 +183,18 @@ describe("simulateHistory golden anchor (behaviour lock)", () => {
   // rim, so every world has a coast. Different worlds, different histories: a shared seed link
   // made before this renders a different map, which was the price agreed for the fix. From here
   // the old rule stands again — a change that is not meant to move the world must not move these.
+  // 2026-09-08: the `events` AND `polities` hashes were re-pinned for seeds 1 and 2. assignCultures
+  // stopped handing each land cell to the nearest centre in a straight line and started growing the
+  // cultures over land adjacency, which moves 19% of cells between cultures and so changes 15% of
+  // city names — and event sentences name cities. The rule three paragraphs up is what licenses the
+  // re-pin: all four counts and `allSnap` reproduced untouched on every seed, as did world.test's
+  // `polityOf` and `cityCells`, so the simulation ran the same 500 years over the same map and only
+  // the words changed. `polities` folds `p.name` beside endedYear/origin/free, and realm names come
+  // from the same phonetics, so it moves for the same reason and by the same licence. Seed 3 did not
+  // move at all: nothing it names happens to have been renamed.
   const anchors: Record<number, { snaps: number; pols: number; evs: number; econ: number; allSnap: number; events: number; polities: number }> = {
-    1: { snaps: 51, pols: 20, evs: 56, econ: 3, allSnap: 1648675569, events: 2831389653, polities: 1102447988 },
-    2: { snaps: 51, pols: 17, evs: 48, econ: 3, allSnap: 4266384045, events: 2111645432, polities: 1525729082 },
+    1: { snaps: 51, pols: 20, evs: 56, econ: 3, allSnap: 1648675569, events: 3929536011, polities: 2314983389 },
+    2: { snaps: 51, pols: 17, evs: 48, econ: 3, allSnap: 4266384045, events:  657182638, polities: 3071929438 },
     3: { snaps: 51, pols: 17, evs: 42, econ: 3, allSnap:  325069013, events: 3576030188, polities: 1274101309 },
   };
   for (const seed of [1, 2, 3]) {
