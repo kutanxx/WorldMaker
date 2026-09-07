@@ -152,7 +152,7 @@ describe("renderCity organic", () => {
     expect(firstRoad).toBeGreaterThan(lastBuilding); // roads come after buildings in DOM → drawn on top
   });
   it("draws the castle as a donjon: inner wall, towers, keep with shadow, inner tower and 4 corner turrets", () => {
-    const layout = generateCityLayout({ id: 7, name: "T", size: 4, coastal: false, isCapital: false, elevation: 0.4, biome: GRASSLAND }, 1);
+    const layout = generateCityLayout({ id: 7, name: "T", size: 4, coastal: false, isCapital: true, elevation: 0.4, biome: GRASSLAND }, 1);
     const svg = renderCity(layout, "en");
     expect(svg.querySelector(".castle-wall")).not.toBeNull();
     expect(svg.querySelector(".castle-keep")).not.toBeNull();
@@ -160,6 +160,17 @@ describe("renderCity organic", () => {
     expect(svg.querySelector(".castle-keep-inner")).not.toBeNull();
     expect(svg.querySelectorAll(".castle-turret").length).toBe(4);
     expect(svg.querySelectorAll(".castle-tower").length).toBe(layout.castle!.towers.length);
+  });
+  // a town with no seated lord has no castle at all: the branch existed but was unreachable while
+  // every town was given one, so this pins that the plate simply omits the donjon rather than
+  // drawing an empty enclosure.
+  it("draws no castle at all in a town that seats no lord", () => {
+    const layout = generateCityLayout({ id: 7, name: "T", size: 1, coastal: false, isCapital: false, elevation: 0.4, biome: GRASSLAND }, 1);
+    expect(layout.castle).toBeNull();
+    const svg = renderCity(layout, "en");
+    for (const c of [".castle-wall", ".castle-keep", ".castle-keep-shadow", ".castle-keep-inner", ".castle-turret", ".castle-tower"]) {
+      expect(svg.querySelectorAll(c).length).toBe(0);
+    }
   });
   it("renders a parish-church steeple per parishChurches entry", () => {
     const layout = generateCityLayout({ id: 7, name: "T", size: 3, coastal: false, isCapital: false, elevation: 0.4, biome: GRASSLAND }, 1);

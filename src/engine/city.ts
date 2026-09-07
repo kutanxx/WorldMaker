@@ -112,6 +112,10 @@ const DENSITY: Partial<Record<WardType, number>> = {
 // river towns are defended by the river itself — a separate moat ring hugging the wall read as a
 // second, disconnected river alongside the big one, so bridgeTown gets no moat (user-reported)
 const MOAT_ARCHETYPES = new Set(["coastalPort", "plainsMarket"]);
+// a town below this is a hamlet: too small to be anyone's seat. Above it, roughly one market town
+// in three answers to a resident lord — often enough to be unremarkable, rare enough to mean something.
+const LORD_SEAT_MIN_SIZE = 3;
+const LORD_SEAT_ODDS = 1 / 3;
 
 export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLayout {
   const rng: Rng = mulberry32(deriveSeed(worldSeed, ctx.id));
@@ -215,8 +219,15 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
 
   let cells = wardCells;
   // the keep sits on the high ground: anchor it toward the mountain mass, if any
+  // A castle marks a LORD'S SEAT, not a wall. Every walled town used to get one, which across 10
+  // seeds meant all 280 towns had a castle and the symbol said nothing: the realm's capital, the
+  // fortress that is a castle before it is a town, and a minority of market towns where a lesser
+  // lord sits. Its own rng stream (the mountain-pick convention), so a town that keeps its castle
+  // draws exactly what it drew before and its plan is byte-identical.
+  const hasCastle = ctx.isCapital || archetype.id === "hilltopFortress"
+    || (ctx.size >= LORD_SEAT_MIN_SIZE && mulberry32(deriveSeed(worldSeed, ctx.id + 4300))() < LORD_SEAT_ODDS);
   let castleAnchor: Point | undefined;
-  if (mountains.length) {
+  if (hasCastle && mountains.length) {
     let sx = 0, sy = 0, cnt = 0;
     for (const m of mountains) for (const p of m.innerEdge) { sx += p[0]; sy += p[1]; cnt++; }
     const mx = sx / cnt, my = sy / cnt;
@@ -233,7 +244,7 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
   }
   // the lord's castle sits AT the town wall (research: urban castle) unless a mountain
   // anchor already claims the high ground. Bias the wall pick away from the sea side.
-  if (!castleAnchor) {
+  if (hasCastle && !castleAnchor) {
     let v: Point;
     if (seaAnchor) {
       // coastal: put the castle on the wall run farthest from the harbor side
@@ -248,7 +259,7 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
     }
     castleAnchor = [center[0] + (v[0] - center[0]) * 0.85, center[1] + (v[1] - center[1]) * 0.85];
   }
-  const zoned = assignZones(rng, cells, [center[0], center[1]], radius, { hasCastle: true, coastal: ctx.coastal, castleAnchor, seaAnchor });
+  const zoned = assignZones(rng, cells, [center[0], center[1]], radius, { hasCastle, coastal: ctx.coastal, castleAnchor, seaAnchor });
 
   const parks: Polygon[] = [];
   const wards: Ward[] = zoned.map((z) => {

@@ -428,10 +428,16 @@ describe("city harbor (Phase 3)", () => {
     for (const f of cs.fields) expect(pointInPolygon(centroid(f.polygon), layout.boundary)).toBe(false);
     for (const p of cs.pastures) expect(pointInPolygon(centroid(p.fence), layout.boundary)).toBe(false);
   });
-  it("every city has a lord's castle with an inner wall and keep", () => {
+  // this used to assert that EVERY city has a castle, which pinned the old universal-castle rule
+  // rather than the thing it names. What it protects is the castle's fabric: wherever a lord is
+  // seated, the seat is a walled enclosure with a keep, standing in a ward of its own.
+  it("gives a seated lord an inner wall, towers and a keep, in a castle ward", () => {
     for (const size of [1, 3, 5]) {
-      const layout = generateCityLayout({ id: 7, name: "T", size, coastal: false, isCapital: false, elevation: 0.4, biome: GRASSLAND }, 1);
+      const layout = generateCityLayout({ id: 7, name: "T", size, coastal: false, isCapital: true, elevation: 0.4, biome: GRASSLAND }, 1);
       expect(layout.castle).not.toBeNull();
+      expect(layout.castle!.innerWall.length).toBeGreaterThan(2);
+      expect(layout.castle!.towers.length).toBe(layout.castle!.innerWall.length);
+      expect(layout.castle!.keep.length).toBeGreaterThan(2);
       expect(layout.wards.some((w2) => w2.type === "castle")).toBe(true);
     }
   });
@@ -549,5 +555,41 @@ describe("city labels name what is singular", () => {
   it("puts more names on the plan than the old five-type list did", () => {
     const L = build(1, (c) => c.isCapital);
     expect(L.labels.length).toBeGreaterThan(4);
+  });
+});
+
+// A castle in all 28 towns of a world told the reader nothing: measured across 10 seeds every one
+// of 280 towns had one, small hamlets included. The castle now marks a LORD'S SEAT — the realm's
+// capital, the fortress that is itself a castle, and a minority of market towns — so its presence
+// on the plate carries information again.
+describe("the lord's castle", () => {
+  const town = (over: Partial<typeof base>) => cityContext({ ...base, ...over });
+  it("stands in the capital of the realm", () => {
+    for (let s = 1; s <= 12; s++) {
+      expect(generateCityLayout(town({ isCapital: true, size: 4 }), s).castle).not.toBeNull();
+    }
+  });
+  it("is absent from a hamlet — walls alone do not seat a lord", () => {
+    for (let s = 1; s <= 12; s++) {
+      for (const size of [1, 2]) {
+        expect(generateCityLayout(town({ isCapital: false, size }), s).castle).toBeNull();
+      }
+    }
+  });
+  it("seats a lord in some market towns and not others", () => {
+    let seated = 0, unseated = 0;
+    for (let s = 1; s <= 40; s++) {
+      if (generateCityLayout(town({ isCapital: false, size: 3 }), s).castle) seated++;
+      else unseated++;
+    }
+    expect(seated).toBeGreaterThan(4);
+    expect(unseated).toBeGreaterThan(4);
+  });
+  it("always holds the hilltop fortress, which is a castle before it is a town", () => {
+    for (const s of [4, 14, 17, 21, 27]) { // seeds whose 0.85-elevation pick is hilltopFortress
+      const l = generateCityLayout(town({ isCapital: false, size: 2, elevation: 0.85 }), s);
+      expect(l.archetype.id).toBe("hilltopFortress");
+      expect(l.castle).not.toBeNull();
+    }
   });
 });
