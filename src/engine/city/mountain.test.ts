@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { mulberry32 } from "../rng";
 import type { Polygon, Point } from "../geometry";
 import { makeMountains, inMountains } from "./mountain";
-import { selectArchetype } from "./archetypes";
+import { selectArchetype, TABLE } from "./archetypes";
 
 const bounds = { w: 300, h: 300 };
 const center: Point = [150, 150];
@@ -22,10 +22,13 @@ describe("makeMountains", () => {
     // the rng must be untouched: a fresh rng at the same seed yields the same next value
     expect(rngA()).toBe(rngB());
   });
-  it("makes 1 mass for hillside, 3 for spur, 2 for valleyPass", () => {
-    expect(makeMountains(mulberry32(3), arch(0.3), ring, center, bounds).length).toBe(1); // hillside
-    expect(makeMountains(mulberry32(3), arch(0.6), ring, center, bounds).length).toBe(3); // spur
-    expect(makeMountains(mulberry32(3), arch(0.99), ring, center, bounds).length).toBe(2); // valleyPass
+  // named rather than reached through `pick`: the variant list grows, and a test that says "0.6
+  // means spur" breaks for a reason that has nothing to do with what it is checking.
+  it("gives each kind of high ground the number of masses its shape needs", () => {
+    expect(makeMountains(mulberry32(3), TABLE.hillside, ring, center, bounds).length).toBe(1);
+    expect(makeMountains(mulberry32(3), TABLE.spur, ring, center, bounds).length).toBe(3);
+    expect(makeMountains(mulberry32(3), TABLE.valleyPass, ring, center, bounds).length).toBe(2);
+    expect(makeMountains(mulberry32(3), TABLE.hilltopFortress, ring, center, bounds).length).toBe(1);
   });
   it("each mass is a closed-ish polygon with an inner edge; interior sits outside the rim", () => {
     const masses = makeMountains(mulberry32(7), arch(0.3), ring, center, bounds);

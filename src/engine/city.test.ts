@@ -61,8 +61,9 @@ describe("city organic", () => {
   });
   it("shows a river in the drilldown when a world river runs through the city cell (world<->city coupling)", () => {
     const withRiver = generateCityLayout({ id: 7, name: "T", size: 4, coastal: false, isCapital: false, elevation: 0.4, biome: GRASSLAND, river: true }, 1);
-    expect(withRiver.archetype.id).toBe("bridgeTown");
-    expect(withRiver.water.kind).toBe("river");
+    // a river cell yields one of the two river kinds — crossed by bridges, or wrapped by a meander
+    expect(["bridgeTown", "meanderDefense"]).toContain(withRiver.archetype.id);
+    expect(["river", "meander"]).toContain(withRiver.water.kind);
     expect(withRiver.water.bodies.length).toBeGreaterThan(0);
     // a river town is defended by the river, not a separate moat ring, and the banks are joined by
     // bridges spanning the channel (a river bisecting the town used to get just one)

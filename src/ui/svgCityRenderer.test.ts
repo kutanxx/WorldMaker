@@ -192,7 +192,7 @@ describe("renderCity organic", () => {
   });
   it("re-draws the river channel ON TOP of the city ground (clipped) so it flows through the town", () => {
     const layout = generateCityLayout({ id: 7, name: "T", size: 4, coastal: false, isCapital: false, elevation: 0.4, biome: GRASSLAND, river: true }, 1);
-    expect(layout.archetype.id).toBe("bridgeTown");
+    expect(["bridgeTown", "meanderDefense"]).toContain(layout.archetype.id);
     const svg = renderCity(layout, "en");
     const clipped = svg.querySelector("g[clip-path]")!;
     // the water is re-painted inside the boundary group, above the opaque ground fill (bottom pass

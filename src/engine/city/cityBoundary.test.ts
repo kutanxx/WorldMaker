@@ -35,7 +35,7 @@ describe("cityBoundary", () => {
       const rs = b.map((p) => Math.hypot(p[0] - 150, p[1] - 150));
       return Math.max(...rs) / Math.min(...rs);
     };
-    const linear = polarSpread(arch({ id: "ridgeLinear", streetField: "linear" }));
+    const linear = polarSpread(arch({ id: "valleyPass", streetField: "linear" }));
     const compact = polarSpread(arch({ id: "hilltopFortress", streetField: "radial", wallShape: "contour" }));
     expect(linear).toBeGreaterThan(compact * 1.1);
     expect(linear).toBeGreaterThan(1.4);
