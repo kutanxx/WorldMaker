@@ -34,11 +34,18 @@ export function buildWater(rng: Rng, kind: WaterKind, bounds: { w: number; h: nu
     const side = randInt(rng, 0, 3); // 0 right, 1 bottom, 2 left, 3 top
     const noise = createNoise2D(rng);
     const depth = (0.24 + rng() * 0.1) * (side % 2 === 0 ? w : h);
-    const K = 12, amp = 13;
+    // The shore is summed octaves, not one wave. A single low-frequency wave sampled 13 times gave
+    // a waterfront 1% longer than a straight line, sitting beside a world map whose coastline is 6%
+    // longer per voronoi edge -- at the plate's scale that reads as the edge of a colour band. Three
+    // octaves put bays, headlands and coves on the same shore. K is high enough that even the top
+    // octave gets ~3 samples per period (below that it aliases into a sawtooth).
+    const K = 96, amp = 13;
+    const OCTAVES: [number, number][] = [[3.2, 1], [7.5, 0.55], [17, 0.3], [36, 0.16]];
     const edge: Point[] = [];
     for (let i = 0; i <= K; i++) {
       const t = i / K;
-      const n = noise(t * 3.2, side * 1.7) * amp;
+      let n = 0;
+      for (let o = 0; o < OCTAVES.length; o++) n += noise(t * OCTAVES[o][0], side * 1.7 + o * 37.3) * amp * OCTAVES[o][1];
       if (side === 0) edge.push([w - depth + n, t * h]);
       else if (side === 1) edge.push([t * w, h - depth + n]);
       else if (side === 2) edge.push([depth + n, t * h]);

@@ -115,6 +115,10 @@ export function generateCountryside(rng: Rng, opts: CountrysideOpts): Countrysid
   const polyOk = (poly: Polygon, gap: number) => {
     const c = centroid(poly);
     if (poly.some(blocked) || blocked(c)) return false;
+    // water needs the same exact-geometry treatment the roads and claimed patches already get:
+    // vertex + centroid probes miss a cove narrow enough to pass between them, and the shore now
+    // has coves that narrow (seed 25 put a field across one).
+    if (water.bodies.some((b) => polysOverlap(poly, b))) return false;
     if (obstacles.some((o) => Math.hypot(o[0] - c[0], o[1] - c[1]) < gap)) return false;
     if (claimedPolys.some((cp) => polysOverlap(poly, cp))) return false;
     if (roadThrough(poly) || nearMoat(poly)) return false;
