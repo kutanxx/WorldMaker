@@ -185,7 +185,17 @@ describe("export follows the screen", () => {
     URL.revokeObjectURL = (() => {}) as typeof URL.revokeObjectURL;
     const click = HTMLAnchorElement.prototype.click;
     HTMLAnchorElement.prototype.click = function (this: HTMLAnchorElement) { names.push(this.download); };
-    try { fn(); await new Promise((r) => setTimeout(r, 60)); } finally {
+    // Wait for the download, not for the clock. The export's async tail is dominated by a dynamic
+    // import() of the font module: measured at 27ms once the module is cached and 64ms cold, against
+    // a budget that used to be a flat 60ms. That made the result a coin toss on whether some earlier
+    // test file had already warmed Vite's transform cache -- green here, red on every CI run since
+    // the test was written (six deploys blocked). Polling is fast when the export is fast and still
+    // correct when the runner is slow.
+    try {
+      fn();
+      const deadline = Date.now() + 5000;
+      while (!created.length && Date.now() < deadline) await new Promise((r) => setTimeout(r, 5));
+    } finally {
       URL.createObjectURL = url; URL.revokeObjectURL = revoke;
       HTMLAnchorElement.prototype.click = click;
     }
