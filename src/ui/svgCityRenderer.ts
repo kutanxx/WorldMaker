@@ -35,6 +35,11 @@ function spacedTowers(ring: Point[], minGap: number, target = 8): Point[] {
   return out;
 }
 
+// The castle is built of the town's own masonry, only more of it: the same warm stone as the town
+// wall and its drum towers, so the two read as one world, and heavier, so the lord's enceinte is
+// plainly the strongest thing on the plate rather than the faintest line on it.
+const CASTLE_STONE = "#43392d";
+const CASTLE_TOWER = "#8a7858";
 const BRIDGE_EDGE = "#5f5a4e";
 const BRIDGE_DECK = "#a8a294";
 
@@ -312,9 +317,10 @@ export function renderCity(layout: CityLayout, lang: Lang = "en"): SVGSVGElement
 
   // the lord's castle: inner enceinte + towers + gate/postern + keep + annexes, drawn over
   // the castle ward's buildings (there are none — NO_BUILDINGS skips it) so it reads as the citadel.
+  let castleG: SVGGElement | null = null;
   if (layout.castle) {
     const ca = layout.castle;
-    const cg = svgEl("g", { class: "castle-inner" });
+    const cg = svgEl("g", { class: "castle-inner", "clip-path": `url(#${clipId})` }) as SVGGElement;
     // Every part below used to be drawn at a constant size, so a royal seat wore a market town's
     // furniture -- turrets r1.6, towers r2.1, a gate r1.1, the same on a size-6 capital as on a
     // size-3 market town, and at this scale the furniture is what the eye reads. It is in units of
@@ -323,30 +329,50 @@ export function renderCity(layout: CityLayout, lang: Lang = "en"): SVGSVGElement
     // outer curtain of a great castle, with the bailey between it and the enceinte
     if (ca.outerWall) {
       cg.appendChild(svgEl("polygon", { class: "castle-bailey", points: pts(ca.outerWall), fill: "#c8cdd8", "fill-opacity": 0.55 }));
-      cg.appendChild(svgEl("polygon", { class: "castle-outer-wall", points: pts(ca.outerWall), fill: "none", stroke: "#5a5346", "stroke-width": 1.3, "stroke-linejoin": "round" }));
-      cg.appendChild(svgEl("polygon", { class: "castle-outer-wall-inner", points: pts(ca.outerWall), fill: "none", stroke: "#8a7a60", "stroke-width": 0.5, "stroke-linejoin": "round" }));
-      for (const t2 of spacedTowers(ca.outerWall, 5 * S)) cg.appendChild(svgEl("circle", { class: "castle-outer-tower", cx: t2[0], cy: t2[1], r: 1.5 * S, fill: "#8a8272", stroke: "#4c463c", "stroke-width": 0.5 }));
+      cg.appendChild(svgEl("polygon", { class: "castle-outer-wall", points: pts(ca.outerWall), fill: "none", stroke: CASTLE_STONE, "stroke-width": 3.4, "stroke-linejoin": "round" }));
+      cg.appendChild(svgEl("polygon", { class: "castle-outer-wall-inner", points: pts(ca.outerWall), fill: "none", stroke: "#8a7a60", "stroke-width": 0.8, "stroke-linejoin": "round" }));
+      for (const t2 of spacedTowers(ca.outerWall, 5 * S)) cg.appendChild(svgEl("circle", { class: "castle-outer-tower", cx: t2[0], cy: t2[1], r: 2.4 * S, fill: CASTLE_TOWER, stroke: CASTLE_STONE, "stroke-width": 0.8 }));
     }
     for (const an of ca.annexes) cg.appendChild(svgEl("polygon", { class: "castle-annex", points: pts(an), fill: "#cfd4dd", stroke: "#5a6272", "stroke-width": 0.4 }));
     // inner wall: town-wall-style double stroke
-    cg.appendChild(svgEl("polygon", { class: "castle-wall", points: pts(ca.innerWall), fill: "none", stroke: "#5a5346", "stroke-width": 1.6, "stroke-linejoin": "round" }));
-    cg.appendChild(svgEl("polygon", { class: "castle-wall-inner", points: pts(ca.innerWall), fill: "none", stroke: "#8a7a60", "stroke-width": 0.6, "stroke-linejoin": "round" }));
-    for (const t2 of spacedTowers(ca.towers, 6 * S)) cg.appendChild(svgEl("circle", { class: "castle-tower", cx: t2[0], cy: t2[1], r: 2.1 * S, fill: "#8a8272", stroke: "#4c463c", "stroke-width": 0.6 }));
-    // a great seat is entered through a gatehouse: two towers flanking the opening, drawn under it
-    if (ca.gatehouse) for (const [gx, gy] of ca.gatehouse) {
-      cg.appendChild(svgEl("circle", { class: "castle-gatehouse", cx: gx, cy: gy, r: 2.6 * S, fill: "#8a8272", stroke: "#4c463c", "stroke-width": 0.7 }));
+    cg.appendChild(svgEl("polygon", { class: "castle-wall", points: pts(ca.innerWall), fill: "none", stroke: CASTLE_STONE, "stroke-width": 4.4, "stroke-linejoin": "round" }));
+    cg.appendChild(svgEl("polygon", { class: "castle-wall-inner", points: pts(ca.innerWall), fill: "none", stroke: "#9a8a68", "stroke-width": 1.1, "stroke-linejoin": "round" }));
+    for (const t2 of spacedTowers(ca.towers, 6 * S)) cg.appendChild(svgEl("circle", { class: "castle-tower", cx: t2[0], cy: t2[1], r: 3.1 * S, fill: CASTLE_TOWER, stroke: CASTLE_STONE, "stroke-width": 0.9 }));
+    // A gatehouse is a BUILDING astride the wall, not two dots beside a hole: a block spanning the
+    // opening, carried a little way out over the ditch and back into the yard, with a drum tower on
+    // each of its outer corners and the passage through the middle.
+    if (ca.gatehouse) {
+      const [g0, g1] = ca.gatehouse;
+      const yc = avg(ca.innerWall);
+      let ix = yc[0] - ca.gate[0], iy = yc[1] - ca.gate[1];
+      const im = Math.hypot(ix, iy) || 1;
+      ix /= im; iy /= im;
+      const back = 3.4 * S, out = 1.6 * S;
+      const block: Point[] = [
+        [g0[0] - ix * out, g0[1] - iy * out], [g1[0] - ix * out, g1[1] - iy * out],
+        [g1[0] + ix * back, g1[1] + iy * back], [g0[0] + ix * back, g0[1] + iy * back],
+      ];
+      cg.appendChild(svgEl("polygon", { class: "castle-gatehouse-block", points: pts(block), fill: CASTLE_TOWER, stroke: CASTLE_STONE, "stroke-width": 1 }));
+      for (const [gx, gy] of ca.gatehouse) {
+        cg.appendChild(svgEl("circle", { class: "castle-gatehouse", cx: gx - ix * out * 0.4, cy: gy - iy * out * 0.4, r: 2.8 * S, fill: CASTLE_TOWER, stroke: CASTLE_STONE, "stroke-width": 0.9 }));
+      }
     }
-    cg.appendChild(svgEl("circle", { class: "castle-gate", cx: ca.gate[0], cy: ca.gate[1], r: 1.1 * S, fill: "#e8dfc9", stroke: "#4c463c", "stroke-width": 0.5 }));
-    if (ca.postern) cg.appendChild(svgEl("circle", { class: "castle-postern", cx: ca.postern[0], cy: ca.postern[1], r: 0.9 * S, fill: "#e8dfc9", stroke: "#7a2f2f", "stroke-width": 0.5 }));
+    cg.appendChild(svgEl("rect", { class: "castle-gate", x: ca.gate[0] - 1.2 * S, y: ca.gate[1] - 1.2 * S, width: 2.4 * S, height: 2.4 * S, rx: 0.4, fill: "#efe7d2", stroke: CASTLE_STONE, "stroke-width": 0.7 }));
+    if (ca.postern) cg.appendChild(svgEl("circle", { class: "castle-postern", cx: ca.postern[0], cy: ca.postern[1], r: 1.1 * S, fill: "#efe7d2", stroke: "#7a2f2f", "stroke-width": 0.6 }));
     // donjon: shadow + body + inner great-tower square + corner turrets (concentric-square, top-down)
     const kctr = avg(ca.keep);
     const shadow = ca.keep.map(([x, y]) => [x + 1, y + 1] as [number, number]);
     const innerKeep = ca.keep.map(([x, y]) => [x + (kctr[0] - x) * 0.42, y + (kctr[1] - y) * 0.42] as [number, number]);
     cg.appendChild(svgEl("polygon", { class: "castle-keep-shadow", points: pts(shadow), fill: "#2f333c", "fill-opacity": 0.5 }));
-    cg.appendChild(svgEl("polygon", { class: "castle-keep", points: pts(ca.keep), fill: "#6e7686", stroke: "#3a4050", "stroke-width": 0.8 }));
+    cg.appendChild(svgEl("polygon", { class: "castle-keep", points: pts(ca.keep), fill: "#6e7686", stroke: "#2c3140", "stroke-width": 1.4 }));
     cg.appendChild(svgEl("polygon", { class: "castle-keep-inner", points: pts(innerKeep), fill: "#565e6e", stroke: "#333a48", "stroke-width": 0.5 }));
-    for (const [x, y] of ca.keep) cg.appendChild(svgEl("circle", { class: "castle-turret", cx: x, cy: y, r: 1.6 * S, fill: "#7c8494", stroke: "#3a4050", "stroke-width": 0.5 }));
-    clipped.appendChild(cg);
+    for (const [x, y] of ca.keep) cg.appendChild(svgEl("circle", { class: "castle-turret", cx: x, cy: y, r: 2.0 * S, fill: "#7c8494", stroke: "#2c3140", "stroke-width": 0.8 }));
+    // held back and hung on the map AFTER the town wall. An urban castle stands astride that wall
+    // -- that is what makes it an urban castle -- so the wall, drawn last and four units wide, was
+    // laid straight across the donjon of every seat that touched it. The citadel is the stronger
+    // work and reads on top of the curtain it commands. Still clipped to the boundary, so nothing
+    // of it strays outside the town.
+    castleG = cg;
   }
 
   for (const [cx, cy] of layout.parishChurches) {
@@ -433,6 +459,7 @@ export function renderCity(layout: CityLayout, lang: Lang = "en"): SVGSVGElement
     for (const ga of layout.wall.gates) gg.appendChild(svgEl("rect", { class: "gate", x: ga[0] - 3, y: ga[1] - 3, width: 6, height: 6, rx: 1, fill: gateFill, stroke: gateStroke, "stroke-width": 1 }));
     root.appendChild(gg);
   }
+  if (castleG) root.appendChild(castleG);
 
   for (const ward of layout.wards) {
     if (ward.type === "cathedral") {

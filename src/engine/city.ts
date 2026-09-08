@@ -321,6 +321,27 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
   const castleWard = zoned.find((z) => z.type === "castle") ?? null;
   const castle = castleWard ? makeCastle(rng, castleWard.polygon, [center[0], center[1]], boundary, ctx.size, ctx.isCapital) : null;
 
+  // Every ward is named at its own centre, which for a castle is the donjon: the word "Castle" was
+  // laid straight across the keep, the halls and the gatehouse of the thing it was naming. So the
+  // castle's name steps off the enceinte toward the town — the side its gate faces, and the side
+  // where the ward still has open ground, since the seat itself stands against the wall. A great
+  // seat whose yard fills its ward finds nowhere to stand and keeps the middle.
+  if (castle && castleWard) {
+    const lab = labels.find((l) => l.type === "castle");
+    if (lab) {
+      const yc = centroid(castle.innerWall);
+      const dx = center[0] - yc[0], dy = center[1] - yc[1];
+      const m = Math.hypot(dx, dy) || 1;
+      for (let d = 6; d <= 60; d += 2) {
+        const p: Point = [yc[0] + (dx / m) * d, yc[1] + (dy / m) * d];
+        if (pointInPolygon(p, castle.innerWall)) continue;
+        if (!pointInPolygon(p, castleWard.polygon)) break;
+        lab.x = p[0]; lab.y = p[1];
+        break;
+      }
+    }
+  }
+
   const allBuildings = wards.flatMap((w) => w.buildings);
   // trees stay clear of the street network (used only here now that buildings are inset off streets)
   const allRoads = [...mainRoads, ...minorRoads];

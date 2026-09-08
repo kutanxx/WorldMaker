@@ -19,6 +19,8 @@ export interface Castle {
 const TOUCH = 14; // ward counts as "at the wall" if a vertex is this close to the boundary ring
 const GREAT_SIZE = 5;  // a lord's seat this big, or a capital's at any size, is a GREAT castle
 const BASE_KR = 4.3;   // the donjon half-width of a size-3 market town: the unit the ornament is in
+const KEEP_OFFSET = 0.35; // how far the donjon sits from the yard's middle toward its refuge corner
+const WALL_CLEAR = 3.4;   // buildings stand this far off the enceinte -- it is drawn 4.4 wide
 
 // the midpoint of the edge nearest a target, and the unit vector ALONG that edge (a gatehouse's
 // two towers flank the opening, so they need the run of the wall, not just the point on it)
@@ -66,7 +68,12 @@ export function makeCastle(
   // which is what it did. It is capped by the ward -- and a great seat keeps eight units of it back
   // for the bailey, because within one Voronoi cell you may have a wide yard or two rings of wall,
   // not both, and two rings are what says "great".
-  const yardR = Math.min(5 + size * 3.7, Math.max(6, wardR - (great ? 8 : 3)));
+  // ...with a floor, or a small seat's yard closes on its own donjon: the yard has to hold the
+  // keep's diagonal AND the set-back from the rampart AND the offset to the refuge corner, and
+  // below that a size-2 keep came out SMALLER than a size-1 one, shrunk by the fit loop.
+  const kr0 = 2.5 + size * 0.6;
+  const minYard = (kr0 * Math.SQRT2 + WALL_CLEAR) / (1 - KEEP_OFFSET);
+  const yardR = Math.min(Math.max(5 + size * 3.7, minYard), Math.max(6, wardR - (great ? 8 : 3)));
   // insetConvex, not insetPolygon: the radial one pulls every vertex toward the centroid, which at
   // the shallow insets this code used to take was close enough, but at a withdrawal of fifteen or
   // twenty units it turns an irregular Voronoi ward into a scalene sliver rather than a smaller
@@ -94,12 +101,17 @@ export function makeCastle(
   // keep: a stout rect at the point of the inner ward farthest from the gate (deepest refuge)
   let far: Point = wc, fd = -1;
   for (const v of inner) { const d = Math.hypot(v[0] - gate[0], v[1] - gate[1]); if (d > fd) { fd = d; far = v; } }
-  const kc: Point = [wc[0] + (far[0] - wc[0]) * 0.35, wc[1] + (far[1] - wc[1]) * 0.35];
+  const kc: Point = [wc[0] + (far[0] - wc[0]) * KEEP_OFFSET, wc[1] + (far[1] - wc[1]) * KEEP_OFFSET];
   // The donjon grows with the town it guards. This was a two-step switch -- 3 below size 3 and 4.2
   // at or above it -- so measured over fifteen seeds the keep came out at exactly two areas, 36 and
   // 71, and a size-6 royal capital's tower was identical to a size-3 market town's. The bailey did
   // grow, because the ward it sits in scales with the town, but the tower a reader reads as THE
   // castle did not.
+  // Buildings stand clear of the wall, they do not stand ON it. The enceinte is drawn as a 4.4-wide
+  // band with drum towers on it, so a donjon tested only for being "inside the polygon" came out
+  // lying across its own rampart. Everything inside is placed against this set-back line instead.
+  const clearance = insetConvex(inner, WALL_CLEAR);
+  const yard = clearance.length >= 3 ? clearance : inner;
   const theta = rng() * Math.PI; // drawn here as before, so no other draw in the town moves
   const kux = Math.cos(theta), kuy = Math.sin(theta);
   const squareAt = (r: number): Polygon => [
@@ -110,15 +122,15 @@ export function makeCastle(
   ];
   // ...but never outgrows the bailey it stands in: a big town whose castle ward came out small
   // still gets a tower that fits inside its own wall.
-  let kr = 2.5 + size * 0.6;
-  while (kr > 2 && !squareAt(kr).every((p) => pointInPolygon(p, inner))) kr *= 0.9;
+  let kr = kr0;
+  while (kr > 2 && !squareAt(kr).every((p) => pointInPolygon(p, yard))) kr *= 0.9;
   // ...and if even the smallest donjon will not fit at the refuge corner, it falls back to the
   // middle of the yard, where a polygon always has room. The shrink loop alone bottomed out at
   // kr = 2 and handed back a keep that was still outside its own wall (2 towns of 333).
-  if (!squareAt(kr).every((p) => pointInPolygon(p, inner))) {
+  if (!squareAt(kr).every((p) => pointInPolygon(p, yard))) {
     kc[0] = wc[0]; kc[1] = wc[1];
-    kr = 2.5 + size * 0.6;
-    while (kr > 1 && !squareAt(kr).every((p) => pointInPolygon(p, inner))) kr *= 0.9;
+    kr = kr0;
+    while (kr > 1 && !squareAt(kr).every((p) => pointInPolygon(p, yard))) kr *= 0.9;
   }
   const keep: Polygon = squareAt(kr);
   // Everything else the eye reads as "castle" -- turrets, wall towers, the gate, the halls -- used
@@ -145,7 +157,7 @@ export function makeCastle(
         const rect: Polygon = [
           [ac[0] - ax, ac[1] - ay], [ac[0] + ax, ac[1] - ay], [ac[0] + ax, ac[1] + ay], [ac[0] - ax, ac[1] + ay],
         ];
-        if (!rect.every((p) => pointInPolygon(p, inner))) continue;
+        if (!rect.every((p) => pointInPolygon(p, yard))) continue;
         if (polysOverlap(rect, keep) || annexes.some((an) => polysOverlap(rect, an))) continue;
         annexes.push(rect);
         break;

@@ -758,3 +758,28 @@ describe("the lord's castle stands on dry land", () => {
     }
   });
 });
+
+// The plan names each ward at its own centre, and a castle's centre is its donjon — so the word
+// "Castle" was printed straight across the keep, the halls and the gatehouse of the very thing it
+// named, on every plate that had one.
+describe("the castle's name stands beside the castle, not on it", () => {
+  it("steps the label off the enceinte wherever the ward has ground to spare", () => {
+    let checked = 0, onTop = 0;
+    for (let seed = 1; seed <= 10; seed++) {
+      const w = generateWorld({ ...DEFAULT_PARAMS, seed }).world;
+      for (const c of w.cities) {
+        const l = generateCityLayout(cityContext(c), seed);
+        const lab = l.labels.find((x) => x.type === "castle");
+        if (!l.castle || !lab) continue;
+        const ward = l.wards.find((x) => x.type === "castle")!;
+        // is there anywhere in the ward outside the walls for the name to go?
+        const room = ward.polygon.some((p) => !pointInPolygon(p, l.castle!.innerWall));
+        if (!room) continue;
+        checked++;
+        if (pointInPolygon([lab.x, lab.y], l.castle.innerWall)) onTop++;
+      }
+    }
+    expect(checked, "no castle with room beside it in ten seeds").toBeGreaterThan(20);
+    expect(onTop, `${onTop} of ${checked} names printed inside the walls`).toBe(0);
+  });
+});

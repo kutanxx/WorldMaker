@@ -462,9 +462,12 @@ describe("a capital's castle is drawn as a great one", () => {
   it("draws the towers of a great seat larger than a market town's", () => {
     const great = town(6, true), lesser = town(3, false);
     expect(great.querySelector(".castle-tower"), "the capital must have a castle at all").not.toBeNull();
-    for (const sel of [".castle-tower", ".castle-turret", ".castle-gate"]) {
+    for (const sel of [".castle-tower", ".castle-turret"]) {
       expect(radius(great, sel), sel).toBeGreaterThan(radius(lesser, sel) * 1.25);
     }
+    // the gate is a passage through masonry now, drawn as a block rather than a dot
+    const gateW = (svg: SVGSVGElement) => Number(svg.querySelector(".castle-gate")!.getAttribute("width"));
+    expect(gateW(great)).toBeGreaterThan(gateW(lesser) * 1.25);
   });
 
   it("gives the great seat an outer curtain and a gatehouse, and the market town neither", () => {
@@ -473,5 +476,30 @@ describe("a capital's castle is drawn as a great one", () => {
     expect(great.querySelectorAll(".castle-gatehouse").length).toBe(2);
     expect(lesser.querySelectorAll(".castle-outer-wall").length).toBe(0);
     expect(lesser.querySelectorAll(".castle-gatehouse").length).toBe(0);
+  });
+});
+
+// "It still doesn't feel like a castle." It didn't: the strongest fortification on the plate was
+// drawn as its faintest line. The town's own wall is a 4.0 stroke with a 1.0 highlight and r2.6
+// drum towers in warm masonry; the lord's enceinte inside it was a 1.6 hairline with r2.1 grey
+// discs and a gate that was a 1.1 dot, so the castle receded instead of dominating.
+describe("the castle is the heaviest masonry on the plate", () => {
+  const plate = (size: number, isCapital: boolean) =>
+    renderCity(generateCityLayout({ id: 7, name: "T", size, coastal: false, isCapital, elevation: 0.4, biome: GRASSLAND }, 3), "en");
+  const w = (svg: SVGSVGElement, sel: string) => Number(svg.querySelector(sel)?.getAttribute("stroke-width") ?? 0);
+  const r = (svg: SVGSVGElement, sel: string) => Number(svg.querySelector(sel)?.getAttribute("r") ?? 0);
+
+  it("builds the lord's wall no lighter than the town's, and his towers no smaller", () => {
+    for (const [size, cap] of [[6, true], [3, false]] as const) {
+      const svg = plate(size, cap);
+      expect(w(svg, ".castle-wall"), `size ${size} enceinte`).toBeGreaterThanOrEqual(w(svg, ".wall-seg"));
+      expect(r(svg, ".castle-tower"), `size ${size} tower`).toBeGreaterThanOrEqual(r(svg, ".tower"));
+    }
+  });
+
+  it("draws the gatehouse as a building, not two dots", () => {
+    const great = plate(6, true);
+    expect(great.querySelector(".castle-gatehouse-block")).not.toBeNull();
+    expect(plate(3, false).querySelector(".castle-gatehouse-block")).toBeNull();
   });
 });
