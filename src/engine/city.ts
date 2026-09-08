@@ -138,7 +138,7 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
   const mountains = makeMountains(rng, archetype, boundary, [center[0], center[1]], bounds);
 
   // BLOCK-CENTRIC: wards are the city blocks; streets are the gaps (shared ward edges).
-  let wardCells = generateWards(rng, center[0], center[1], radius * 1.15, 8 + ctx.size * 3);
+  let wardCells = generateWards(rng, center[0], center[1], radius * 1.15, 8 + ctx.size * 3, archetype.streetField);
   wardCells = wardCells.filter((c) => pointInPolygon(c.site, boundary) && !inWater(water, c.site));
   const streetGraph = extractStreets(wardCells);
 

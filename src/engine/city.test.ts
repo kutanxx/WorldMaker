@@ -594,3 +594,50 @@ describe("the lord's castle", () => {
     }
   });
 });
+
+// A town's whole internal organisation comes from where the ward points are dropped: they are
+// Voronoi'd into wards, and the shared cell edges ARE the streets. Those points were uniform random
+// in a disc for every kind of town, so every plan came out the same wheel of wedges -- and the
+// archetype's `streetField`, which names four kinds of plan, was read in exactly one place, to
+// stretch the OUTLINE of a linear town. Measured across ten seeds, all eleven archetypes scored a
+// median 43-58% on the test below, the grid one among them at 50%.
+//
+// Fold every street direction into 0..90 degrees and the two families of a grid plan land on each
+// other, so a grid piles up on one heading while an organic plan spreads: uniform directions score
+// 33%, today's towns score about 50%, and a real grid should be far above both.
+function gridness(l: { mainRoads: [number, number][][]; minorRoads: [number, number][][] }): number {
+  const dirs: number[] = [];
+  for (const r of [...l.mainRoads, ...l.minorRoads]) {
+    for (let i = 0; i < r.length - 1; i++) {
+      const dx = r[i + 1][0] - r[i][0], dy = r[i + 1][1] - r[i][1];
+      if (Math.hypot(dx, dy) > 1) dirs.push(((Math.atan2(dy, dx) * 180) / Math.PI + 180) % 90);
+    }
+  }
+  let best = 0;
+  for (let h = 0; h < 90; h += 2) {
+    const n = dirs.filter((d) => { const x = Math.abs(d - h); return Math.min(x, 90 - x) <= 15; }).length;
+    best = Math.max(best, n / dirs.length);
+  }
+  return best;
+}
+
+describe("a market town on the plains is laid out on a grid", () => {
+  it("meets its streets at right angles, unlike the organic towns beside it", () => {
+    const grid: number[] = [], organic: number[] = [];
+    for (let seed = 1; seed <= 10; seed++) {
+      const w = generateWorld({ ...DEFAULT_PARAMS, seed }).world;
+      for (const c of w.cities) {
+        const l = generateCityLayout(cityContext(c), seed);
+        if (l.archetype.streetField === "grid") grid.push(gridness(l));
+        else if (l.archetype.streetField === "organic") organic.push(gridness(l));
+      }
+    }
+    expect(grid.length).toBeGreaterThan(10);
+    expect(organic.length).toBeGreaterThan(10);
+    const med = (a: number[]) => { const s = [...a].sort((x, y) => x - y); return s[Math.floor(s.length / 2)]; };
+    // measured: 0.71 for the grid towns against 0.48 for the organic ones. Before the lattice they
+    // were 0.50 and 0.48 -- a two-point gap, which is what "the field named nothing" looked like.
+    expect(med(grid)).toBeGreaterThan(0.62);
+    expect(med(grid) - med(organic)).toBeGreaterThan(0.15);
+  });
+});
