@@ -259,7 +259,8 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
     }
     castleAnchor = [center[0] + (v[0] - center[0]) * 0.85, center[1] + (v[1] - center[1]) * 0.85];
   }
-  const zoned = assignZones(rng, cells, [center[0], center[1]], radius, { hasCastle, coastal: ctx.coastal, castleAnchor, seaAnchor });
+  const zoned = assignZones(rng, cells, [center[0], center[1]], radius, { hasCastle, coastal: ctx.coastal, castleAnchor, seaAnchor,
+    wet: (poly) => water.bodies.some((b) => polysOverlap(poly, b)) });
 
   const parks: Polygon[] = [];
   const wards: Ward[] = zoned.map((z) => {

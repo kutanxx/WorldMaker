@@ -719,3 +719,35 @@ describe("the high fortress is a wheel, the river town a spine", () => {
     expect(med(by.get("linear")!.band) - med(by.get("organic")!.band)).toBeGreaterThan(0.2);
   });
 });
+
+// The lord's castle used to be sited by a rule that knew about the SEA (bias the wall pick away
+// from the harbour side) and nothing else, so a river, a lake or a marsh under the town was
+// invisible to it. Measured over 30 seeds: 12 of 333 castles had a part standing in open water —
+// the enceinte crossing a river in all twelve, a corner tower in eight, and in five the castle
+// GATE opened onto the water. Water is drawn before the castle, so every one of those rendered as
+// a keep afloat.
+describe("the lord's castle stands on dry land", () => {
+  const layouts = () => {
+    const out: { name: string; seed: number; layout: ReturnType<typeof generateCityLayout> }[] = [];
+    for (let seed = 1; seed <= 12; seed++) {
+      const w = generateWorld({ ...DEFAULT_PARAMS, seed }).world;
+      for (const c of w.cities) out.push({ name: c.name, seed, layout: generateCityLayout(cityContext(c), seed) });
+    }
+    return out;
+  };
+
+  it("puts no part of a castle in the water of a town that has dry ground to spare", () => {
+    for (const { name, seed, layout } of layouts()) {
+      const ca = layout.castle;
+      // a stilt town stands over its marsh by design: there is no dry ward to move to
+      if (!ca || layout.archetype.onStilts) continue;
+      const wet = (poly: [number, number][]) => layout.water.bodies.some((b) => polysOverlap(poly, b));
+      const where = `${name} (seed ${seed}, ${layout.archetype.id})`;
+      expect(wet(ca.innerWall), `enceinte of ${where}`).toBe(false);
+      expect(wet(ca.keep), `keep of ${where}`).toBe(false);
+      expect(ca.towers.some((p) => inWater(layout.water, p)), `a tower of ${where}`).toBe(false);
+      expect(ca.annexes.some(wet), `an annex of ${where}`).toBe(false);
+      expect(inWater(layout.water, ca.gate), `the gate of ${where}`).toBe(false);
+    }
+  });
+});

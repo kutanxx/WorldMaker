@@ -20,7 +20,13 @@ export function assignZones(
   wards: WardCell[],
   center: Point,
   radius: number,
-  opts: { hasCastle: boolean; coastal: boolean; castleAnchor?: Point; seaAnchor?: Point }
+  opts: { hasCastle: boolean; coastal: boolean; castleAnchor?: Point; seaAnchor?: Point;
+    // true if a ward polygon stands in open water. The castle used to be sited by proximity alone,
+    // and proximity knows nothing about a river: the enceinte, its towers and in five towns of 333
+    // the castle GATE came out over the water. A lord builds on ground he can defend, so the seat
+    // takes the nearest DRY ward, and only falls back to the nearest of any when the town has no
+    // dry ward at all (a marsh town on stilts).
+    wet?: (poly: Polygon) => boolean }
 ): ZonedWard[] {
   if (wards.length === 0) return [];
   const ranked = wards
@@ -63,12 +69,15 @@ export function assignZones(
     const anchor = opts.castleAnchor;
     if (anchor) {
       // keep sits on the high ground: swap the ward nearest the anchor into the castle slot
-      let bi = idx, bd = Infinity;
+      let bi = idx, bd = Infinity;        // nearest of any ward
+      let dry = -1, dryD = Infinity;      // nearest ward standing clear of the water
       for (let j = idx; j < out.length; j++) {
         if (out[j] === harborWard) continue; // don't consume the harbor ward
         const d = Math.hypot(out[j].site[0] - anchor[0], out[j].site[1] - anchor[1]);
         if (d < bd) { bd = d; bi = j; }
+        if (opts.wet && !opts.wet(out[j].polygon) && d < dryD) { dryD = d; dry = j; }
       }
+      if (dry >= 0) bi = dry;
       if (bi !== idx) { const t = out[idx]; out[idx] = out[bi]; out[bi] = t; }
     }
     setType("castle");
@@ -79,9 +88,13 @@ export function assignZones(
   // tiny cities can run out of wards before the castle slot — the lord's seat still claims one
   // (every walled town has its castle): repurpose the outermost non-harbor ward.
   if (opts.hasCastle && !out.some((w) => w.type === "castle")) {
+    let last = -1;
     for (let j = out.length - 1; j >= 0; j--) {
-      if (out[j] !== harborWard) { out[j].type = "castle"; break; }
+      if (out[j] === harborWard) continue;
+      if (last < 0) last = j;
+      if (!opts.wet || !opts.wet(out[j].polygon)) { last = j; break; }
     }
+    if (last >= 0) out[last].type = "castle";
   }
 
   // medieval social zonation by distance from the civic core: market at the heart (beside the
