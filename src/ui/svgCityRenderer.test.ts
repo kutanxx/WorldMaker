@@ -369,3 +369,17 @@ describe("mountain masses are drawn as ground, not as grey paper", () => {
     expect(hachures).toBeGreaterThan(rock / 400);
   });
 });
+
+// The plate was made to read as a page from the same atlas as the world map -- its own frame,
+// compass, cartouche legend and titled heading. Its NAME was the one part still set in the body
+// face: the world map's title is Cinzel and a town's was whatever the page inherited, which is the
+// same face an ordinary region label wears. It carries the family as an attribute rather than
+// through the stylesheet so it survives the export, which takes no CSS with it.
+describe("the town plate's name", () => {
+  it("is set in the atlas's display face, and says so in the file", () => {
+    const svg = renderCity(generateCityLayout(cityContext(marker), 7), "en");
+    const title = svg.querySelector(".city-name-text");
+    expect(title).not.toBeNull();
+    expect(title!.getAttribute("font-family") ?? "").toMatch(/Cinzel/);
+  });
+});

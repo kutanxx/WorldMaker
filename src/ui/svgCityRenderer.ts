@@ -405,7 +405,11 @@ export function renderCity(layout: CityLayout, lang: Lang = "en"): SVGSVGElement
   const titleG = svgEl("g", { class: "city-name" });
   const title = svgEl("text", {
     class: "city-name-text", x: (w + LEGW) / 2, y: 30, "text-anchor": "middle",
-    "font-size": 18, fill: INK, stroke: PARCHMENT, "stroke-width": 2.5, "paint-order": "stroke",
+    // the atlas's display face, as the world map's own name wears. Carried as an attribute rather
+    // than through the stylesheet: an exported plate takes no CSS with it, and the name was coming
+    // out in the body face -- the same one an ordinary region label wears.
+    "font-size": 18, "font-family": "Cinzel, serif", "font-weight": 600, "letter-spacing": 0.06,
+    fill: INK, stroke: PARCHMENT, "stroke-width": 2.5, "paint-order": "stroke",
   });
   title.textContent = layout.name;
   titleG.appendChild(title);
