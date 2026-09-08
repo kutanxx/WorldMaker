@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { generateCityLayout, cityContext } from "./city";
-import { centroid, pointInPolygon, polysOverlap, polygonSelfIntersects, pointSegDist } from "./geometry";
+import { centroid, pointInPolygon, polysOverlap, polygonSelfIntersects, pointSegDist, bbox } from "./geometry";
 import { inWater } from "./city/water";
 import { inMountains } from "./city/mountain";
 import { GRASSLAND } from "./biome";
@@ -781,5 +781,67 @@ describe("the castle's name stands beside the castle, not on it", () => {
     }
     expect(checked, "no castle with room beside it in ten seeds").toBeGreaterThan(20);
     expect(onTop, `${onTop} of ${checked} names printed inside the walls`).toBe(0);
+  });
+});
+
+// The ward mesh is the town: streets are the edges wards share, blocks are what wards enclose. So
+// a hole in the mesh is a hole in the city — blank ground inside the wall, and streets that stop
+// dead against it. The mesh was a Voronoi diagram clipped to a disc of radius*1.15 and then had
+// cells DELETED from it wherever a site fell outside the wall or in the water, which takes the
+// ground inside the wall that the same cell covered. Measured over twelve seeds: the wards covered
+// a median 87.8% of the walled area, a tenth of towns under 65%, the worst 32%.
+describe("the ward mesh covers the town it is a mesh of", () => {
+  it("leaves no ground inside the wall without a ward on it", () => {
+    let worst = 1, worstName = "";
+    for (let seed = 1; seed <= 6; seed++) {
+      const world = generateWorld({ ...DEFAULT_PARAMS, seed }).world;
+      for (const c of world.cities) {
+        const l = generateCityLayout(cityContext(c), seed);
+        if (!l.boundary) continue;
+        const b = bbox(l.boundary);
+        let inside = 0, covered = 0;
+        for (let x = b.minX; x <= b.maxX; x += 4) for (let y = b.minY; y <= b.maxY; y += 4) {
+          const p: [number, number] = [x, y];
+          if (!pointInPolygon(p, l.boundary)) continue;
+          inside++;
+          if (l.wards.some((w) => pointInPolygon(p, w.polygon))) covered++;
+        }
+        if (inside > 20 && covered / inside < worst) { worst = covered / inside; worstName = `${c.name} (seed ${seed})`; }
+      }
+    }
+    expect(worst, `worst covered town: ${worstName}`).toBeGreaterThan(0.95);
+  });
+
+  it("does not leave streets stopping dead in the middle of a town", () => {
+    const key = (p: [number, number]) => `${Math.round(p[0] * 4)},${Math.round(p[1] * 4)}`;
+    let nodes = 0, stranded = 0;
+    for (let seed = 1; seed <= 6; seed++) {
+      const world = generateWorld({ ...DEFAULT_PARAMS, seed }).world;
+      for (const c of world.cities) {
+        const l = generateCityLayout(cityContext(c), seed);
+        if (!l.boundary) continue;
+        const deg = new Map<string, number>(), at = new Map<string, [number, number]>();
+        for (const r of [...l.mainRoads, ...l.minorRoads]) for (let i = 0; i < r.length - 1; i++) {
+          const a = r[i] as [number, number], b = r[i + 1] as [number, number];
+          const ka = key(a), kb = key(b);
+          if (ka === kb) continue;
+          deg.set(ka, (deg.get(ka) ?? 0) + 1); deg.set(kb, (deg.get(kb) ?? 0) + 1);
+          at.set(ka, a); at.set(kb, b);
+        }
+        for (const [k, d] of deg) {
+          const p = at.get(k)!;
+          if (!pointInPolygon(p, l.boundary)) continue;   // beyond the wall, and clipped away
+          let toWall = Infinity;
+          for (let i = 0; i < l.boundary.length; i++) {
+            toWall = Math.min(toWall, pointSegDist(p, l.boundary[i], l.boundary[(i + 1) % l.boundary.length]));
+          }
+          if (toWall < 10) continue;                       // a street ending AT the wall is a street
+          nodes++;
+          if (d === 1) stranded++;
+        }
+      }
+    }
+    expect(nodes).toBeGreaterThan(500);
+    expect(stranded / nodes, `${stranded} of ${nodes} street ends strand inside the town`).toBeLessThan(0.05);
   });
 });

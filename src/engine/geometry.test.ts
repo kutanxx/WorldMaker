@@ -90,11 +90,33 @@ describe("geometry ops", () => {
     expect(polygonSelfIntersects([[0,0],[10,0],[0,10],[10,10]])).toBe(true);   // classic bowtie
     expect(polygonSelfIntersects([[0,0],[10,0],[10,10],[0,10]])).toBe(false);  // simple square
   });
-  it("insetConvex never returns a self-intersecting polygon (falls back if needed)", () => {
-    // a thin sliver where an edge-offset can pinch/cross → must fall back to a valid polygon
-    const sliver: Polygon = [[0,0],[30,0],[30,1.5],[15,2],[0,1.5]];
-    const inner = insetConvex(sliver, 4);
+  // The contract is the DISTANCE, not merely "some polygon back". The fallback used to be the
+  // radial inset, which pulls each vertex a fixed step toward the centroid and so hands back a
+  // shape far closer to the far edge than asked: over 4,641 city wards the mitred path came out at
+  // a median of exactly 4.00 for a request of 4, and the 16% that fell back at 1.89 — which is how
+  // buildings ended up half under the street drawn along their own block edge. It now returns
+  // either a simple polygon that really is d clear of the original, or nothing at all when no such
+  // polygon exists.
+  it("insetConvex returns a polygon that is genuinely d clear of the original, or nothing", () => {
+    const clearance = (inner: Polygon, outer: Polygon) => {
+      let worst = Infinity;
+      for (const v of inner) for (let i = 0; i < outer.length; i++) {
+        worst = Math.min(worst, pointSegDist(v, outer[i], outer[(i + 1) % outer.length]));
+      }
+      return worst;
+    };
+    const box: Polygon = [[0,0],[40,0],[40,30],[0,30]];
+    const inner = insetConvex(box, 4);
     expect(polygonSelfIntersects(inner)).toBe(false);
-    expect(inner.length).toBeGreaterThanOrEqual(3);
+    expect(clearance(inner, box)).toBeGreaterThanOrEqual(4 - 1e-6);
+
+    // a thin sliver where an edge-offset pinches: nowhere in a 2-unit-thick shape is 4 clear of it
+    const sliver: Polygon = [[0,0],[30,0],[30,1.5],[15,2],[0,1.5]];
+    expect(insetConvex(sliver, 4).length).toBe(0);
+    // ...but the same sliver has room for a small inset, and that one must hold its distance
+    const thin = insetConvex(sliver, 0.5);
+    expect(polygonSelfIntersects(thin)).toBe(false);
+    expect(thin.length).toBeGreaterThanOrEqual(3);
+    expect(clearance(thin, sliver)).toBeGreaterThanOrEqual(0.5 - 1e-6);
   });
 });

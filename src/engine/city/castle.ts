@@ -46,6 +46,7 @@ export function makeCastle(
   // A great seat is set back behind TWO walls: the ward's own edge becomes an outer curtain and the
   // enceinte withdraws, leaving an outer bailey between them. A lesser seat keeps its single ring.
   const great = isCapital || size >= GREAT_SIZE;
+  const kr0 = 2.5 + size * 0.6;
   // The withdrawal has to be in proportion to the ward, not a constant: a flat 9 off a ward some
   // 42 units across left the two rings 6.5 apart, and with a tower on every vertex of each the two
   // rows of them touched. A bailey is a yard you could muster in, so the enceinte pulls back by a
@@ -71,14 +72,32 @@ export function makeCastle(
   // ...with a floor, or a small seat's yard closes on its own donjon: the yard has to hold the
   // keep's diagonal AND the set-back from the rampart AND the offset to the refuge corner, and
   // below that a size-2 keep came out SMALLER than a size-1 one, shrunk by the fit loop.
-  const kr0 = 2.5 + size * 0.6;
   const minYard = (kr0 * Math.SQRT2 + WALL_CLEAR) / (1 - KEEP_OFFSET);
   const yardR = Math.min(Math.max(5 + size * 3.7, minYard), Math.max(6, wardR - (great ? 8 : 3)));
   // insetConvex, not insetPolygon: the radial one pulls every vertex toward the centroid, which at
   // the shallow insets this code used to take was close enough, but at a withdrawal of fifteen or
   // twenty units it turns an irregular Voronoi ward into a scalene sliver rather than a smaller
   // copy of itself. Wards are convex, which is exactly what the edge-normal offset wants.
-  let inner = insetConvex(ward, Math.max(size >= 3 ? 3 : 4, wardR - yardR));
+  // The withdrawal is as deep as the ward can bear, not a nominal distance: insetConvex now
+  // guarantees the clearance it is asked for, so a ward that is not round gives back a smaller yard
+  // than its radius suggests, and a size-3 seat's donjon was being shrunk to fit (keep 74 -> 49).
+  // Back the inset off until the yard can actually hold the tower with its rampart set-back --
+  // which is the same guarantee, asked as a question.
+  // ...and the shallowest withdrawal has to bend for a small ward too. A flat three or four units
+  // is nothing against a great capital's bailey and most of the yard of a hamlet's, where it left
+  // a donjon of 9 where 38 was intended.
+  const floor = Math.max(1.5, Math.min(size >= 3 ? 3 : 4, wardR * 0.18));
+  const want = Math.max(floor, wardR - yardR);
+  // the donjon does not sit in the middle of the yard but KEEP_OFFSET of the way to its refuge
+  // corner, so the room it needs is its diagonal scaled by that, plus the set-back off the rampart
+  const holdsKeep = (yd: Polygon) => insetConvex(yd, WALL_CLEAR + (kr0 * Math.SQRT2) / (1 - KEEP_OFFSET)).length >= 3;
+  let inner = insetConvex(ward, Math.max(floor, want * 0.2));
+  if (inner.length < 3) inner = insetPolygon(ward, floor);
+  for (let f = 0.36; f <= 1.001; f += 0.16) {
+    const cand = insetConvex(ward, Math.max(floor, want * f));
+    if (cand.length < 3 || !holdsKeep(cand)) break;   // any deeper and the donjon no longer fits
+    inner = cand;
+  }
   // a curtain is only a curtain if there is a bailey behind it; where the enceinte already fills
   // the ward the two rings would be drawn on top of each other
   let outerWall: Polygon | null =
