@@ -158,6 +158,9 @@ describe("generateCountryside — pastures/farmsteads/woods", () => {
   });
   it("desert fields are all cultivated (irrigation, not rotation)", () => {
     const c = generateCountryside(mulberry32(9), { ...plainOpts(), biome: DESERT });
+    // this passed for a year by checking nothing: the irrigation filter left a desert town with no
+    // fields at all, so the loop below ran zero times. It has to have something to be true about.
+    expect(c.fields.length).toBeGreaterThan(0);
     for (const f of c.fields) expect(f.state).toBe("cultivated");
   });
 
@@ -198,5 +201,36 @@ describe("generateCountryside — pastures/farmsteads/woods", () => {
     expect(c.pastures.length).toBe(0);
     expect(c.woods.length).toBe(0);
     expect(c.dry).toBe(true);
+  });
+});
+
+// A desert town asked for two fields and got none, in all thirty of them across twenty seeds. The
+// profile set `fields: 2` and then an "irrigation" filter dropped every one, because it kept only
+// fields within 90 units of a water body's CENTROID -- and fields are placed along the gate roads
+// outside the wall, 86 to 195 units out. Measuring to the water's edge instead does not save it
+// either: the candidates sit a median 184 units from the nearest shore, and a threshold wide enough
+// to pass them (150) would leave 17 of 30 towns bare anyway while meaning nothing as "irrigation".
+//
+// The premise was wrong, not the number. An oasis is INSIDE the wall -- Liaeth's pond is beside its
+// market square, its edge 16 units from the town centre -- so there is no ground near that water to
+// farm; and where the water is a sea instead, it is a hundred units offshore. What carries the
+// desert is the sparse count the profile already sets: two fields against a grassland town's 3+size.
+import { generateCityLayout, cityContext } from "../city";
+import { generateWorld } from "../world";
+import { DEFAULT_PARAMS } from "../../types/world";
+
+describe("a desert town farms what its profile asks for", () => {
+  it("gets the fields it was given, rather than none at all", () => {
+    let towns = 0, bare = 0;
+    for (let seed = 1; seed <= 12; seed++) {
+      const w = generateWorld({ ...DEFAULT_PARAMS, seed }).world;
+      for (const c of w.cities) {
+        if (c.biome !== DESERT) continue;
+        towns++;
+        if (!generateCityLayout(cityContext(c), seed).countryside.fields.length) bare++;
+      }
+    }
+    expect(towns).toBeGreaterThan(0);
+    expect(bare).toBe(0);
   });
 });

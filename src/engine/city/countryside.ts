@@ -193,10 +193,18 @@ export function generateCountryside(rng: Rng, opts: CountrysideOpts): Countrysid
       fields.push({ polygon: plot, strips, state: sIdx === fallowSector ? "fallow" : "cultivated" }); claim(plot);
     }
   }
-  // desert: keep only fields near water/oasis (irrigation)
-  const keptFields = prof.dry
-    ? fields.filter((f) => { const c = centroid(f.polygon); return water.bodies.some((b) => { const wc = centroid(b); return Math.hypot(wc[0] - c[0], wc[1] - c[1]) < 90; }); })
-    : fields;
+  // A desert town used to keep only the fields within 90 units of a water body's CENTROID, meaning
+  // to say that the desert irrigates rather than rain-farms. It said instead that the desert has no
+  // farmland at all: measured, all thirty desert towns across twenty seeds came out with none. The
+  // fields are placed along the gate roads outside the wall, 86 to 195 units from that centroid, so
+  // nothing could pass -- and measuring to the water's EDGE does not rescue it either, with the
+  // candidates a median 184 units from the nearest shore.
+  //
+  // The premise was wrong rather than the number. An oasis lies INSIDE the wall (Liaeth's pond sits
+  // beside its market square, its edge 16 units from the town centre), so there is no ground near
+  // that water left to farm; and where the water is a sea instead, it is a hundred units offshore.
+  // Nothing about proximity can be said here. The sparseness the rule was reaching for is already
+  // in the profile, which gives a desert two fields where grassland gets 3 + size.
 
   // pastures: fenced irregular paddocks in the gaps between field sectors; meadows prefer water
   const pastures: Pasture[] = [];
@@ -222,13 +230,13 @@ export function generateCountryside(rng: Rng, opts: CountrysideOpts): Countrysid
     pastures.push({ fence, animals, kind: prof.animal }); claim(fence);
   }
 
-  // farmsteads: at a field-block corner beside a road — never mid-field (Watabou lesson)
-  // note: requires keptFields.length > 0, so a desert city whose fields were all filtered
-  // out (no water nearby for irrigation) intentionally ends up with zero farmsteads.
+  // farmsteads: at a field-block corner beside a road — never mid-field (Watabou lesson).
+  // A town with no fields gets none, which is now only a town whose field placement found no room
+  // rather than, as it used to be, every desert town on the map.
   const farmsteads: Farmstead[] = [];
   const wantF = 1 + Math.floor(size / 3);
-  for (let tries = 0; tries < 140 && farmsteads.length < wantF && keptFields.length > 0; tries++) {
-    const f = keptFields[Math.floor(rng() * keptFields.length)];
+  for (let tries = 0; tries < 140 && farmsteads.length < wantF && fields.length > 0; tries++) {
+    const f = fields[Math.floor(rng() * fields.length)];
     const corner = f.polygon[Math.floor(rng() * f.polygon.length)];
     const away = 4 + rng() * 3;
     const dxc = corner[0] - centroid(f.polygon)[0], dyc = corner[1] - centroid(f.polygon)[1];
@@ -326,5 +334,5 @@ export function generateCountryside(rng: Rng, opts: CountrysideOpts): Countrysid
     woods.push(p);
   }
 
-  return { gardens, fields: keptFields, pastures, farmsteads, orchards, villages, woods, dry: prof.dry };
+  return { gardens, fields, pastures, farmsteads, orchards, villages, woods, dry: prof.dry };
 }
