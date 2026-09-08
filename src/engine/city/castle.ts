@@ -44,15 +44,24 @@ export function makeCastle(rng: Rng, ward: Polygon, townCenter: Point, boundary:
   let far: Point = wc, fd = -1;
   for (const v of inner) { const d = Math.hypot(v[0] - gate[0], v[1] - gate[1]); if (d > fd) { fd = d; far = v; } }
   const kc: Point = [wc[0] + (far[0] - wc[0]) * 0.45, wc[1] + (far[1] - wc[1]) * 0.45];
-  const kr = size >= 3 ? 4.2 : 3;
-  const theta = rng() * Math.PI;
+  // The donjon grows with the town it guards. This was a two-step switch -- 3 below size 3 and 4.2
+  // at or above it -- so measured over fifteen seeds the keep came out at exactly two areas, 36 and
+  // 71, and a size-6 royal capital's tower was identical to a size-3 market town's. The bailey did
+  // grow, because the ward it sits in scales with the town, but the tower a reader reads as THE
+  // castle did not.
+  const theta = rng() * Math.PI; // drawn here as before, so no other draw in the town moves
   const kux = Math.cos(theta), kuy = Math.sin(theta);
-  const keep: Polygon = [
-    [kc[0] - kux * kr - -kuy * kr, kc[1] - kuy * kr - kux * kr],
-    [kc[0] + kux * kr - -kuy * kr, kc[1] + kuy * kr - kux * kr],
-    [kc[0] + kux * kr + -kuy * kr, kc[1] + kuy * kr + kux * kr],
-    [kc[0] - kux * kr + -kuy * kr, kc[1] - kuy * kr + kux * kr],
+  const squareAt = (r: number): Polygon => [
+    [kc[0] - kux * r - -kuy * r, kc[1] - kuy * r - kux * r],
+    [kc[0] + kux * r - -kuy * r, kc[1] + kuy * r - kux * r],
+    [kc[0] + kux * r + -kuy * r, kc[1] + kuy * r + kux * r],
+    [kc[0] - kux * r + -kuy * r, kc[1] - kuy * r + kux * r],
   ];
+  // ...but never outgrows the bailey it stands in: a big town whose castle ward came out small
+  // still gets a tower that fits inside its own wall.
+  let kr = 2.5 + size * 0.6;
+  while (kr > 2 && !squareAt(kr).every((p) => pointInPolygon(p, inner))) kr *= 0.9;
+  const keep: Polygon = squareAt(kr);
   const annexes: Polygon[] = [];
   if (size >= 3) {
     const n = 1 + (rng() < 0.5 ? 1 : 0);

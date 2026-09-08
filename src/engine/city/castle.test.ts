@@ -1,8 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { mulberry32 } from "../rng";
 import { makeCastle } from "./castle";
-import { pointInPolygon, centroid, polysOverlap } from "../geometry";
-import type { Polygon } from "../geometry";
+import { pointInPolygon, centroid, polysOverlap, area } from "../geometry";
+import type { Polygon, Point } from "../geometry";
 
 const ward: Polygon = [[300, 180], [340, 200], [345, 250], [310, 275], [275, 240], [278, 200]];
 const boundary: Polygon = (() => { const b: Polygon = []; for (let k = 0; k < 24; k++) { const a = (k / 24) * Math.PI * 2; b.push([230 + Math.cos(a) * 115, 230 + Math.sin(a) * 115]); } return b; })();
@@ -36,5 +36,36 @@ describe("makeCastle", () => {
     // this ward reaches the boundary circle (r=115 from 230,230): vertex [345,250] is ~117 out
     const c = makeCastle(mulberry32(3), ward, [230, 230], boundary, 4)!;
     expect(c.postern).not.toBeNull();
+  });
+});
+
+// A castle read the same at every size worth having one. `kr`, the keep's half-width, was a two-step
+// switch -- 3 below size 3 and 4.2 at or above it -- so measured over fifteen seeds the keep came out
+// at exactly two areas, 36 and 71, and a size-6 royal capital's donjon was identical to a size-3
+// market town's. The enclosure did grow with the town, because the ward it sits in scales, but not
+// the thing a reader actually reads as the castle. A seat of a great realm should look like one.
+describe("a great town's castle looks like one", () => {
+  const disc = (r: number): Polygon => Array.from({ length: 12 }, (_, i) => {
+    const a = (i / 12) * Math.PI * 2;
+    return [150 + Math.cos(a) * r, 150 + Math.sin(a) * r] as Point;
+  });
+  const bigBoundary = disc(120);
+  const keepArea = (size: number) => {
+    const c = makeCastle(mulberry32(4), disc(30), [150, 150], bigBoundary, size)!;
+    expect(c).not.toBeNull();
+    return area(c.keep);
+  };
+  it("grows the keep with the size of the town, not in two steps", () => {
+    const areas = [1, 2, 3, 4, 5, 6].map(keepArea);
+    for (let i = 1; i < areas.length; i++) {
+      expect(areas[i], `size ${i + 1} vs ${i}`).toBeGreaterThan(areas[i - 1]);
+    }
+    expect(areas[5]).toBeGreaterThan(areas[2] * 1.5); // a capital's donjon against a market town's
+  });
+  it("keeps the donjon inside its own inner wall at every size", () => {
+    for (const size of [1, 2, 3, 4, 5, 6]) {
+      const c = makeCastle(mulberry32(4), disc(30), [150, 150], bigBoundary, size)!;
+      for (const p of c.keep) expect(pointInPolygon(p, c.innerWall), `size ${size}`).toBe(true);
+    }
   });
 });
