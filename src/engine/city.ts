@@ -5,6 +5,7 @@ import { centroid, pointInPolygon, bbox, pointSegDist, insetConvex, polysOverlap
 import { selectArchetype } from "./city/archetypes";
 import type { Archetype } from "./city/archetypes";
 import { extractStreets, classifyStreets } from "./city/blockStreets";
+import { chainRoads } from "./city/roads";
 import { buildWater, inWater, waterBridges } from "./city/water";
 import type { Water } from "./city/water";
 import { makeBoundary } from "./city/cityBoundary";
@@ -169,6 +170,11 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
   // are kept and bridged by waterBridges below
   mainRoads = mainRoads.filter((r) => !(r.length === 2 && inWater(water, r[0]) && inWater(water, r[1])));
   let minorRoads = classified.minor.filter((s) => !inWater(water, [(s[0][0] + s[1][0]) / 2, (s[0][1] + s[1][1]) / 2]));
+  // ...and only now are the main streets roads rather than the pieces a shortest path was cut into:
+  // stitched into continuous runs that carry straight on through a junction, with the stretches
+  // drawn twice thrown out and the corners eased. Done here, after the water filter and before the
+  // bridges, so a crossing is measured against the road as it will be drawn.
+  mainRoads = chainRoads(mainRoads, wall.gates);
   water.bridges = waterBridges([...mainRoads, ...minorRoads], water);
 
   // river towns: the block streets rarely cross the channel on their own, so a river bisecting the

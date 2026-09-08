@@ -828,6 +828,17 @@ describe("the ward mesh covers the town it is a mesh of", () => {
           deg.set(ka, (deg.get(ka) ?? 0) + 1); deg.set(kb, (deg.get(kb) ?? 0) + 1);
           at.set(ka, a); at.set(kb, b);
         }
+        // A street END is not the same as a street stopping dead. Main roads are stitched into runs
+        // and their corners eased, so a main road no longer shares an exact vertex with the minor
+        // streets that meet it — it passes through them. What matters is whether the end MEETS
+        // another street at all, which is a distance, not an identity.
+        const meetsAnother = (p: [number, number], k: string) => {
+          for (const r of [...l.mainRoads, ...l.minorRoads]) for (let i = 0; i < r.length - 1; i++) {
+            if (key(r[i] as [number, number]) === k || key(r[i + 1] as [number, number]) === k) continue;
+            if (pointSegDist(p, r[i], r[i + 1]) < 3) return true;
+          }
+          return false;
+        };
         for (const [k, d] of deg) {
           const p = at.get(k)!;
           if (!pointInPolygon(p, l.boundary)) continue;   // beyond the wall, and clipped away
@@ -837,7 +848,7 @@ describe("the ward mesh covers the town it is a mesh of", () => {
           }
           if (toWall < 10) continue;                       // a street ending AT the wall is a street
           nodes++;
-          if (d === 1) stranded++;
+          if (d === 1 && !meetsAnother(p, k)) stranded++;
         }
       }
     }
