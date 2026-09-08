@@ -641,3 +641,81 @@ describe("a market town on the plains is laid out on a grid", () => {
     expect(med(grid) - med(organic)).toBeGreaterThan(0.15);
   });
 });
+
+// The other two thirds of the same finding. `streetField` names four plans; grid became one, and
+// radial and linear still named nothing. Measured over twelve seeds before this: a wheel score
+// (mean |cos 2t| of each street against the radius -- 1.0 for spokes and rings, 0.64 for directions
+// that ignore the centre) of 0.71 for the radial archetypes against organic's 0.66, and a ward-cloud
+// aspect (spread along its own principal axis over the spread across it) of 1.17 for the linear ones
+// against organic's 1.22 -- the linear towns were, if anything, rounder than the rest.
+function wheelScore(l: ReturnType<typeof generateCityLayout>): number {
+  let sum = 0, n = 0;
+  for (const r of [...l.mainRoads, ...l.minorRoads]) {
+    for (let i = 0; i < r.length - 1; i++) {
+      const dx = r[i + 1][0] - r[i][0], dy = r[i + 1][1] - r[i][1];
+      const len = Math.hypot(dx, dy);
+      if (len < 1) continue;
+      const mx = (r[i][0] + r[i + 1][0]) / 2 - 230, my = (r[i][1] + r[i + 1][1]) / 2 - 230;
+      const rl = Math.hypot(mx, my) || 1;
+      const cos = (dx * mx + dy * my) / (len * rl);
+      sum += Math.abs(2 * cos * cos - 1);
+      n++;
+    }
+  }
+  return n > 5 ? sum / n : NaN;
+}
+// A town strung along one thing has its streets in parallel bands: fold every direction into 0..180
+// and nearly all the street LENGTH falls in one window. Uniform directions give 22%, a grid splits
+// between two families 90 apart and reaches about 51%, and a spine town should be far past both.
+// (The first metric tried here was the spread of the ward centroids, which measured nothing: a
+// Voronoi cell fills the space it is clipped to, so points in a narrow band still make cells that
+// reach the rim, and the cloud of centroids stayed as round as ever.)
+function banding(l: ReturnType<typeof generateCityLayout>): number {
+  const segs: [number, number][] = [];
+  for (const r of [...l.mainRoads, ...l.minorRoads]) {
+    for (let i = 0; i < r.length - 1; i++) {
+      const dx = r[i + 1][0] - r[i][0], dy = r[i + 1][1] - r[i][1];
+      const len = Math.hypot(dx, dy);
+      if (len > 1) segs.push([((Math.atan2(dy, dx) * 180) / Math.PI + 180) % 180, len]);
+    }
+  }
+  if (segs.length < 6) return NaN;
+  const total = segs.reduce((a, sg) => a + sg[1], 0);
+  let best = 0;
+  for (let h = 0; h < 180; h += 2) {
+    let acc = 0;
+    for (const [d, len] of segs) { const x = Math.abs(d - h); if (Math.min(x, 180 - x) <= 20) acc += len; }
+    best = Math.max(best, acc / total);
+  }
+  return best;
+}
+describe("the high fortress is a wheel, the river town a spine", () => {
+  const gather = () => {
+    const by = new Map<string, { wheel: number[]; band: number[] }>();
+    for (let seed = 1; seed <= 12; seed++) {
+      const w = generateWorld({ ...DEFAULT_PARAMS, seed }).world;
+      for (const c of w.cities) {
+        const l = generateCityLayout(cityContext(c), seed);
+        const e = by.get(l.archetype.streetField) ?? { wheel: [], band: [] };
+        const s = wheelScore(l);
+        if (!Number.isNaN(s)) e.wheel.push(s);
+        const b = banding(l);
+        if (!Number.isNaN(b)) e.band.push(b);
+        by.set(l.archetype.streetField, e);
+      }
+    }
+    return by;
+  };
+  const med = (a: number[]) => { const s = [...a].sort((x, y) => x - y); return s[Math.floor(s.length / 2)]; };
+  it("gives a radial town spokes and rings", () => {
+    const by = gather();
+    expect(med(by.get("radial")!.wheel)).toBeGreaterThan(0.85); // measured: 0.92, and 0.71 before
+    expect(med(by.get("radial")!.wheel)).toBeGreaterThan(med(by.get("organic")!.wheel) + 0.15);
+  });
+  it("strings a linear town along one axis", () => {
+    const by = gather();
+    // measured: 0.74 against organic's 0.39. Before, the linear towns measured 0.39 too.
+    expect(med(by.get("linear")!.band)).toBeGreaterThan(0.6);
+    expect(med(by.get("linear")!.band) - med(by.get("organic")!.band)).toBeGreaterThan(0.2);
+  });
+});
