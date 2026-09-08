@@ -69,3 +69,67 @@ describe("a great town's castle looks like one", () => {
     }
   });
 });
+
+// A capital's castle and a market town's read as the same drawing. Measured over thirty seeds, the
+// keep is a flat 0.29-0.30% of the town at EVERY size from 3 to 6: the town grows 1.375x across
+// that range (radius 60 + 12*size on a plate fixed at 460) and the keep 1.42x, so the proportion
+// never moves. Worse, every part that makes a castle look like a castle was a constant -- corner
+// turrets r1.6, wall towers r2.1, the gate r1.1 and one or two 6x4 annexes, identical on a size-6
+// royal seat and a size-3 market town, and at this scale the ornament is what the eye reads.
+// A great castle is not one bigger square. It is MORE castle: a second ring of wall, a gatehouse
+// instead of a doorway, and a bailey with buildings in it.
+describe("a great castle is a bigger thing, not the same thing drawn larger", () => {
+  const disc = (r: number, n = 14): Polygon => Array.from({ length: n }, (_, i) => {
+    const a = (i / n) * Math.PI * 2;
+    return [150 + Math.cos(a) * r, 150 + Math.sin(a) * r] as Point;
+  });
+  const bigBoundary = disc(120, 24);
+  const built = (size: number, isCapital = false) =>
+    makeCastle(mulberry32(4), disc(34), [150, 150], bigBoundary, size, isCapital)!;
+
+  it("scales its ornament with the seat, so the towers of a great castle are great towers", () => {
+    const scales = [1, 2, 3, 4, 5, 6].map((s) => built(s).scale);
+    for (let i = 1; i < scales.length; i++) expect(scales[i], `size ${i + 1} vs ${i}`).toBeGreaterThan(scales[i - 1]);
+    expect(built(6).scale).toBeGreaterThan(built(3).scale * 1.3);
+  });
+
+  it("puts more halls in a bigger bailey", () => {
+    expect(built(6).annexes.length).toBeGreaterThan(built(3).annexes.length);
+    for (const size of [3, 4, 5, 6]) {
+      const c = built(size);
+      // every hall stands inside the wall, and no two of them on the same ground
+      for (const an of c.annexes) {
+        for (const p of an) expect(pointInPolygon(p, c.innerWall), `annex of size ${size}`).toBe(true);
+        expect(polysOverlap(an, c.keep), `annex on the keep, size ${size}`).toBe(false);
+      }
+      for (let i = 0; i < c.annexes.length; i++) for (let j = i + 1; j < c.annexes.length; j++)
+        expect(polysOverlap(c.annexes[i], c.annexes[j]), `two halls on one spot, size ${size}`).toBe(false);
+    }
+  });
+
+  it("gives a great seat a second ring of wall with a bailey between the two", () => {
+    const great = built(6), lesser = built(3);
+    expect(lesser.outerWall, "a market town's castle is one enclosure").toBeNull();
+    expect(great.outerWall).not.toBeNull();
+    // concentric, and far enough apart to read as two walls rather than one thick one
+    for (const p of great.innerWall) expect(pointInPolygon(p, great.outerWall!)).toBe(true);
+    expect(Math.abs(area(great.outerWall!))).toBeGreaterThan(Math.abs(area(great.innerWall)) * 1.5);
+  });
+
+  it("makes a capital's seat great whatever the town's size, and a lesser town's not", () => {
+    expect(built(3, true).outerWall).not.toBeNull();
+    expect(built(4).outerWall).toBeNull();
+  });
+
+  it("guards a great castle's gate with a pair of towers, flanking the opening", () => {
+    const great = built(6);
+    expect(built(3).gatehouse).toBeNull();
+    const gh = great.gatehouse!;
+    expect(gh).not.toBeNull();
+    // one either side of the gate, at equal reach, and clear of each other
+    const d = (p: Point) => Math.hypot(p[0] - great.gate[0], p[1] - great.gate[1]);
+    expect(Math.abs(d(gh[0]) - d(gh[1]))).toBeLessThan(0.01);
+    expect(d(gh[0])).toBeGreaterThan(1.5);
+    expect(Math.hypot(gh[0][0] - gh[1][0], gh[0][1] - gh[1][1])).toBeGreaterThan(d(gh[0]));
+  });
+});

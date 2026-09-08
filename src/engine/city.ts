@@ -319,7 +319,7 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
   // the lord's castle: built from the zoned castle ward polygon, right after wards/labels
   // and before features/extramural work (its rng draws are part of the main stream tail here).
   const castleWard = zoned.find((z) => z.type === "castle") ?? null;
-  const castle = castleWard ? makeCastle(rng, castleWard.polygon, [center[0], center[1]], boundary, ctx.size) : null;
+  const castle = castleWard ? makeCastle(rng, castleWard.polygon, [center[0], center[1]], boundary, ctx.size, ctx.isCapital) : null;
 
   const allBuildings = wards.flatMap((w) => w.buildings);
   // trees stay clear of the street network (used only here now that buildings are inset off streets)

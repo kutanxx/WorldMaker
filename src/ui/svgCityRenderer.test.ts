@@ -159,7 +159,18 @@ describe("renderCity organic", () => {
     expect(svg.querySelector(".castle-keep-shadow")).not.toBeNull();
     expect(svg.querySelector(".castle-keep-inner")).not.toBeNull();
     expect(svg.querySelectorAll(".castle-turret").length).toBe(4);
-    expect(svg.querySelectorAll(".castle-tower").length).toBe(layout.castle!.towers.length);
+    // Towers stand at intervals along the wall, so there is no longer one per corner: a Voronoi
+    // ward bunches its vertices wherever a neighbour crowds it, and a tower on each put five
+    // shoulder to shoulder down one side and three along the whole of the other.
+    const towers = [...svg.querySelectorAll(".castle-tower")]
+      .map((e) => [Number(e.getAttribute("cx")), Number(e.getAttribute("cy"))] as [number, number]);
+    expect(towers.length).toBeGreaterThan(2);
+    expect(towers.length).toBeLessThanOrEqual(layout.castle!.towers.length);
+    const gap = 6 * layout.castle!.scale;
+    for (let i = 0; i < towers.length; i++) for (let j = i + 1; j < towers.length; j++) {
+      expect(Math.hypot(towers[i][0] - towers[j][0], towers[i][1] - towers[j][1])).toBeGreaterThanOrEqual(gap - 1e-6);
+    }
+    for (const t of towers) expect(layout.castle!.towers.some((v) => v[0] === t[0] && v[1] === t[1])).toBe(true);
   });
   // a town with no seated lord has no castle at all: the branch existed but was unreachable while
   // every town was given one, so this pins that the plate simply omits the donjon rather than
@@ -433,5 +444,34 @@ describe("a bridge is not painted as a piece of road", () => {
     expect(labels).toContain("Bridge");
     expect([...svg.querySelectorAll(".legend .legend-item")].map((r) => r.getAttribute("fill")))
       .toContain(svg.querySelector(".bridge-deck")!.getAttribute("stroke"));
+  });
+});
+
+// The furniture of a castle was drawn at constant size, so a size-6 royal seat wore the same
+// turrets, wall towers and gate as a size-3 market town, and at this scale the furniture is what
+// the eye reads. It is all in units of the donjon now, and a great seat gets parts a lesser one
+// has not: an outer curtain around a bailey, and a gatehouse in place of a doorway.
+describe("a capital's castle is drawn as a great one", () => {
+  const town = (size: number, isCapital: boolean) =>
+    renderCity(generateCityLayout({ id: 7, name: "T", size, coastal: false, isCapital, elevation: 0.4, biome: GRASSLAND }, 3), "en");
+  const radius = (svg: SVGSVGElement, sel: string) => {
+    const el = svg.querySelector(sel);
+    return el ? Number(el.getAttribute("r")) : 0;
+  };
+
+  it("draws the towers of a great seat larger than a market town's", () => {
+    const great = town(6, true), lesser = town(3, false);
+    expect(great.querySelector(".castle-tower"), "the capital must have a castle at all").not.toBeNull();
+    for (const sel of [".castle-tower", ".castle-turret", ".castle-gate"]) {
+      expect(radius(great, sel), sel).toBeGreaterThan(radius(lesser, sel) * 1.25);
+    }
+  });
+
+  it("gives the great seat an outer curtain and a gatehouse, and the market town neither", () => {
+    const great = town(6, true), lesser = town(3, false);
+    expect(great.querySelectorAll(".castle-outer-wall").length).toBeGreaterThan(0);
+    expect(great.querySelectorAll(".castle-gatehouse").length).toBe(2);
+    expect(lesser.querySelectorAll(".castle-outer-wall").length).toBe(0);
+    expect(lesser.querySelectorAll(".castle-gatehouse").length).toBe(0);
   });
 });
