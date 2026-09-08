@@ -76,9 +76,13 @@ export function provinceLayer(
     }
   }
 
+  // non-scaling-stroke, as every other line on this map has: zoom rewrites the viewBox, so without
+  // it these are drawn at their width TIMES the zoom. Measured at 7.53x before this: the mesh at 8.3
+  // screen pixels and the country outline at 15, beside a coastline still holding its 2.4.
   g.appendChild(svgEl("path", {
     class: "province-border", d: segPath(politicalBorders(grid, provinceOf)),
     fill: "none", stroke: "#3c2f1c", "stroke-width": 1.1, "stroke-opacity": 0.9,
+    "vector-effect": "non-scaling-stroke",
   }));
 
   // nation (country) borders, when an owner array is supplied: ownership is SNAPPED to whole provinces
@@ -90,6 +94,7 @@ export function provinceLayer(
     g.appendChild(svgEl("path", {
       class: "nation-border", d: segPath(politicalBorders(grid, snapped)),
       fill: "none", stroke: "#161009", "stroke-width": 2, "stroke-opacity": 0.95, "stroke-linejoin": "round",
+      "vector-effect": "non-scaling-stroke",
     }));
   }
 

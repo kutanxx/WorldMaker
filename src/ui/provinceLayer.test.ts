@@ -81,3 +81,21 @@ describe("provinceLayer", () => {
     expect(g.querySelectorAll("path.province-fill").length).toBe(2);
   });
 });
+
+// Zoom on this map rewrites the viewBox, so a stroke without `non-scaling-stroke` is drawn at its
+// width TIMES the zoom. Every other line here carries it -- coastline, national border, culture
+// seam, rivers -- and this layer carried it nowhere: measured at 7.53x, the province mesh went from
+// 1.1 to 8.3 screen pixels and the country outline from 2 to 15, a black smear beside a coastline
+// still holding 2.4. The seats are deliberately not in this: they are marks, scaled about their own
+// centre by applyMarkerScale, and are meant to grow a little with the zoom the way every other
+// settlement mark does.
+describe("the province view's lines hold their width", () => {
+  it("draws both borders at a width rather than at a width times the zoom", () => {
+    const g = provinceLayer(grid, provinceOf, provinces, { owner: [0, 0, 1, -1] });
+    for (const sel of [".province-border", ".nation-border"]) {
+      const path = g.querySelector(sel);
+      expect(path, sel).not.toBeNull();
+      expect(path!.getAttribute("vector-effect"), sel).toBe("non-scaling-stroke");
+    }
+  });
+});
