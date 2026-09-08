@@ -107,3 +107,70 @@ describe("sea shore relief", () => {
     }
   });
 });
+
+// A bridge used to be the whole ROAD SEGMENT that happened to straddle the waterline, and a road
+// segment is as long as the road wanted it. Measured over twenty seeds, 400 bridges: median length
+// 51 units with only 28% of it over water, 38% longer than 60 units, and some spanning no water at
+// all. Drawn in the old muted brown that read as a smudge; the moment crossings were given stone
+// parapets one of them showed up as a 366-pixel bar lying ALONG the river it was meant to cross.
+describe("a bridge spans the water and nothing else", () => {
+  // a meander always runs top to bottom, so a road laid west-east is guaranteed to cross it
+  const river = buildWater(mulberry32(3), "meander", { w: 300, h: 300 });
+  const acrossAt = (y: number): Polyline => [[0, y], [300, y]];
+
+  it("stands over the water it crosses, not over the bank beside it", () => {
+    let found = 0;
+    for (const y of [40, 90, 150, 210, 260]) {
+      for (const [a, b] of waterBridges([acrossAt(y)], river)) {
+        found++;
+        let wet = 0;
+        const S = 200;
+        for (let i = 0; i < S; i++) {
+          const t = (i + 0.5) / S;
+          if (inWater(river, [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t])) wet++;
+        }
+        expect(wet / S, `span at y=${y}`).toBeGreaterThan(0.5);
+      }
+    }
+    expect(found, "five roads laid across a river, and no bridge on any of them").toBe(5);
+  });
+
+  it("lands on both banks — a road that runs into the water and stops is not a bridge", () => {
+    let found = 0;
+    for (const y of [40, 90, 150, 210, 260]) {
+      for (const [a, b] of waterBridges([acrossAt(y)], river)) {
+        found++;
+        expect(inWater(river, a), `near abutment at y=${y}`).toBe(false);
+        expect(inWater(river, b), `far abutment at y=${y}`).toBe(false);
+      }
+    }
+    expect(found).toBe(5);
+    // A road usually stops AT the bank because that is where the street network was clipped, not
+    // because the crossing is imaginary, so a road ending in the river is carried on to the far
+    // bank. Water with no far bank within reach is not a crossing at all: a lane running down into
+    // the sea is a slipway, and carries no bridge.
+    const sea = buildWater(mulberry32(3), "sea", { w: 300, h: 300 });
+    let x = 0;
+    while (x < 300 && !inWater(sea, [x, 150])) x += 1;
+    expect(x, "the sea must be somewhere in the frame").toBeLessThan(300);
+    expect(waterBridges([[[0, 150], [x + 4, 150]]], sea).length).toBe(0);
+  });
+
+  it("bridges every crossing of a road that meets the water twice", () => {
+    // a hairpin over a vertical river: in, out, and in again
+    const hairpin: Polyline = [[0, 40], [300, 40], [300, 150], [0, 150], [0, 260], [300, 260]];
+    expect(waterBridges([hairpin], river).length).toBe(3);
+  });
+
+  it("draws one bridge where two streets cross the water side by side", () => {
+    // Parallel streets a couple of units apart each earned their own bridge, and the two came out
+    // all but on top of each other: 29 near-duplicate pairs among 250 bridges over twenty seeds,
+    // which the old muted line hid and stone parapets do not. The gap between bridges is bimodal —
+    // 4.5 units at the 5th percentile against 92 at the median — so anything within 12 is one
+    // crossing counted twice.
+    const twin: Polyline[] = [[[0, 150], [300, 150]], [[0, 153], [300, 153]]];
+    expect(waterBridges(twin, river).length).toBe(1);
+    // ...while a genuinely separate crossing upstream is still its own bridge
+    expect(waterBridges([twin[0], [[0, 90], [300, 90]]], river).length).toBe(2);
+  });
+});

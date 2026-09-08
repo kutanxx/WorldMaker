@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { generateCityLayout, cityContext } from "./city";
-import { centroid, pointInPolygon, polysOverlap, polygonSelfIntersects } from "./geometry";
+import { centroid, pointInPolygon, polysOverlap, polygonSelfIntersects, pointSegDist } from "./geometry";
 import { inWater } from "./city/water";
 import { inMountains } from "./city/mountain";
 import { GRASSLAND } from "./biome";
@@ -69,11 +69,18 @@ describe("city organic", () => {
     // bridges spanning the channel (a river bisecting the town used to get just one)
     expect(withRiver.moat).toBeNull();
     expect(withRiver.water.bridges.length).toBeGreaterThanOrEqual(2);
-    // every bridge is the continuation of a road across the river — both ends sit ON a street point
-    // (a floating bridge line that didn't meet any road read as "just a line", user-reported)
-    const roadPts = [...withRiver.mainRoads, ...withRiver.minorRoads].flat();
-    const onRoad = (p: [number, number]) => roadPts.some((q) => Math.hypot(q[0] - p[0], q[1] - p[1]) < 0.001);
-    for (const [a, b] of withRiver.water.bridges) { expect(onRoad(a)).toBe(true); expect(onRoad(b)).toBe(true); }
+    // every bridge is the continuation of a road across the river — an abutment sits ON the road
+    // (a floating bridge line that didn't meet any road read as "just a line", user-reported).
+    // This used to demand a road VERTEX at each end, which held only while a bridge WAS a whole road
+    // segment; now it spans the crossing itself, so it starts anywhere along the road and its far
+    // end lands on whatever the road reaches next — the chord across a bend in the street.
+    const roads = [...withRiver.mainRoads, ...withRiver.minorRoads];
+    const toRoad = (p: [number, number]) => {
+      let best = Infinity;
+      for (const r of roads) for (let k = 0; k < r.length - 1; k++) best = Math.min(best, pointSegDist(p, r[k], r[k + 1]));
+      return best;
+    };
+    for (const [a, b] of withRiver.water.bridges) expect(Math.min(toRoad(a), toRoad(b))).toBeLessThan(0.01);
     // the same inland cell WITHOUT a world river is a dry-market town, not a river town
     const noRiver = generateCityLayout({ id: 7, name: "T", size: 4, coastal: false, isCapital: false, elevation: 0.4, biome: GRASSLAND, river: false }, 1);
     expect(noRiver.archetype.id).not.toBe("bridgeTown");

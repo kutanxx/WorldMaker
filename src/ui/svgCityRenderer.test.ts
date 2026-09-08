@@ -383,3 +383,55 @@ describe("the town plate's name", () => {
     expect(title!.getAttribute("font-family") ?? "").toMatch(/Cinzel/);
   });
 });
+
+// A crossing is a built structure, and it was drawn in the colours of the thing it carries. The
+// causeway over the moat was #c2b189 on #e6dcc8 — the road palette with the numbers filed off, a
+// measured CIE76 distance of 4.2 from the suburb road, which is no distance at all. Nothing in the
+// legend named a bridge either, so a reader had nothing to match the line to.
+const lab = (h: string): [number, number, number] => {
+  const [r, g, b] = [1, 3, 5].map((i) => {
+    const v = parseInt(h.slice(i, i + 2), 16) / 255;
+    return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+  });
+  const f = (t: number) => (t > 0.008856 ? Math.cbrt(t) : 7.787 * t + 16 / 116);
+  const X = f((0.4124 * r + 0.3576 * g + 0.1805 * b) / 0.95047);
+  const Y = f(0.2126 * r + 0.7152 * g + 0.0722 * b);
+  const Z = f((0.0193 * r + 0.1192 * g + 0.9505 * b) / 1.08883);
+  return [116 * Y - 16, 500 * (X - Y), 200 * (Y - Z)];
+};
+const deltaE = (a: string, b: string) => {
+  const [l1, a1, b1] = lab(a), [l2, a2, b2] = lab(b);
+  return Math.hypot(l1 - l2, a1 - a2, b1 - b2);
+};
+
+describe("a bridge is not painted as a piece of road", () => {
+  const ROADS = [".road-main", ".road-main-casing", ".road-minor", ".road-minor-casing", ".suburb-road", ".village-lane"];
+  const CROSSINGS = [".bridge", ".bridge-deck", ".gate-bridge", ".gate-bridge-top"];
+  const strokes = (svg: SVGSVGElement, sel: string[]) =>
+    sel.flatMap((s) => [...svg.querySelectorAll(s)].map((e) => e.getAttribute("stroke")!)).filter(Boolean);
+
+  it("keeps every crossing colour perceptually clear of every road colour", () => {
+    for (const seed of [1, 3, 5]) {
+      const world = generateWorld({ ...DEFAULT_PARAMS, seed }).world;
+      for (const city of world.cities) {
+        const layout = generateCityLayout(cityContext(city), seed);
+        const svg = renderCity(layout, "en");
+        const roads = new Set(strokes(svg, ROADS));
+        for (const c of new Set(strokes(svg, CROSSINGS))) {
+          for (const r of roads) {
+            expect(deltaE(c, r), `${c} vs road ${r} in ${city.name}`).toBeGreaterThan(12);
+          }
+        }
+      }
+    }
+  });
+
+  it("names the bridge in the district key, so the line means something", () => {
+    const layout = generateCityLayout({ id: 7, name: "T", size: 4, coastal: false, isCapital: false, elevation: 0.4, biome: GRASSLAND, river: true }, 1);
+    const svg = renderCity(layout, "en");
+    const labels = [...svg.querySelectorAll(".legend text")].map((t) => t.textContent);
+    expect(labels).toContain("Bridge");
+    expect([...svg.querySelectorAll(".legend .legend-item")].map((r) => r.getAttribute("fill")))
+      .toContain(svg.querySelector(".bridge-deck")!.getAttribute("stroke"));
+  });
+});

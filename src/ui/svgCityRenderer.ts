@@ -8,6 +8,12 @@ import { type Lang, WARD_NAME, t } from "./i18n";
 // A distinct (but parchment-muted) colour per district so the wards read apart — each
 // functional zone gets its own hue. harbor stays untinted (its docks are the waterfront
 // wharves/piers). Buildings are filled with the same hue so a whole district reads as its colour.
+// the stone a crossing is built of: parapet and deck. Chosen against the rest of the plate — its
+// nearest neighbour is the wall tower at CIE76 12.2, the main road is 41.6 away and the water 25.1,
+// so a bridge is never mistaken for the road it carries nor lost in the channel it spans.
+const BRIDGE_EDGE = "#5f5a4e";
+const BRIDGE_DECK = "#a8a294";
+
 const TINT: Partial<Record<WardType, string>> = {
   plaza: "#e6ddc6",      // civic square — light stone
   market: "#e9cd8a",     // commerce — warm gold
@@ -350,8 +356,14 @@ export function renderCity(layout: CityLayout, lang: Lang = "en"): SVGSVGElement
     root.appendChild(sg);
   }
 
+  // A crossing is masonry, not a stretch of the road it carries, and it was drawn as the latter:
+  // the causeway over the moat came out #c2b189 on #e6dcc8, which is the road palette (a measured
+  // CIE76 distance of 4.2 from the suburb road — no distance at all). Both kinds of crossing now
+  // share one stone: dark parapets with a paler deck between them, so a bridge reads as a built
+  // thing spanning the water rather than the road simply carrying on over it.
   for (const [a, b] of layout.water.bridges) {
-    root.appendChild(svgEl("line", { class: "bridge", x1: a[0], y1: a[1], x2: b[0], y2: b[1], stroke: "#7a6a52", "stroke-width": 4, "stroke-linecap": "round" }));
+    root.appendChild(svgEl("line", { class: "bridge", x1: a[0], y1: a[1], x2: b[0], y2: b[1], stroke: BRIDGE_EDGE, "stroke-width": 5.4, "stroke-linecap": "butt" }));
+    root.appendChild(svgEl("line", { class: "bridge-deck", x1: a[0], y1: a[1], x2: b[0], y2: b[1], stroke: BRIDGE_DECK, "stroke-width": 3, "stroke-linecap": "butt" }));
   }
 
   if (layout.moat) for (const s of layout.moat) {
@@ -359,8 +371,8 @@ export function renderCity(layout: CityLayout, lang: Lang = "en"): SVGSVGElement
   }
   // causeways across the moat in front of each gate (drawn over the water)
   for (const [a, b] of layout.gateBridges) {
-    root.appendChild(svgEl("line", { class: "gate-bridge", x1: a[0], y1: a[1], x2: b[0], y2: b[1], stroke: "#c2b189", "stroke-width": 6, "stroke-linecap": "round" }));
-    root.appendChild(svgEl("line", { class: "gate-bridge-top", x1: a[0], y1: a[1], x2: b[0], y2: b[1], stroke: "#e6dcc8", "stroke-width": 2.6, "stroke-linecap": "round" }));
+    root.appendChild(svgEl("line", { class: "gate-bridge", x1: a[0], y1: a[1], x2: b[0], y2: b[1], stroke: BRIDGE_EDGE, "stroke-width": 6.4, "stroke-linecap": "butt" }));
+    root.appendChild(svgEl("line", { class: "gate-bridge-top", x1: a[0], y1: a[1], x2: b[0], y2: b[1], stroke: BRIDGE_DECK, "stroke-width": 3.6, "stroke-linecap": "butt" }));
   }
 
   if (layout.wall) {
@@ -428,6 +440,8 @@ export function renderCity(layout: CityLayout, lang: Lang = "en"): SVGSVGElement
     ...present.map((wt) => [TINT[wt]!, WARD_NAME[lang][wt] ?? ""] as [string, string]),
     ["#9fc1d6", t(lang, "water")], ["#d8b65e", t(lang, "mainRoad")],
   ];
+  // a crossing gets its own line in the key, but only where the plate actually has one
+  if (layout.water.bridges.length || layout.gateBridges.length) items.push([BRIDGE_DECK, t(lang, "bridge")]);
   const CITY_TITLE_H = 14; // 11 put the heading's descender on the first swatch (measured -0.8)
   // the strip starts at the top of the plate, so there is no room above it: the heading takes its
   // place at the top of the panel and the rows start below it

@@ -93,15 +93,80 @@ export function inWater(water: Water, p: Point): boolean {
   return false;
 }
 
+const STEP = 2;    // the road is walked at this spacing, so a crossing is found where the water is
+const LANDING = 5; // a bridge carries a little way onto each bank; it does not stop at the waterline
+const CARRY = 40;  // how far a road that ends in the water is followed on, looking for the far bank
+// two crossings this close, end for end, are the same crossing: parallel streets a few units apart
+// each earn a bridge and the pair is drawn all but on top of itself. The gap between bridges is
+// bimodal -- 4.5 units at the 5th percentile against 92 at the median -- so the line falls between.
+const SAME_CROSSING = 12;
+
+/**
+ * The crossings a set of roads make over the water, each as the span of one bridge.
+ *
+ * This used to compare the two ENDPOINTS of each road segment and, on the first pair that
+ * disagreed, call the whole segment a bridge — then stop looking at that road. A road segment is
+ * as long as the road wanted it to be, so measured over twenty seeds the median bridge came out 51
+ * units long with 28% of itself over water, more than a third of them past 60 units, and a few
+ * spanning no water at all. It also missed every crossing a road made WITHIN one segment, since
+ * both of those endpoints sit on land, and gave a road that crossed twice a single bridge.
+ *
+ * So the road is walked at a fixed spacing instead, and each unbroken run of wet steps becomes one
+ * bridge: from a landing on the near bank to a landing on the far one. Where the run reaches the
+ * end of the road the crossing is carried on along the road's own heading until it reaches dry
+ * ground — a road usually stops AT the bank because that is where the street network was clipped,
+ * not because the crossing is imaginary. If it finds no far bank within CARRY it is a lane running
+ * down into the water, a slipway rather than a bridge, and carries none.
+ */
 export function waterBridges(roads: Polyline[], water: Water): [Point, Point][] {
   const bridges: [Point, Point][] = [];
+  if (!water.bodies.length) return bridges;
+  const gap = (p: Point, q: Point) => Math.hypot(p[0] - q[0], p[1] - q[1]);
+  const same = (a: Point, b: Point, c: Point, d: Point) =>
+    Math.min(gap(a, c) + gap(b, d), gap(a, d) + gap(b, c)) < SAME_CROSSING;
   for (const r of roads) {
+    const walk: Point[] = [];
     for (let i = 0; i < r.length - 1; i++) {
       const a = r[i], b = r[i + 1];
-      if (inWater(water, a) !== inWater(water, b)) {
-        bridges.push([a, b]);
-        break;
+      const n = Math.max(1, Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) / STEP));
+      for (let k = 0; k < n; k++) walk.push([a[0] + ((b[0] - a[0]) * k) / n, a[1] + ((b[1] - a[1]) * k) / n]);
+    }
+    if (r.length) walk.push(r[r.length - 1]);
+    // step back (dir -1) or on (dir +1) along the walk until LANDING of road has been covered
+    const abutment = (from: number, dir: -1 | 1): Point => {
+      let i = from, gone = 0;
+      while (gone < LANDING) {
+        const j = i + dir;
+        if (j < 0 || j >= walk.length) break;
+        gone += Math.hypot(walk[j][0] - walk[i][0], walk[j][1] - walk[i][1]);
+        i = j;
       }
+      return walk[i];
+    };
+    // the road has run out: keep going on its last heading until the far bank, then land on it
+    const carryOn = (from: number, dir: -1 | 1): Point | null => {
+      const prev = walk[from - dir];
+      if (!prev) return null;
+      const dx = walk[from][0] - prev[0], dy = walk[from][1] - prev[1];
+      const m = Math.hypot(dx, dy);
+      if (!m) return null;
+      const ux = (dx / m) * STEP, uy = (dy / m) * STEP;
+      let p: Point = walk[from];
+      for (let gone = 0; gone <= CARRY; gone += STEP) {
+        p = [p[0] + ux, p[1] + uy];
+        if (!inWater(water, p)) return [p[0] + (ux / STEP) * LANDING, p[1] + (uy / STEP) * LANDING];
+      }
+      return null;
+    };
+    let i = 0;
+    while (i < walk.length) {
+      if (!inWater(water, walk[i])) { i++; continue; }
+      let j = i;
+      while (j + 1 < walk.length && inWater(water, walk[j + 1])) j++;
+      const near = i > 0 ? abutment(i, -1) : carryOn(i, -1);
+      const far = j < walk.length - 1 ? abutment(j, 1) : carryOn(j, 1);
+      if (near && far && !bridges.some(([a, b]) => same(a, b, near, far))) bridges.push([near, far]);
+      i = j + 1;
     }
   }
   return bridges;
