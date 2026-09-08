@@ -6,11 +6,47 @@ import type { Province } from "../engine/provinces";
 
 type GridLike = Pick<World["grid"], "count" | "polygons" | "neighbors" | "points">;
 
-// EU4-style: a distinct hue per province (golden-angle spacing) so adjacent provinces read as
-// separate regions regardless of biome. Deterministic (id-based) and inline so it survives export.
-function provinceColor(id: number): string {
-  return `hsl(${((id * 137.508) % 360).toFixed(1)}, 45%, 68%)`;
+// EU4-style: a distinct hue per province so adjacent provinces read as separate regions regardless
+// of biome. The hue used to be the golden angle over the province ID, which spaces CONSECUTIVE ids
+// and knows nothing about who touches whom -- and ids come from farthest-point seeding, so
+// neighbours draw arbitrary ones. Measured over 968 touching pairs: a healthy 94-degree median, but
+// twelve pairs a world within 15 degrees and 2.5% within 5, which is the same colour either side of
+// a hairline. So the hues are dealt against the adjacency instead: a fixed wheel of twelve, each
+// province taking the one furthest from the neighbours already dealt. Deterministic (id order, ties
+// to the lowest hue), no rng, and inline so it survives export.
+const PALETTE = 12;
+const hueGap = (a: number, b: number) => { const d = Math.abs(a - b) % 360; return Math.min(d, 360 - d); };
+
+function assignHues(grid: GridLike, provinceOf: ArrayLike<number>, count: number): number[] {
+  const adj: Set<number>[] = Array.from({ length: count }, () => new Set<number>());
+  for (let i = 0; i < grid.count; i++) {
+    const a = provinceOf[i];
+    if (a < 0 || a >= count) continue;
+    for (const nb of grid.neighbors[i]) {
+      const b = provinceOf[nb];
+      if (b >= 0 && b < count && b !== a) adj[a].add(b);
+    }
+  }
+  const hue = new Array(count).fill(-1);
+  for (let p = 0; p < count; p++) {
+    // Candidates are walked from this province's own golden-angle position rather than from zero.
+    // Adjacency still decides -- the first best wins -- but a province whose neighbours are all
+    // still unassigned scores every hue equally, and with a fixed starting point every one of those
+    // took hue 0: the first map came out dominated by a single pink. Ties now spread instead.
+    const start = Math.round((((p * 137.508) % 360) / 360) * PALETTE) % PALETTE;
+    let best = 0, bestScore = -1;
+    for (let i = 0; i < PALETTE; i++) {
+      const h = (((start + i) % PALETTE) * 360) / PALETTE;
+      let score = 360;
+      for (const q of adj[p]) if (hue[q] >= 0) score = Math.min(score, hueGap(h, hue[q]));
+      if (score > bestScore) { bestScore = score; best = h; }
+    }
+    hue[p] = best;
+  }
+  return hue;
 }
+
+const provinceColor = (hue: number): string => `hsl(${hue.toFixed(1)}, 45%, 68%)`;
 
 // each province's majority-owner nation (the nation holding the most of its cells); ties → lower id,
 // -1 if the province is mostly unclaimed. Snapping ownership to whole provinces makes nation borders
@@ -57,6 +93,7 @@ export function provinceLayer(
   const g = svgEl("g", { class: "province" }) as SVGGElement;
 
   if (fills) {
+    const hues = assignHues(grid, provinceOf, provinces.length);
     const byProv: string[] = provinces.map(() => "");
     for (let i = 0; i < grid.count; i++) {
       const p = provinceOf[i];
@@ -67,7 +104,7 @@ export function provinceLayer(
       if (!byProv[prov.id]) continue;
       const path = svgEl("path", {
         class: "province-fill", "data-province": prov.id, d: byProv[prov.id],
-        fill: provinceColor(prov.id), "fill-opacity": 0.7,
+        fill: provinceColor(hues[prov.id]), "fill-opacity": 0.7,
       });
       const title = svgEl("title");
       title.textContent = prov.name;

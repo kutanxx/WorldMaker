@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from "vitest";
 import { provinceLayer, provinceOwners, snapOwnersToProvinces } from "./provinceLayer";
+import { generateWorld } from "../engine/world";
+import { DEFAULT_PARAMS } from "../types/world";
 import type { Province } from "../engine/provinces";
 
 // 4 cells in a row (squares), cells 0-1 = province 0, cell 2 = province 1, cell 3 = ocean (-1)
@@ -97,5 +99,54 @@ describe("the province view's lines hold their width", () => {
       expect(path, sel).not.toBeNull();
       expect(path!.getAttribute("vector-effect"), sel).toBe("non-scaling-stroke");
     }
+  });
+});
+
+// The hues were spaced by the golden angle over the province ID -- which separates CONSECUTIVE ids
+// and says nothing about who touches whom. Province ids come from farthest-point seeding, so
+// neighbours draw arbitrary ids: measured over 968 touching pairs in five worlds, the median gap was
+// a healthy 94 degrees but about twelve pairs a world sat within 15, and 2.5% within 5 -- the same
+// colour, either side of a hairline. The fill is supposed to be what separates them.
+describe("no two provinces that touch wear the same colour", () => {
+  const hueOf = (fill: string) => Number(/hsl\(\s*([\d.]+)/.exec(fill)![1]);
+  const gap = (a: number, b: number) => { const d = Math.abs(a - b) % 360; return Math.min(d, 360 - d); };
+  it("keeps every shared border between two visibly different fills", () => {
+    for (const seed of [1, 42, 834932]) {
+      const w = generateWorld({ ...DEFAULT_PARAMS, seed }).world;
+      const g = provinceLayer(w.grid, w.provinceOf, w.provinces);
+      const fill = new Map<number, number>();
+      for (const el of g.querySelectorAll(".province-fill")) {
+        fill.set(Number(el.getAttribute("data-province")), hueOf(el.getAttribute("fill")!));
+      }
+      let worst = 360, who = "";
+      for (let i = 0; i < w.grid.count; i++) {
+        const a = w.provinceOf[i];
+        if (a < 0) continue;
+        for (const nb of w.grid.neighbors[i]) {
+          const b = w.provinceOf[nb];
+          if (b < 0 || b === a) continue;
+          const d = gap(fill.get(a)!, fill.get(b)!);
+          if (d < worst) { worst = d; who = `seed ${seed}: ${a}/${b}`; }
+        }
+      }
+      expect(worst, who).toBeGreaterThanOrEqual(30);
+    }
+  });
+
+  // Adjacency alone leaves the answer degenerate: a province whose neighbours are all still
+  // unassigned scores every hue the same, so with a fixed starting point every one of them took the
+  // first hue and the map came out dominated by a single pink. Ties break to the province's own
+  // golden-angle position instead, which spends the whole wheel.
+  it("spends the whole wheel rather than crowding one hue", () => {
+    const w = generateWorld({ ...DEFAULT_PARAMS, seed: 1 }).world;
+    const g = provinceLayer(w.grid, w.provinceOf, w.provinces);
+    const used = new Map<number, number>();
+    for (const el of g.querySelectorAll(".province-fill")) {
+      const h = hueOf(el.getAttribute("fill")!);
+      used.set(h, (used.get(h) ?? 0) + 1);
+    }
+    const total = w.provinces.length;
+    expect(used.size).toBeGreaterThanOrEqual(10);
+    expect(Math.max(...used.values()) / total).toBeLessThan(0.2); // measured: 11%
   });
 });

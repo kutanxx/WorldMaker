@@ -256,3 +256,20 @@ describe("culture names", () => {
     expect(culture.style.visibility).toBe("");
   });
 });
+
+// The province view drew 100 names and showed none of them at rest -- they waited for 2x -- while
+// the terrain layer's region names were drawn in every view, so the one view about provinces was
+// captioned by somebody else's labels. The culture and political views both name their own subject
+// at rest; this one now does too, and the cull decides how many fit rather than a scale gate.
+describe("province names", () => {
+  it("names the view's own subject at rest, biggest first", () => {
+    const svg = document.createElementNS(NS, "svg") as SVGSVGElement;
+    const big = mkLabel(svg, "province-label", { x: 0, y: 0, width: 40, height: 7 });
+    const overlapping = mkLabel(svg, "province-label", { x: 5, y: 1, width: 40, height: 7 });
+    const far = mkLabel(svg, "province-label", { x: 400, y: 400, width: 40, height: 7 });
+    deconflictLabels(svg, 1);
+    expect(big.style.visibility).toBe("");        // emitted first = the larger province
+    expect(overlapping.style.visibility).toBe("hidden");
+    expect(far.style.visibility).toBe("");
+  });
+});
