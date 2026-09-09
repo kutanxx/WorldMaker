@@ -17,6 +17,21 @@ describe("urlState", () => {
     for (const s of seeds) { expect(Number.isInteger(s)).toBe(true); expect(s).toBeGreaterThanOrEqual(0); }
     expect(seeds.size).toBeGreaterThan(1); // effectively always distinct
   });
+  // `parseSeedValue` was written, exported and tested — and never called by anything. So a hash
+  // that was not base64 JSON fell through decodeParams' catch to DEFAULT_PARAMS, whose seed is 1:
+  // every readable link (#seed=Narnia, and the daily world's own URL) silently opened world 1
+  // instead of failing loudly. The reader-facing form is now the one the app understands.
+  it("reads a readable seed hash, so a named world is a shareable link", () => {
+    expect(initialParams("#seed=Narnia").seed).toBe(hashStringToSeed("Narnia"));
+    expect(initialParams("#seed=daily-2026-07-12").seed).toBe(hashStringToSeed("daily-2026-07-12"));
+    expect(initialParams("#seed=731").seed).toBe(731);           // back-compat with numeric links
+    const p = initialParams("#seed=Narnia");
+    expect({ ...p, seed: 0 }).toEqual({ ...DEFAULT_PARAMS, seed: 0 });  // nothing else disturbed
+  });
+  it("still opens a world rather than nothing when the hash is meaningless", () => {
+    const p = initialParams("#not-valid");
+    expect(Number.isInteger(p.seed)).toBe(true);
+  });
   it("initialParams honours a shared URL seed but starts random on an empty hash", () => {
     // a shared URL wins (share-a-seed is a core feature)
     const shared = { ...DEFAULT_PARAMS, seed: 4242 };
