@@ -69,12 +69,6 @@ svg.world .legend { pointer-events: none; }
 .nation-label.player { font-weight: 700; }
 /* play map only: enlarge labels for readability (Version A keeps its tuned sizes). Bigger labels
    overlap more, so deconflictLabels culls more — the important tiers (nation, player) win. */
-.play-shell .nation-label { font-size: 14px; }
-.play-shell .nation-label.player { font-size: 18px; }
-.play-shell .city-capital { font-size: 13px; }
-.play-shell .city-town { font-size: 10.5px; }
-.play-shell .region-label { font-size: 13px; }
-.play-shell .river-label { font-size: 11px; }
 .city-label { font-family: 'EB Garamond', Georgia, serif; }
 .region-label { font-family: 'EB Garamond', Georgia, serif; opacity: .85; }
 .world-name-text { font-family: 'Cinzel', serif; font-weight: 600; letter-spacing: .08em; }
@@ -149,7 +143,6 @@ svg.world .legend { pointer-events: none; }
   .app-title { font-size: 21px; padding: 8px 0 4px; letter-spacing: .06em; }
   /* home + language float in the top corners (out of the flow) so they don't eat vertical space —
      the title and map slide up under them, and the centered title sits between the two corners */
-  #play { position: relative; }
   .picker-topbar {
     position: absolute; top: 4px; left: 0; right: 0; margin: 0; padding: 0 6px;
     justify-content: space-between; z-index: 3; pointer-events: none;
@@ -202,15 +195,11 @@ svg.world .legend { pointer-events: none; }
 .dilemma .dilemma-title { font-weight: 600; margin-right: 8px; }
 
 /* play-screen layout */
-#play { max-width: 1440px; margin: 0 auto; padding: 0 16px 32px; }
 /* viewport-fit HUD shell (≥1100px): no page scroll — info rail on the LEFT (the frequent-info
    edge, per HUD research), the map filling the remaining space, commands pinned at the BOTTOM
    (the RTS command-card convention). User feedback: the top-of-document status UI forced the eye
    to ping-pong between the page extremes every turn. */
 @media (min-width: 1100px) {
-  body:has(.play-shell) { overflow: hidden; }
-  body:has(.play-shell) #play { max-width: none; margin: 0; padding: 0; }
-  .play-shell { display: grid; grid-template-columns: 340px 1fr; gap: 10px; height: 100svh; padding: 10px; box-sizing: border-box; }
   .play-side { display: flex; flex-direction: column; gap: 10px; min-height: 0; overflow: hidden; }
   .play-side .chronicle { flex: 1; min-height: 0; max-height: none; overflow: auto; }
   .play-main { display: flex; flex-direction: column; gap: 10px; min-width: 0; min-height: 0; }
@@ -223,16 +212,7 @@ svg.world .legend { pointer-events: none; }
    panel, goals, MAP, dilemma, command bar, [banner], chronicle — since DOM order now puts the
    whole side rail (incl. the log) before the map. */
 @media (max-width: 1099.98px) {
-  .play-shell { max-width: 1100px; margin: 0 auto; display: flex; flex-direction: column; gap: 10px; }
   .play-side, .play-main { display: contents; }
-  .play-shell .play-panel { order: 1; }
-  .play-shell .goals { order: 2; }
-  .play-shell .stage { order: 3; }
-  .play-shell .dilemma { order: 4; }
-  .play-shell .play-actions { order: 5; }
-  .play-shell .stub { order: 6; }        /* game-over banner sits above the log, as before */
-  .play-shell .chronicle { order: 7; }
-  .play-shell .stage svg.world { max-width: 900px; margin: 0 auto; }
 }
 /* standing strip: horizontal, wraps on narrow screens */
 .play-panel { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; }
@@ -263,14 +243,7 @@ svg.world .legend { pointer-events: none; }
 
 /* standing panel: momentum headline + two health meters + threat line */
 .goals { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 12px; color: #5a4a34; margin: 2px 0 4px; }
-.goal-chip { border: 1px solid rgba(42, 33, 24, 0.25); border-radius: 10px; padding: 2px 8px; white-space: nowrap; cursor: help; }
 .challenges { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 4px; }
-.challenge-chip {
-  font-size: 12px; padding: 3px 8px; border-radius: 10px;
-  background: #efe6cf; border: 1px solid #cbb784; color: #4a3f2c;
-}
-.challenge-chip.done { background: #dcecb9; border-color: #8caa4e; color: #3a4a1a; font-weight: 600; }
-.challenge-chip.failed { opacity: .5; text-decoration: line-through; }
 .momentum { margin: 4px 0; font-weight: 600; color: #3a2f22; }
 .standing { display: flex; flex-direction: column; gap: 3px; margin: 4px 0; }
 .meter { display: flex; justify-content: space-between; gap: 8px; padding: 2px 8px;
@@ -312,12 +285,6 @@ svg.world .legend { pointer-events: none; }
 
 /* neighbor attitude chips */
 .neighbors { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
-.neighbor-chip { font-size: 11.5px; padding: 1px 7px; border-radius: 9px; border: 1px solid #c9bb96; background: #f2ead6; cursor: pointer; }
-.neighbor-chip.friendly { border-color: #4a8c5a; }
-.neighbor-chip.wary { border-color: #b08a2e; }
-.neighbor-chip.hostile { border-color: #a63d36; color: #7c2f28; }
-.neighbor-chip:hover { box-shadow: 0 0 0 2px rgba(201, 187, 150, 0.5); }
-.neighbor-chip.selected { outline: 2px solid #5b83a6; }
 .neighbor-more { font-size: 11px; color: #8a7a5e; align-self: center; }
 
 /* landing: start-from-a-name row */
@@ -346,25 +313,17 @@ svg.world .legend { pointer-events: none; }
 
 @media (pointer: coarse) {
   .marker-hit { r: 20px; }
-  #play button, #landing button, #province-app button { min-height: 44px; padding: 8px 12px; font-size: 14px; touch-action: manipulation; }
+  #landing button { min-height: 44px; padding: 8px 12px; font-size: 14px; touch-action: manipulation; }
   a.home { min-height: 44px; padding: 8px 12px; font-size: 14px; touch-action: manipulation; }
-  .neighbor-chip { min-height: 44px; display: inline-flex; align-items: center; padding: 8px 12px; font-size: 14px; touch-action: manipulation; }
-  .goal-chip, .challenge-chip { padding: 8px 12px; }
   .play-actions .timeline-play { min-width: 48px; }
   .play-actions .timeline-slider { height: 36px; }
   .map-zoom-controls button { min-width: 48px; }
 }
 /* tap-strip: the touch replacement for hover tooltips; installed only on coarse pointers */
-.tip-strip { position: fixed; left: 8px; right: 8px; bottom: 8px; z-index: 60; background: rgba(42, 33, 24, 0.92); color: #f2e8d5; padding: 10px 14px; border-radius: 10px; font-size: 14px; pointer-events: none; opacity: 0; transition: opacity 0.15s; white-space: pre-line; }
-.tip-strip.show { opacity: 1; }
 /* tablets (coarse pointer + wide HUD grid): the command bar is pinned at the bottom, so the
    strip docks top instead of covering it */
-@media (pointer: coarse) and (min-width: 1100px) {
-  .tip-strip { top: 8px; bottom: auto; }
-}
 
 /* ── Province game (playProvince.html) — parchment chrome around the map, matching the atlas theme ── */
-#province-app { max-width: 1000px; margin: 0 auto; padding: 10px 16px 40px; }
 .prov-header { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; position: relative; padding: 4px 0 2px; }
 .prov-title { margin: 0 auto; font-size: 26px; }               /* Cinzel via .app-title; centred between home link and the flex edge */
 .prov-header a.home { position: absolute; left: 0; top: 6px; } /* home link tucked in the corner, title stays optically centred */

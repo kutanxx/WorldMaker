@@ -557,3 +557,13 @@ describe("the plate names what it draws", () => {
     expect(titles).toContain("시장 광장");
   });
 });
+
+describe("the plate says what it is", () => {
+  it("names itself at the root, where a reader's software looks", () => {
+    const layout = generateCityLayout({ id: 7, name: "Sah", size: 4, coastal: false, isCapital: true, elevation: 0.4, biome: GRASSLAND }, 3);
+    const svg = renderCity(layout, "en");
+    expect(svg.getAttribute("role")).toBe("img");
+    expect(svg.querySelector(":scope > title")?.textContent ?? "").toContain("Sah");
+    expect(svg.querySelector(":scope > desc")?.textContent ?? "").not.toBe("");
+  });
+});

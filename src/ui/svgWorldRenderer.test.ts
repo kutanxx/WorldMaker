@@ -476,3 +476,18 @@ describe("a city can be reached", () => {
     for (const l of labels) expect(l.getAttribute("data-city")).not.toBeNull();
   });
 });
+
+// The map is the page. To a screen reader it was an untitled graphic: the root <svg> had no role,
+// no name and no description, so the whole thing announced as nothing at all.
+describe("the map says what it is", () => {
+  it("names itself and the view it is showing", () => {
+    const world = generateWorld({ ...DEFAULT_PARAMS, seed: 5 }).world;
+    for (const view of ["terrain", "political", "culture", "province"] as const) {
+      const svg = renderWorld(world, view);
+      expect(svg.getAttribute("role")).toBe("img");
+      const title = svg.querySelector(":scope > title")?.textContent ?? "";
+      expect(title, `${view} view is unnamed`).toContain(world.name);
+      expect(svg.querySelector(":scope > desc")?.textContent ?? "", `${view} view undescribed`).not.toBe("");
+    }
+  });
+});

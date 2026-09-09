@@ -80,7 +80,15 @@ export function renderCity(layout: CityLayout, lang: Lang = "en"): SVGSVGElement
   const fn = (k: FeatureKey) => featureName(lang, k);
   const { w, h } = layout.bounds;
   const LEGW = 108; // right-hand strip that holds the district key, OUTSIDE the map so it never covers the city
-  const root = svgEl("svg", { width: "100%", viewBox: `0 0 ${w + LEGW} ${h}`, class: "city" }) as SVGSVGElement;
+  const root = svgEl("svg", { width: "100%", viewBox: `0 0 ${w + LEGW} ${h}`, class: "city", role: "img" }) as SVGSVGElement;
+  // the plate announces itself as one thing rather than an untitled graphic (and both elements
+  // travel into the exported file, which carries no stylesheet but does carry the document)
+  const rootTitle = svgEl("title");   // a DIRECT child of <svg>, or it is not the root's name
+  rootTitle.textContent = `${t(lang, "cityPlanOf")} ${layout.name}`;
+  root.appendChild(rootTitle);
+  const rootDesc = svgEl("desc");
+  rootDesc.textContent = `${layout.archetype.id} · ${layout.wards.length} ${t(lang, "legendDistricts")}`;
+  root.appendChild(rootDesc);
   root.appendChild(svgEl("rect", { x: 0, y: 0, width: w + LEGW, height: h, fill: "#f3efe4" }));
 
   const clipId = "cityclip";

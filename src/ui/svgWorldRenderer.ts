@@ -36,7 +36,16 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
     width: "100%",
     viewBox: `0 0 ${grid.width} ${grid.height}`,
     class: `world view-${view}`,
+    role: "img",
   }) as SVGSVGElement;
+  // The map IS the page, and to a screen reader it was an untitled graphic: no role, no name, no
+  // description, announcing as nothing at all. A title and a description of the view make it one
+  // thing that can be spoken. Both are real SVG elements, so they travel into the exported file.
+  const rootTitle = svgEl("title");
+  rootTitle.textContent = `${t(lang, "mapOf")} ${world.name}`;
+  const rootDesc = svgEl("desc");
+  rootDesc.textContent = t(lang, `view${view.charAt(0).toUpperCase()}${view.slice(1)}` as never);
+  root.append(rootTitle, rootDesc);
 
   root.appendChild(svgEl("rect", { x: 0, y: 0, width: grid.width, height: grid.height, fill: BIOME_COLORS[OCEAN] }));
 

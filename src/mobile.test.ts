@@ -13,10 +13,21 @@ describe("mobile viewport meta", () => {
   }
 });
 
+// The witness used to be `.neighbor-chip`, the worst touch target on the page at 19px — and that
+// element went with the games. The test outlived it, holding a rule in the stylesheet for a thing
+// nothing rendered any more. The map's city markers are the worst target now (2.3-radius dots,
+// measured at 5px on the live page), so they are what the block has to cover.
 describe("coarse-pointer ergonomics", () => {
-  it("theme.css carries the touch-target block", () => {
+  it("theme.css widens the map's own touch targets, not only its buttons", () => {
     const css = read("src/theme.css");
     expect(css).toContain("@media (pointer: coarse)");
-    expect(css).toContain(".neighbor-chip"); // the worst offender (19px tall) is covered
+    const coarse = css.slice(css.indexOf("@media (pointer: coarse)"));
+    expect(coarse).toContain(".marker-hit");
+  });
+  it("carries no rules for pages this site no longer has", () => {
+    const css = read("src/theme.css");
+    for (const gone of [".play-shell", "#play ", "#province-app", ".goal-chip", ".challenge-chip", ".neighbor-chip", ".tip-strip"]) {
+      expect(css, `${gone} belongs to a page that was deleted`).not.toContain(gone);
+    }
   });
 });
