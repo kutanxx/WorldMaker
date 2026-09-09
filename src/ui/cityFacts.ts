@@ -6,11 +6,11 @@ import { t, type Lang } from "./i18n";
  * What a plate can honestly say about the town it draws.
  *
  * An outside review asked for population, realm, founding year and a line of description beside
- * each city plan, and said the founding year "is already in the chronicle". It is not, for these
- * cities: measured on seed 1, the simulation raises 19 `newCity` events over 500 years and NONE of
- * them names a town that appears on the map. The chronicle founds places the atlas never draws.
- * That is worth fixing on its own; it is not something a panel can paper over, so the panel says
- * what is true and leaves the year out.
+ * each city plan, and said the founding year "is already in the chronicle". It was not, when this
+ * was written: the simulation raised 19 `newCity` events on seed 1 and none of them named a town on
+ * the map. That was fixed at the source rather than papered over here, so the year IS available
+ * now — for the towns the chronicle founds. A capital is a seat the world starts with, and a town
+ * the five centuries never got round to founding predates the record; both say so.
  *
  * The rest is real. The realm comes from the cell's owner, the kind of town from the archetype the
  * generator chose for it, and the size band from `size` — which is a rank, 1 to 6, not a count. The
@@ -29,6 +29,7 @@ export const POPULATION_BANDS: Record<number, [number, number]> = {
 
 export interface CityFacts {
   name: string;
+  founded: number | null;   // null: older than the chronicle (a capital, or a town never founded)
   realm: string | null;
   kind: string;
   rank: string;
@@ -40,6 +41,7 @@ const groups = (n: number) => n.toLocaleString("en-US");
 
 export function cityFacts(
   world: World, city: CityMarker, layout: CityLayout, lang: Lang, kmPerUnit: number,
+  foundings: readonly { cityId: number; year: number }[] = [],
 ): CityFacts {
   const owner = world.polityOf[city.cell];
   const realm = owner >= 0 ? world.polities.find((p) => p.id === owner)?.name ?? null : null;
@@ -55,6 +57,7 @@ export function cityFacts(
 
   return {
     name: city.name,
+    founded: foundings.find((f) => f.cityId === city.id)?.year ?? null,
     realm,
     kind: t(lang, `kind_${layout.archetype.id}` as never),
     rank: t(lang, `rank${city.size}` as never),

@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { cityFacts, POPULATION_BANDS } from "./cityFacts";
 import { generateWorld } from "../engine/world";
+import { simulateHistory } from "../engine/history";
 import { generateCityLayout, cityContext } from "../engine/city";
 import { DEFAULT_PARAMS } from "../types/world";
 import { KM_PER_UNIT } from "./scaleBar";
@@ -46,6 +47,24 @@ describe("what a plate can say about its town", () => {
       expect(n.id).not.toBe(world.cities[0].id);
       expect(world.cities.some((c) => c.id === n.id && c.name === n.name)).toBe(true);
       expect(n.km).toBeGreaterThan(0);
+    }
+  });
+});
+
+// The founding year was left out when this was written, because the chronicle founded towns that
+// were not on the map. That was fixed at the source, so the year is available — for the towns the
+// chronicle founds. A capital is a seat the world starts with; a town the five centuries never got
+// round to predates the record. Both say so rather than inventing a number.
+describe("when a town came to be", () => {
+  it("gives the chronicle's year to the towns it founded, and nothing to the rest", () => {
+    const w = generateWorld({ ...DEFAULT_PARAMS, seed: 1 }).world;
+    const h = simulateHistory(w, 1);
+    expect(h.cityFoundings.length, "the chronicle founded nothing").toBeGreaterThan(3);
+    for (const c of w.cities) {
+      const f = cityFacts(w, c, generateCityLayout(cityContext(c), 1), "en", KM_PER_UNIT, h.cityFoundings);
+      const rec = h.cityFoundings.find((x) => x.cityId === c.id);
+      expect(f.founded).toBe(rec ? rec.year : null);
+      if (c.isCapital) expect(f.founded, "a capital is not founded by the chronicle").toBeNull();
     }
   });
 });

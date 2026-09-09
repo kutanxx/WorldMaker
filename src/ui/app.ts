@@ -368,7 +368,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     // map to hunt for another dot. The facts are the ones the world can actually answer for — the
     // founding year an outside review asked for is not among them: the chronicle founds towns the
     // atlas never draws (19 of 19 on seed 1), which is its own bug and not something to paper over.
-    const facts = cityFacts(generated.world, marker, layout, lang, KM_PER_UNIT);
+    const facts = cityFacts(generated.world, marker, layout, lang, KM_PER_UNIT, history.cityFoundings);
     const panel = document.createElement("div");
     panel.className = "city-facts";
     const row = (label: string, value: string) => {
@@ -383,6 +383,9 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
       row(t(lang, "factKind"), facts.kind),
       row(t(lang, "factRealm"), facts.realm ?? t(lang, "factUnclaimed")),
       row(t(lang, "factPeople"), `${facts.rank} · ${facts.population}`),
+      row(t(lang, "factFounded"), facts.founded === null
+        ? t(lang, "factAncient")
+        : t(lang, "year").replace("{y}", String(facts.founded))),
     );
     const near = document.createElement("div");
     near.className = "city-fact city-neighbours";
