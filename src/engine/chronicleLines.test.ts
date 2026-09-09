@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { generateWorld } from "./world";
 import { DEFAULT_PARAMS } from "../types/world";
 import { simulateHistory } from "./history";
-import { buildChronicle } from "./chronicleLines";
+import { buildChronicle, isMoment } from "./chronicleLines";
 
 const build = (seed: number) => {
   const { world } = generateWorld({ ...DEFAULT_PARAMS, seed });
@@ -117,5 +117,56 @@ describe("the chronicle carries the world's natural history too", () => {
     // every recorded event still has its line: the sim's own events are untouched by any of this
     expect(lines.length - natural.length).toBeGreaterThanOrEqual(history.events.length - 7);
     expect(lines.some((l) => l.kind === "conquer")).toBe(true);
+  });
+});
+
+// The panel and the document are not the same reader. The gazetteer is consulted — you look a realm
+// up and want its whole life, king list included. The panel is glanced at beside a moving map, and
+// there a 115-line scroll of which a third is accessions and a quarter is territorial arithmetic is
+// not read at all. So the assembler marks which lines are MOMENTS — something happened — and which
+// are RECORD: facts about the record itself, true and useful in a reference, noise in a feed.
+//
+// This is not a reversal of putting the mined chronicle on screen. That fixed lines the reader had
+// no other way to reach; the ruler and the greatest extent now have a home in the gazetteer's realm
+// entries, which is where a reference belongs.
+describe("moments and record", () => {
+  const build = (seed: number) => {
+    const { world } = generateWorld({ ...DEFAULT_PARAMS, seed });
+    return { world, history: simulateHistory(world, seed) };
+  };
+
+  it("calls the king list and the territorial arithmetic record, not moments", () => {
+    for (const k of ["accession", "peak", "loss", "surge"] as const) expect(isMoment(k), k).toBe(false);
+  });
+
+  it("calls anything that happened a moment", () => {
+    for (const k of ["conquer", "civilwar", "fall", "independence", "goldenage", "staple",
+                     "newCity", "plague", "fire", "flood", "winter", "famine", "hegemon",
+                     "culture", "century", "foundings"] as const) {
+      expect(isMoment(k), k).toBe(true);
+    }
+  });
+
+  it("cuts the panel to something a reader would actually read", () => {
+    let all = 0, moments = 0;
+    for (const seed of [1, 2, 3, 4, 5]) {
+      const { world, history } = build(seed);
+      const lines = buildChronicle(world, history, "en");
+      all += lines.length;
+      moments += lines.filter((l) => isMoment(l.kind)).length;
+    }
+    expect(all / 5).toBeGreaterThan(100);            // the document is still the document
+    expect(moments / 5).toBeLessThan(70);            // the panel is about half of it
+    expect(moments / 5).toBeGreaterThan(30);         // and not so thin the centuries go quiet again
+  });
+
+  // The morning's complaint was that a reader on the site never saw a ruler named. Culling the king
+  // LIST must not put that back: the fall of a realm and its reach over another people both name
+  // who was reigning, and both stay.
+  it("still names rulers among the moments", () => {
+    const { world, history } = build(1);
+    const named = buildChronicle(world, history, "en")
+      .filter((l) => isMoment(l.kind) && /\(under \w+\)/.test(l.text));
+    expect(named.length).toBeGreaterThan(3);
   });
 });

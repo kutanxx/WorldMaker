@@ -2,7 +2,7 @@ import type { World } from "../types/world";
 import type { History } from "../engine/history";
 import type { Lang } from "./i18n";
 import { chronicleTitle, eraLabel } from "./i18n";
-import { buildChronicle } from "../engine/chronicleLines";
+import { buildChronicle, isMoment } from "../engine/chronicleLines";
 
 // The world is needed because the chronicle is not only the events the simulation recorded: most of
 // it is mined out of the territory snapshots, and reading those means knowing whose land is whose.
@@ -19,7 +19,11 @@ export function renderChronicle(world: World, history: History, lang: Lang): HTM
   // by its own <ol> of event rows — valid markup, since an <ol> may only contain <li> children.
   let lastCentury = -1;
   let list: HTMLOListElement | null = null;
-  for (const e of buildChronicle(world, history, lang)) {
+  // Moments only. The gazetteer keeps the whole chronicle — it is a reference and you go to it
+  // looking for a realm's king list — but this sits beside a moving map and gets glanced at, and
+  // the full record runs 115 lines a world of which a third is accessions and a quarter is
+  // territorial arithmetic. Half of it was crowding out the other half.
+  for (const e of buildChronicle(world, history, lang).filter((l) => isMoment(l.kind))) {
     const century = Math.floor(e.year / 100);
     if (century !== lastCentury) {
       lastCentury = century;

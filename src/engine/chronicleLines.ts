@@ -38,6 +38,24 @@ export type ChronicleKind =
 /** `rank` only orders lines that share a year, so the output is stable. */
 export interface ChronicleLine { year: number; rank: number; kind: ChronicleKind; text: string }
 
+/**
+ * Whether a line is a MOMENT — something happened — or RECORD, a fact about the record itself.
+ *
+ * The panel and the gazetteer are not the same reader. A gazetteer is consulted: you look a realm
+ * up and you want its whole life, king list included. The panel is glanced at beside a moving map,
+ * and there the full chronicle is 115 lines a world of which a third is accessions and a quarter
+ * territorial arithmetic — measured over five seeds — which is not a thing anyone reads.
+ *
+ * So the accessions, the greatest extents and the percentage swings are record: true, useful where
+ * you go looking for them, noise in a feed. Everything that HAPPENED stays. The ruler does not
+ * vanish from the screen with them — a realm's fall and its reach over another people both name who
+ * was reigning — only the king list does.
+ */
+const RECORD: ReadonlySet<string> = new Set(["accession", "peak", "loss", "surge"]);
+export function isMoment(kind: ChronicleKind): boolean {
+  return !RECORD.has(kind);
+}
+
 
 // The simulation keeps 51 territory snapshots and the chronicle read none of them: measured across
 // seven seeds it recorded 31-44 events over five centuries — one entry per sixteen years, with more
