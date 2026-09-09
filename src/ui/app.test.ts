@@ -1,10 +1,15 @@
 // @vitest-environment jsdom
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, afterEach } from "vitest";
 import { DEFAULT_PARAMS } from "../types/world";
 import { createApp } from "./app";
 import { hashStringToSeed } from "../engine/rng";
+import { initialCity } from "./urlState";
 
 const small = { ...DEFAULT_PARAMS, width: 300, height: 300, cellCount: 400, townCount: 6 };
+
+// The address is shared state in jsdom: a test that leaves `#...&city=2` behind makes the next
+// createApp open onto a city plate, and the one after it finds no world map to click.
+afterEach(() => { location.hash = ""; });
 
 describe("createApp", () => {
   it("renders a world svg on init", () => {
@@ -287,6 +292,7 @@ describe("export follows the screen", () => {
 describe("a city opens from the keyboard", () => {
   it("opens on Enter and on Space, from the marker's target", async () => {
     for (const key of ["Enter", " "]) {
+      location.hash = "";                       // the previous pass left a city in the address
       const root = document.createElement("div");
       document.body.appendChild(root);
       createApp(root, { ...DEFAULT_PARAMS, seed: 5 });
@@ -323,6 +329,51 @@ describe("a world the reader named", () => {
     await new Promise((r) => setTimeout(r, 0));
     expect(root.querySelector(".world-name-text")?.textContent).not.toBe("Avalon");
     expect(location.hash).not.toBe("#seed=Avalon");
+    root.remove();
+  });
+});
+
+// Opening a city changed nothing in the address, so the plate could not be shared or bookmarked
+// and the browser's Back button left the site rather than returning to the world map.
+describe("a city is a place you can come back to", () => {
+  it("puts the city in the address when it opens", async () => {
+    const root = document.createElement("div");
+    document.body.appendChild(root);
+    createApp(root, { ...DEFAULT_PARAMS, seed: 5 });
+    await new Promise((r) => setTimeout(r, 0));
+    const before = location.hash;
+    (root.querySelector(".marker-hit") as SVGElement).dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    await new Promise((r) => setTimeout(r, 0));
+    expect(root.querySelector(".city-name-text"), "did not open a city").not.toBeNull();
+    expect(location.hash).not.toBe(before);
+    expect(initialCity(location.hash)).not.toBeNull();
+    root.remove();
+  });
+
+  it("comes back to the world when the browser goes back", async () => {
+    const root = document.createElement("div");
+    document.body.appendChild(root);
+    createApp(root, { ...DEFAULT_PARAMS, seed: 5 });
+    await new Promise((r) => setTimeout(r, 0));
+    const worldHash = location.hash;
+    (root.querySelector(".marker-hit") as SVGElement).dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    await new Promise((r) => setTimeout(r, 0));
+    expect(root.querySelector(".city-name-text")).not.toBeNull();
+    location.hash = worldHash;                       // what the browser does on Back
+    window.dispatchEvent(new PopStateEvent("popstate", { state: null }));
+    await new Promise((r) => setTimeout(r, 0));
+    expect(root.querySelector(".city-name-text"), "still on the city plate").toBeNull();
+    expect(root.querySelector(".marker-hit"), "the world map did not come back").not.toBeNull();
+    root.remove();
+  });
+
+  it("opens straight onto the plate when the link names a city", async () => {
+    const root = document.createElement("div");
+    document.body.appendChild(root);
+    location.hash = "seed=5&city=2";
+    createApp(root, { ...DEFAULT_PARAMS, seed: 5 });
+    await new Promise((r) => setTimeout(r, 0));
+    expect(root.querySelector(".city-name-text"), "a shared city link opened the world map").not.toBeNull();
     root.remove();
   });
 });

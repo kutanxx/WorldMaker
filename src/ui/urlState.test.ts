@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { DEFAULT_PARAMS } from "../types/world";
-import { encodeParams, decodeParams, initialParams, initialSeedName, randomSeed, parseSeedValue } from "./urlState";
+import { encodeParams, decodeParams, initialParams, initialSeedName, initialCity, withoutCity, randomSeed, parseSeedValue } from "./urlState";
 import { hashStringToSeed } from "../engine/rng";
 
 describe("urlState", () => {
@@ -72,5 +72,25 @@ describe("initialSeedName", () => {
     expect(initialSeedName("#seed=731"), "a number is a seed, not a name").toBeNull();
     expect(initialSeedName(encodeParams({ ...DEFAULT_PARAMS, seed: 9 })), "a share link is not a name").toBeNull();
     expect(initialSeedName("")).toBeNull();
+  });
+});
+
+// A city view left no trace in the address: it could not be shared or bookmarked, and Back walked
+// out of the site instead of returning to the world map. The city rides alongside whichever world
+// form the link uses — the base64 payload or the readable name.
+describe("a city in the address", () => {
+  it("reads the city out of either shape of world link", () => {
+    expect(initialCity("#seed=Avalon&city=8")).toBe(8);
+    expect(initialCity(encodeParams({ ...DEFAULT_PARAMS, seed: 9 }) + "&city=0")).toBe(0);
+    expect(initialCity("#seed=Avalon")).toBeNull();
+    expect(initialCity("")).toBeNull();
+    expect(initialCity("#seed=Avalon&city=nope")).toBeNull();
+  });
+  it("hands the world link back without it, so the world still decodes", () => {
+    const world = encodeParams({ ...DEFAULT_PARAMS, seed: 9 });
+    expect(initialParams(withoutCity(world + "&city=3")).seed).toBe(9);
+    expect(initialSeedName(withoutCity("#seed=Avalon&city=3"))).toBe("Avalon");
+    // ...and a link with no city is left exactly as it was
+    expect(withoutCity(world)).toBe(world);
   });
 });

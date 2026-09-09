@@ -38,6 +38,23 @@ export function parseSeedValue(raw: string | null): number | null {
 // The name a world was ASKED for, when the link carried one. The landing page invites the reader
 // to "start from a name" and then used it only as a seed and threw it away: an outside review typed
 // "아발론" and got back a world called "The Old Lands". A number is a seed, not a name.
+// The city view left no trace in the address: it could not be shared or bookmarked, and the
+// browser's Back button walked out of the site instead of returning to the world map. A city rides
+// alongside whichever world form the link uses — the base64 payload or the readable name — as a
+// plain `&city=<id>` on the end, so both keep decoding exactly as they did.
+const CITY = /(?:^|&)city=(\d+)(?=&|$)/;
+
+export function initialCity(hash: string): number | null {
+  const m = CITY.exec(hash.replace(/^#/, ""));
+  return m ? Number(m[1]) : null;
+}
+
+export function withoutCity(hash: string): string {
+  const lead = hash.startsWith("#") ? "#" : "";
+  const raw = hash.replace(/^#/, "").replace(CITY, "").replace(/^&/, "");
+  return lead + raw;
+}
+
 export function initialSeedName(hash: string): string | null {
   const raw = hash.replace(/^#/, "");
   if (raw.length === 0) return null;

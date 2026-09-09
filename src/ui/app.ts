@@ -4,7 +4,7 @@ import { generateWorld } from "../engine/world";
 import { renderWorld, politicalOpts, type MapView } from "./svgWorldRenderer";
 import { renderCity } from "./svgCityRenderer";
 import { generateCityLayout, cityContext } from "../engine/city";
-import { encodeParams, randomSeed } from "./urlState";
+import { encodeParams, randomSeed, initialCity } from "./urlState";
 import { hashStringToSeed } from "../engine/rng";
 import { worldToJSON, svgToString, svgToPngBlob, downloadBlob } from "./export";
 import { worldToGazetteer } from "../engine/gazetteer";
@@ -204,22 +204,43 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     timeline = createTimeline(history, renderYear);
     stage.append(timeline.element, chronicle);
     timeline.setIndex(currentYearIndex); // renders the current year in the current view
-    // a named world keeps its name in the address, so a reload or a shared link still opens the
-    // world the reader asked for rather than a stranger with the same seed
-    location.hash = worldTitle !== null
-      ? "seed=" + encodeURIComponent(worldTitle)
-      : encodeParams(params).slice(1);
+    // replaceState, not location.hash: re-rendering the same world is not a place to come back to,
+    // and every view switch used to push one
+    window.history.replaceState(null, "", "#" + worldHash());
   }
 
-  function openCity(cityId: number): void {
+  // (window.history, not history — the chronicle is called `history` in this scope)
+  //
+  // a named world keeps its name in the address, so a reload or a shared link still opens the
+  // world the reader asked for rather than a stranger with the same seed
+  function worldHash(): string {
+    return worldTitle !== null ? "seed=" + encodeURIComponent(worldTitle) : encodeParams(params).slice(1);
+  }
+
+  /**
+   * @param record how the address should follow. "push" for a reader opening a plate — it is a
+   * place, so it goes on the history stack and Back returns to the world map instead of leaving
+   * the site. "replace" for a plate opened straight from a shared link: the address must still say
+   * which city (showWorld has just rewritten it to the world's own form) but there is nothing
+   * behind it to go back to. "none" when we are only following the history, not making it.
+   */
+  function openCity(cityId: number, record: "push" | "replace" | "none" = "push"): void {
     const marker = generated.world.cities.find((c) => c.id === cityId);
     if (!marker) return;
     openCityId = cityId;
+    const url = "#" + worldHash() + "&city=" + cityId;
+    if (record === "push") window.history.pushState({ city: cityId }, "", url);
+    else if (record === "replace") window.history.replaceState({ city: cityId }, "", url);
     timeline?.destroy();
     stage.innerHTML = "";
     const back = document.createElement("button");
     back.textContent = "← " + t(lang, "backToWorld");
-    back.addEventListener("click", showWorld);
+    // walk the history back when we made an entry to walk back to; a plate opened straight from a
+    // shared link has none, and simply shows the world
+    back.addEventListener("click", () => {
+      if ((window.history.state as { city?: number } | null)?.city !== undefined) window.history.back();
+      else showWorld();
+    });
     const layout = generateCityLayout(cityContext(marker), params.seed);
     const citySvg = renderCity(layout, lang);
     const frame = document.createElement("div");
@@ -329,6 +350,19 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     downloadBlob(fname, new Blob([md], { type: "text/markdown" }));
   });
 
+  // follow the browser: Back off a plate returns to the world, Forward opens it again
+  window.addEventListener("popstate", () => {
+    // a screen that has been taken out of the document does not answer the browser any more
+    if (!root.isConnected) return;
+    const id = initialCity(location.hash);
+    if (id === null) { if (openCityId !== null) showWorld(); return; }
+    if (id !== openCityId) openCity(id, "none");
+  });
+
+  // read before showWorld, which rewrites the address to the world's own form
+  const linked = initialCity(location.hash);
   showWorld();
+  // ...and a link that names a city opens onto its plate rather than the world map
+  if (linked !== null) openCity(linked, "replace");
   return { regenerate, openCity, showWorld };
 }
