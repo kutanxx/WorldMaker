@@ -44,6 +44,40 @@ const CASTLE_TOWER = "#8a7858";
 // A drawn thing that can say what it is. SVG <title> is the map's own tooltip — it needs no CSS,
 // it survives export, and a reader who wonders what the bent line by the road is can simply rest
 // on it. Everything the countryside generator lays out gets one.
+// One tree, drawn in the vocabulary the countryside speaks. A broadleaf canopy is the round crown
+// the plate has always drawn; a conifer is the spire that makes a taiga read as a taiga at a
+// glance; a palm is a bare trunk under a splayed crown, which is what carries a desert. The engine
+// chose the kind — this only draws it, so a biome is never interpreted in two places.
+function treeGlyph(p: Point, kind: "round" | "conifer" | "palm", cls: string, r: number): SVGElement {
+  const [x, y] = p;
+  if (kind === "conifer") {
+    // a narrow spire, its base a little below the point the round crown was centred on, so a wood
+    // of conifers occupies the same band of ground a wood of broadleaves did
+    const h = r * 2.6, w = r * 0.95;
+    return svgEl("polygon", {
+      class: `${cls} tree-conifer`,
+      points: `${x},${y - h * 0.62} ${x + w},${y + h * 0.38} ${x - w},${y + h * 0.38}`,
+      fill: "#5f7f52", stroke: "#3f5c36", "stroke-width": 0.3, "stroke-linejoin": "round",
+    });
+  }
+  if (kind === "palm") {
+    // trunk plus four fronds: at this scale a palm is its silhouette, and the silhouette is the
+    // gap between the crown and the ground
+    const g = svgEl("g", { class: `${cls} tree-palm` });
+    g.appendChild(svgEl("line", {
+      x1: x, y1: y + r * 1.1, x2: x, y2: y - r * 0.3, stroke: "#8a6a44", "stroke-width": 0.45, "stroke-linecap": "round",
+    }));
+    for (const [dx, dy] of [[-1, -0.35], [1, -0.35], [-0.75, 0.3], [0.75, 0.3]]) {
+      g.appendChild(svgEl("line", {
+        x1: x, y1: y - r * 0.3, x2: x + dx * r * 1.25, y2: y - r * 0.3 + dy * r * 1.25,
+        stroke: "#6f8f4f", "stroke-width": 0.45, "stroke-linecap": "round",
+      }));
+    }
+    return g;
+  }
+  return svgEl("circle", { class: cls, cx: x, cy: y, r, fill: cls === "orchard-tree" ? "#8fae6e" : "#7d9b62", stroke: cls === "orchard-tree" ? "#5d7a45" : "#55703f", "stroke-width": 0.3 });
+}
+
 function named<T extends SVGElement>(el: T, text: string): T {
   const tl = svgEl("title");
   tl.textContent = text;
@@ -180,8 +214,16 @@ export function renderCity(layout: CityLayout, lang: Lang = "en"): SVGSVGElement
     const fallow = f.state === "fallow";
     const fill = fallow ? "#c8cba0" : dry ? "#e0cf9a" : "#d9cc9a";
     const furrow = fallow ? "#b3b585" : dry ? "#c9b47a" : "#c4b581";
-    env.appendChild(named(svgEl("polygon", { class: fallow ? "field field-fallow" : "field", points: pts(f.polygon), fill, stroke: "#b3a26e", "stroke-width": 0.4 }), fn(fallow ? "fallowField" : "field")));
-    for (const s of f.strips) env.appendChild(svgEl("polyline", { class: "furrow", points: pts(s), fill: "none", stroke: furrow, "stroke-width": 0.35 }));
+    const terrace = cs.vocabulary.field === "terrace";
+    env.appendChild(named(svgEl("polygon", { class: fallow ? "field field-fallow" : "field", points: pts(f.polygon), fill, stroke: "#b3a26e", "stroke-width": 0.4 }), fn(terrace ? "terrace" : fallow ? "fallowField" : "field")));
+    // A furrow is a scratch in the soil; a terrace lip is a retaining wall holding a step of ground
+    // up. Drawn at the same weight they would read as the same thing turned sideways, which is the
+    // whole risk of expressing the difference in geometry alone.
+    for (const s of f.strips) {
+      env.appendChild(terrace
+        ? svgEl("polyline", { class: "terrace-lip", points: pts(s), fill: "none", stroke: "#9c8757", "stroke-width": 0.75, "stroke-linecap": "round" })
+        : svgEl("polyline", { class: "furrow", points: pts(s), fill: "none", stroke: furrow, "stroke-width": 0.35 }));
+    }
   }
   for (const p of cs.pastures) {
     env.appendChild(named(svgEl("polygon", { class: "pasture", points: pts(p.fence), fill: "#ccd6a8", "fill-opacity": 0.7, stroke: "#8a6a44", "stroke-width": 0.5, "stroke-dasharray": "1.6 1.1" }), fn("pasture")));
@@ -189,12 +231,16 @@ export function renderCity(layout: CityLayout, lang: Lang = "en"): SVGSVGElement
   }
   for (const or of cs.orchards) {
     env.appendChild(named(svgEl("polygon", { class: "orchard", points: pts(or.polygon), fill: "#cfd8ac", "fill-opacity": 0.5, stroke: "#8a8a5f", "stroke-width": 0.3 }), fn("orchard")));
+    // An orchard is a planted fruit crop, so it does NOT simply follow the woodland's tree: nobody
+    // plants a pine orchard, and the taiga plate drew one until this was looked at. A date grove is
+    // the exception, and it is the one an orchard in a desert actually is.
     for (const t2 of or.trees) {
-      env.appendChild(svgEl("circle", { class: "orchard-tree", cx: t2[0], cy: t2[1], r: 1.4, fill: "#8fae6e", stroke: "#5d7a45", "stroke-width": 0.3 }));
+      env.appendChild(treeGlyph(t2, cs.vocabulary.tree === "palm" ? "palm" : "round", "orchard-tree", 1.4));
     }
   }
   for (const t2 of cs.woods) {
-    env.appendChild(svgEl("circle", { class: "wood-tree", cx: t2[0], cy: t2[1], r: 1.6 + ((t2[0] * 7 + t2[1] * 13) % 10) / 12, fill: "#7d9b62", stroke: "#55703f", "stroke-width": 0.3 }));
+    env.appendChild(treeGlyph(t2, cs.vocabulary.tree, "wood-tree",
+      1.6 + ((t2[0] * 7 + t2[1] * 13) % 10) / 12));
   }
   for (const r of layout.suburbRoads) {
     env.appendChild(svgEl("polyline", { class: "suburb-road", points: pts(r), fill: "none", stroke: "#c9bb96", "stroke-width": 1.6, "stroke-linecap": "round" }));
@@ -204,6 +250,17 @@ export function renderCity(layout: CityLayout, lang: Lang = "en"): SVGSVGElement
   }
   // farm buildings: drawn above their fields/pastures, alongside the suburb houses
   for (const fm of cs.farmsteads) {
+    if (fm.kind === "caravanserai") {
+      // A range of building around a walled court, with the gate block on the road side. The court
+      // is drawn OVER the range rather than beside it, which is what makes the block read as
+      // hollow — a farmyard sits next to its house, a caravanserai's is surrounded by it.
+      const cg = named(svgEl("g", { class: "caravanserai" }), fn("caravanserai"));
+      cg.appendChild(svgEl("polygon", { class: "serai-range", points: pts(fm.house), fill: "#d8c9a8", stroke: "#8a7350", "stroke-width": 1.1, "stroke-linejoin": "round" }));
+      if (fm.yard) cg.appendChild(svgEl("polygon", { class: "serai-court", points: pts(fm.yard), fill: "#eadcb6", stroke: "#a8926a", "stroke-width": 0.4 }));
+      cg.appendChild(svgEl("polygon", { class: "serai-gate", points: pts(fm.barn), fill: "#8a7350", stroke: "#5c4a33", "stroke-width": 0.4 }));
+      env.appendChild(cg);
+      continue;
+    }
     const fg = named(svgEl("g", { class: "farmstead" }), fn("farmstead"));
     if (fm.yard) fg.appendChild(svgEl("polygon", { class: "farm-yard", points: pts(fm.yard), fill: "none", stroke: "#8a6a44", "stroke-width": 0.4, "stroke-dasharray": "1.2 1" }));
     fg.appendChild(svgEl("polygon", { class: "farm-barn", points: pts(fm.barn), fill: "#7a5a3a", stroke: "#4d3620", "stroke-width": 0.4 }));

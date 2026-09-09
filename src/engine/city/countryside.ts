@@ -12,7 +12,20 @@ import { DESERT, WETLAND, TAIGA, TEMPERATE_FOREST, TROPICAL, TUNDRA, ALPINE } fr
 
 export interface FieldPatch { polygon: Polygon; strips: Polyline[]; state: "cultivated" | "fallow" }
 export interface Pasture { fence: Polygon; animals: Point[]; kind: "sheep" | "cattle" }
-export interface Farmstead { house: Polygon; barn: Polygon; yard: Polygon | null }
+/** A caravanserai's `house` is the range enclosing the court, and its `barn` is the gate block. */
+export interface Farmstead { house: Polygon; barn: Polygon; yard: Polygon | null; kind: "farmstead" | "caravanserai" }
+/**
+ * What the country around this town grows and builds. The profile has branched on biome since the
+ * beginning, but only ever in COUNTS — a taiga got more woodland and a desert fewer fields, drawn
+ * with the same round green tree, the same furlong strips and the same farmstead as everywhere
+ * else. This is the vocabulary those counts are spoken in, and the engine owns it for the same
+ * reason it owns `dry`: the renderer must not be a second place where a biome is interpreted.
+ */
+export interface CountryVocabulary {
+  tree: "round" | "conifer" | "palm";
+  field: "furlong" | "terrace";
+  farm: "farmstead" | "caravanserai";
+}
 export interface Orchard { polygon: Polygon; trees: Point[] }
 // a dependent hamlet: church + common green + a lane lined with cottages, garden tofts behind
 // them, and a pond — a nucleated settlement, not a ribbon of houses on a road
@@ -26,6 +39,7 @@ export interface Countryside {
   villages: Village[];
   woods: Point[];
   dry: boolean;
+  vocabulary: CountryVocabulary;
 }
 export interface CountrysideOpts {
   bounds: { w: number; h: number };
@@ -41,13 +55,34 @@ export interface CountrysideOpts {
   oasis: boolean;
 }
 
+// Conifers stand where the winter does: the taiga by definition, the tundra's fringe, and the
+// treeline country above an alpine town. Palms belong to the desert, where they are also the only
+// tree the plate draws. Everything else — plains, temperate forest, jungle, marsh — is a broadleaf
+// canopy, which is the round tree the plate has always drawn.
+//
+// Terraces are cut where the ground is a slope rather than a plain, so they follow the same alpine
+// and tundra country. A desert irrigates a flat field; it does not terrace one.
+export function countryVocabulary(biome: number): CountryVocabulary {
+  const cold = biome === TAIGA || biome === TUNDRA || biome === ALPINE;
+  const slope = biome === ALPINE || biome === TUNDRA;
+  return {
+    tree: biome === DESERT ? "palm" : cold ? "conifer" : "round",
+    field: slope ? "terrace" : "furlong",
+    farm: biome === DESERT ? "caravanserai" : "farmstead",
+  };
+}
+
 interface Profile { fields: number; pastures: number; orchards: number; woods: number; dry: boolean; animal: "sheep" | "cattle" }
 export function countrysideProfile(biome: number, size: number): Profile {
   const base: Profile = { fields: 3 + size, pastures: 2 + Math.floor(size / 2), orchards: 2, woods: 40, dry: false, animal: "sheep" };
   if (biome === DESERT) return { ...base, fields: 2, pastures: 0, orchards: 1, woods: 0, dry: true };
   if (biome === WETLAND) return { ...base, fields: 2, pastures: base.pastures + 2, orchards: 0, woods: 15, animal: "cattle" };
   if (biome === TAIGA || biome === TEMPERATE_FOREST || biome === TROPICAL) return { ...base, fields: Math.max(2, base.fields - 2), pastures: Math.max(1, base.pastures - 1), orchards: 3, woods: 90 };
-  if (biome === TUNDRA || biome === ALPINE) return { ...base, fields: 1, pastures: base.pastures + 1, orchards: 0, woods: 10 };
+  // Slope country farms in terraces, and a terrace is small by definition — a step you can cut and
+  // hold, not a furlong you can plough end to end. One block was the right AREA of arable for a
+  // mountain town and the wrong SHAPE of it, and it also meant the terracing showed up on exactly
+  // one patch per plate. Three short steps cover about the ground the single block did.
+  if (biome === TUNDRA || biome === ALPINE) return { ...base, fields: 3, pastures: base.pastures + 1, orchards: 0, woods: 10 };
   return base; // plains/grassland default
 }
 
@@ -75,6 +110,7 @@ function polyCrossedByLine(poly: Polygon, line: Polyline): boolean {
 export function generateCountryside(rng: Rng, opts: CountrysideOpts): Countryside {
   const { bounds, boundary, water, mountains, roads, size, biome } = opts;
   const prof = countrysideProfile(biome, size);
+  const vocab = countryVocabulary(biome);
   const bc = centroid(boundary);
   const obstacles: Point[] = [...opts.obstacles];
   const inCanvas = (p: Point) => p[0] > 3 && p[0] < bounds.w - 3 && p[1] > 3 && p[1] < bounds.h - 3;
@@ -177,17 +213,28 @@ export function generateCountryside(rng: Rng, opts: CountrysideOpts): Countrysid
       const side = rng() < 0.5 ? -1 : 1;
       const off = 8 + rng() * 16;
       const c: Point = [ax + -uy * side * off, ay + ux * side * off];
-      const hl = 11 + rng() * 7, hw = 6 + rng() * 4;   // furlong block, long axis along the road
+      // Furlong block, long axis along the road. A terrace is a step cut across a slope, so it is
+      // the same block at about two thirds the reach — scaled AFTER the draw, so the shape of a
+      // field never changes how much rng a plate spends.
+      const shrink = vocab.field === "terrace" ? 0.62 : 1;
+      const hl = (11 + rng() * 7) * shrink, hw = (6 + rng() * 4) * shrink;
       const plot = orientedRect(c, ux, uy, hl, hw);
       if (!polyOk(plot, 14)) continue;
-      // ridge-and-furrow: strips run along the LONG axis, spaced across the width
+      // Ridge-and-furrow: strips run along the LONG axis, spaced across the width. A terrace is the
+      // same block with its lines turned ninety degrees — it is cut ACROSS the slope, one step per
+      // contour, which is exactly what makes a hill farm read as a hill farm. Same draw either way:
+      // the count comes off the rng before the shape is chosen, so a biome cannot shift the stream.
       const nStrips = 4 + Math.floor(rng() * 4);
       const strips: Polyline[] = [];
+      const terrace = vocab.field === "terrace";
+      // the axis the lines RUN along, and the one they are spaced across
+      const [rx, ry, rl] = terrace ? [-uy, ux, hw] : [ux, uy, hl];
+      const [px, py, pl] = terrace ? [ux, uy, hl] : [-uy, ux, hw];
       for (let k = 1; k < nStrips; k++) {
-        const w = -hw + (2 * hw * k) / nStrips;
+        const w = -pl + (2 * pl * k) / nStrips;
         strips.push([
-          [c[0] - ux * (hl - 1.2) + -uy * w, c[1] - uy * (hl - 1.2) + ux * w],
-          [c[0] + ux * (hl - 1.2) + -uy * w, c[1] + uy * (hl - 1.2) + ux * w],
+          [c[0] - rx * (rl - 1.2) + px * w, c[1] - ry * (rl - 1.2) + py * w],
+          [c[0] + rx * (rl - 1.2) + px * w, c[1] + ry * (rl - 1.2) + py * w],
         ]);
       }
       fields.push({ polygon: plot, strips, state: sIdx === fallowSector ? "fallow" : "cultivated" }); claim(plot);
@@ -244,11 +291,24 @@ export function generateCountryside(rng: Rng, opts: CountrysideOpts): Countrysid
     const hc: Point = [corner[0] + (dxc / dl) * away, corner[1] + (dyc / dl) * away];
     const theta = rng() * Math.PI;
     const hux = Math.cos(theta), huy = Math.sin(theta);
-    const house = orientedRect(hc, hux, huy, 2.2, 1.7);
-    const barn = orientedRect([hc[0] + hux * 6, hc[1] + huy * 6], hux, huy, 3.4, 2.4);
+    // A caravanserai is what a desert road builds instead of a farmstead: a square range around a
+    // walled court, with the gate block on one side. It is the same two rectangles and the same
+    // three draws — only the proportions change — so the desert plate that used to have a farmhouse
+    // and a barn sitting in the sand now has the building that road actually wants.
+    const inn = vocab.farm === "caravanserai";
+    const house = inn ? orientedRect(hc, hux, huy, 6.5, 6.5) : orientedRect(hc, hux, huy, 2.2, 1.7);
+    const barn = inn
+      ? orientedRect([hc[0] + hux * 7.4, hc[1] + huy * 7.4], hux, huy, 1.4, 3.2)
+      : orientedRect([hc[0] + hux * 6, hc[1] + huy * 6], hux, huy, 3.4, 2.4);
     if (!polyOk(house, 9) || !polyOk(barn, 0)) continue;
-    const yard = rng() < 0.6 ? orientedRect([hc[0] + hux * 3, hc[1] + huy * 3], hux, huy, 7.5, 5) : null;
-    farmsteads.push({ house, barn, yard }); claim(house); claim(barn);
+    // The court is drawn from the same draw the farmyard used, so the stream stays aligned; a
+    // caravanserai always has its court, which is the whole point of the building.
+    const open = rng() < 0.6;
+    const yard = inn
+      ? orientedRect(hc, hux, huy, 4.1, 4.1)
+      : open ? orientedRect([hc[0] + hux * 3, hc[1] + huy * 3], hux, huy, 7.5, 5) : null;
+    farmsteads.push({ house, barn, yard, kind: inn ? "caravanserai" : "farmstead" });
+    claim(house); claim(barn);
   }
 
   // nucleated villages: a common green with a church, cottages clustered around it gable-end
@@ -334,5 +394,5 @@ export function generateCountryside(rng: Rng, opts: CountrysideOpts): Countrysid
     woods.push(p);
   }
 
-  return { gardens, fields, pastures, farmsteads, orchards, villages, woods, dry: prof.dry };
+  return { gardens, fields, pastures, farmsteads, orchards, villages, woods, dry: prof.dry, vocabulary: vocab };
 }

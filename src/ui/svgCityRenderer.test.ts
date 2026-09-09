@@ -2,7 +2,7 @@
 import { describe, it, expect } from "vitest";
 import { generateCityLayout, cityContext } from "../engine/city";
 import { renderCity } from "./svgCityRenderer";
-import { GRASSLAND, WETLAND } from "../engine/biome";
+import { GRASSLAND, WETLAND, TAIGA, ALPINE, DESERT } from "../engine/biome";
 import { pointInPolygon } from "../engine/geometry";
 import type { Polygon } from "../engine/geometry";
 import type { CityMarker } from "../types/world";
@@ -565,5 +565,52 @@ describe("the plate says what it is", () => {
     expect(svg.getAttribute("role")).toBe("img");
     expect(svg.querySelector(":scope > title")?.textContent ?? "").toContain("Sah");
     expect(svg.querySelector(":scope > desc")?.textContent ?? "").not.toBe("");
+  });
+});
+
+// The countryside branched on biome in its COUNTS from the start and never in its picture: a taiga
+// plate and a jungle plate drew the same round green tree, the same furlong strips and the same
+// farmstead. These check the plate actually SHOWS what `countryside.vocabulary` decided — the
+// engine choosing a word means nothing if the drawing still says the old one.
+describe("the plate draws the country's own vocabulary", () => {
+  const plate = (biome: number, seed = 7) => {
+    const m: CityMarker = { ...marker, biome, size: 5, coastal: false, river: false };
+    return renderCity(generateCityLayout(cityContext(m), seed));
+  };
+
+  it("gives a taiga conifers where the plains keep their round crowns", () => {
+    const taiga = plate(TAIGA), plains = plate(GRASSLAND);
+    expect(taiga.querySelectorAll(".tree-conifer").length).toBeGreaterThan(0);
+    expect(taiga.querySelectorAll("circle.wood-tree").length).toBe(0);
+    expect(plains.querySelectorAll("circle.wood-tree").length).toBeGreaterThan(0);
+    expect(plains.querySelectorAll(".tree-conifer").length).toBe(0);
+  });
+
+  it("gives a desert palms, and no round tree anywhere on the plate", () => {
+    const svg = plate(DESERT);
+    expect(svg.querySelectorAll(".tree-palm").length).toBeGreaterThan(0);
+    expect(svg.querySelectorAll("circle.wood-tree, circle.orchard-tree").length).toBe(0);
+  });
+
+  it("holds an alpine field up on terrace lips rather than scratching furrows in it", () => {
+    const alpine = plate(ALPINE), plains = plate(GRASSLAND);
+    expect(alpine.querySelectorAll(".terrace-lip").length).toBeGreaterThan(0);
+    expect(alpine.querySelectorAll(".furrow").length).toBe(0);
+    expect(plains.querySelectorAll(".furrow").length).toBeGreaterThan(0);
+    expect(plains.querySelectorAll(".terrace-lip").length).toBe(0);
+  });
+
+  // seed 7's inland desert happens to place no farm building at all (its two fields leave no
+  // corner with room); seed 11's puts up two, which is what this needs to look at.
+  it("names the desert's roadside building a caravanserai, and draws its court inside it", () => {
+    const svg = plate(DESERT, 11);
+    const serais = svg.querySelectorAll(".caravanserai");
+    expect(serais.length).toBeGreaterThan(0);
+    for (const s of serais) {
+      expect(s.querySelector("title")!.textContent).toBe("Caravanserai");
+      expect(s.querySelector(".serai-court")).not.toBeNull();
+      expect(s.querySelector(".serai-range")).not.toBeNull();
+    }
+    expect(svg.querySelectorAll(".farmstead").length).toBe(0);
   });
 });

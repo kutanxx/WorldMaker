@@ -3,7 +3,7 @@ import { mulberry32 } from "../rng";
 import { generateCountryside } from "./countryside";
 import { pointInPolygon, centroid, polysOverlap, pointSegDist } from "../geometry";
 import type { Polygon } from "../geometry";
-import { GRASSLAND, DESERT } from "../biome";
+import { GRASSLAND, DESERT, TAIGA, TUNDRA, ALPINE, TROPICAL } from "../biome";
 import { buildWater } from "./water";
 import type { CountrysideOpts } from "./countryside";
 
@@ -232,5 +232,81 @@ describe("a desert town farms what its profile asks for", () => {
     }
     expect(towns).toBeGreaterThan(0);
     expect(bare).toBe(0);
+  });
+});
+
+// The countryside already knew the biome — `countrysideProfile` has branched on it since the start,
+// giving a desert fewer fields and a taiga more woodland. What it never changed was the VOCABULARY:
+// every plate drew the same round green tree, the same furlong strips and the same farmstead, so a
+// taiga's woodland fringe and a jungle's were the same picture with different counts. The biome
+// decides what the country grows and builds, and the engine remains the single source of truth for
+// it — the renderer reads `vocabulary`, it does not sniff the biome itself.
+describe("the countryside speaks the biome's vocabulary", () => {
+  const withBiome = (biome: number, over: Partial<CountrysideOpts> = {}) =>
+    generateCountryside(mulberry32(9), { ...plainOpts(), biome, ...over });
+
+  it("plants conifers in the cold country and palms in the desert", () => {
+    expect(withBiome(TAIGA).vocabulary.tree).toBe("conifer");
+    expect(withBiome(ALPINE).vocabulary.tree).toBe("conifer");
+    expect(withBiome(TUNDRA).vocabulary.tree).toBe("conifer");
+    expect(withBiome(DESERT).vocabulary.tree).toBe("palm");
+    expect(withBiome(GRASSLAND).vocabulary.tree).toBe("round");
+    expect(withBiome(TROPICAL).vocabulary.tree).toBe("round");
+  });
+
+  it("terraces the fields where the ground is a slope, and not elsewhere", () => {
+    expect(withBiome(ALPINE).vocabulary.field).toBe("terrace");
+    expect(withBiome(TUNDRA).vocabulary.field).toBe("terrace");
+    expect(withBiome(GRASSLAND).vocabulary.field).toBe("furlong");
+    expect(withBiome(DESERT).vocabulary.field).toBe("furlong");
+  });
+
+  // A terrace is cut ACROSS the slope; a furlong strip is ploughed ALONG the block. So the two are
+  // the same rectangle with its lines turned ninety degrees, and that is what this measures rather
+  // than trusting the label.
+  it("turns a terrace's lines across the block, where a furlong's run along it", () => {
+    const alongness = (biome: number) => {
+      const c = withBiome(biome);
+      let checked = 0, along = 0;
+      for (const f of c.fields) {
+        // the block's long axis, from its own first edge pair
+        const [a, b, , d] = f.polygon;
+        const e1 = Math.hypot(b[0] - a[0], b[1] - a[1]), e2 = Math.hypot(d[0] - a[0], d[1] - a[1]);
+        const long: [number, number] = e1 >= e2
+          ? [(b[0] - a[0]) / e1, (b[1] - a[1]) / e1] : [(d[0] - a[0]) / e2, (d[1] - a[1]) / e2];
+        for (const s of f.strips) {
+          const sx = s[s.length - 1][0] - s[0][0], sy = s[s.length - 1][1] - s[0][1];
+          const sl = Math.hypot(sx, sy) || 1;
+          if (Math.abs((sx / sl) * long[0] + (sy / sl) * long[1]) > 0.7) along++;
+          checked++;
+        }
+      }
+      expect(checked).toBeGreaterThan(2);           // the loop ran; not vacuously green
+      return along / checked;
+    };
+    expect(alongness(GRASSLAND)).toBeGreaterThan(0.9);
+    expect(alongness(ALPINE)).toBeLessThan(0.1);
+  });
+
+  it("builds a caravanserai in the desert where the green country builds a farmstead", () => {
+    const desert = withBiome(DESERT, { oasis: true });
+    const plain = withBiome(GRASSLAND);
+    expect(plain.farmsteads.length).toBeGreaterThan(0);
+    expect(plain.farmsteads.every((f) => f.kind === "farmstead")).toBe(true);
+    expect(desert.vocabulary.farm).toBe("caravanserai");
+    // a caravanserai is a range of building AROUND a court, so every one of them has the court
+    for (const f of desert.farmsteads) {
+      expect(f.kind).toBe("caravanserai");
+      expect(f.yard).not.toBeNull();
+      expect(pointInPolygon(centroid(f.yard!), f.house)).toBe(true);   // the court is inside the block
+    }
+  });
+
+  it("still draws the same countryside it drew before, biome for biome", () => {
+    for (const biome of [GRASSLAND, DESERT, ALPINE, TAIGA]) {
+      const a = generateCountryside(mulberry32(4), { ...plainOpts(), biome });
+      const b = generateCountryside(mulberry32(4), { ...plainOpts(), biome });
+      expect(JSON.stringify(a)).toBe(JSON.stringify(b));
+    }
   });
 });
