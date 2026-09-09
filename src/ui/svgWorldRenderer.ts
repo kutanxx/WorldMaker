@@ -1,5 +1,6 @@
 import type { World } from "../types/world";
 import { svgEl, legendPanel, starPath, compassRose, mapFrame, INK, PARCHMENT, LEGEND_TITLE_H, LEGEND_TEXT } from "./renderer";
+import { scaleBar, KM_PER_UNIT, KM_PER_WALKING_DAY } from "./scaleBar";
 import { displayBiomes } from "./displayBiome";
 import { OCEAN, ALPINE, BIOME_COLORS } from "../engine/biome";
 import { type Lang, biomeName, t } from "./i18n";
@@ -305,6 +306,19 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
   }));
   root.appendChild(title);
 
+  // how far the ground is, which neither map said. Bottom CENTRE: the legend has the bottom-left
+  // corner and the zoom controls the bottom-right, and the bar sat on the legend when it was put
+  // beside it. Drawn in map units so it grows with the zoom, as a scale bar should — it says how
+  // far the ground is, and the ground does not change when the reader leans in.
+  {
+    const units = 120;
+    const km = Math.round(units * KM_PER_UNIT);
+    const days = km / KM_PER_WALKING_DAY;
+    const sub = days >= 1.5
+      ? t(lang, "walkDays").replace("{d}", String(Math.round(days)))
+      : t(lang, "walkDay");
+    root.appendChild(scaleBar(grid.width / 2 - units / 2, grid.height - 26, units, `${km} km`, sub));
+  }
   root.appendChild(mapFrame(grid.width, grid.height));
 
   return root;

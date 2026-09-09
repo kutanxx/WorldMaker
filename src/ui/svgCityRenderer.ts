@@ -1,4 +1,5 @@
 import { svgEl, legendPanel, compassRose, mapFrame, INK, PARCHMENT } from "./renderer";
+import { scaleBar, METRES_PER_UNIT } from "./scaleBar";
 import type { CityLayout } from "../engine/city";
 import type { WardType } from "../engine/city/zoning";
 import type { Point, Polygon, Polyline } from "../engine/geometry";
@@ -560,6 +561,11 @@ export function renderCity(layout: CityLayout, lang: Lang = "en"): SVGSVGElement
 
   // Bottom of the key strip: the world map's top-right corner is already spoken for on this plan.
   root.appendChild(compassRose(w + LEGW / 2, h - 34, 13, t(lang, "compassN")));
+  {
+    const units = 90;
+    // the plate's legend lives in the right-hand strip, so the bottom-left corner is free here
+    root.appendChild(scaleBar(20, h - 18, units, `${Math.round(units * METRES_PER_UNIT)} m`));
+  }
   root.appendChild(mapFrame(w + LEGW, h));
 
   return root;
