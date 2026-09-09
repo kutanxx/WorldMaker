@@ -900,3 +900,60 @@ describe("a coastal plate faces the way the world faces", () => {
     }
   });
 });
+
+// Two things an outside review found in the districts. In one town the water covered the Guildhall
+// ward whole and the label stayed on it, so the map read as a lake named Guildhall. And the parks:
+// a rim ward is a park about one time in five, which is fine on average — median 7.8% of the walled
+// area — but the tail is not: p90 26%, worst 50.5%. A medieval walled town is not half parkland.
+describe("the districts are places a town would have", () => {
+  const layouts = function* () {
+    for (let seed = 1; seed <= 8; seed++) {
+      const world = generateWorld({ ...DEFAULT_PARAMS, seed }).world;
+      for (const c of world.cities) yield { c, seed, l: generateCityLayout(cityContext(c), seed) };
+    }
+  };
+  const underwater = (poly: [number, number][], l: { water: { bodies: [number, number][][] } }) => {
+    const pts = [...poly, centroid(poly)];
+    const wet = pts.filter((p) => l.water.bodies.some((b) => pointInPolygon(p, b))).length;
+    return wet / pts.length;
+  };
+
+  // The rule is about the NAME, not the ward. A harbour is mostly water by definition and keeps
+  // its name — on the quayside. A ward the lake swallowed has no quayside, and goes unnamed.
+  it("never floats a district name on open water", () => {
+    const floating: string[] = [];
+    let checked = 0;
+    for (const { c, seed, l } of layouts()) {
+      for (const lb of l.labels) {
+        checked++;
+        if (inWater(l.water, [lb.x, lb.y])) floating.push(`${lb.type} of ${c.name} (seed ${seed})`);
+      }
+    }
+    expect(checked).toBeGreaterThan(200);
+    expect(floating).toEqual([]);
+  });
+
+  it("leaves a swallowed district unnamed rather than naming the lake", () => {
+    let drowned = 0, named = 0;
+    for (const { l } of layouts()) {
+      for (const w of l.wards) {
+        if (w.type === "harbor" || underwater(w.polygon, l) < 0.85) continue;
+        drowned++;
+        if (l.labels.some((lb) => pointInPolygon([lb.x, lb.y], w.polygon))) named++;
+      }
+    }
+    expect(drowned, "no ward is that far under in eight seeds").toBeGreaterThan(0);
+    expect(named).toBe(0);
+  });
+
+  it("keeps the parkland to a share a walled town would spare", () => {
+    let worst = 0, worstName = "";
+    for (const { c, seed, l } of layouts()) {
+      if (!l.boundary) continue;
+      const inside = Math.abs(area(l.boundary));
+      const park = l.wards.filter((w) => w.type === "park").reduce((t, w) => t + Math.abs(area(w.polygon)), 0);
+      if (park / inside > worst) { worst = park / inside; worstName = `${c.name} (seed ${seed})`; }
+    }
+    expect(worst, `worst: ${worstName} at ${(worst * 100).toFixed(0)}%`).toBeLessThan(0.2);
+  });
+});

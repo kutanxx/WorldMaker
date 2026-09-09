@@ -1,7 +1,7 @@
 import { mulberry32, deriveSeed } from "./rng";
 import type { Rng } from "./rng";
 import type { Point, Polygon, Polyline } from "./geometry";
-import { centroid, pointInPolygon, bbox, pointSegDist, insetConvex, polysOverlap, segmentsIntersect } from "./geometry";
+import { centroid, area, pointInPolygon, bbox, pointSegDist, insetConvex, polysOverlap, segmentsIntersect } from "./geometry";
 import { selectArchetype } from "./city/archetypes";
 import type { Archetype } from "./city/archetypes";
 import { extractStreets, classifyStreets } from "./city/blockStreets";
@@ -281,8 +281,15 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
     }
     castleAnchor = [center[0] + (v[0] - center[0]) * 0.85, center[1] + (v[1] - center[1]) * 0.85];
   }
+  // mostly UNDER the water, rather than merely touching it — a ward the lake has swallowed
+  const isDrowned = (poly: Polygon): boolean => {
+    const pts = [...poly, centroid(poly)];
+    return pts.filter((p) => inWater(water, p)).length / pts.length > 0.6;
+  };
   const zoned = assignZones(rng, cells, [center[0], center[1]], radius, { hasCastle, coastal: ctx.coastal, castleAnchor, seaAnchor,
-    wet: (poly) => water.bodies.some((b) => polysOverlap(poly, b)) });
+    wet: (poly) => water.bodies.some((b) => polysOverlap(poly, b)),
+    drowned: isDrowned,
+    walledArea: Math.abs(area(boundary)) });
 
   const parks: Polygon[] = [];
   const wards: Ward[] = zoned.map((z) => {
@@ -334,8 +341,27 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
   const labels: { x: number; y: number; type: WardType; landmark: boolean }[] = [];
   for (const z of zoned) {
     if (!LANDMARKS.includes(z.type) && count.get(z.type) !== 1) continue;
+    // A name goes on dry ground. An outside review found a lake wearing the label "Guildhall" —
+    // the water had swallowed the ward and the name stayed floating on it. A harbour is allowed to
+    // be mostly water (that is what a harbour is), but its name belongs on the quayside, so the
+    // label walks in from the ward's middle toward the town until it finds land. A ward with no dry
+    // ground at all is not named.
     const c = centroid(z.polygon);
-    labels.push({ x: c[0], y: c[1], type: z.type, landmark: LANDMARKS.includes(z.type) });
+    let at: Point | null = inWater(water, c) ? null : c;
+    if (at === null) {
+      // pull in toward each corner in turn and take the nearest dry stand. A ward that straddles a
+      // river has its centroid in the channel while half of it is good dry bank, and a single walk
+      // toward the town centre misses that whenever the bank lies the other way.
+      let best = Infinity;
+      for (const v of z.polygon) for (const f of [0.35, 0.55, 0.75]) {
+        const p: Point = [c[0] + (v[0] - c[0]) * f, c[1] + (v[1] - c[1]) * f];
+        if (inWater(water, p) || !pointInPolygon(p, z.polygon)) continue;
+        const d = Math.hypot(p[0] - c[0], p[1] - c[1]);
+        if (d < best) { best = d; at = p; }
+      }
+    }
+    if (at === null) continue;
+    labels.push({ x: at[0], y: at[1], type: z.type, landmark: LANDMARKS.includes(z.type) });
   }
 
   // the lord's castle: built from the zoned castle ward polygon, right after wards/labels

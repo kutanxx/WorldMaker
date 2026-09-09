@@ -1,5 +1,6 @@
 import type { Rng } from "../rng";
 import type { Point, Polygon } from "../geometry";
+import { area } from "../geometry";
 import type { WardCell } from "./wards";
 
 export type WardType =
@@ -26,7 +27,17 @@ export function assignZones(
     // the castle GATE came out over the water. A lord builds on ground he can defend, so the seat
     // takes the nearest DRY ward, and only falls back to the nearest of any when the town has no
     // dry ward at all (a marsh town on stilts).
-    wet?: (poly: Polygon) => boolean }
+    wet?: (poly: Polygon) => boolean;
+    // true if the ward is mostly UNDER the water rather than merely touching it. A landmark put
+    // there is a name floating on open water: an outside review found a town whose lake had
+    // swallowed the Guildhall ward while the label stayed, so the map read as a lake called
+    // Guildhall. Such a ward still exists — the mesh has no holes — it is simply not somewhere the
+    // town would put its cathedral.
+    drowned?: (poly: Polygon) => boolean;
+    // the area inside the wall, which is what a reader sees. Wards run past the wall (the mesh is
+    // laid to the town's reach and the plate clips it), so their own total is the wrong yardstick
+    // for "how much of this town is parkland".
+    walledArea?: number }
 ): ZonedWard[] {
   if (wards.length === 0) return [];
   const ranked = wards
@@ -43,8 +54,18 @@ export function assignZones(
   }));
 
   let idx = 0;
+  // the civic landmarks take the innermost wards, but skip any the water has taken: swap the next
+  // dry one up into place rather than founding a cathedral in a lake
   const setType = (t: WardType) => {
-    if (idx < out.length) out[idx++].type = t;
+    if (idx >= out.length) return;
+    if (opts.drowned) {
+      for (let j = idx; j < out.length; j++) {
+        if (opts.drowned(out[j].polygon)) continue;
+        if (j !== idx) { const tmp = out[idx]; out[idx] = out[j]; out[j] = tmp; }
+        break;
+      }
+    }
+    out[idx++].type = t;
   };
   setType("plaza");
   setType("cathedral");
@@ -111,6 +132,23 @@ export function assignZones(
     if (f < 0.45) w.type = rng() < 0.5 ? "merchant" : "patriciate";        // wealthy inner ring
     else if (f < 0.72) w.type = rng() < 0.08 ? "market" : "craftsmen";      // artisan middle ring (rare 2nd market)
     else w.type = rng() < 0.55 ? "slum" : rng() < 0.5 ? "military" : "park"; // poor/garrison rim
+  }
+
+  // ...and then the parkland is capped. A rim ward is a park about one time in five, which reads
+  // right on average — a measured median of 7.8% of the walled area — but a big rim ward drawing
+  // the short straw twice gave towns that were half green: p90 26%, worst 50.5%. A walled town
+  // spares ground for a common and a churchyard, not for a country park. The largest parks give way
+  // first, to the tenement rows the rim would otherwise have been. No rng: size order decides.
+  const PARK_CAP = 0.16;
+  const total = opts.walledArea ?? out.reduce((t, w) => t + Math.abs(area(w.polygon)), 0);
+  if (total > 0) {
+    const parks = out.filter((w) => w.type === "park").sort((a, b) => Math.abs(area(b.polygon)) - Math.abs(area(a.polygon)));
+    let green = parks.reduce((t, w) => t + Math.abs(area(w.polygon)), 0);
+    for (const w of parks) {
+      if (green / total <= PARK_CAP) break;
+      green -= Math.abs(area(w.polygon));
+      w.type = "slum";
+    }
   }
   return out;
 }
