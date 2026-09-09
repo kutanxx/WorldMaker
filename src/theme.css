@@ -94,6 +94,16 @@ svg.world .legend { pointer-events: none; }
 .chronicle-event.evt-independence { color: #2f6f4a; }
 .chronicle-event.evt-goldenage { color: #9a6a1a; }
 .chronicle-event.evt-staple { color: #2f5a7a; }
+/* The panel draws the whole chronicle now, not only the simulation's own events, so the kinds mined
+   out of the snapshots need a place in the same warm register. The two that describe the SHAPE of
+   the record rather than a moment in it — the century standings, and the accessions that fill the
+   stretches where borders held — are quietened deliberately: they are there to frame the events,
+   not to outnumber them in colour as well as in count. */
+.chronicle-event.evt-foundings { font-weight: 600; }
+.chronicle-event.evt-fall { color: #6a2020; }
+.chronicle-event.evt-hegemon { color: #7a5a2f; font-weight: 600; }
+.chronicle-event.evt-century { color: #6b5a3e; font-style: italic; margin-top: 4px; }
+.chronicle-event.evt-accession { color: #5c5142; }
 /* The three export buttons each repeated the word "export" — 325px of a 1014px toolbar in Korean,
    274 in English — and that is what pushed the language toggle onto a second row in BOTH languages.
    (The toolbar's width comes from #app's 1040px cap, so the window's size never entered into it.)

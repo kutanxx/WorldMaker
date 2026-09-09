@@ -1,9 +1,15 @@
+import type { World } from "../types/world";
 import type { History } from "../engine/history";
 import type { Lang } from "./i18n";
 import { chronicleTitle, eraLabel } from "./i18n";
-import { eventText } from "../engine/eventText";
+import { buildChronicle } from "../engine/chronicleLines";
 
-export function renderChronicle(history: History, lang: Lang): HTMLElement {
+// The world is needed because the chronicle is not only the events the simulation recorded: most of
+// it is mined out of the territory snapshots, and reading those means knowing whose land is whose.
+// Until this took a world, the panel drew the raw events alone and told the reader less than half
+// the history the downloaded gazetteer told (56/48/42 lines against 122/120/96 on seeds 1/2/3),
+// with no ruler ever named. Both now come off `buildChronicle`.
+export function renderChronicle(world: World, history: History, lang: Lang): HTMLElement {
   const root = document.createElement("div");
   root.className = "chronicle";
   const title = document.createElement("h3");
@@ -13,7 +19,7 @@ export function renderChronicle(history: History, lang: Lang): HTMLElement {
   // by its own <ol> of event rows — valid markup, since an <ol> may only contain <li> children.
   let lastCentury = -1;
   let list: HTMLOListElement | null = null;
-  for (const e of history.events) {
+  for (const e of buildChronicle(world, history, lang)) {
     const century = Math.floor(e.year / 100);
     if (century !== lastCentury) {
       lastCentury = century;
@@ -26,9 +32,9 @@ export function renderChronicle(history: History, lang: Lang): HTMLElement {
       root.appendChild(list);
     }
     const row = document.createElement("li");
-    row.className = `chronicle-event evt-${e.type}`;
+    row.className = `chronicle-event evt-${e.kind}`;
     row.dataset.year = String(e.year);
-    row.textContent = eventText(e, history.polities, lang);
+    row.textContent = e.text;
     list!.appendChild(row);
   }
   return root;

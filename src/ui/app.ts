@@ -291,7 +291,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
       },
     });
 
-    const chronicle = renderChronicle(history, lang);
+    const chronicle = renderChronicle(generated.world, history, lang);
     const slot = svg.querySelector(".political-slot") as SVGGElement;
     const renderYear = (index: number): void => {
       currentYearIndex = index;

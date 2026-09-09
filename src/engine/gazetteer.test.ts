@@ -169,3 +169,36 @@ describe("worldToGazetteer", () => {
     expect(kr).toContain("## 연대기");
   });
 });
+
+// The chronicle is about to gain a second consumer: the on-screen panel, which until now drew only
+// the simulation's raw events and so told the reader less than half the history the download did.
+// Sharing one assembler between the two is the fix, and this is the lock that proves the move was
+// faithful — the exported document must come out byte-identical, in both languages, on every seed.
+// It is a characterization test, not a red-green step: it passes before the extraction and has to
+// keep passing after it.
+describe("exported chronicle is byte-stable across the shared-assembler move", () => {
+  const fold = (h: number, v: number) => (Math.imul(h ^ v, 16777619) >>> 0);
+  const fnv = (s: string) => { let h = 2166136261 >>> 0; for (let i = 0; i < s.length; i++) h = fold(h, s.charCodeAt(i)); return h >>> 0; };
+  // The chronicle section only: the rest of the document is not what this move touches, and pinning
+  // it too would make every unrelated wording change fail here.
+  const chronicleOf = (md: string, marker: string) => {
+    const i = md.indexOf(marker);
+    return i < 0 ? "" : md.slice(i);
+  };
+  const pins: Record<number, { en: number; ko: number; lines: number }> = {
+    1: { en: 2079463290, ko: 1853907116, lines: 122 },
+    2: { en: 1185095847, ko: 2430776732, lines: 120 },
+    3: { en:  845363759, ko:  789889609, lines:  96 },
+  };
+  for (const seed of [1, 2, 3]) {
+    it(`reproduces the pinned chronicle for seed ${seed}`, () => {
+      const { world: w } = generateWorld({ ...DEFAULT_PARAMS, seed });
+      const h = simulateHistory(w, seed);
+      const en = chronicleOf(worldToGazetteer(w, h, "en"), "## Chronicle");
+      const ko = chronicleOf(worldToGazetteer(w, h, "ko"), "## 연대기");
+      expect(en.split("\n").filter((l) => l.startsWith("- ")).length).toBe(pins[seed].lines);
+      expect(fnv(en)).toBe(pins[seed].en);
+      expect(fnv(ko)).toBe(pins[seed].ko);
+    });
+  }
+});
