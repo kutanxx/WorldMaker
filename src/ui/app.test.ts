@@ -3,7 +3,7 @@ import { describe, it, expect, afterEach } from "vitest";
 import { DEFAULT_PARAMS } from "../types/world";
 import { createApp } from "./app";
 import { hashStringToSeed } from "../engine/rng";
-import { initialCity } from "./urlState";
+import { initialCity, decodeParams } from "./urlState";
 
 const small = { ...DEFAULT_PARAMS, width: 300, height: 300, cellCount: 400, townCount: 6 };
 
@@ -430,5 +430,72 @@ describe("the language toggle changes the language", () => {
     expect(document.documentElement.lang).toBe("ko");
     root.remove();
     localStorage.removeItem("wm:lang");
+  });
+});
+
+// Every one of these already worked: the URL hash carries seaLevel, mountainLevel, polityCount,
+// cellCount and townCount, and generateWorld reads them. There was simply no way to reach them from
+// the page, so a reader could only ever have the one world shape the defaults describe.
+describe("the world's own dials", () => {
+  const open = async () => {
+    const root = document.createElement("div");
+    document.body.appendChild(root);
+    createApp(root, { ...DEFAULT_PARAMS, seed: 5 });
+    await new Promise((r) => setTimeout(r, 0));
+    return root;
+  };
+
+  it("offers the settings the engine already reads, folded away until asked for", async () => {
+    const root = await open();
+    const panel = root.querySelector("details.advanced");
+    expect(panel, "no advanced settings at all").not.toBeNull();
+    expect((panel as HTMLDetailsElement).open, "the panel should start folded").toBe(false);
+    const names = [...panel!.querySelectorAll("input[type=range]")].map((i) => i.getAttribute("name"));
+    for (const k of ["seaLevel", "mountainLevel", "polityCount", "townCount", "cellCount"]) {
+      expect(names, `${k} is not offered`).toContain(k);
+    }
+    root.remove();
+  });
+
+  it("builds a different world when a dial is moved", async () => {
+    const root = await open();
+    const before = root.querySelectorAll(".markers [data-city]").length;
+    const towns = root.querySelector('input[name=townCount]') as HTMLInputElement;
+    towns.value = String(Number(towns.max));
+    towns.dispatchEvent(new Event("change", { bubbles: true }));
+    await new Promise((r) => setTimeout(r, 0));
+    const after = root.querySelectorAll(".markers [data-city]").length;
+    expect(after, `cities ${before} -> ${after}`).toBeGreaterThan(before);
+    root.remove();
+  });
+
+  it("keeps the dials in the link, so a shared world is the same world", async () => {
+    const root = await open();
+    const sea = root.querySelector('input[name=seaLevel]') as HTMLInputElement;
+    sea.value = "0.45";
+    sea.dispatchEvent(new Event("change", { bubbles: true }));
+    await new Promise((r) => setTimeout(r, 0));
+    expect(decodeParams(location.hash).seaLevel).toBeCloseTo(0.45, 5);
+    root.remove();
+  });
+});
+
+// The readable link and the dials are two features that meet badly: `#seed=Narnia` says the seed
+// and nothing else, so moving a dial on a NAMED world would leave the address describing a world
+// the reader is no longer looking at, and a reload would quietly undo the change.
+describe("a named world that has been tuned", () => {
+  it("gives up the readable link rather than lose the settings", async () => {
+    const root = document.createElement("div");
+    document.body.appendChild(root);
+    createApp(root, { ...DEFAULT_PARAMS, seed: hashStringToSeed("Avalon") }, "Avalon");
+    await new Promise((r) => setTimeout(r, 0));
+    expect(location.hash).toBe("#seed=Avalon");
+    const sea = root.querySelector('input[name=seaLevel]') as HTMLInputElement;
+    sea.value = "0.45";
+    sea.dispatchEvent(new Event("change", { bubbles: true }));
+    await new Promise((r) => setTimeout(r, 0));
+    expect(decodeParams(location.hash).seaLevel, "the tuning is not in the address").toBeCloseTo(0.45, 5);
+    expect(decodeParams(location.hash).seed).toBe(hashStringToSeed("Avalon"));
+    root.remove();
   });
 });

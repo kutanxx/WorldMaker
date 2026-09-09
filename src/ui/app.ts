@@ -86,13 +86,49 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
   const cultureBtn = document.createElement("button");
   const provinceBtn = document.createElement("button");
   viewToggle.append(terrainBtn, politicalBtn, cultureBtn, provinceBtn);
+  // The engine has read all of these from the URL since it was written — seaLevel, mountainLevel,
+  // polityCount, townCount, cellCount — and there was no way to reach any of them from the page, so
+  // a reader could only ever have the one world the defaults describe. Folded away, because the
+  // toolbar's own lesson is that a control costs a row whether it is used or not.
+  const advanced = document.createElement("details");
+  advanced.className = "advanced";
+  const advancedSummary = document.createElement("summary");
+  advanced.appendChild(advancedSummary);
+  const dials: { key: keyof WorldParams; min: number; max: number; step: number }[] = [
+    { key: "seaLevel", min: 0.15, max: 0.55, step: 0.01 },
+    { key: "mountainLevel", min: 0.4, max: 0.8, step: 0.01 },
+    { key: "polityCount", min: 2, max: 12, step: 1 },
+    { key: "townCount", min: 4, max: 60, step: 1 },
+    { key: "cellCount", min: 1200, max: 9000, step: 200 },
+  ];
+  const dialRows = dials.map(({ key, min, max, step }) => {
+    const row = document.createElement("label");
+    row.className = "advanced-row";
+    const name = document.createElement("span");
+    const input = document.createElement("input");
+    input.type = "range";
+    input.name = key;
+    input.min = String(min); input.max = String(max); input.step = String(step);
+    input.value = String(params[key]);
+    const read = document.createElement("output");
+    read.textContent = String(params[key]);
+    input.addEventListener("input", () => { read.textContent = input.value; });
+    // regenerate on release, not on every pixel of the drag: a world is a second of work
+    input.addEventListener("change", () => regenerate({ ...params, [key]: Number(input.value) }));
+    row.append(name, input, read);
+    advanced.appendChild(row);
+    return { key, name, input, read };
+  });
   controls.append(homeBtn, seedInput, regenBtn, randomBtn, exportGroup, gazBtn, viewToggle, langBtn);
+  root.appendChild(advanced);
 
   // set every UI string from the current language (called on init and on language toggle)
   function applyLang(): void {
     // the document's own language, which is what a screen reader and a translation tool go by:
     // map.html declares lang="ko" and it used to stay that way whatever the toggle said
     document.documentElement.lang = lang;
+    advancedSummary.textContent = t(lang, "advanced");
+    for (const d of dialRows) d.name.textContent = t(lang, d.key as never);
     homeBtn.textContent = t(lang, "home");
     homeBtn.title = t(lang, "homeLabel"); // the house carries it; the word cost the toolbar a second row
     regenBtn.textContent = t(lang, "generate");
@@ -231,7 +267,15 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
   // a named world keeps its name in the address, so a reload or a shared link still opens the
   // world the reader asked for rather than a stranger with the same seed
   function worldHash(): string {
-    return worldTitle !== null ? "seed=" + encodeURIComponent(worldTitle) : encodeParams(params).slice(1);
+    // ...but only while the name still describes the whole world. `#seed=Avalon` says the seed and
+    // nothing else, so once a dial has been moved the readable form would leave the address
+    // describing a world the reader is not looking at, and a reload would quietly undo the change.
+    // The name is worth having; it is not worth being wrong.
+    const tuned = (Object.keys(DEFAULT_PARAMS) as (keyof WorldParams)[])
+      .some((k) => k !== "seed" && params[k] !== DEFAULT_PARAMS[k]);
+    return worldTitle !== null && !tuned
+      ? "seed=" + encodeURIComponent(worldTitle)
+      : encodeParams(params).slice(1);
   }
 
   /**
@@ -287,6 +331,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
   function regenerate(p: WorldParams): void {
     params = { ...p };
     seedInput.value = String(params.seed);
+    for (const d of dialRows) { d.input.value = String(params[d.key]); d.read.textContent = String(params[d.key]); }
     // a new seed is a new world, and it is not the one the reader named
     if (params.seed !== hashStringToSeed(worldTitle ?? "")) worldTitle = null;
     generated = generateWorld(params, worldTitle ?? undefined);

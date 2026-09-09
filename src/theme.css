@@ -461,3 +461,17 @@ svg.world .legend { pointer-events: none; }
   border: 1px solid #cbb784; border-radius: 5px; max-height: 60vh; cursor: pointer; }
 .front-controls { display: flex; gap: 8px; align-items: center; font-size: 14px; padding: 4px 2px; }
 .front-commit { width: 220px; }
+
+/* World settings: the dials the engine has always read from the URL, folded away until asked for.
+   Kept off the toolbar because the toolbar's own lesson is that a control costs a row whether it
+   is used or not — and these are for the reader who wants a wetter world, not for every reader. */
+.advanced { max-width: 1000px; margin: 6px auto 0; font-size: 13px; color: #42341f; }
+.advanced > summary { cursor: pointer; padding: 4px 2px; user-select: none; letter-spacing: 0.02em; }
+.advanced > summary::marker { color: #9a8a70; }
+.advanced-row { display: grid; grid-template-columns: 92px 1fr 56px; align-items: center; gap: 10px; padding: 3px 2px; }
+.advanced-row output { font-variant-numeric: tabular-nums; text-align: right; color: #6b5d42; }
+.advanced-row input[type=range] { accent-color: #7a5a3a; }
+@media (pointer: coarse) {
+  .advanced-row { grid-template-columns: 96px 1fr 56px; }
+  .advanced-row input[type=range] { min-height: 34px; }
+}
