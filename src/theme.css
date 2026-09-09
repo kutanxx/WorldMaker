@@ -74,6 +74,40 @@ a.home:hover { background: #e7cf9c; }
   box-shadow: 0 1px 3px rgba(42, 33, 24, 0.18);
 }
 .legend-toggle:hover { background: #e7d9b6; }
+/* Focus mode: the window belongs to the map. Everything the map was competing with for vertical
+   room — the title, the toolbar, the town list, the chronicle, the dials — is gone, and the height
+   budget drops to just the scrubber's own strip. At 1920x945 that takes the map from 993x695 to
+   about 1350x945. `position: fixed` on the stage rather than a reflow so nothing else has to be
+   re-measured or re-laid-out on the way in and out. */
+.focus-toggle {
+  position: absolute; right: 14px; top: 14px; z-index: 6;
+  padding: 4px 10px; font-size: 12px; letter-spacing: .04em; line-height: 1.4;
+  background: rgba(244, 236, 216, 0.88); color: #3c2f1c;
+  border: 1px solid rgba(183, 160, 113, 0.7); border-radius: 6px; cursor: pointer;
+  box-shadow: 0 1px 3px rgba(42, 33, 24, 0.18);
+}
+.focus-toggle:hover { background: #e7d9b6; }
+
+body.map-focus { overflow: hidden; }
+body.map-focus .app-title,
+body.map-focus .controls,
+body.map-focus .city-list,
+body.map-focus .chronicle,
+body.map-focus .advanced { display: none; }
+body.map-focus #app { max-width: none; padding: 0; }
+body.map-focus .stage {
+  position: fixed; inset: 0; z-index: 40; margin: 0; padding: 8px;
+  border: 0; border-radius: 0; box-shadow: none;
+  display: flex; flex-direction: column; gap: 8px;
+}
+body.map-focus .map-with-list {
+  max-width: none; grid-template-columns: minmax(0, 1fr); flex: 1; min-height: 0;
+}
+body.map-focus .map-frame {
+  width: min(100%, calc((100vh - 90px) * 10 / 7)); margin-inline: auto;
+}
+body.map-focus .timeline { margin: 0; }
+
 /* Folded, the chip stands where the key will appear, so it reads as the key's own place. Unfolded,
    it moves to the opposite corner: fading it in place was the first try and it still covered the
    bottom row of the key it had just opened, and the key's height changes with the view (eight rows

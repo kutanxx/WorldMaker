@@ -295,6 +295,27 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     });
     frame.appendChild(legendBtn);
 
+    // The map is sized by the vertical room the title, the toolbar and the scrubber leave it, so
+    // widening the page cannot make it bigger while the height is what binds. This takes the chrome
+    // away instead and gives the window to the map, keeping the scrubber — a map of one year is
+    // half the map. Not remembered: a reload that dropped a reader onto a chrome-less screen would
+    // be a worse surprise than re-pressing a button.
+    const focusBtn = document.createElement("button");
+    focusBtn.type = "button";
+    focusBtn.className = "focus-toggle";
+    const syncFocus = (on: boolean) => {
+      document.body.classList.toggle("map-focus", on);
+      focusBtn.setAttribute("aria-pressed", String(on));
+      focusBtn.textContent = t(lang, on ? "focusExit" : "focusEnter");
+      focusBtn.title = t(lang, on ? "focusExitHint" : "focusEnterHint");
+    };
+    syncFocus(false);
+    focusBtn.addEventListener("click", () => syncFocus(!document.body.classList.contains("map-focus")));
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && document.body.classList.contains("map-focus")) syncFocus(false);
+    });
+    frame.appendChild(focusBtn);
+
     // The best thing this map has is behind its markers, and until the reader knows a marker leads
     // somewhere there is nothing to tell them so. A list is the signal: it says "there are cities
     // here" by existing, it is reachable by keyboard for free, and it does not need anyone to hit

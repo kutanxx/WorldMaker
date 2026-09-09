@@ -95,6 +95,7 @@ export const UI: Record<Lang, Record<string, string>> = {
     compassN: "N", langToggle: "한국어", home: "🏠", homeLabel: "Home",
     legendTerrain: "Terrain", legendRealms: "Realms", legendCultures: "Cultures", legendDistricts: "Districts",
     legendToggle: "Key", legendShow: "Show the key", legendHide: "Hide the key",
+    focusEnter: "⤢ Fill the screen", focusExit: "✕ Leave", focusEnterHint: "Give the window to the map", focusExitHint: "Back to the page (Esc)",
     // the front page. It used to print every line in both languages at once, so neither read well.
     landingTagline: "A procedural fantasy atlas & chronicle",
     landingCardTitle: "Create a World",
@@ -128,6 +129,7 @@ export const UI: Record<Lang, Record<string, string>> = {
     compassN: "북", langToggle: "EN", home: "🏠", homeLabel: "홈",
     legendTerrain: "지형", legendRealms: "나라", legendCultures: "문화", legendDistricts: "구역",
     legendToggle: "범례", legendShow: "범례 펼치기", legendHide: "범례 접기",
+    focusEnter: "⤢ 크게 보기", focusExit: "✕ 닫기", focusEnterHint: "화면을 지도에 내어준다", focusExitHint: "원래 화면으로 (Esc)",
     landingTagline: "절차적으로 만들어지는 판타지 지도와 연대기",
     landingCardTitle: "세계 만들기",
     landingCardDesc: "무작위 판타지 세계를 만들고 — 지도, 도시, 강, 역사, 가제티어를 살펴봅니다.",

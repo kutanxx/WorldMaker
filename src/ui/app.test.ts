@@ -759,3 +759,55 @@ describe("the map's legend folds away", () => {
     expect(btn.getAttribute("aria-expanded")).toBe("true");
   });
 });
+
+// "지도가 화면 크게 나오면 좋을거 같은데". Widening the page could not answer it: the map is sized
+// by the vertical room left after the title, the toolbar and the scrubber, so raising the width cap
+// changes nothing while the height is what binds. The chrome has to go instead.
+describe("the map can take the whole window", () => {
+  const open = () => {
+    const root = document.createElement("div");
+    createApp(root, { ...DEFAULT_PARAMS, seed: 2 });
+    return root;
+  };
+  const focused = () => document.body.classList.contains("map-focus");
+  afterEach(() => document.body.classList.remove("map-focus"));
+
+  it("offers the map a way to fill the screen, and starts out of it", () => {
+    const root = open();
+    expect(root.querySelector(".focus-toggle")).not.toBeNull();
+    expect(focused()).toBe(false);
+  });
+
+  it("enters and leaves on the control", () => {
+    const root = open();
+    const btn = root.querySelector(".focus-toggle") as HTMLButtonElement;
+    btn.click();
+    expect(focused()).toBe(true);
+    btn.click();
+    expect(focused()).toBe(false);
+  });
+
+  it("leaves on Escape, which is where a reader's hand goes", () => {
+    const root = open();
+    (root.querySelector(".focus-toggle") as HTMLButtonElement).click();
+    expect(focused()).toBe(true);
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    expect(focused()).toBe(false);
+  });
+
+  it("keeps the scrubber, because a map of one year is half the map", () => {
+    const root = open();
+    (root.querySelector(".focus-toggle") as HTMLButtonElement).click();
+    expect(root.querySelector(".timeline")).not.toBeNull();
+    expect(root.querySelector("svg.world")).not.toBeNull();
+  });
+
+  // Leaving the page in focus would strand a reader on a chrome-less screen after a reload.
+  it("does not outlive the visit", () => {
+    const root = open();
+    (root.querySelector(".focus-toggle") as HTMLButtonElement).click();
+    expect(focused()).toBe(true);
+    open();                              // a fresh app on the same document
+    expect(focused()).toBe(false);
+  });
+});
