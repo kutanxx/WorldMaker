@@ -31,7 +31,12 @@ function named<T extends SVGElement>(el: T, text: string): T {
   return el;
 }
 
-export function renderWorld(world: World, view: MapView = "terrain", econZones: number[] = [], lang: Lang = "en"): SVGSVGElement {
+/**
+ * @param sinceFounded city ids the chronicle has not founded yet at the year being shown. They are
+ * on the map from year 0 as far as the generator is concerned — the history is what says when they
+ * came to be — so the timeline holds them back rather than the world omitting them.
+ */
+export function renderWorld(world: World, view: MapView = "terrain", econZones: number[] = [], lang: Lang = "en", unfounded: ReadonlySet<number> = new Set()): SVGSVGElement {
   const grid = world.grid;
   const root = svgEl("svg", {
     width: "100%",
@@ -207,6 +212,7 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
     return nation ? `${c.name}${seat} · ${nation}` : `${c.name}${seat}`;
   };
   for (const c of world.cities) {
+    if (unfounded.has(c.id)) continue;   // the chronicle has not founded it yet
     // The mark itself stays small — a settlement is a point on a map and growing it would be a lie
     // about the size of the place. What grows is an invisible target around it. Measured on the
     // live page the marks were 5px across (8 for a capital) against a 24px minimum touch target,

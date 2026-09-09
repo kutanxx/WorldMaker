@@ -81,6 +81,9 @@ export interface History {
   events: HistoryEvent[];
   snapshots: HistorySnapshot[];
   economicZones: EconomicZone[];
+  /** which town the chronicle founded, and when — the towns exist on the map from the start, but
+      this is the year the history says they came to be, so the timeline can hold them back */
+  cityFoundings: { cityId: number; year: number }[];
 }
 
 export interface SimState {
@@ -99,7 +102,8 @@ export interface SimState {
   snapshots: HistorySnapshot[];
   economicZones: EconomicZone[];
   zoneCells: Set<number>;
-  cityCells: { cell: number; name: string }[];
+  cityCells: { id: number; cell: number; name: string; isCapital: boolean }[];
+  foundedTowns: Map<number, number>;   // cityId -> the year the chronicle founded it
   tick: number;
   playerPolity: number; // -1 = pure history (default); else the player's polity id
   ascension: number;    // 0 = off (always 0 on the pure path); play sets 1..ASCENSION_CAP
@@ -277,9 +281,9 @@ export function initSim(world: World, worldSeed: number): SimState {
   for (const z of economicZones) events.push({ year: 0, type: "staple", name: z.name, polityId: owner[z.cell] >= 0 ? owner[z.cell] : -1, cell: z.cell });
 
   const snapshots: HistorySnapshot[] = [{ year: 0, owner: owner.slice() }];
-  const cityCells = world.cities.map((c) => ({ cell: c.cell, name: c.name }));
+  const cityCells = world.cities.map((c) => ({ id: c.id, cell: c.cell, name: c.name, isCapital: c.isCapital }));
 
-  return { grid, terrain, n, owner, solidarity, polities, capitals, alive, golden, rng, nameGen, events, snapshots, economicZones, zoneCells, cityCells, playerPolity: -1, ascension: 0, stance: "internal", peakCells: 0, truces: new Map(), foundedCities: new Set(), lastDilemma: -99, dilemmaFlags: new Set(), attacksOnPlayer: new Map(), attacksByPlayer: new Map(), tick: 0, seaLanes: [] };
+  return { grid, terrain, n, owner, solidarity, polities, capitals, alive, golden, rng, nameGen, events, snapshots, economicZones, zoneCells, cityCells, foundedTowns: new Map(), playerPolity: -1, ascension: 0, stance: "internal", peakCells: 0, truces: new Map(), foundedCities: new Set(), lastDilemma: -99, dilemmaFlags: new Set(), attacksOnPlayer: new Map(), attacksByPlayer: new Map(), tick: 0, seaLanes: [] };
 }
 
 // revenge (play only): a polity the player struck within the grudge window hits back harder
@@ -484,8 +488,34 @@ export function stepSim(s: SimState): void {
     if (!s.alive[o] || s.polities[o].free || agg4[o].cells < 40) continue;
     if (agg4[o].avg < 0.42) continue;
     if (s.rng() > 0.14) continue;
-    const cityName = s.nameGen.place();
-    s.events.push({ year, type: "newCity", name: cityName, polityId: o, cell: s.capitals[o] });
+    // The draw is kept whatever happens to the name: this generator's count is what everything
+    // downstream is built on, and skipping it would move the map.
+    const coined = s.nameGen.place();
+    // ...but the town founded is a REAL one. The chronicle used to coin a name and announce a place
+    // the atlas never drew — 19 of 19 on seed 1 — so a reader was told about towns they could never
+    // find. The realm founds the nearest of its own unfounded towns to its seat, chosen without
+    // drawing. When it has none left, the coined name stands: the event must still happen, because
+    // its absence would change the event count the golden anchor pins.
+    const seat = s.capitals[o];
+    const sx = s.grid.points[seat * 2], sy = s.grid.points[seat * 2 + 1];
+    // Its own ground first; failing that, the nearest unfounded town anywhere, which is a colony
+    // and reads as one. Preferring its own means a realm settles inward before it reaches out.
+    const nearestUnfounded = (mine: boolean) => {
+      let best: { id: number; cell: number; name: string } | null = null, bd = Infinity;
+      for (const c of s.cityCells) {
+        if (c.isCapital || s.foundedTowns.has(c.id)) continue;
+        if (mine && s.owner[c.cell] !== o) continue;
+        const d = Math.hypot(s.grid.points[c.cell * 2] - sx, s.grid.points[c.cell * 2 + 1] - sy);
+        if (d < bd) { bd = d; best = c; }
+      }
+      return best;
+    };
+    const take = nearestUnfounded(true) ?? nearestUnfounded(false);
+    if (take) s.foundedTowns.set(take.id, year);
+    s.events.push({
+      year, type: "newCity", name: take ? take.name : coined,
+      polityId: o, cell: take ? take.cell : seat,
+    });
     break;
   }
 

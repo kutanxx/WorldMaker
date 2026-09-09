@@ -15,5 +15,6 @@ export function simulateHistory(world: World, worldSeed: number): History {
     events: s.events,
     snapshots: s.snapshots,
     economicZones: s.economicZones,
+    cityFoundings: [...s.foundedTowns].map(([cityId, year]) => ({ cityId, year })).sort((a, b) => a.year - b.year),
   };
 }

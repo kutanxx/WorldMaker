@@ -171,6 +171,26 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
    * provinces in it — and the province key that renderWorld draws never survived to the screen,
    * because the timeline rebuilt the layer without it a moment later.
    */
+  // Which towns the chronicle has not founded by the year on the scrubber. The capitals are the
+  // seats the world starts with and are never held back.
+  function unfoundedAt(yearIndex: number): Set<number> {
+    const year = history.snapshots[yearIndex]?.year ?? 0;
+    const out = new Set<number>();
+    for (const f of history.cityFoundings) if (f.year > year) out.add(f.cityId);
+    return out;
+  }
+
+  // The chronicle said a town was founded in year 140 and the town was on the map from year 0, so
+  // five hundred years of history had nothing to show but borders moving. Scrubbing hides the
+  // towns not yet founded rather than redrawing the map: the markers are already in the document.
+  function showFoundedCities(svg: SVGSVGElement, yearIndex: number): void {
+    const hidden = unfoundedAt(yearIndex);
+    for (const el of svg.querySelectorAll<SVGElement>(".markers [data-city]")) {
+      const id = Number(el.getAttribute("data-city"));
+      el.style.display = hidden.has(id) ? "none" : "";
+    }
+  }
+
   function fillSlot(slot: SVGGElement, view: MapView, yearIndex: number): void {
     const world = generated.world;
     const snap = history.snapshots[yearIndex];
@@ -277,6 +297,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
       currentYearIndex = index;
       const snap = history.snapshots[index];
       fillSlot(slot, currentView, index);
+      showFoundedCities(svg, index);
       applyChronicleYear(chronicle, snap.year);
       // Scrubbing a year replaces the political layer, so its labels arrive at their base size.
       // Bring them to whatever zoom the reader is at before working out what fits, or a nation's
@@ -440,7 +461,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
 
   // Export the world at the year + view the timeline is currently showing.
   function exportWorldSvg(): SVGSVGElement {
-    const svg = renderWorld(generated.world, currentView, history.economicZones.map((z) => z.cell), lang);
+    const svg = renderWorld(generated.world, currentView, history.economicZones.map((z) => z.cell), lang, unfoundedAt(currentYearIndex));
     fillSlot(svg.querySelector(".political-slot") as SVGGElement, currentView, currentYearIndex);
     // This is a fresh render that has never been in the document, so its labels have never been laid
     // out against each other — left alone, every name in the world goes into the file, stacked.

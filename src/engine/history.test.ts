@@ -206,10 +206,17 @@ describe("simulateHistory golden anchor (behaviour lock)", () => {
   // — so the simulation ran the same 500 years over the same map and only the words changed.
   // `events` folds the rendered sentence and `polities` folds `p.name`, so both move for that
   // reason and no other.
+  // 2026-09-09 (second): `events` alone re-pinned, on all three seeds — counts, `allSnap` AND
+  // `polities` all came back byte-identical, which is a narrower move than the name repair above.
+  // The chronicle used to found towns the atlas never drew: `newCity` coined a name and announced a
+  // place a reader could never find, 19 of 19 on seed 1. It founds a real town now — the realm's
+  // own nearest unfounded one, else the nearest anywhere, which is a colony and reads as one — so
+  // only the sentence changes. The name draw is still taken whatever happens to it, because this
+  // generator's count is what the rest of the world is built on.
   const anchors: Record<number, { snaps: number; pols: number; evs: number; econ: number; allSnap: number; events: number; polities: number }> = {
-    1: { snaps: 51, pols: 20, evs: 56, econ: 3, allSnap: 1648675569, events: 1047327764, polities: 2701230301 },
-    2: { snaps: 51, pols: 17, evs: 48, econ: 3, allSnap: 4266384045, events: 3650362872, polities:   38386429 },
-    3: { snaps: 51, pols: 17, evs: 42, econ: 3, allSnap:  325069013, events: 2096907607, polities: 1808909891 },
+    1: { snaps: 51, pols: 20, evs: 56, econ: 3, allSnap: 1648675569, events: 2873662164, polities: 2701230301 },
+    2: { snaps: 51, pols: 17, evs: 48, econ: 3, allSnap: 4266384045, events: 1647106399, polities:   38386429 },
+    3: { snaps: 51, pols: 17, evs: 42, econ: 3, allSnap:  325069013, events: 2493989660, polities: 1808909891 },
   };
   for (const seed of [1, 2, 3]) {
     it(`reproduces the pinned hashes for seed ${seed}`, () => {
@@ -237,4 +244,35 @@ describe("simulateHistory golden anchor (behaviour lock)", () => {
       expect(pol >>> 0).toBe(a.polities);
     });
   }
+});
+
+// The chronicle founded towns the atlas never drew. Measured on seed 1: 19 `newCity` events over
+// 500 years, and NOT ONE of them named a town that appears on the map — the simulation coined a
+// name and the reader was told a place existed that they could never find. The comment called it a
+// "lore city"; from the outside it is simply a lie.
+describe("the chronicle founds towns that are on the map", () => {
+  it("names a real town every time it can", () => {
+    for (const seed of [1, 2, 3, 5]) {
+      const w = generateWorld({ ...DEFAULT_PARAMS, seed }).world;
+      const h = simulateHistory(w, seed);
+      const names = new Set(w.cities.map((c) => c.name));
+      const founds = h.events.filter((e) => e.type === "newCity");
+      expect(founds.length, `seed ${seed} founds nothing`).toBeGreaterThan(0);
+      const phantom = founds.filter((e) => !e.name || !names.has(e.name));
+      expect(phantom.length, `seed ${seed}: ${phantom.map((e) => e.name).join(" ")}`).toBe(0);
+    }
+  });
+
+  it("founds each town once, and tells us when", () => {
+    const w = generateWorld({ ...DEFAULT_PARAMS, seed: 1 }).world;
+    const h = simulateHistory(w, 1);
+    const ids = h.cityFoundings.map((f) => f.cityId);
+    expect(new Set(ids).size, "a town founded twice").toBe(ids.length);
+    for (const f of h.cityFoundings) {
+      const city = w.cities.find((c) => c.id === f.cityId)!;
+      expect(city, "founded a city that is not on the map").toBeDefined();
+      expect(city.isCapital, "a capital is a seat from the start, not founded later").toBe(false);
+      expect(f.year).toBeGreaterThan(0);
+    }
+  });
 });

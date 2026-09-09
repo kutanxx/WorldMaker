@@ -568,3 +568,30 @@ describe("the cities announce themselves", () => {
     root.remove();
   });
 });
+
+// The chronicle says a town was founded in year 140 and the town was on the map from year 0, so the
+// timeline had nothing to show for five hundred years of history but moving borders.
+describe("the towns arrive as the chronicle founds them", () => {
+  it("shows fewer cities at the beginning than at the end", async () => {
+    const root = document.createElement("div");
+    document.body.appendChild(root);
+    createApp(root, { ...DEFAULT_PARAMS, seed: 1 });
+    await new Promise((r) => setTimeout(r, 0));
+    const shown = () => new Set([...root.querySelectorAll<SVGElement>(".markers .marker-hit")]
+      .filter((e) => e.style.display !== "none")
+      .map((e) => e.getAttribute("data-city"))).size;
+    const slider = root.querySelector(".timeline input[type=range]") as HTMLInputElement;
+    slider.value = "0";
+    slider.dispatchEvent(new Event("input"));
+    await new Promise((r) => setTimeout(r, 0));
+    const atStart = shown();
+    slider.value = slider.max;
+    slider.dispatchEvent(new Event("input"));
+    await new Promise((r) => setTimeout(r, 0));
+    const atEnd = shown();
+    expect(atEnd, `year 0 showed ${atStart}, year 500 showed ${atEnd}`).toBeGreaterThan(atStart);
+    // and the capitals are there from the first year — they are the seats the world starts with
+    expect(atStart).toBeGreaterThanOrEqual(8);
+    root.remove();
+  });
+});
