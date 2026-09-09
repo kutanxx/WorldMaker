@@ -39,9 +39,17 @@ a.home:hover { background: #e7cf9c; }
   box-shadow: 0 1px 4px rgba(60,47,28,.15);
 }
 .map-frame { position: relative; }
+/* The controls float over the map's own bottom-right corner, where a sea name or a coastal town
+   likes to sit — and the map moves UNDER them, so there is no square of map that can be reserved
+   against them at every zoom. What a printed atlas does instead is give the furniture a mount: the
+   panel makes "this name is behind a control" read as a panel rather than as a smudged label. */
 .map-zoom-controls {
   position: absolute; right: 14px; bottom: 14px;
   display: flex; flex-direction: column; gap: 4px; z-index: 5;
+  padding: 5px; border-radius: 6px;
+  background: rgba(244, 236, 216, 0.88);
+  border: 1px solid rgba(183, 160, 113, 0.7);
+  box-shadow: 0 1px 3px rgba(42, 33, 24, 0.18);
 }
 .map-zoom-controls button {
   width: 30px; height: 30px; padding: 0; font-size: 18px; line-height: 1;
@@ -475,3 +483,19 @@ svg.world .legend { pointer-events: none; }
   .advanced-row { grid-template-columns: 96px 1fr 56px; }
   .advanced-row input[type=range] { min-height: 34px; }
 }
+
+/* What a plate can say about its town, and the way off it. The plan used to carry its name and
+   nothing else, and the only exit was back to the world map to hunt for another four-pixel dot. */
+.city-facts {
+  max-width: 1008px; margin: 6px auto 0; display: flex; flex-wrap: wrap; gap: 6px 22px;
+  font-size: 13px; color: #42341f;
+}
+.city-fact { display: flex; align-items: baseline; gap: 7px; }
+.city-fact-key { color: #8a7a60; font-variant: small-caps; letter-spacing: 0.05em; }
+.city-fact-value { display: inline-flex; flex-wrap: wrap; gap: 6px; align-items: baseline; }
+.city-facts .neighbour {
+  font: inherit; padding: 1px 8px; border-radius: 9px; cursor: pointer;
+  border: 1px solid #c9bb96; background: #f2ead6; color: #3c2f1c;
+}
+.city-facts .neighbour:hover { background: #e7d9b6; }
+@media (pointer: coarse) { .city-facts .neighbour { min-height: 34px; padding: 6px 12px; } }

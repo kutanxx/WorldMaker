@@ -31,3 +31,16 @@ describe("coarse-pointer ergonomics", () => {
     }
   });
 });
+
+// The zoom controls float over the map's own bottom-right corner, where sea names and coastal towns
+// sit, and the map moves under them — so no square of map can be reserved against them at every
+// zoom. They get a mount instead, the way an atlas mounts its furniture, so a name behind one reads
+// as being behind a panel rather than as a smudge.
+describe("the map's furniture sits on something", () => {
+  it("gives the zoom controls a backing, not bare buttons over the map", () => {
+    const css = read("src/theme.css");
+    const block = css.slice(css.indexOf(".map-zoom-controls {"), css.indexOf(".map-zoom-controls button"));
+    expect(block).toMatch(/background:\s*rgba\(/);
+    expect(block).toMatch(/border:/);
+  });
+});

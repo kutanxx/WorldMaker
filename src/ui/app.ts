@@ -4,6 +4,8 @@ import { generateWorld } from "../engine/world";
 import { renderWorld, politicalOpts, type MapView } from "./svgWorldRenderer";
 import { renderCity } from "./svgCityRenderer";
 import { generateCityLayout, cityContext } from "../engine/city";
+import { cityFacts } from "./cityFacts";
+import { KM_PER_UNIT } from "./scaleBar";
 import { encodeParams, randomSeed, initialCity } from "./urlState";
 import { hashStringToSeed } from "../engine/rng";
 import { worldToJSON, svgToString, svgToPngBlob, downloadBlob } from "./export";
@@ -307,7 +309,46 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     const frame = document.createElement("div");
     frame.className = "map-frame";
     frame.appendChild(citySvg);
-    stage.append(back, frame);
+
+    // A plate carried its name and nothing else, and there was no way off it but back to the world
+    // map to hunt for another dot. The facts are the ones the world can actually answer for — the
+    // founding year an outside review asked for is not among them: the chronicle founds towns the
+    // atlas never draws (19 of 19 on seed 1), which is its own bug and not something to paper over.
+    const facts = cityFacts(generated.world, marker, layout, lang, KM_PER_UNIT);
+    const panel = document.createElement("div");
+    panel.className = "city-facts";
+    const row = (label: string, value: string) => {
+      const d = document.createElement("div");
+      d.className = "city-fact";
+      const k = document.createElement("span"); k.className = "city-fact-key"; k.textContent = label;
+      const v = document.createElement("span"); v.className = "city-fact-value"; v.textContent = value;
+      d.append(k, v);
+      return d;
+    };
+    panel.append(
+      row(t(lang, "factKind"), facts.kind),
+      row(t(lang, "factRealm"), facts.realm ?? t(lang, "factUnclaimed")),
+      row(t(lang, "factPeople"), `${facts.rank} · ${facts.population}`),
+    );
+    const near = document.createElement("div");
+    near.className = "city-fact city-neighbours";
+    const nearKey = document.createElement("span");
+    nearKey.className = "city-fact-key";
+    nearKey.textContent = t(lang, "factNear");
+    near.appendChild(nearKey);
+    const nearList = document.createElement("span");
+    nearList.className = "city-fact-value";
+    for (const n of facts.neighbours) {
+      const b = document.createElement("button");
+      b.className = "neighbour";
+      b.textContent = `${n.name} · ${n.km}km`;
+      b.addEventListener("click", () => openCity(n.id));
+      nearList.appendChild(b);
+    }
+    near.appendChild(nearList);
+    panel.appendChild(near);
+
+    stage.append(back, panel, frame);
     worldZoom?.destroy(); worldZoom = null;
     cityZoom?.destroy();
     // the ward names hold their size here for the same reason the world's names do

@@ -499,3 +499,39 @@ describe("a named world that has been tuned", () => {
     root.remove();
   });
 });
+
+// A plate carried its name and nothing else, and the only way off it was back to the world map to
+// hunt for another four-pixel dot.
+describe("a plate tells you where you are and where you can go", () => {
+  it("says what kind of town it is, whose it is, and how big", async () => {
+    const root = document.createElement("div");
+    document.body.appendChild(root);
+    createApp(root, { ...DEFAULT_PARAMS, seed: 5 });
+    await new Promise((r) => setTimeout(r, 0));
+    (root.querySelector(".marker-hit") as SVGElement).dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    await new Promise((r) => setTimeout(r, 0));
+    const panel = root.querySelector(".city-facts");
+    expect(panel, "the plate says nothing about its town").not.toBeNull();
+    expect(panel!.querySelectorAll(".city-fact").length).toBeGreaterThanOrEqual(4);
+    expect(panel!.textContent).toMatch(/\d/);           // a population band
+    root.remove();
+  });
+
+  it("walks from one town to the town next door", async () => {
+    const root = document.createElement("div");
+    document.body.appendChild(root);
+    createApp(root, { ...DEFAULT_PARAMS, seed: 5 });
+    await new Promise((r) => setTimeout(r, 0));
+    (root.querySelector(".marker-hit") as SVGElement).dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    await new Promise((r) => setTimeout(r, 0));
+    const first = root.querySelector(".city-name-text")?.textContent;
+    const neighbour = root.querySelector(".city-facts .neighbour") as HTMLButtonElement;
+    expect(neighbour, "no way on to the next town").not.toBeNull();
+    neighbour.click();
+    await new Promise((r) => setTimeout(r, 0));
+    const second = root.querySelector(".city-name-text")?.textContent;
+    expect(second).not.toBe(first);
+    expect(neighbour.textContent).toContain(second!);   // it went where it said it would
+    root.remove();
+  });
+});
