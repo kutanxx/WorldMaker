@@ -408,3 +408,24 @@ describe("every legend says what it is a key to", () => {
     expect(svg.querySelector(".biome-legend .legend-title")?.textContent).toBe("지형");
   });
 });
+
+// A city marker is a 4-pixel dot with a click handler and nothing else: no name, no hint that it
+// leads anywhere. At the default zoom the labels are all withheld too (deconflict holds
+// .city-capital back to 1.5x and .city-town to 2.6x), so a first-time reader sees anonymous specks
+// over a map whose best feature is behind them.
+describe("a city marker says what it is", () => {
+  it("names every marker, and says which nation holds it", () => {
+    const world = generateWorld({ ...DEFAULT_PARAMS, seed: 5 }).world;
+    const svg = renderWorld(world);
+    const markers = [...svg.querySelectorAll("[data-city]")];
+    expect(markers.length).toBe(world.cities.length);
+    for (const m of markers) {
+      const id = Number(m.getAttribute("data-city"));
+      const city = world.cities.find((c) => c.id === id)!;
+      const title = m.querySelector("title")?.textContent ?? "";
+      expect(title, `marker ${id} has no name`).toContain(city.name);
+    }
+    // at least one of them names its nation too (an unclaimed town may have none)
+    expect(markers.some((m) => (m.querySelector("title")?.textContent ?? "").includes("·"))).toBe(true);
+  });
+});

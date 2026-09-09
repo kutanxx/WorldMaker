@@ -10,6 +10,34 @@ export type Lang = "en" | "ko";
 
 // district names — also resolves the plaza-vs-market clash (plaza = the open market square,
 // market = the commercial stalls district).
+// The names of the things the plate draws outside its districts. The countryside generator has a
+// large vocabulary — abbey, cloister, cemetery, gallows, leper house, fairground, inn, market
+// cross, well, windmill, watermill, hamlet, farmstead — and until these existed none of it was
+// named anywhere: a reader saw a bent line and had no way to learn it was a gallows.
+export const FEATURE_NAME = {
+  en: {
+    abbey: "Abbey", cemetery: "Cemetery", gallows: "Gallows", leperHouse: "Leper house",
+    fairground: "Fairground", inn: "Inn", marketCross: "Market cross", well: "Well",
+    barbican: "Barbican", parishChurch: "Parish church", windmill: "Windmill",
+    watermill: "Watermill", farmstead: "Farmstead", hamlet: "Hamlet", suburb: "Suburb house",
+    field: "Field", fallowField: "Fallow field", pasture: "Pasture", orchard: "Orchard",
+    garden: "Garden", harbour: "Harbour", tanner: "Tannery", dyer: "Dyer's yard",
+    castle: "Castle", bridge: "Bridge", wall: "Town wall", gate: "Gate",
+  },
+  ko: {
+    abbey: "수도원", cemetery: "공동묘지", gallows: "교수대", leperHouse: "나병자 수용소",
+    fairground: "장터", inn: "여관", marketCross: "시장 십자가", well: "우물",
+    barbican: "외성", parishChurch: "본당 교회", windmill: "풍차",
+    watermill: "물레방아", farmstead: "농장", hamlet: "마을", suburb: "성밖 민가",
+    field: "밭", fallowField: "휴경지", pasture: "목초지", orchard: "과수원",
+    garden: "텃밭", harbour: "항구", tanner: "무두질터", dyer: "염색장",
+    castle: "성채", bridge: "다리", wall: "성벽", gate: "성문",
+  },
+} as const satisfies Record<Lang, Record<string, string>>;
+
+export type FeatureKey = keyof typeof FEATURE_NAME["en"];
+export const featureName = (lang: Lang, key: FeatureKey): string => FEATURE_NAME[lang][key];
+
 export const WARD_NAME: Record<Lang, Partial<Record<WardType, string>>> = {
   en: {
     plaza: "Market Square", market: "Market", guildhall: "Guildhall", cathedral: "Cathedral",
@@ -47,7 +75,7 @@ export const UI: Record<Lang, Record<string, string>> = {
     generate: "Generate", randomSeed: "Random seed", exportJson: "JSON",
     exportPng: "PNG", exportSvg: "SVG", exportLabel: "Export", gazetteer: "Gazetteer",
     terrain: "Terrain", political: "Political", culture: "Culture", province: "Provinces",
-    backToWorld: "Back to world", water: "Water", mainRoad: "Main road", bridge: "Bridge",
+    backToWorld: "Back to world", water: "Water", mainRoad: "Main road", bridge: "Bridge", capitalSeat: "capital",
     compassN: "N", langToggle: "한국어", home: "🏠", homeLabel: "Home",
     legendTerrain: "Terrain", legendRealms: "Realms", legendCultures: "Cultures", legendDistricts: "Districts",
   },
@@ -55,7 +83,7 @@ export const UI: Record<Lang, Record<string, string>> = {
     generate: "생성", randomSeed: "랜덤 시드", exportJson: "JSON",
     exportPng: "PNG", exportSvg: "SVG", exportLabel: "내보내기", gazetteer: "가제티어",
     terrain: "지형", political: "정치", culture: "문화", province: "영토",
-    backToWorld: "지도로 돌아가기", water: "물", mainRoad: "큰길", bridge: "다리",
+    backToWorld: "지도로 돌아가기", water: "물", mainRoad: "큰길", bridge: "다리", capitalSeat: "수도",
     compassN: "북", langToggle: "EN", home: "🏠", homeLabel: "홈",
     legendTerrain: "지형", legendRealms: "나라", legendCultures: "문화", legendDistricts: "구역",
   },

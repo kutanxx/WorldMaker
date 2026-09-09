@@ -3,7 +3,7 @@ import type { CityLayout } from "../engine/city";
 import type { WardType } from "../engine/city/zoning";
 import type { Point, Polygon, Polyline } from "../engine/geometry";
 import { pointInPolygon } from "../engine/geometry";
-import { type Lang, WARD_NAME, t } from "./i18n";
+import { type Lang, WARD_NAME, t, featureName, type FeatureKey } from "./i18n";
 
 // A distinct (but parchment-muted) colour per district so the wards read apart — each
 // functional zone gets its own hue. harbor stays untinted (its docks are the waterfront
@@ -40,6 +40,16 @@ function spacedTowers(ring: Point[], minGap: number, target = 8): Point[] {
 // plainly the strongest thing on the plate rather than the faintest line on it.
 const CASTLE_STONE = "#43392d";
 const CASTLE_TOWER = "#8a7858";
+// A drawn thing that can say what it is. SVG <title> is the map's own tooltip — it needs no CSS,
+// it survives export, and a reader who wonders what the bent line by the road is can simply rest
+// on it. Everything the countryside generator lays out gets one.
+function named<T extends SVGElement>(el: T, text: string): T {
+  const tl = svgEl("title");
+  tl.textContent = text;
+  el.appendChild(tl);
+  return el;
+}
+
 const BRIDGE_EDGE = "#5f5a4e";
 const BRIDGE_DECK = "#a8a294";
 
@@ -67,6 +77,7 @@ function avg(poly: Polygon): [number, number] {
 }
 
 export function renderCity(layout: CityLayout, lang: Lang = "en"): SVGSVGElement {
+  const fn = (k: FeatureKey) => featureName(lang, k);
   const { w, h } = layout.bounds;
   const LEGW = 108; // right-hand strip that holds the district key, OUTSIDE the map so it never covers the city
   const root = svgEl("svg", { width: "100%", viewBox: `0 0 ${w + LEGW} ${h}`, class: "city" }) as SVGSVGElement;
@@ -87,7 +98,7 @@ export function renderCity(layout: CityLayout, lang: Lang = "en"): SVGSVGElement
   // harbor: breakwater/mole + lighthouse + piers + moored boats (on the sea)
   if (layout.harbor) {
     const hb = layout.harbor;
-    const hg = svgEl("g", { class: "harbor" });
+    const hg = named(svgEl("g", { class: "harbor" }), fn("harbour"));
     if (hb.quay.length >= 2) {
       hg.appendChild(svgEl("polyline", { class: "quay", points: pts(hb.quay), fill: "none", stroke: "#b8a988", "stroke-width": 2.4, "stroke-linecap": "round", "stroke-linejoin": "round" }));
     }
@@ -152,7 +163,7 @@ export function renderCity(layout: CityLayout, lang: Lang = "en"): SVGSVGElement
   // countryside ground patches: gardens/fields/pastures/orchards/woods, drawn under the
   // suburb roads/houses so buildings and roads read on top of the open-field system.
   const cs = layout.countryside;
-  for (const g2 of cs.gardens) env.appendChild(svgEl("polygon", { class: "garden", points: pts(g2), fill: "#c9d0a0", stroke: "#8a8a5f", "stroke-width": 0.3 }));
+  for (const g2 of cs.gardens) env.appendChild(named(svgEl("polygon", { class: "garden", points: pts(g2), fill: "#c9d0a0", stroke: "#8a8a5f", "stroke-width": 0.3 }), fn("garden")));
   const dry = cs.dry; // engine is the single source of truth for the desert palette
   for (const f of cs.fields) {
     // fallow fields (three-field rotation) rest under grass; the ridge-and-furrow earthwork
@@ -160,15 +171,15 @@ export function renderCity(layout: CityLayout, lang: Lang = "en"): SVGSVGElement
     const fallow = f.state === "fallow";
     const fill = fallow ? "#c8cba0" : dry ? "#e0cf9a" : "#d9cc9a";
     const furrow = fallow ? "#b3b585" : dry ? "#c9b47a" : "#c4b581";
-    env.appendChild(svgEl("polygon", { class: fallow ? "field field-fallow" : "field", points: pts(f.polygon), fill, stroke: "#b3a26e", "stroke-width": 0.4 }));
+    env.appendChild(named(svgEl("polygon", { class: fallow ? "field field-fallow" : "field", points: pts(f.polygon), fill, stroke: "#b3a26e", "stroke-width": 0.4 }), fn(fallow ? "fallowField" : "field")));
     for (const s of f.strips) env.appendChild(svgEl("polyline", { class: "furrow", points: pts(s), fill: "none", stroke: furrow, "stroke-width": 0.35 }));
   }
   for (const p of cs.pastures) {
-    env.appendChild(svgEl("polygon", { class: "pasture", points: pts(p.fence), fill: "#ccd6a8", "fill-opacity": 0.7, stroke: "#8a6a44", "stroke-width": 0.5, "stroke-dasharray": "1.6 1.1" }));
+    env.appendChild(named(svgEl("polygon", { class: "pasture", points: pts(p.fence), fill: "#ccd6a8", "fill-opacity": 0.7, stroke: "#8a6a44", "stroke-width": 0.5, "stroke-dasharray": "1.6 1.1" }), fn("pasture")));
     for (const a of p.animals) env.appendChild(svgEl("circle", { class: "animal", cx: a[0], cy: a[1], r: 0.8, fill: p.kind === "sheep" ? "#f4f1e4" : "#8a6a44", stroke: "#5c4a33", "stroke-width": 0.25 }));
   }
   for (const or of cs.orchards) {
-    env.appendChild(svgEl("polygon", { class: "orchard", points: pts(or.polygon), fill: "#cfd8ac", "fill-opacity": 0.5, stroke: "#8a8a5f", "stroke-width": 0.3 }));
+    env.appendChild(named(svgEl("polygon", { class: "orchard", points: pts(or.polygon), fill: "#cfd8ac", "fill-opacity": 0.5, stroke: "#8a8a5f", "stroke-width": 0.3 }), fn("orchard")));
     for (const t2 of or.trees) {
       env.appendChild(svgEl("circle", { class: "orchard-tree", cx: t2[0], cy: t2[1], r: 1.4, fill: "#8fae6e", stroke: "#5d7a45", "stroke-width": 0.3 }));
     }
@@ -180,56 +191,62 @@ export function renderCity(layout: CityLayout, lang: Lang = "en"): SVGSVGElement
     env.appendChild(svgEl("polyline", { class: "suburb-road", points: pts(r), fill: "none", stroke: "#c9bb96", "stroke-width": 1.6, "stroke-linecap": "round" }));
   }
   for (const b of layout.suburbs) {
-    env.appendChild(svgEl("polygon", { class: "suburb", points: pts(b), fill: "#e0d6c0", stroke: "#9a8a70", "stroke-width": 0.4 }));
+    env.appendChild(named(svgEl("polygon", { class: "suburb", points: pts(b), fill: "#e0d6c0", stroke: "#9a8a70", "stroke-width": 0.4 }), fn("suburb")));
   }
   // farm buildings: drawn above their fields/pastures, alongside the suburb houses
   for (const fm of cs.farmsteads) {
-    if (fm.yard) env.appendChild(svgEl("polygon", { class: "farm-yard", points: pts(fm.yard), fill: "none", stroke: "#8a6a44", "stroke-width": 0.4, "stroke-dasharray": "1.2 1" }));
-    env.appendChild(svgEl("polygon", { class: "farm-barn", points: pts(fm.barn), fill: "#7a5a3a", stroke: "#4d3620", "stroke-width": 0.4 }));
-    env.appendChild(svgEl("polygon", { class: "farm-house", points: pts(fm.house), fill: "#e0d6c0", stroke: "#9a8a70", "stroke-width": 0.4 }));
+    const fg = named(svgEl("g", { class: "farmstead" }), fn("farmstead"));
+    if (fm.yard) fg.appendChild(svgEl("polygon", { class: "farm-yard", points: pts(fm.yard), fill: "none", stroke: "#8a6a44", "stroke-width": 0.4, "stroke-dasharray": "1.2 1" }));
+    fg.appendChild(svgEl("polygon", { class: "farm-barn", points: pts(fm.barn), fill: "#7a5a3a", stroke: "#4d3620", "stroke-width": 0.4 }));
+    fg.appendChild(svgEl("polygon", { class: "farm-house", points: pts(fm.house), fill: "#e0d6c0", stroke: "#9a8a70", "stroke-width": 0.4 }));
+    env.appendChild(fg);
   }
   // nucleated hamlets: a lane through a common green + church, cottages gable-to-the-street with
   // garden tofts behind, and a pond — a clustered village, not a row of roadside houses
   for (const v of cs.villages) {
-    env.appendChild(svgEl("polyline", { class: "village-lane", points: pts(v.lane), fill: "none", stroke: "#c9bb96", "stroke-width": 1.3, "stroke-linecap": "round", "stroke-linejoin": "round" }));
-    for (const cr of v.crofts) env.appendChild(svgEl("polygon", { class: "village-croft", points: pts(cr), fill: "#c9d0a0", "fill-opacity": 0.55, stroke: "#8a8a5f", "stroke-width": 0.3, "stroke-dasharray": "1.2 1" }));
-    env.appendChild(svgEl("polygon", { class: "village-green", points: pts(v.green), fill: "#bcd0a0", stroke: "#8a8a5f", "stroke-width": 0.3 }));
-    if (v.pond) env.appendChild(svgEl("polygon", { class: "village-pond", points: pts(v.pond), fill: "#9fc1d6", stroke: "#6f97ad", "stroke-width": 0.3 }));
-    for (const h of v.houses) env.appendChild(svgEl("polygon", { class: "village-house", points: pts(h), fill: "#e0d6c0", stroke: "#9a8a70", "stroke-width": 0.4 }));
+    const vg = named(svgEl("g", { class: "hamlet" }), fn("hamlet"));
+    vg.appendChild(svgEl("polyline", { class: "village-lane", points: pts(v.lane), fill: "none", stroke: "#c9bb96", "stroke-width": 1.3, "stroke-linecap": "round", "stroke-linejoin": "round" }));
+    for (const cr of v.crofts) vg.appendChild(svgEl("polygon", { class: "village-croft", points: pts(cr), fill: "#c9d0a0", "fill-opacity": 0.55, stroke: "#8a8a5f", "stroke-width": 0.3, "stroke-dasharray": "1.2 1" }));
+    vg.appendChild(svgEl("polygon", { class: "village-green", points: pts(v.green), fill: "#bcd0a0", stroke: "#8a8a5f", "stroke-width": 0.3 }));
+    if (v.pond) vg.appendChild(svgEl("polygon", { class: "village-pond", points: pts(v.pond), fill: "#9fc1d6", stroke: "#6f97ad", "stroke-width": 0.3 }));
+    for (const h of v.houses) vg.appendChild(svgEl("polygon", { class: "village-house", points: pts(h), fill: "#e0d6c0", stroke: "#9a8a70", "stroke-width": 0.4 }));
     const [cx, cy] = v.chapel;
-    env.appendChild(svgEl("rect", { class: "village-chapel", x: cx - 1.4, y: cy - 1.1, width: 2.8, height: 2.2, fill: "#d8d2c4", stroke: "#7a6f56", "stroke-width": 0.4 }));
-    env.appendChild(svgEl("path", { class: "village-cross", d: `M${cx.toFixed(1)},${(cy - 1.1).toFixed(1)}L${cx.toFixed(1)},${(cy - 3).toFixed(1)}M${(cx - 0.8).toFixed(1)},${(cy - 2.3).toFixed(1)}L${(cx + 0.8).toFixed(1)},${(cy - 2.3).toFixed(1)}`, stroke: "#3c2f1c", "stroke-width": 0.6, fill: "none", "stroke-linecap": "round" }));
+    vg.appendChild(svgEl("rect", { class: "village-chapel", x: cx - 1.4, y: cy - 1.1, width: 2.8, height: 2.2, fill: "#d8d2c4", stroke: "#7a6f56", "stroke-width": 0.4 }));
+    vg.appendChild(svgEl("path", { class: "village-cross", d: `M${cx.toFixed(1)},${(cy - 1.1).toFixed(1)}L${cx.toFixed(1)},${(cy - 3).toFixed(1)}M${(cx - 0.8).toFixed(1)},${(cy - 2.3).toFixed(1)}L${(cx + 0.8).toFixed(1)},${(cy - 2.3).toFixed(1)}`, stroke: "#3c2f1c", "stroke-width": 0.6, fill: "none", "stroke-linecap": "round" }));
+    env.appendChild(vg);
   }
   for (const o of layout.outworks) {
     const [x, y] = o.at;
+    const og2 = named(svgEl("g", { class: "outworks" }), fn(o.type === "windmill" ? "windmill" : "watermill"));
+    env.appendChild(og2);
     if (o.type === "windmill") {
-      env.appendChild(svgEl("circle", { class: "outwork", cx: x, cy: y, r: 1.6, fill: "#8a7858" }));
+      og2.appendChild(svgEl("circle", { class: "outwork", cx: x, cy: y, r: 1.6, fill: "#8a7858" }));
       const c = Math.cos(o.angle), s = Math.sin(o.angle), r = 4;
-      env.appendChild(svgEl("path", { class: "outwork-sails", d: `M${(x - c * r).toFixed(1)} ${(y - s * r).toFixed(1)} L${(x + c * r).toFixed(1)} ${(y + s * r).toFixed(1)} M${(x + s * r).toFixed(1)} ${(y - c * r).toFixed(1)} L${(x - s * r).toFixed(1)} ${(y + c * r).toFixed(1)}`, stroke: "#6b5a44", "stroke-width": 0.8, fill: "none" }));
+      og2.appendChild(svgEl("path", { class: "outwork-sails", d: `M${(x - c * r).toFixed(1)} ${(y - s * r).toFixed(1)} L${(x + c * r).toFixed(1)} ${(y + s * r).toFixed(1)} M${(x + s * r).toFixed(1)} ${(y - c * r).toFixed(1)} L${(x - s * r).toFixed(1)} ${(y + c * r).toFixed(1)}`, stroke: "#6b5a44", "stroke-width": 0.8, fill: "none" }));
     } else {
       // watermill: race channel to the water, mill house on the bank, wheel at the water end.
       // Orient the mill house to face the watercourse (race direction, else the stored angle) so
       // its long wall sits along the bank rather than at a fixed axis-aligned box.
       if (o.race) {
-        env.appendChild(svgEl("line", { class: "mill-race", x1: o.race[0][0].toFixed(1), y1: o.race[0][1].toFixed(1), x2: o.race[1][0].toFixed(1), y2: o.race[1][1].toFixed(1), stroke: "#9fc1d6", "stroke-width": 1.4, "stroke-linecap": "round" }));
+        og2.appendChild(svgEl("line", { class: "mill-race", x1: o.race[0][0].toFixed(1), y1: o.race[0][1].toFixed(1), x2: o.race[1][0].toFixed(1), y2: o.race[1][1].toFixed(1), stroke: "#9fc1d6", "stroke-width": 1.4, "stroke-linecap": "round" }));
       }
       const wa = o.race ? Math.atan2(o.race[1][1] - o.race[0][1], o.race[1][0] - o.race[0][0]) : o.angle;
-      env.appendChild(svgEl("rect", { class: "outwork", x: x - 2.5, y: y - 2, width: 5, height: 4, fill: "#c9a86a", stroke: "#8a6a44", "stroke-width": 0.5, transform: `rotate(${((wa * 180) / Math.PI).toFixed(1)} ${x} ${y})` }));
+      og2.appendChild(svgEl("rect", { class: "outwork", x: x - 2.5, y: y - 2, width: 5, height: 4, fill: "#c9a86a", stroke: "#8a6a44", "stroke-width": 0.5, transform: `rotate(${((wa * 180) / Math.PI).toFixed(1)} ${x} ${y})` }));
       const wheel = o.race ? o.race[1] : [x + 3, y + 1];
-      env.appendChild(svgEl("circle", { class: "outwork-wheel", cx: wheel[0], cy: wheel[1], r: 2, fill: "none", stroke: "#6b5a44", "stroke-width": 0.7 }));
+      og2.appendChild(svgEl("circle", { class: "outwork-wheel", cx: wheel[0], cy: wheel[1], r: 2, fill: "none", stroke: "#6b5a44", "stroke-width": 0.7 }));
     }
   }
   // extramural landmarks (outside the walls)
   if (layout.abbey) {
     const [ax, ay] = layout.abbey.at;
-    const ag = svgEl("g", { class: "abbey", transform: `rotate(${((layout.abbey.angle * 180) / Math.PI).toFixed(1)} ${ax} ${ay})` });
+    const ag = named(svgEl("g", { class: "abbey", transform: `rotate(${((layout.abbey.angle * 180) / Math.PI).toFixed(1)} ${ax} ${ay})` }), fn("abbey"));
     ag.appendChild(svgEl("rect", { class: "cloister", x: ax - 6, y: ay - 6, width: 12, height: 12, rx: 0.5, fill: "#d8d2c4", stroke: "#8a7f6a", "stroke-width": 0.6 }));
     ag.appendChild(svgEl("rect", { class: "garth", x: ax - 2.5, y: ay - 2.5, width: 5, height: 5, fill: "#bcd0a0", stroke: "#8a7f6a", "stroke-width": 0.3 }));
     ag.appendChild(svgEl("path", { class: "church", d: `M${ax},${ay - 6}L${ax},${ay - 11}M${ax - 2},${ay - 9}L${ax + 2},${ay - 9}`, fill: "none", stroke: "#3c2f1c", "stroke-width": 1, "stroke-linecap": "round" }));
     env.appendChild(ag);
   }
   if (layout.cemetery) {
-    const cg = svgEl("g", { class: "cemetery" });
+    const cg = named(svgEl("g", { class: "cemetery" }), fn("cemetery"));
     const [cx, cy] = layout.cemetery.at;
     cg.appendChild(svgEl("rect", { class: "churchyard", x: cx - 6, y: cy - 6.5, width: 12, height: 13, rx: 1, fill: "#e4dfcd", stroke: "#9a8a70", "stroke-width": 0.4 }));
     for (const [gx, gy] of layout.cemetery.graves) {
@@ -239,12 +256,12 @@ export function renderCity(layout: CityLayout, lang: Lang = "en"): SVGSVGElement
   }
   if (layout.gallows) {
     const [gx, gy] = layout.gallows;
-    env.appendChild(svgEl("path", { class: "gallows", d: `M${gx},${gy + 4}L${gx},${gy - 6}L${gx + 5},${gy - 6}M${gx + 5},${gy - 6}L${gx + 5},${gy - 3}`, fill: "none", stroke: "#3c2f1c", "stroke-width": 0.9, "stroke-linecap": "round" }));
+    env.appendChild(named(svgEl("path", { class: "gallows", d: `M${gx},${gy + 4}L${gx},${gy - 6}L${gx + 5},${gy - 6}M${gx + 5},${gy - 6}L${gx + 5},${gy - 3}`, fill: "none", stroke: "#3c2f1c", "stroke-width": 0.9, "stroke-linecap": "round" }), fn("gallows")));
   }
   // leper house (lazar house): a fenced compound with a small chapel (red warning cross) + huts
   if (layout.leperHouse) {
     const [lx, ly] = layout.leperHouse.at;
-    const lg = svgEl("g", { class: "leper-house", transform: `rotate(${((layout.leperHouse.angle * 180) / Math.PI).toFixed(1)} ${lx} ${ly})` });
+    const lg = named(svgEl("g", { class: "leper-house", transform: `rotate(${((layout.leperHouse.angle * 180) / Math.PI).toFixed(1)} ${lx} ${ly})` }), fn("leperHouse"));
     lg.appendChild(svgEl("rect", { class: "leper-yard", x: lx - 6, y: ly - 5, width: 12, height: 10, fill: "none", stroke: "#8a7f6a", "stroke-width": 0.4, "stroke-dasharray": "1.6 1.2" }));
     lg.appendChild(svgEl("rect", { class: "leper-chapel", x: lx - 2, y: ly - 3.4, width: 4, height: 3, fill: "#d8d2c4", stroke: "#7a6f56", "stroke-width": 0.4 }));
     lg.appendChild(svgEl("path", { class: "leper-cross", d: `M${lx},${ly - 3.4}v-2 M${lx - 0.8},${ly - 4.4}h1.6`, stroke: "#7a2f2f", "stroke-width": 0.5, fill: "none", "stroke-linecap": "round" }));
@@ -254,7 +271,7 @@ export function renderCity(layout: CityLayout, lang: Lang = "en"): SVGSVGElement
   }
   // fairground: an open green with rows of market stalls + bunting (periodic fair outside the walls)
   if (layout.fairground) {
-    const fgn = svgEl("g", { class: "fairground" });
+    const fgn = named(svgEl("g", { class: "fairground" }), fn("fairground"));
     const [fx, fy] = layout.fairground.at;
     fgn.appendChild(svgEl("ellipse", { class: "fair-green", cx: fx, cy: fy, rx: 9, ry: 7, fill: "#c4d2a2", "fill-opacity": 0.6, stroke: "#8a8a5f", "stroke-width": 0.3, transform: `rotate(${((layout.fairground.angle * 180) / Math.PI).toFixed(1)} ${fx} ${fy})` }));
     for (const st of layout.fairground.stalls) fgn.appendChild(svgEl("polygon", { class: "fair-stall", points: pts(st), fill: "#d8b96a", stroke: "#8a6a3a", "stroke-width": 0.4 }));
@@ -262,17 +279,21 @@ export function renderCity(layout: CityLayout, lang: Lang = "en"): SVGSVGElement
     env.appendChild(fgn);
   }
   for (const [ix, iy] of layout.inns) {
-    env.appendChild(svgEl("rect", { class: "inn", x: ix - 3, y: iy - 2.4, width: 6, height: 4.8, fill: "#d8c49a", stroke: "#7a5a3a", "stroke-width": 0.5 }));
-    env.appendChild(svgEl("path", { class: "inn-sign", d: `M${(ix + 3).toFixed(1)},${(iy - 2).toFixed(1)}h2 M${(ix + 5).toFixed(1)},${(iy - 2).toFixed(1)}v2`, stroke: "#5a4a34", "stroke-width": 0.5, fill: "none" }));
-    env.appendChild(svgEl("rect", { class: "inn-sign", x: ix + 4.2, y: iy, width: 1.6, height: 1.4, fill: "#b98a4a", stroke: "#5a4a34", "stroke-width": 0.3 }));
+    const ig = named(svgEl("g", { class: "inn-group" }), fn("inn"));
+    ig.appendChild(svgEl("rect", { class: "inn", x: ix - 3, y: iy - 2.4, width: 6, height: 4.8, fill: "#d8c49a", stroke: "#7a5a3a", "stroke-width": 0.5 }));
+    ig.appendChild(svgEl("path", { class: "inn-sign", d: `M${(ix + 3).toFixed(1)},${(iy - 2).toFixed(1)}h2 M${(ix + 5).toFixed(1)},${(iy - 2).toFixed(1)}v2`, stroke: "#5a4a34", "stroke-width": 0.5, fill: "none" }));
+    ig.appendChild(svgEl("rect", { class: "inn-sign", x: ix + 4.2, y: iy, width: 1.6, height: 1.4, fill: "#b98a4a", stroke: "#5a4a34", "stroke-width": 0.3 }));
+    env.appendChild(ig);
   }
   for (const bb of layout.barbicans) {
-    for (const w of bb.walls) env.appendChild(svgEl("polyline", { class: "barbican-wall", points: pts(w), fill: "none", stroke: "#43392d", "stroke-width": 2.4, "stroke-linecap": "round" }));
-    for (const t of bb.towers) env.appendChild(svgEl("circle", { class: "barbican", cx: t[0], cy: t[1], r: 2.2, fill: "#8a7858", stroke: "#43392d", "stroke-width": 0.8 }));
+    const bg = named(svgEl("g", { class: "barbican-group" }), fn("barbican"));
+    for (const w of bb.walls) bg.appendChild(svgEl("polyline", { class: "barbican-wall", points: pts(w), fill: "none", stroke: "#43392d", "stroke-width": 2.4, "stroke-linecap": "round" }));
+    for (const t of bb.towers) bg.appendChild(svgEl("circle", { class: "barbican", cx: t[0], cy: t[1], r: 2.2, fill: "#8a7858", stroke: "#43392d", "stroke-width": 0.8 }));
+    env.appendChild(bg);
   }
   for (const tr of layout.riversideTrades) {
     const [x, y] = tr.at;
-    env.appendChild(svgEl("rect", { class: "riverside-trade", x: x - 2, y: y - 1.6, width: 4, height: 3.2, fill: "#6b5a44", stroke: "#3c2f1c", "stroke-width": 0.4 }));
+    env.appendChild(named(svgEl("rect", { class: "riverside-trade", x: x - 2, y: y - 1.6, width: 4, height: 3.2, fill: "#6b5a44", stroke: "#3c2f1c", "stroke-width": 0.4 }), fn(tr.kind)));
     if (tr.kind === "dyer") env.appendChild(svgEl("path", { class: "dye-rack", d: `M${(x - 2).toFixed(1)},${(y + 2.4).toFixed(1)}h4 M${(x - 1).toFixed(1)},${(y + 1.8).toFixed(1)}v1.2 M${(x + 1).toFixed(1)},${(y + 1.8).toFixed(1)}v1.2`, stroke: "#7a5a3a", "stroke-width": 0.4, fill: "none" }));
   }
   root.appendChild(env);
@@ -282,7 +303,13 @@ export function renderCity(layout: CityLayout, lang: Lang = "en"): SVGSVGElement
   for (const park of layout.parks) clipped.appendChild(svgEl("polygon", { class: "park", points: pts(park), fill: "#cfe0b8" }));
   for (const ward of layout.wards) {
     const tint = TINT[ward.type];
-    if (tint) clipped.appendChild(svgEl("polygon", { class: "ward", points: pts(ward.polygon), fill: tint, "fill-opacity": 0.7 }));
+    // every district answers to a name on hover, including the small ones the map has no room to
+    // label and the harbour, which is deliberately untinted — it gets a transparent skin so there
+    // is still something there to ask
+    clipped.appendChild(named(svgEl("polygon", {
+      class: "ward", points: pts(ward.polygon),
+      ...(tint ? { fill: tint, "fill-opacity": 0.7 } : { fill: "none", "pointer-events": "all" }),
+    }), WARD_NAME[lang][ward.type] ?? ward.type));
   }
 
   // Re-draw the water channel over the ground + district tints but UNDER the buildings, so a
@@ -320,7 +347,7 @@ export function renderCity(layout: CityLayout, lang: Lang = "en"): SVGSVGElement
   let castleG: SVGGElement | null = null;
   if (layout.castle) {
     const ca = layout.castle;
-    const cg = svgEl("g", { class: "castle-inner", "clip-path": `url(#${clipId})` }) as SVGGElement;
+    const cg = named(svgEl("g", { class: "castle-inner", "clip-path": `url(#${clipId})` }), fn("castle")) as SVGGElement;
     // Every part below used to be drawn at a constant size, so a royal seat wore a market town's
     // furniture -- turrets r1.6, towers r2.1, a gate r1.1, the same on a size-6 capital as on a
     // size-3 market town, and at this scale the furniture is what the eye reads. It is in units of
@@ -376,17 +403,17 @@ export function renderCity(layout: CityLayout, lang: Lang = "en"): SVGSVGElement
   }
 
   for (const [cx, cy] of layout.parishChurches) {
-    clipped.appendChild(svgEl("path", { class: "parish-church", d: `M${cx.toFixed(1)},${(cy - 3).toFixed(1)}v6 M${(cx - 2).toFixed(1)},${(cy - 1).toFixed(1)}h4`, stroke: "#7a6a86", "stroke-width": 1.2, fill: "none", "stroke-linecap": "round" }));
+    clipped.appendChild(named(svgEl("path", { class: "parish-church", d: `M${cx.toFixed(1)},${(cy - 3).toFixed(1)}v6 M${(cx - 2).toFixed(1)},${(cy - 1).toFixed(1)}h4`, stroke: "#7a6a86", "stroke-width": 1.2, fill: "none", "stroke-linecap": "round" }), fn("parishChurch")));
   }
 
   if (layout.marketCross) {
     const [cx, cy] = layout.marketCross;
-    clipped.appendChild(svgEl("rect", { class: "market-cross-base", x: cx - 1.5, y: cy - 1.5, width: 3, height: 3, fill: "#d8d2c4", stroke: "#7a6f56", "stroke-width": 0.4 }));
+    clipped.appendChild(named(svgEl("rect", { class: "market-cross-base", x: cx - 1.5, y: cy - 1.5, width: 3, height: 3, fill: "#d8d2c4", stroke: "#7a6f56", "stroke-width": 0.4 }), fn("marketCross")));
     clipped.appendChild(svgEl("path", { class: "market-cross", d: `M${cx.toFixed(1)},${cy.toFixed(1)}v-4 M${(cx - 1.5).toFixed(1)},${(cy - 2.6).toFixed(1)}h3`, stroke: "#5a4a34", "stroke-width": 0.9, fill: "none", "stroke-linecap": "round" }));
   }
   if (layout.well) {
     const [wx, wy] = layout.well;
-    clipped.appendChild(svgEl("circle", { class: "well", cx: wx, cy: wy, r: 1.3, fill: "#b9c4cc", stroke: "#5a5346", "stroke-width": 0.5 }));
+    clipped.appendChild(named(svgEl("circle", { class: "well", cx: wx, cy: wy, r: 1.3, fill: "#b9c4cc", stroke: "#5a5346", "stroke-width": 0.5 }), fn("well")));
   }
   root.appendChild(clipped);
 

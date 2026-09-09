@@ -503,3 +503,57 @@ describe("the castle is the heaviest masonry on the plate", () => {
     expect(plate(3, false).querySelector(".castle-gatehouse-block")).toBeNull();
   });
 });
+
+// The countryside generator lays out an abbey and its cloister, a cemetery, a gallows, a leper
+// house, a fairground with bunting, inns with signs, barbicans, a market cross, a well, windmills
+// and watermills, hamlets with greens and ponds, farmsteads — well over a hundred pieces on a
+// single plate. Not one of them carried a name: an outside review counted `<title>` elements in a
+// city SVG and got zero, so the gallows read as a bent line and the abbey as a lozenge. Nothing
+// here needs to be invented; it needs a label.
+describe("the plate names what it draws", () => {
+  const withFeatures = () => {
+    for (let seed = 1; seed <= 12; seed++) {
+      const world = generateWorld({ ...DEFAULT_PARAMS, seed }).world;
+      for (const c of world.cities) {
+        const l = generateCityLayout(cityContext(c), seed);
+        if (l.abbey && l.cemetery && l.gallows && l.inns.length && l.countryside.villages.length) return l;
+      }
+    }
+    throw new Error("no city in twelve seeds has the usual spread of landmarks");
+  };
+
+  it("names every landmark outside the walls", () => {
+    const l = withFeatures();
+    const svg = renderCity(l, "en");
+    const titles = [...svg.querySelectorAll("title")].map((t) => t.textContent);
+    for (const [present, name] of [
+      [!!l.abbey, "Abbey"], [!!l.cemetery, "Cemetery"], [!!l.gallows, "Gallows"],
+      [!!l.leperHouse, "Leper house"], [!!l.fairground, "Fairground"],
+      [l.inns.length > 0, "Inn"], [!!l.marketCross, "Market cross"], [!!l.well, "Well"],
+      [l.countryside.villages.length > 0, "Hamlet"],
+      [l.countryside.farmsteads.length > 0, "Farmstead"],
+      [l.countryside.orchards.length > 0, "Orchard"],
+    ] as [boolean, string][]) {
+      if (present) expect(titles, `${name} is drawn but not named`).toContain(name);
+    }
+    // one name per mill, per hamlet, per inn — not one for the lot
+    expect(titles.filter((x) => x === "Inn").length).toBe(l.inns.length);
+    expect(titles.filter((x) => x === "Hamlet").length).toBe(l.countryside.villages.length);
+  });
+
+  it("names every district, including the ones too small to carry a label on the map", () => {
+    const l = withFeatures();
+    const svg = renderCity(l, "en");
+    const named = [...svg.querySelectorAll(".ward")].map((w) => w.querySelector("title")?.textContent);
+    expect(named.length).toBeGreaterThan(4);
+    expect(named.filter((n) => !n), "a district with no name").toEqual([]);
+    expect(named).toContain("Market Square");
+  });
+
+  it("names them in the reader's language", () => {
+    const l = withFeatures();
+    const titles = [...renderCity(l, "ko").querySelectorAll("title")].map((t) => t.textContent);
+    expect(titles).toContain("수도원");
+    expect(titles).toContain("시장 광장");
+  });
+});

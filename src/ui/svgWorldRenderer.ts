@@ -22,6 +22,14 @@ export function politicalOpts(view: MapView, lang: Lang = "en"): PoliticalOpts {
 
 
 // n-point star centered at (cx,cy), alternating outer/inner radius, tip pointing up.
+// a drawn thing that can say what it is (SVG's own tooltip: no CSS, and it survives export)
+function named<T extends SVGElement>(el: T, text: string): T {
+  const tl = svgEl("title");
+  tl.textContent = text;
+  el.appendChild(tl);
+  return el;
+}
+
 export function renderWorld(world: World, view: MapView = "terrain", econZones: number[] = [], lang: Lang = "en"): SVGSVGElement {
   const grid = world.grid;
   const root = svgEl("svg", {
@@ -168,19 +176,32 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
   root.appendChild(riverLabels);
 
   const markers = svgEl("g", { class: "markers" });
+  // A marker was a four-pixel dot with a click handler and nothing else — no name, no sign it led
+  // anywhere — and the labels beside them are withheld until the reader zooms (deconflict holds
+  // .city-capital to 1.5x and .city-town to 2.6x). So the marker carries the name itself: the
+  // map's own tooltip, needing no CSS and surviving export.
+  const nationOf = (c: { cell: number }) => {
+    const p = world.polityOf[c.cell];
+    return p >= 0 ? world.polities.find((q) => q.id === p)?.name ?? null : null;
+  };
+  const markerTitle = (c: { name: string; cell: number; isCapital: boolean }) => {
+    const nation = nationOf(c);
+    const seat = c.isCapital ? ` (${t(lang, "capitalSeat")})` : "";
+    return nation ? `${c.name}${seat} · ${nation}` : `${c.name}${seat}`;
+  };
   for (const c of world.cities) {
     if (c.isCapital) {
-      markers.appendChild(svgEl("path", {
+      markers.appendChild(named(svgEl("path", {
         class: "marker-capital", d: starPath(c.x, c.y, 5, 4.2, 1.9), "data-cx": c.x.toFixed(1), "data-cy": c.y.toFixed(1),
         fill: INK, stroke: PARCHMENT, "stroke-width": 0.7,
         "data-city": c.id, style: "cursor:pointer",
-      }));
+      }), markerTitle(c)));
     } else {
-      markers.appendChild(svgEl("circle", {
+      markers.appendChild(named(svgEl("circle", {
         class: "marker-town", cx: c.x, cy: c.y, r: 2.3,
         fill: INK, stroke: PARCHMENT, "stroke-width": 0.9,
         "data-city": c.id, style: "cursor:pointer",
-      }));
+      }), markerTitle(c)));
     }
     // settlement hierarchy: capitals promoted (larger, bold, dark ink); towns demoted
     // (smaller, muted brown) so the eye reads the capitals first.
