@@ -8,6 +8,7 @@ import type { Province } from "../engine/provinces";
 // 4 cells in a row (squares), cells 0-1 = province 0, cell 2 = province 1, cell 3 = ocean (-1)
 const grid = {
   count: 4,
+  height: 100,
   points: [0, 0, 10, 0, 20, 0, 30, 0],
   polygons: [
     [[0, 0], [10, 0], [10, 10], [0, 10]],

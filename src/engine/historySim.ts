@@ -1,4 +1,5 @@
 import { OCEAN } from "./terrain";
+import { nationColor, FREE_COLOR } from "./palette";
 import type { World } from "../types/world";
 import { mulberry32, deriveSeed, type Rng } from "./rng";
 import { makeNameGen, type NameGen } from "./names";
@@ -14,8 +15,6 @@ const FREE_REACH = 250, FREE_MAX_ASA = 0.5, FREE_PROB = 0.035, FREE_ZONE_PROB = 
 const FREE_SOL = 0.85, FREE_CLUSTER = 5, FREE_MAX_ALIVE = 4;
 const ECON_COUNT = 3, ECON_SOL_FLOOR = 0.55, ECON_BONUS = 0.12;
 const GOLDEN_MIN_CELLS = 170, GOLDEN_MIN_ASA = 0.38;
-const HPALETTE = ["#cabfe6", "#bfe0d4", "#f0d9a8", "#e6b8c2", "#b8cce6", "#d4e6b8", "#e6d0b8", "#c2b8e6", "#b8e6dd", "#e6c2b8"];
-const FREE_COLOR = "#b7b1a4";
 
 // --- player stance (Phase 1): MODEST nudges, only active when playerPolity >= 0 (honest low-agency) ---
 // Balance pass 2026-07-07 (bot-measured, see plans/…-phase2 session notes): defensive was WORSE
@@ -429,7 +428,7 @@ export function stepSim(s: SimState): void {
     for (let i = 1; i < allCaps.length; i++) {
       const id = s.polities.length;
       const nm = s.nameGen.nation();
-      s.polities.push({ id, name: nm, color: HPALETTE[id % HPALETTE.length], capital: allCaps[i], foundedYear: year, endedYear: null, origin: "fragment", free: false });
+      s.polities.push({ id, name: nm, color: nationColor(id), capital: allCaps[i], foundedYear: year, endedYear: null, origin: "fragment", free: false });
       s.capitals.push(allCaps[i]); s.alive.push(true); s.golden.push(false);
     }
     for (const c of cells) {

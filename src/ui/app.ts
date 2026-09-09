@@ -123,6 +123,28 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
   cultureBtn.addEventListener("click", () => setView("culture"));
   provinceBtn.addEventListener("click", () => setView("province"));
 
+  /**
+   * What goes in the map's overlay slot for a given view and year. One place decides, because it
+   * used to be two and they had drifted: the export path replaced the slot with a political layer
+   * for EVERY view that was not culture, so exporting the province view produced a map with no
+   * provinces in it — and the province key that renderWorld draws never survived to the screen,
+   * because the timeline rebuilt the layer without it a moment later.
+   */
+  function fillSlot(slot: SVGGElement, view: MapView, yearIndex: number): void {
+    const world = generated.world;
+    const snap = history.snapshots[yearIndex];
+    if (view === "culture") {
+      slot.replaceChildren(cultureLayer(world.grid, world.cultureOf, world.cultures, lang)); // time-independent
+    } else if (view === "province") {
+      // provinces are geography (time-independent); nation borders track the scrubbed year via snap.owner
+      slot.replaceChildren(provinceLayer(world.grid, world.provinceOf, world.provinces, { owner: snap.owner, legend: true, lang }));
+    } else {
+      // nation ownership snapped to whole provinces so terrain/political borders match the province view
+      const snapped = snapOwnersToProvinces(world.grid.count, world.provinceOf, world.provinces, snap.owner);
+      slot.replaceChildren(politicalLayer(world.grid, snapped, history.polities, politicalOpts(view, lang)));
+    }
+  }
+
   function showWorld(): void {
     openCityId = null;
     timeline?.destroy();
@@ -177,20 +199,10 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
 
     const chronicle = renderChronicle(history, lang);
     const slot = svg.querySelector(".political-slot") as SVGGElement;
-    const world = generated.world;
     const renderYear = (index: number): void => {
       currentYearIndex = index;
       const snap = history.snapshots[index];
-      if (currentView === "culture") {
-        slot.replaceChildren(cultureLayer(world.grid, world.cultureOf, world.cultures, lang)); // time-independent
-      } else if (currentView === "province") {
-        // provinces are geography (time-independent); nation borders track the scrubbed year via snap.owner
-        slot.replaceChildren(provinceLayer(world.grid, world.provinceOf, world.provinces, { owner: snap.owner }));
-      } else {
-        // nation ownership snapped to whole provinces so terrain/political borders match the province view
-        const snapped = snapOwnersToProvinces(world.grid.count, world.provinceOf, world.provinces, snap.owner);
-        slot.replaceChildren(politicalLayer(world.grid, snapped, history.polities, politicalOpts(currentView, lang)));
-      }
+      fillSlot(slot, currentView, index);
       applyChronicleYear(chronicle, snap.year);
       // Scrubbing a year replaces the political layer, so its labels arrive at their base size.
       // Bring them to whatever zoom the reader is at before working out what fits, or a nation's
@@ -305,11 +317,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
   // Export the world at the year + view the timeline is currently showing.
   function exportWorldSvg(): SVGSVGElement {
     const svg = renderWorld(generated.world, currentView, history.economicZones.map((z) => z.cell), lang);
-    if (currentView !== "culture") { // culture layer is static; renderWorld already mounted it
-      const slot = svg.querySelector(".political-slot") as SVGGElement;
-      const snap = history.snapshots[currentYearIndex];
-      slot.replaceChildren(politicalLayer(generated.world.grid, snap.owner, history.polities, politicalOpts(currentView, lang)));
-    }
+    fillSlot(svg.querySelector(".political-slot") as SVGGElement, currentView, currentYearIndex);
     // This is a fresh render that has never been in the document, so its labels have never been laid
     // out against each other — left alone, every name in the world goes into the file, stacked.
     layOutLabelsForExport(svg);

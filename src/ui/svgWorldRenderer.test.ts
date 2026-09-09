@@ -491,3 +491,48 @@ describe("the map says what it is", () => {
     }
   });
 });
+
+// THE BROKEN TUNDRA in letters half an inch wide is the terrain view's own subject; over the
+// political, culture and province views it is somebody else's, laid across the country and culture
+// names those views exist to show. In the province view it was worse than clutter: region and
+// province labels sat at the SAME deconflict priority, so which of the two survived a collision
+// was a coin toss.
+describe("a view's own subject comes first", () => {
+  const world = () => generateWorld({ ...DEFAULT_PARAMS, seed: 5 }).world;
+
+  it("keeps the land's names at full weight on the terrain view", () => {
+    const svg = renderWorld(world(), "terrain");
+    const labels = [...svg.querySelectorAll(".region-label")];
+    expect(labels.length).toBeGreaterThan(5);
+    for (const l of labels) expect(l.classList.contains("region-faint")).toBe(false);
+  });
+
+  it("stands them down on every view that is about something else", () => {
+    for (const view of ["political", "culture", "province"] as const) {
+      const svg = renderWorld(world(), view);
+      const labels = [...svg.querySelectorAll(".region-label")];
+      expect(labels.length, `${view} has no region labels to stand down`).toBeGreaterThan(5);
+      for (const l of labels) {
+        expect(l.classList.contains("region-faint"), `${view}`).toBe(true);
+        expect(Number(l.getAttribute("fill-opacity") ?? 1), `${view}`).toBeLessThan(0.6);
+      }
+    }
+  });
+});
+
+// Three of the four views carry a key; the province view, which is the one an outside review found
+// hardest to read, carried none. Its colours cannot be listed — there are a hundred provinces and
+// their hues are dealt against adjacency — but its LINES can: a thin one is a province, a heavy one
+// is a country, and the dot is where the province is governed from.
+describe("the province view explains itself", () => {
+  it("carries a key for the two weights of border and the seat", () => {
+    const world = generateWorld({ ...DEFAULT_PARAMS, seed: 5 }).world;
+    const svg = renderWorld(world, "province");
+    const legend = svg.querySelector(".legend");
+    expect(legend, "the province view has no key at all").not.toBeNull();
+    const words = [...legend!.querySelectorAll("text")].map((t) => t.textContent).join(" ");
+    expect(words).toContain("Province");
+    expect(words).toContain("Realm");
+    expect(words).toContain("Seat");
+  });
+});

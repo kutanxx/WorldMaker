@@ -90,7 +90,7 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
   const slot = svgEl("g", { class: "political-slot" });
   slot.appendChild(
     view === "culture" ? cultureLayer(grid, world.cultureOf, world.cultures, lang)
-      : view === "province" ? provinceLayer(grid, world.provinceOf, world.provinces, { owner: world.polityOf })
+      : view === "province" ? provinceLayer(grid, world.provinceOf, world.provinces, { owner: world.polityOf, legend: true, lang })
         // terrain/political: snap nation ownership to whole provinces so borders (and political fills)
         // fall on province edges — the SAME geometry the province view uses, so views stay consistent.
         : politicalLayer(grid, snapOwnersToProvinces(grid.count, world.provinceOf, world.provinces, world.polityOf), world.polities, politicalOpts(view, lang)));
@@ -145,8 +145,15 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
     // smallest, since a town's prominence comes from its marker rather than its type.
     const fs = 10.5 + Math.min(9.5, r.cells / 60);
     const isSea = r.kind === OCEAN;
+    // On any view but the terrain one these names belong to somebody else's subject: they are the
+    // ground the countries, cultures and provinces are drawn ON, not the thing being shown. Faded
+    // rather than dropped, so a reader can still see WHICH tundra a nation holds — and demoted in
+    // the deconflict order, because in the province view a region label and a province label sat at
+    // the same priority and a collision between them was decided by a coin toss.
+    const faint = view !== "terrain";
     const t = svgEl("text", {
-      class: "region-label " + (isSea ? "region-sea" : "region-land"),
+      class: "region-label " + (isSea ? "region-sea" : "region-land") + (faint ? " region-faint" : ""),
+      ...(faint ? { "fill-opacity": 0.45 } : {}),
       x: r.centroid[0].toFixed(1), y: r.centroid[1].toFixed(1),
       "text-anchor": "middle", "font-size": fs.toFixed(1),
       fill: isSea ? "#3f5d78" : "#42341f",

@@ -23,7 +23,9 @@ export function deconflictLabels(svg: SVGSVGElement, scale = 1): void {
   // cull below keeps the big ones and the rest arrive as the reader leans in.
   const tiers: [string, number, number][] = [
     [".nation-label.player", 6, 0], [".nation-label:not(.player)", 5, 0], [".city-capital", 4, 0],
-    [".region-label", 3, 0], [".province-label", 3, 0], [".river-label", 2, 2], [".city-town", 1, 2.6],
+    [".region-label:not(.region-faint)", 3, 0], [".province-label", 3, 0],
+    // a faded region name yields to whatever the view is actually about
+    [".region-label.region-faint", 1, 0], [".river-label", 2, 2], [".city-town", 1, 2.6],
     // the culture view is about its cultures, so a culture's name outranks the region and city names
     // drawn beneath it, and is there from the start rather than waiting for a zoom. It shares the
     // realm tier without ever competing with it: the two are never drawn in the same view.

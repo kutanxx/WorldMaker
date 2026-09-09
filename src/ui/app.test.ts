@@ -242,6 +242,34 @@ describe("export follows the screen", () => {
     expect(text).not.toContain("coastline");
   });
 
+  // The screen and the file were filled by two different pieces of code, and they had drifted: the
+  // export replaced the overlay with a POLITICAL layer for every view that was not culture, so
+  // exporting the province view produced a map with no provinces in it. The province key had the
+  // same shape of bug from the other side — renderWorld drew one, and the timeline rebuilt the
+  // layer without it a moment later, so it never reached the screen.
+  it("exports the province view WITH its provinces, and shows its key on screen", async () => {
+    const root = document.createElement("div");
+    document.body.appendChild(root);
+    createApp(root, { ...DEFAULT_PARAMS, seed: 5 });
+    await new Promise((r) => setTimeout(r, 0));
+    // an earlier test in this file persists a language choice, so the toggle may read either word
+    const btn = [...root.querySelectorAll("button")].find((b) => /provinces|영토/i.test(b.textContent ?? ""))!;
+    expect(btn, "no province view to switch to").toBeDefined();
+    btn.click();
+    await new Promise((r) => setTimeout(r, 0));
+
+    const onScreen = root.querySelector("svg.world")!;
+    expect(onScreen.querySelectorAll(".province-fill").length, "no provinces on screen").toBeGreaterThan(5);
+    expect(onScreen.querySelector(".province-legend"), "no key on screen").not.toBeNull();
+
+    const svgBtn = [...root.querySelectorAll("button")].find((b) => b.textContent === "SVG")!;
+    const file = await captureDownload(() => svgBtn.click());
+    expect(file, "the export produced nothing").not.toBeNull();
+    expect(file!.text, "the exported province map has no provinces").toContain("province-fill");
+    expect(file!.text, "the exported province map has no key").toContain("province-legend");
+    root.remove();
+  });
+
   // The three export buttons each repeated the word "export": 325px of toolbar in Korean, 274 in
   // English, for one idea said three times. The toolbar has 1014px to work with (#app is capped at
   // 1040 and the window's width never enters into it), so it wrapped in BOTH languages -- by 32px in

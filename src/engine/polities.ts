@@ -1,4 +1,5 @@
 import type { Rng } from "./rng";
+import { nationColor } from "./palette";
 import { randInt } from "./rng";
 import type { Grid } from "./grid";
 import { OCEAN } from "./terrain";
@@ -13,11 +14,6 @@ export interface PolityMap {
   polityOf: Int32Array;
   seeds: PolitySeed[];
 }
-
-const PALETTE = [
-  "#cabfe6", "#bfe0d4", "#f0d9a8", "#e6b8c2", "#b8cce6",
-  "#d4e6b8", "#e6d0b8", "#c2b8e6", "#b8e6dd", "#e6c2b8",
-];
 
 /**
  * Seed up to `count` polities on random land cells, then multi-source BFS so
@@ -44,7 +40,7 @@ export function assignPolities(
     if (polityOf[cell] !== -1) continue;
     const id = seeds.length;
     polityOf[cell] = id;
-    seeds.push({ id, capital: cell, color: PALETTE[id % PALETTE.length] });
+    seeds.push({ id, capital: cell, color: nationColor(id) });
   }
 
   let frontier = seeds.map((s) => s.capital);

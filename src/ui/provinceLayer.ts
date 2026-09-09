@@ -1,10 +1,11 @@
 import type { World } from "../types/world";
-import { svgEl } from "./renderer";
+import { svgEl, legendPanel, INK, LEGEND_TITLE_H } from "./renderer";
+import { t, type Lang } from "./i18n";
 import { cellPath, segPath } from "./svgPaths";
 import { politicalBorders } from "../engine/borders";
 import type { Province } from "../engine/provinces";
 
-type GridLike = Pick<World["grid"], "count" | "polygons" | "neighbors" | "points">;
+type GridLike = Pick<World["grid"], "count" | "polygons" | "neighbors" | "points" | "height">;
 
 // EU4-style: a distinct hue per province so adjacent provinces read as separate regions regardless
 // of biome. The hue used to be the golden angle over the province ID, which spaces CONSECUTIVE ids
@@ -87,9 +88,9 @@ export function snapOwnersToProvinces(
 // and province-name labels emitted largest-first so deconflictLabels keeps the biggest on collision.
 export function provinceLayer(
   grid: GridLike, provinceOf: ArrayLike<number>, provinces: Province[],
-  opts: { fills?: boolean; labels?: boolean; owner?: ArrayLike<number> } = {},
+  opts: { fills?: boolean; labels?: boolean; owner?: ArrayLike<number>; legend?: boolean; lang?: Lang } = {},
 ): SVGGElement {
-  const { fills = true, labels = true, owner } = opts;
+  const { fills = true, labels = true, owner, legend = false, lang = "en" } = opts;
   const g = svgEl("g", { class: "province" }) as SVGGElement;
 
   if (fills) {
@@ -144,6 +145,30 @@ export function provinceLayer(
     }));
   }
   g.appendChild(seats);
+
+  // Of the four views this was the only one with no key, and the one an outside review found
+  // hardest to read. Its COLOURS cannot be listed — a hundred provinces, hues dealt against
+  // adjacency — but the thing a reader actually has to be told is what the two weights of line
+  // mean: thin is a province, heavy is the country made of them, and the dot is where a province
+  // is governed from.
+  if (legend) {
+    const rows: [string, (x: number, y: number) => SVGElement][] = [
+      [t(lang, "keyProvinceBorder"), (x, y) => svgEl("line", { x1: x, y1: y - 3, x2: x + 12, y2: y - 3, stroke: "#3c2f1c", "stroke-width": 1.1, "stroke-opacity": 0.9 })],
+      [t(lang, "keyRealmBorder"), (x, y) => svgEl("line", { x1: x, y1: y - 3, x2: x + 12, y2: y - 3, stroke: "#161009", "stroke-width": 2, "stroke-opacity": 0.95 })],
+      [t(lang, "keySeat"), (x, y) => svgEl("circle", { cx: x + 6, cy: y - 3, r: 1.6, fill: "#2a2118", stroke: "#f4ecd8", "stroke-width": 0.6 })],
+    ];
+    const lg = svgEl("g", { class: "legend province-legend" });
+    const x0 = 14, y0 = grid.height - 14 - rows.length * 14;
+    lg.appendChild(legendPanel(x0 - 5, y0 - 10 - LEGEND_TITLE_H, 104, rows.length * 14 + 14 + LEGEND_TITLE_H, t(lang, "legendProvinces")));
+    rows.forEach(([label, mark], i) => {
+      const y = y0 + i * 14;
+      lg.appendChild(mark(x0, y));
+      const tx = svgEl("text", { x: x0 + 18, y, "font-size": 8.5, fill: INK });
+      tx.textContent = label;
+      lg.appendChild(tx);
+    });
+    g.appendChild(lg);
+  }
 
   if (labels) {
     const lg = svgEl("g", { class: "province-labels" });
