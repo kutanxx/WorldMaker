@@ -111,3 +111,41 @@ describe("politicalLayer", () => {
     expect(dstr(a)).not.toBe(dstr(b));
   });
 });
+
+// The fills and the legend each called `nationColor(id)` directly, so there was no way to give the
+// map a colouring that knows which realms border which. Both now read `colorOf`, and they must read
+// the SAME one — a legend swatch that disagrees with the territory it is a key to is worse than no
+// legend.
+describe("politicalLayer takes the colouring it is given", () => {
+  const grid = {
+    count: 4, width: 100, height: 100,
+    polygons: [[[0,0],[1,0],[1,1]], [[2,0],[3,0],[3,1]], [[4,0],[5,0],[5,1]], [[6,0],[7,0],[7,1]]],
+    neighbors: [[1],[0,2],[1,3],[2]],
+    points: [0,0, 2,0, 4,0, 6,0],
+  };
+  const owner = [0, 1, 2, 0];
+  const polities = [{ id: 0, name: "A" }, { id: 1, name: "B" }, { id: 2, name: "C" }];
+  const opts = { fills: true, legend: true, legendTitle: "Realms" };
+
+  it("paints the territories in the given colours, not the id-indexed ones", () => {
+    const colorOf = (id: number) => ["#111111", "#222222", "#333333"][id];
+    const g = politicalLayer(grid, owner, polities, { ...opts, colorOf });
+    const fills = [...g.querySelectorAll("path.territory")].map((p) => p.getAttribute("fill"));
+    expect(fills.sort()).toEqual(["#111111", "#222222", "#333333"]);
+  });
+
+  it("keys the legend with the same colours it painted", () => {
+    const colorOf = (id: number) => ["#111111", "#222222", "#333333"][id];
+    const g = politicalLayer(grid, owner, polities, { ...opts, colorOf });
+    const swatches = [...g.querySelectorAll("rect.legend-item")].map((r) => r.getAttribute("fill"));
+    const fills = [...g.querySelectorAll("path.territory")].map((p) => p.getAttribute("fill"));
+    for (const s of swatches) expect(fills).toContain(s);
+    expect(swatches.length).toBeGreaterThan(0);
+  });
+
+  it("falls back to the id-indexed palette when given no colouring", () => {
+    const g = politicalLayer(grid, owner, polities, opts);
+    const fills = [...g.querySelectorAll("path.territory")].map((p) => p.getAttribute("fill"));
+    expect(fills).toContain(nationColor(0));
+  });
+});

@@ -13,6 +13,13 @@ export interface PoliticalOpts {
   legendTitle?: string; // what the swatches are a key to, already in the reader's language
   playerPolity?: number; // play mode: render this polity in the reserved player colour + mark its label
   playerColor?: string;
+  /**
+   * What colour a realm is drawn in. Defaults to `nationColor`, which indexes the palette by id and
+   * therefore draws id 12 exactly like id 0 — see `assignNationColors`, which is what a caller with
+   * a whole history to look at should pass instead. The fills and the legend both read this one
+   * function, so a swatch cannot disagree with the territory it is a key to.
+   */
+  colorOf?: (id: number) => string;
 }
 
 const MIN_LABEL_CELLS = 25;
@@ -28,6 +35,7 @@ export function politicalLayer(
 ): SVGGElement {
   const g = svgEl("g", { class: "political" }) as SVGGElement;
   const nameOf = new Map(polities.map((p) => [p.id, p.name]));
+  const colorOf = opts.colorOf ?? nationColor;
   const freeSet = new Set(polities.filter((p) => p.free).map((p) => p.id));
 
   if (opts.fills) {
@@ -43,7 +51,7 @@ export function politicalLayer(
       g.appendChild(svgEl("path", {
         class: free ? "territory free-city" : isPlayer ? "territory player" : "territory",
         "data-polity": id, d,
-        fill: free ? FREE_COLOR : isPlayer ? (opts.playerColor ?? nationColor(id)) : nationColor(id),
+        fill: free ? FREE_COLOR : isPlayer ? (opts.playerColor ?? colorOf(id)) : colorOf(id),
         "fill-opacity": free ? 0.72 : isPlayer ? 0.72 : 0.58,
       }));
     }
@@ -126,7 +134,7 @@ export function politicalLayer(
         const y = y0 + i * 14;
         legend.appendChild(svgEl("rect", {
           class: "legend-item", x: x0, y: y - 8, width: 10, height: 10,
-          fill: nationColor(id), stroke: INK, "stroke-width": 0.6, "vector-effect": "non-scaling-stroke",
+          fill: colorOf(id), stroke: INK, "stroke-width": 0.6, "vector-effect": "non-scaling-stroke",
         }));
         const t = svgEl("text", { x: x0 + 18, y, "font-size": LEGEND_TEXT, fill: "#42341f", "letter-spacing": 0.3 });
         t.textContent = nameOf.get(id) ?? "";

@@ -13,6 +13,90 @@ export function nationColor(id: number): string {
   return NATION_PALETTE[((id % n) + n) % n];
 }
 
+/**
+ * Colour the realms the way a cartographer does: no two that share a border share a colour.
+ *
+ * Indexing the palette by id (`nationColor`) draws id 12 in exactly the colour of id 0, and a world
+ * makes 15-22 realms. Worse, civil-war fragments take the high ids AND appear beside the parent
+ * they broke from, so the two realms drawn alike are often the two with a border between them —
+ * which then reads as no border at all. Measured over twelve seeds: every world had two living
+ * realms in one colour, and seven had two of them TOUCHING on the province-snapped map a reader is
+ * actually shown.
+ *
+ * `frames` are ownership arrays — the history's snapshots — and two realms count as neighbours if
+ * they are adjacent in ANY ONE of them. Unioning over the whole history rather than colouring each
+ * year separately is what lets a realm keep one colour from its founding to its fall; a realm that
+ * changed colour as its neighbours came and went would be worse than the collision this fixes.
+ *
+ * Greedy, in descending order of how many neighbours a realm has (Welsh-Powell), which needs five
+ * colours on every seed measured. But five colours would hand the legend one swatch for several
+ * realms, so among the colours that break no border the least-used one wins, spending all twelve.
+ * Pure and deterministic: no rng, no seed, nothing an anchor could see.
+ */
+export function assignNationColors(
+  neighbors: readonly (readonly number[])[],
+  frames: readonly ArrayLike<number>[],
+): Map<number, string> {
+  const adj = new Map<number, Set<number>>();
+  const alongside = new Map<number, Set<number>>();      // realms that stand in the same year
+  const see = (m: Map<number, Set<number>>, id: number) => {
+    let s = m.get(id);
+    if (!s) { s = new Set(); m.set(id, s); }
+    return s;
+  };
+  for (const owner of frames) {
+    const living = new Set<number>();
+    for (let i = 0; i < owner.length; i++) {
+      const a = owner[i];
+      if (a < 0) continue;
+      living.add(a);
+      see(adj, a);
+      for (const nb of neighbors[i] ?? []) {
+        const b = owner[nb];
+        if (b < 0 || b === a) continue;
+        see(adj, a).add(b);
+        see(adj, b).add(a);
+      }
+    }
+    for (const a of living) for (const b of living) if (a !== b) see(alongside, a).add(b);
+  }
+
+  // Most-constrained first, ties by id so the assignment never depends on Map insertion order.
+  const order = [...adj.keys()].sort((x, y) => (adj.get(y)!.size - adj.get(x)!.size) || (x - y));
+  const chosen = new Map<number, number>();
+  const spent = new Array<number>(NATION_PALETTE.length).fill(0);
+
+  for (const id of order) {
+    const clashes = new Array<number>(NATION_PALETTE.length).fill(0);
+    for (const nb of adj.get(id)!) {
+      const c = chosen.get(nb);
+      if (c !== undefined) clashes[c]++;
+    }
+    // Two realms that merely STAND IN THE SAME YEAR want different colours too, even when their
+    // territories never touch — the legend is a key from swatch to realm, and it stops being one
+    // the moment two rows carry the same swatch. Measured without this: 409 of 612 year-snapshots
+    // handed out a duplicate swatch. It cannot always be honoured (fourteen realms have stood at
+    // once against twelve colours), so it is a preference, not the rule.
+    const together = new Array<number>(NATION_PALETTE.length).fill(0);
+    for (const co of alongside.get(id) ?? []) {
+      const c = chosen.get(co);
+      if (c !== undefined) together[c]++;
+    }
+    // Breaking a border is incomparably worse than repeating a swatch, which is in turn worse than
+    // leaving a hue unspent, so each tier dominates the next outright instead of being weighed
+    // against it.
+    let best = 0, bestScore = Infinity;
+    for (let c = 0; c < NATION_PALETTE.length; c++) {
+      const score = clashes[c] * 1e6 + together[c] * 1e3 + spent[c];
+      if (score < bestScore) { bestScore = score; best = c; }
+    }
+    chosen.set(id, best);
+    spent[best]++;
+  }
+
+  return new Map([...chosen].map(([id, c]) => [id, NATION_PALETTE[c]]));
+}
+
 // The player's realm is always rendered in this reserved signature colour (play mode only), so
 // "which realm is mine" needs no swatch-matching. Deep magenta: the one hue family absent from the
 // map (no pinks), colourblind-safe (Okabe-Ito reddish-purple), avoids the blue↔purple confusion a

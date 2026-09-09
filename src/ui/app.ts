@@ -11,6 +11,7 @@ import { hashStringToSeed } from "../engine/rng";
 import { worldToJSON, svgToString, svgToPngBlob, downloadBlob } from "./export";
 import { worldToGazetteer } from "../engine/gazetteer";
 import { simulateHistory } from "../engine/history";
+import { assignNationColors, nationColor } from "./nationPalette";
 import { renderChronicle, applyChronicleYear } from "./chronicle";
 import { createTimeline, type Timeline } from "./timeline";
 import { attachZoomPan, type ZoomPan } from "./zoomPan";
@@ -49,6 +50,12 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
   let params: WorldParams = { ...initial };
   let generated: GeneratedWorld = generateWorld(params, worldTitle ?? undefined);
   let history = simulateHistory(generated.world, params.seed);
+  // One colouring per world, shared by the first paint, the scrubber and the export. Indexing the
+  // palette by id draws id 12 exactly like id 0, and civil-war fragments take the high ids while
+  // appearing beside the parent they broke from — so the border between them vanished on 7 of the
+  // 12 measured seeds. See `assignNationColors`.
+  let nationColors = assignNationColors(generated.world.grid.neighbors, history.snapshots.map((s) => s.owner));
+  const colorOf = (id: number): string => nationColors.get(id) ?? nationColor(id);
   let timeline: Timeline | null = null;
   let worldZoom: ZoomPan | null = null;
   let cityZoom: ZoomPan | null = null;
@@ -202,7 +209,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     } else {
       // nation ownership snapped to whole provinces so terrain/political borders match the province view
       const snapped = snapOwnersToProvinces(world.grid.count, world.provinceOf, world.provinces, snap.owner);
-      slot.replaceChildren(politicalLayer(world.grid, snapped, history.polities, politicalOpts(view, lang)));
+      slot.replaceChildren(politicalLayer(world.grid, snapped, history.polities, politicalOpts(view, lang, colorOf)));
     }
   }
 
@@ -214,7 +221,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     politicalBtn.classList.toggle("active", currentView === "political");
     cultureBtn.classList.toggle("active", currentView === "culture");
     provinceBtn.classList.toggle("active", currentView === "province");
-    const svg = renderWorld(generated.world, currentView, history.economicZones.map((z) => z.cell), lang);
+    const svg = renderWorld(generated.world, currentView, history.economicZones.map((z) => z.cell), lang, new Set(), colorOf);
     const cityIdOf = (el: Element | null) => {
       const id = el?.getAttribute("data-city");
       return id !== null && id !== undefined && id !== "" ? Number(id) : null;
@@ -434,6 +441,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     if (params.seed !== hashStringToSeed(worldTitle ?? "")) worldTitle = null;
     generated = generateWorld(params, worldTitle ?? undefined);
     history = simulateHistory(generated.world, params.seed);
+    nationColors = assignNationColors(generated.world.grid.neighbors, history.snapshots.map((s) => s.owner));
     currentYearIndex = 0;
     showWorld();
   }
@@ -464,7 +472,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
 
   // Export the world at the year + view the timeline is currently showing.
   function exportWorldSvg(): SVGSVGElement {
-    const svg = renderWorld(generated.world, currentView, history.economicZones.map((z) => z.cell), lang, unfoundedAt(currentYearIndex));
+    const svg = renderWorld(generated.world, currentView, history.economicZones.map((z) => z.cell), lang, unfoundedAt(currentYearIndex), colorOf);
     fillSlot(svg.querySelector(".political-slot") as SVGGElement, currentView, currentYearIndex);
     // This is a fresh render that has never been in the document, so its labels have never been laid
     // out against each other — left alone, every name in the world goes into the file, stacked.

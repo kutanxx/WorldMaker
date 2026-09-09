@@ -4,6 +4,9 @@ import { DEFAULT_PARAMS } from "../types/world";
 import { createApp } from "./app";
 import { hashStringToSeed } from "../engine/rng";
 import { initialCity, decodeParams } from "./urlState";
+import { generateWorld } from "../engine/world";
+import { simulateHistory } from "../engine/history";
+import { snapOwnersToProvinces } from "./provinceLayer";
 
 const small = { ...DEFAULT_PARAMS, width: 300, height: 300, cellCount: 400, townCount: 6 };
 
@@ -593,5 +596,66 @@ describe("the towns arrive as the chronicle founds them", () => {
     // and the capitals are there from the first year — they are the seats the world starts with
     expect(atStart).toBeGreaterThanOrEqual(8);
     root.remove();
+  });
+});
+
+// The political view drew id 12 in exactly the colour of id 0, so two realms with a border between
+// them were often painted identically and the border read as no border at all — 7 of 12 seeds on
+// the province-snapped map a reader is actually shown (8 of 12 by raw ownership, which is not what
+// gets drawn; measuring the wrong one of the two is what let a first cut of this test pass with
+// the wiring removed). `assignNationColors` fixes the colouring; this pins that the APP actually hands it to the
+// renderer, which is the half a unit test cannot see.
+describe("the political map never paints two neighbours the same colour", () => {
+  // Seed 2, not seed 1. The app paints ownership SNAPPED TO PROVINCES, and on the painted map
+  // seed 1 never has two same-coloured realms touching — a first cut of this test used it and
+  // passed with the wiring deliberately removed. Seed 2 collides at year 130, realms 1 and 13.
+  const full = { ...DEFAULT_PARAMS, seed: 2 };
+
+  const fillsByPolity = (root: HTMLElement) => {
+    const m = new Map<number, string>();
+    for (const p of root.querySelectorAll("path.territory")) {
+      const id = Number(p.getAttribute("data-polity"));
+      const f = p.getAttribute("fill");
+      if (!Number.isNaN(id) && f) m.set(id, f);
+    }
+    return m;
+  };
+
+  it("gives adjacent realms different fills, at the end of the history as well as the start", () => {
+    const root = document.createElement("div");
+    createApp(root, full);
+    const political = (Array.from(root.querySelectorAll(".view-toggle button")) as HTMLButtonElement[])
+      .find((b) => b.textContent === "Political")!;
+    political.click();
+
+    const { world } = generateWorld(full);
+    const history = simulateHistory(world, full.seed);
+    const slider = root.querySelector(".timeline-slider") as HTMLInputElement;
+    expect(slider).not.toBeNull();
+
+    let comparisons = 0;
+    // EVERY snapshot, not a sample: seed 1's collision was at year 460, and a first cut of this
+    // test that looked at the first, middle and last year passed with the wiring deliberately
+    // removed. A colour clash lives in one decade of five centuries.
+    for (let yearIndex = 0; yearIndex < history.snapshots.length; yearIndex++) {
+      slider.value = String(yearIndex);
+      slider.dispatchEvent(new Event("input", { bubbles: true }));
+      const fills = fillsByPolity(root);
+      // the app snaps ownership to whole provinces before painting, so the borders to check are
+      // the SNAPPED ones — raw ownership has neighbours the reader is never shown
+      const owner = snapOwnersToProvinces(world.grid.count, world.provinceOf, world.provinces,
+                                          history.snapshots[yearIndex].owner);
+      for (let i = 0; i < owner.length; i++) {
+        const a = owner[i];
+        if (a < 0 || !fills.has(a)) continue;
+        for (const nb of world.grid.neighbors[i]) {
+          const b = owner[nb];
+          if (b < 0 || b === a || !fills.has(b)) continue;
+          expect(fills.get(a), `year index ${yearIndex}: realms ${a} and ${b} share a fill`).not.toBe(fills.get(b));
+          comparisons++;
+        }
+      }
+    }
+    expect(comparisons).toBeGreaterThan(100);   // real borders were compared, not an empty map
   });
 });

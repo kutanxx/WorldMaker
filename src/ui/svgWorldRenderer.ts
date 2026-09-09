@@ -16,9 +16,11 @@ export type MapView = "terrain" | "political" | "culture" | "province";
 // reader sees through a culture fill; the palette test reads it.
 export const OVERLAY_BIOME_OPACITY = 0.6;
 
-export function politicalOpts(view: MapView, lang: Lang = "en"): PoliticalOpts {
+export function politicalOpts(view: MapView, lang: Lang = "en", colorOf?: (id: number) => string): PoliticalOpts {
   // the title comes in as a finished string so politicalLayer stays free of the i18n table
-  return view === "political" ? { fills: true, labels: true, legend: true, legendTitle: t(lang, "legendRealms") } : {};
+  return view === "political"
+    ? { fills: true, labels: true, legend: true, legendTitle: t(lang, "legendRealms"), colorOf }
+    : {};
 }
 
 
@@ -36,7 +38,11 @@ function named<T extends SVGElement>(el: T, text: string): T {
  * on the map from year 0 as far as the generator is concerned — the history is what says when they
  * came to be — so the timeline holds them back rather than the world omitting them.
  */
-export function renderWorld(world: World, view: MapView = "terrain", econZones: number[] = [], lang: Lang = "en", unfounded: ReadonlySet<number> = new Set()): SVGSVGElement {
+// `colorOf` is threaded in rather than looked up here so that the first paint and every later one
+// use ONE colouring: this draws `world.polityOf` (the eight realms of year zero) while the scrubber
+// redraws from the history's snapshots, and a realm that changed colour between the two would be a
+// drift bug of exactly the kind the shared chronicle assembler was built to end.
+export function renderWorld(world: World, view: MapView = "terrain", econZones: number[] = [], lang: Lang = "en", unfounded: ReadonlySet<number> = new Set(), colorOf?: (id: number) => string): SVGSVGElement {
   const grid = world.grid;
   const root = svgEl("svg", {
     width: "100%",
@@ -99,7 +105,7 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
       : view === "province" ? provinceLayer(grid, world.provinceOf, world.provinces, { owner: world.polityOf, legend: true, lang })
         // terrain/political: snap nation ownership to whole provinces so borders (and political fills)
         // fall on province edges — the SAME geometry the province view uses, so views stay consistent.
-        : politicalLayer(grid, snapOwnersToProvinces(grid.count, world.provinceOf, world.provinces, world.polityOf), world.polities, politicalOpts(view, lang)));
+        : politicalLayer(grid, snapOwnersToProvinces(grid.count, world.provinceOf, world.provinces, world.polityOf), world.polities, politicalOpts(view, lang, colorOf)));
   root.appendChild(slot);
 
   // mountain relief: a small peak glyph on each alpine cell so ranges read as mountains rather
