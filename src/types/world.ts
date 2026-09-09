@@ -25,6 +25,10 @@ export interface CityMarker {
   elevation: number;
   biome: number;
   river: boolean; // a world river runs through this cell — the drilldown should show it
+  // which way the open sea lies from here, in world radians (atan2: +x east, +y south), for
+  // coastal cities only. The city plate's north is the world's north, so its water can be laid
+  // where the world actually put it instead of on an edge drawn from the town's own rng.
+  seaBearing?: number;
 }
 
 export interface Polity {

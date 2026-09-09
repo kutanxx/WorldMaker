@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { mulberry32 } from "../rng";
 import { area } from "../geometry";
-import type { Polyline } from "../geometry";
+import type { Point, Polyline } from "../geometry";
 import { buildWater, inWater, waterBridges } from "./water";
 
 const B = { w: 300, h: 300 };
@@ -172,5 +172,58 @@ describe("a bridge spans the water and nothing else", () => {
     expect(waterBridges(twin, river).length).toBe(1);
     // ...while a genuinely separate crossing upstream is still its own bridge
     expect(waterBridges([twin[0], [[0, 90], [300, 90]]], river).length).toBe(2);
+  });
+});
+
+// The sea was placed by `randInt(rng, 0, 3)` — one of four edges, drawn from the town's own rng and
+// owing nothing to the world the town stands in. An outside review checked Sai at world (888, 504),
+// on the EAST coast of the eastern continent, and found its plate drawing the sea to the WEST, the
+// harbour with it. Every coastal town it opened had the sea on the left. The plate has a compass
+// and its north is the world's north, so the water only ever needed to be told which way to lie.
+describe("the sea lies where the world says it lies", () => {
+  const bounds = { w: 460, h: 460 };
+  const centre: Point = [230, 230];
+  const seaBearingOnPlate = (w: ReturnType<typeof buildWater>) => {
+    // the mean of the water body's own vertices, seen from the middle of the plate
+    let sx = 0, sy = 0, n = 0;
+    for (const b of w.bodies) for (const p of b) { sx += p[0]; sy += p[1]; n++; }
+    return Math.atan2(sy / n - centre[1], sx / n - centre[0]);
+  };
+  const gap = (a: number, b: number) => {
+    let d = Math.abs(a - b) % (Math.PI * 2);
+    return d > Math.PI ? Math.PI * 2 - d : d;
+  };
+
+  it("puts the water on the side it is told, all the way round the compass", () => {
+    for (const deg of [0, 45, 90, 135, 180, 225, 270, 315]) {
+      const bearing = (deg * Math.PI) / 180;
+      const water = buildWater(mulberry32(7), "sea", bounds, bearing);
+      expect(water.bodies.length, `no sea at ${deg}deg`).toBeGreaterThan(0);
+      const drawn = seaBearingOnPlate(water);
+      expect((gap(drawn, bearing) * 180) / Math.PI, `sea asked for ${deg}deg`).toBeLessThan(20);
+    }
+  });
+
+  it("still fills a sensible share of the plate, whichever way it faces", () => {
+    for (const deg of [0, 45, 90, 200, 315]) {
+      const water = buildWater(mulberry32(3), "sea", bounds, (deg * Math.PI) / 180);
+      const a = water.bodies.reduce((t, b) => t + Math.abs(area(b)), 0) / (bounds.w * bounds.h);
+      expect(a, `${deg}deg covers ${(a * 100).toFixed(0)}% of the plate`).toBeGreaterThan(0.12);
+      expect(a).toBeLessThan(0.45);
+    }
+    // ...and it stays on the plate: no water painted out over the legend strip beside it
+    for (const b of buildWater(mulberry32(3), "sea", bounds, 0.6).bodies) {
+      for (const p of b) {
+        expect(p[0]).toBeGreaterThanOrEqual(-0.01);
+        expect(p[0]).toBeLessThanOrEqual(bounds.w + 0.01);
+        expect(p[1]).toBeGreaterThanOrEqual(-0.01);
+        expect(p[1]).toBeLessThanOrEqual(bounds.h + 0.01);
+      }
+    }
+  });
+
+  it("falls back to a drawn side when the world has not said which way", () => {
+    const water = buildWater(mulberry32(7), "sea", bounds);
+    expect(water.bodies.length).toBe(1);
   });
 });

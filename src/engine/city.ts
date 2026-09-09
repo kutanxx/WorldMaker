@@ -92,10 +92,11 @@ export interface CityContext {
   elevation: number;
   biome: number;
   river?: boolean; // world river through the cell (optional so test fixtures can omit it → no river)
+  seaBearing?: number; // which way the open sea lies, in world radians; absent → the plate picks
 }
 
 export function cityContext(c: CityMarker): CityContext {
-  return { id: c.id, name: c.name, size: c.size, coastal: c.coastal, isCapital: c.isCapital, elevation: c.elevation, biome: c.biome, river: c.river };
+  return { id: c.id, name: c.name, size: c.size, coastal: c.coastal, isCapital: c.isCapital, elevation: c.elevation, biome: c.biome, river: c.river, seaBearing: c.seaBearing };
 }
 
 function offsetSegment(seg: Polyline, c: Point, d: number): Polyline {
@@ -128,7 +129,7 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
   const pick = mulberry32(deriveSeed(worldSeed, ctx.id + 4200))();
   const archetype = selectArchetype({ coastal: ctx.coastal, elevation: ctx.elevation, size: ctx.size, biome: ctx.biome, pick, river: ctx.river });
 
-  const water = buildWater(rng, archetype.water, bounds);
+  const water = buildWater(rng, archetype.water, bounds, ctx.seaBearing);
   if (archetype.oasis) {
     const or = radius * 0.12;
     const oasisPoly: Polygon = [];

@@ -42,6 +42,31 @@ export function generateWorld(params: WorldParams): GeneratedWorld {
   // each city know whether a world river runs through its cell (names still draw on stream 8002).
   const { segments, trunks, riverCells } = traceRivers(grid, heights, terrain, biome);
 
+  // The bearing of the open water from a coastal cell: walk out over the mesh, gather the ocean
+  // cells within reach, and take the direction of the nearest stretch of them. Reads the terrain
+  // array and nothing else — no rng is drawn, so the world it describes is unchanged.
+  const seaBearingAt = (cell: number): number | undefined => {
+    if (!isCoastal(cell)) return undefined;   // only a town ON the water draws a sea to be aimed
+    const cx = grid.points[cell * 2], cy = grid.points[cell * 2 + 1];
+    const seen = new Set<number>([cell]);
+    let ring = [cell];
+    let sx = 0, sy = 0, found = 0;
+    for (let step = 0; step < 4 && found === 0; step++) {
+      const next: number[] = [];
+      for (const c of ring) for (const n of grid.neighbors[c]) {
+        if (seen.has(n)) continue;
+        seen.add(n);
+        next.push(n);
+        if (terrain[n] !== OCEAN) continue;
+        const dx = grid.points[n * 2] - cx, dy = grid.points[n * 2 + 1] - cy;
+        const m = Math.hypot(dx, dy) || 1;
+        sx += dx / m; sy += dy / m; found++;   // unit vectors, so a big cell does not outvote a near one
+      }
+      ring = next;
+    }
+    return found > 0 ? Math.atan2(sy, sx) : undefined;
+  };
+
   const cities: CityMarker[] = [];
   let cityId = 0;
   for (const p of polities) {
@@ -55,6 +80,7 @@ export function generateWorld(params: WorldParams): GeneratedWorld {
       isCapital: true,
       size: randInt(rng, 3, 6),
       coastal: isCoastal(p.capital),
+      seaBearing: seaBearingAt(p.capital),
       elevation: heights[p.capital],
       biome: biome[p.capital],
       river: riverCells.has(p.capital),
@@ -81,6 +107,7 @@ export function generateWorld(params: WorldParams): GeneratedWorld {
       isCapital: false,
       size: randInt(rng, 1, 3),
       coastal: isCoastal(cell),
+      seaBearing: seaBearingAt(cell),
       elevation: heights[cell],
       biome: biome[cell],
       river: riverCells.has(cell),

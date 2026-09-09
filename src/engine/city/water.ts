@@ -1,7 +1,7 @@
 import type { Rng } from "../rng";
 import { randInt } from "../rng";
 import type { Point, Polygon, Polyline } from "../geometry";
-import { pointInPolygon } from "../geometry";
+import { pointInPolygon, clipToConvex } from "../geometry";
 import type { WaterKind } from "./archetypes";
 import { createNoise2D } from "simplex-noise";
 
@@ -26,7 +26,15 @@ function ribbon(center: Polyline, halfWidth: number): Polygon {
   return left.concat(right.reverse());
 }
 
-export function buildWater(rng: Rng, kind: WaterKind, bounds: { w: number; h: number }): Water {
+/**
+ * @param seaBearing which way the open water lies, in the world's own frame (atan2, +x east,
+ * +y south — the plate's north is the world's north). The sea used to be `randInt(rng, 0, 3)`:
+ * one of four edges, drawn from the town's own rng and owing nothing to the world the town stands
+ * in. An outside review found a town on the EAST coast of its continent drawing the sea to the
+ * WEST, harbour and all, and every coastal plate it opened had the water on the left. Omitted (a
+ * test fixture, a world that cannot say), it falls back to the drawn side.
+ */
+export function buildWater(rng: Rng, kind: WaterKind, bounds: { w: number; h: number }, seaBearing?: number): Water {
   const { w, h } = bounds;
   if (kind === "none") return { kind, bodies: [], bridges: [] };
 
@@ -50,6 +58,38 @@ export function buildWater(rng: Rng, kind: WaterKind, bounds: { w: number; h: nu
       else if (side === 1) edge.push([t * w, h - depth + n]);
       else if (side === 2) edge.push([depth + n, t * h]);
       else edge.push([t * w, depth + n]);
+    }
+    if (seaBearing !== undefined) {
+      // The shore runs across the bearing rather than along a chosen edge: laid out in the rotated
+      // frame, carried well past the plate on both flanks, then cut back to the plate so nothing is
+      // painted out over the legend strip beside it. Same noise, same depth, same rng draws —
+      // only the direction is no longer the town's own invention.
+      const ux = Math.cos(seaBearing), uy = Math.sin(seaBearing);
+      const vx = -uy, vy = ux;
+      const R = Math.min(w, h), cx = w / 2, cy = h / 2;
+      const reach = Math.hypot(w, h);           // enough to cross the plate at any angle
+      const inland = R / 2 - depth;             // where the waterline sits, as before
+      const stretch = (2 * reach) / R;          // keep the waves the size they were on a plate edge
+      const shore: Point[] = [];
+      for (let i = 0; i <= K * 2; i++) {
+        const u01 = i / (K * 2);
+        const along = -reach + u01 * 2 * reach;
+        let n = 0;
+        for (let o = 0; o < OCTAVES.length; o++) {
+          n += noise(u01 * OCTAVES[o][0] * stretch, seaBearing * 1.7 + o * 37.3) * amp * OCTAVES[o][1];
+        }
+        const off = inland + n;
+        shore.push([cx + ux * off + vx * along, cy + uy * off + vy * along]);
+      }
+      const far = reach * 2;
+      const open: Polygon = [
+        ...shore,
+        [cx + ux * far + vx * reach, cy + uy * far + vy * reach],
+        [cx + ux * far - vx * reach, cy + uy * far - vy * reach],
+      ];
+      const plate: Polygon = [[0, 0], [w, 0], [w, h], [0, h]];
+      const clipped = clipToConvex(open, plate);
+      if (clipped.length >= 3) return { kind, bodies: [clipped], bridges: [] };
     }
     let polygon: Polygon;
     if (side === 0) polygon = [[w, 0], ...edge, [w, h]];

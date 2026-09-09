@@ -124,3 +124,37 @@ describe("province partition", () => {
     expect(world.provinces.length).toBe(101); // 100 target + 1 seedless-island cleanup province
   });
 });
+
+// A city plate could not know which way the sea lay, because nothing told it: the marker carried
+// `coastal: true` and no direction. Measured by an outside review on the live site, a town on the
+// EAST coast of its continent drew the sea to the WEST.
+describe("a coastal city knows which way the water is", () => {
+  it("points at open water, and points at the nearest of it", () => {
+    const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 5 });
+    const coastal = world.cities.filter((c) => c.coastal);
+    expect(coastal.length).toBeGreaterThan(2);
+    for (const c of coastal) {
+      expect(c.seaBearing, `${c.name} is coastal but has no bearing`).toBeTypeOf("number");
+      // step that way and you should be in the water sooner than if you stepped the other way
+      const step = (sign: number) => {
+        let best = Infinity;
+        for (let i = 0; i < world.grid.count; i++) {
+          if (world.terrain[i] !== 0) continue;
+          const dx = world.grid.points[i * 2] - c.x, dy = world.grid.points[i * 2 + 1] - c.y;
+          const d = Math.hypot(dx, dy);
+          const along = (dx * Math.cos(c.seaBearing!) + dy * Math.sin(c.seaBearing!)) * sign;
+          if (along > 0 && d < best) best = d;
+        }
+        return best;
+      };
+      expect(step(1), `${c.name} points away from the water`).toBeLessThanOrEqual(step(-1));
+    }
+  });
+
+  it("leaves an inland city without one, so its plate keeps its own arrangement", () => {
+    const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 5 });
+    const inland = world.cities.filter((c) => !c.coastal);
+    expect(inland.length).toBeGreaterThan(2);
+    for (const c of inland) expect(c.seaBearing).toBeUndefined();
+  });
+});

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { generateCityLayout, cityContext } from "./city";
-import { centroid, pointInPolygon, polysOverlap, polygonSelfIntersects, pointSegDist, bbox } from "./geometry";
+import { centroid, area, pointInPolygon, polysOverlap, polygonSelfIntersects, pointSegDist, bbox } from "./geometry";
 import { inWater } from "./city/water";
 import { inMountains } from "./city/mountain";
 import { GRASSLAND } from "./biome";
@@ -854,5 +854,49 @@ describe("the ward mesh covers the town it is a mesh of", () => {
     }
     expect(nodes).toBeGreaterThan(500);
     expect(stranded / nodes, `${stranded} of ${nodes} street ends strand inside the town`).toBeLessThan(0.05);
+  });
+});
+
+// The plate's north is the world's north — it draws a compass saying so — but its sea was placed
+// by `randInt(rng, 0, 3)`, owing nothing to the world outside. An outside review found a town on
+// the EAST coast of its continent with the sea, and its harbour, drawn to the WEST.
+describe("a coastal plate faces the way the world faces", () => {
+  it("draws the sea on the side the world put it", () => {
+    let checked = 0, worstDeg = 0, worstName = "";
+    for (let seed = 1; seed <= 8; seed++) {
+      const world = generateWorld({ ...DEFAULT_PARAMS, seed }).world;
+      for (const c of world.cities) {
+        const l = generateCityLayout(cityContext(c), seed);
+        if (l.water.kind !== "sea" || c.seaBearing === undefined) continue;
+        checked++;
+        // the AREA centroid, not the mean of the vertices: the shore carries a couple of hundred
+        // sample points and the open-water side four, so a vertex mean is dragged onto the beach
+        let ax = 0, ay = 0, aw = 0;
+        for (const b of l.water.bodies) { const c2 = centroid(b), w2 = Math.abs(area(b)); ax += c2[0] * w2; ay += c2[1] * w2; aw += w2; }
+        const drawn = Math.atan2(ay / aw - l.bounds.h / 2, ax / aw - l.bounds.w / 2);
+        let d = Math.abs(drawn - c.seaBearing) % (Math.PI * 2);
+        if (d > Math.PI) d = Math.PI * 2 - d;
+        const deg = (d * 180) / Math.PI;
+        if (deg > worstDeg) { worstDeg = deg; worstName = `${c.name} (seed ${seed})`; }
+      }
+    }
+    expect(checked, "no coastal plate in eight seeds").toBeGreaterThan(10);
+    expect(worstDeg, `worst: ${worstName}`).toBeLessThan(25);
+  });
+
+  it("keeps the harbour on the water side, which is now the world's water side", () => {
+    for (let seed = 1; seed <= 8; seed++) {
+      const world = generateWorld({ ...DEFAULT_PARAMS, seed }).world;
+      for (const c of world.cities) {
+        const l = generateCityLayout(cityContext(c), seed);
+        const harbour = l.wards.find((w) => w.type === "harbor");
+        if (!harbour || c.seaBearing === undefined) continue;
+        const hc = centroid(harbour.polygon);
+        const toHarbour = Math.atan2(hc[1] - l.bounds.h / 2, hc[0] - l.bounds.w / 2);
+        let d = Math.abs(toHarbour - c.seaBearing) % (Math.PI * 2);
+        if (d > Math.PI) d = Math.PI * 2 - d;
+        expect((d * 180) / Math.PI, `${c.name} (seed ${seed}) docks away from the sea`).toBeLessThan(75);
+      }
+    }
   });
 });
