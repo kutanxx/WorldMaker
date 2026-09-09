@@ -6,9 +6,16 @@ import { makeNameGen, type NameGen } from "./names";
 
 export const TICKS = 50, YEARS_PER_TICK = 10;
 const SOL_INIT = 0.5, SOL_RISE = 0.03, SOL_DECAY = 0.02;
-const W_ASA = 1.0, W_LOCAL = 0.5, W_POWER = 0.03, W_DIST = 0.002;
+// W_DIST 0.002 -> 0.003 and SIZE_CAP 24 -> 20 together: one realm used to eat the continent (see
+// "no realm swallows the world" in history.test.ts for the twelve-seed measurement). Size was the
+// snowball — a big realm won contests because it was big, so it got bigger — and distance is its
+// natural counterweight, since ground far from a capital is the ground an empire cannot hold.
+// Both moved modestly rather than one drastically: size still pays up to 400 cells, and the reach
+// penalty is half again what it was. Measured: the largest realm's share fell 65.6% -> 40.4%,
+// worlds ending under a hegemon 8/12 -> 3/12, realms holding a twentieth of the land 2.9 -> 4.8.
+const W_ASA = 1.0, W_LOCAL = 0.5, W_POWER = 0.03, W_DIST = 0.003;
 export const CONTEST_THRESH = 1.03;
-const SIZE_CAP = 24;
+const SIZE_CAP = 20;
 const HISTORY_SALT = 9001;
 const CIVILWAR_MIN_CELLS = 220, CIVILWAR_MAX_ASA = 0.42, CIVILWAR_PROB = 0.06, CIVILWAR_BIRTH_SOL = 0.7;
 const FREE_REACH = 250, FREE_MAX_ASA = 0.5, FREE_PROB = 0.035, FREE_ZONE_PROB = 0.09;
@@ -490,12 +497,19 @@ export function stepSim(s: SimState): void {
     if (s.rng() > 0.14) continue;
     // The draw is kept whatever happens to the name: this generator's count is what everything
     // downstream is built on, and skipping it would move the map.
-    const coined = s.nameGen.place();
+    // The coined name is no longer used by anything — the town founded is always a real one — but
+    // the DRAW is still spent, because the name generator's count is what everything downstream is
+    // built on and skipping it would move the map.
+    s.nameGen.place();
     // ...but the town founded is a REAL one. The chronicle used to coin a name and announce a place
     // the atlas never drew — 19 of 19 on seed 1 — so a reader was told about towns they could never
     // find. The realm founds the nearest of its own unfounded towns to its seat, chosen without
-    // drawing. When it has none left, the coined name stands: the event must still happen, because
-    // its absence would change the event count the golden anchor pins.
+    // drawing. When the world has none left, NOTHING is recorded. That used to be impossible: the
+    // coined name had to stand, because dropping the event would have moved the count the golden
+    // anchor pinned. Breaking up the hegemon leaves more realms alive and founding, which exhausts
+    // the real towns and put two phantoms back into seed 5's chronicle — and since that change
+    // re-pins the anchor anyway, the only reason for keeping them went with it. The name draw is
+    // still spent, which is what keeps the map identical.
     const seat = s.capitals[o];
     const sx = s.grid.points[seat * 2], sy = s.grid.points[seat * 2 + 1];
     // Its own ground first; failing that, the nearest unfounded town anywhere, which is a colony
@@ -511,11 +525,11 @@ export function stepSim(s: SimState): void {
       return best;
     };
     const take = nearestUnfounded(true) ?? nearestUnfounded(false);
-    if (take) s.foundedTowns.set(take.id, year);
-    s.events.push({
-      year, type: "newCity", name: take ? take.name : coined,
-      polityId: o, cell: take ? take.cell : seat,
-    });
+    // `nearestUnfounded(false)` searches the whole world, so a null here means no realm anywhere
+    // has a town left to found — there is nothing for the next one in the loop to find either.
+    if (!take) break;
+    s.foundedTowns.set(take.id, year);
+    s.events.push({ year, type: "newCity", name: take.name, polityId: o, cell: take.cell });
     break;
   }
 

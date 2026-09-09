@@ -146,8 +146,8 @@ describe("simulateHistory skeleton", () => {
       if (e.type === "civilwar") { wars++; expect(e.intoIds!.length).toBeGreaterThanOrEqual(1); }
     }
     expect(ports).toBe(3);    // seed 1: three free ports
-    expect(cities).toBe(19);  // nineteen cities founded
-    expect(wars).toBe(5);     // five civil wars
+    expect(cities).toBe(20);  // twenty cities founded
+    expect(wars).toBe(3);     // three civil wars
   });
 });
 
@@ -213,10 +213,23 @@ describe("simulateHistory golden anchor (behaviour lock)", () => {
   // own nearest unfounded one, else the nearest anywhere, which is a colony and reads as one — so
   // only the sentence changes. The name draw is still taken whatever happens to it, because this
   // generator's count is what the rest of the world is built on.
+  //
+  // 2026-09-09 (third) — THE ONE WHERE THE WORLD CHANGED. Every field moved, `allSnap` included,
+  // and that is the point: `W_DIST` 0.002 -> 0.003 and `SIZE_CAP` 24 -> 20 rebalanced the
+  // simulation so one realm stops eating the continent (see "no realm swallows the world"). Five
+  // centuries now run differently on every seed, and a shared link drawn before this draws
+  // different BORDERS — the land itself is untouched, since world.test.ts's generation anchors
+  // never moved and history simulates on a copy.
+  // Two things changed with it. Seed 1 founds 20 towns instead of 19 and has 3 civil wars instead
+  // of 5, which is the balance doing what it was asked to. And `newCity` now records NOTHING when
+  // the world has run out of real towns, instead of falling back to a coined name: more realms
+  // surviving means more founding, which exhausted the real towns and put two phantom places back
+  // into seed 5's chronicle. That fallback only ever existed to protect this anchor, and this is
+  // the change that re-pins it.
   const anchors: Record<number, { snaps: number; pols: number; evs: number; econ: number; allSnap: number; events: number; polities: number }> = {
-    1: { snaps: 51, pols: 20, evs: 56, econ: 3, allSnap: 1648675569, events: 2873662164, polities: 2701230301 },
-    2: { snaps: 51, pols: 17, evs: 48, econ: 3, allSnap: 4266384045, events: 1647106399, polities:   38386429 },
-    3: { snaps: 51, pols: 17, evs: 42, econ: 3, allSnap:  325069013, events: 2493989660, polities: 1808909891 },
+    1: { snaps: 51, pols: 18, evs: 50, econ: 3, allSnap:  245822489, events: 1579709799, polities: 3714686391 },
+    2: { snaps: 51, pols: 19, evs: 49, econ: 3, allSnap: 4064983612, events: 1569999620, polities:  324312568 },
+    3: { snaps: 51, pols: 17, evs: 43, econ: 3, allSnap: 4006220817, events: 2560112396, polities:  341609610 },
   };
   for (const seed of [1, 2, 3]) {
     it(`reproduces the pinned hashes for seed ${seed}`, () => {
@@ -252,7 +265,10 @@ describe("simulateHistory golden anchor (behaviour lock)", () => {
 // "lore city"; from the outside it is simply a lie.
 describe("the chronicle founds towns that are on the map", () => {
   it("names a real town every time it can", () => {
-    for (const seed of [1, 2, 3, 5]) {
+    // Widened from [1, 2, 3, 5] after seed 5 alone caught two phantoms the day the balance
+    // changed: the failure mode is "the world ran out of real towns", which only shows up on a
+    // seed whose realms found often enough to exhaust them.
+    for (const seed of [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]) {
       const w = generateWorld({ ...DEFAULT_PARAMS, seed }).world;
       const h = simulateHistory(w, seed);
       const names = new Set(w.cities.map((c) => c.name));
@@ -274,5 +290,54 @@ describe("the chronicle founds towns that are on the map", () => {
       expect(city.isCapital, "a capital is a seat from the start, not founded later").toBe(false);
       expect(f.year).toBeGreaterThan(0);
     }
+  });
+});
+
+// One realm ate the continent. Measured over twelve seeds before this was tuned: the largest realm
+// finished holding 65.6% of the settled land on average, EIGHT of the twelve ended with a hegemon
+// over half the map, and the extremes were 92% and 95% — a world with one country in it. Only 2.9
+// realms per world held as much as a twentieth of the land, so the political map a reader was given
+// had two or three real players on it.
+//
+// What the sweep found, against the diagnosis that led to it: the civil-war brake is NOT the lever.
+// Raising its probability moved the average by three points and non-monotonically (0.12 made it
+// worse), and making the split threshold rise with size did nothing at all. Civil war fires and the
+// parent simply reconquers, because the size term in `contestStrength` still makes it the strongest
+// thing on the map. Size was the snowball, and distance is its natural counterweight.
+//
+// These are the numbers the tuning has to keep true. They are a distribution, not a seed, so a
+// future change to the balance can move any single world and still pass — and cannot quietly bring
+// the hegemon back.
+describe("no realm swallows the world", () => {
+  const SEEDS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+  const shares = SEEDS.map((seed) => {
+    const w = build(seed);
+    const h = simulateHistory(w, seed);
+    const last = h.snapshots[h.snapshots.length - 1];
+    const counts = new Map<number, number>();
+    let land = 0;
+    for (const o of last.owner) if (o >= 0) { counts.set(o, (counts.get(o) ?? 0) + 1); land++; }
+    const sorted = [...counts.values()].sort((a, b) => b - a).map((v) => v / land);
+    return { top: sorted[0], meaningful: sorted.filter((v) => v >= 0.05).length, alive: counts.size };
+  });
+
+  it("leaves the average world with several powers rather than one", () => {
+    const meanTop = shares.reduce((a, s) => a + s.top, 0) / shares.length;
+    const meanMeaningful = shares.reduce((a, s) => a + s.meaningful, 0) / shares.length;
+    expect(meanTop).toBeLessThan(0.50);          // was 0.656
+    expect(meanMeaningful).toBeGreaterThan(4);   // was 2.9
+  });
+
+  it("makes a dominant empire an outcome rather than the rule — but still an outcome", () => {
+    const hegemons = shares.filter((s) => s.top >= 0.5).length;
+    expect(hegemons).toBeLessThanOrEqual(4);     // was 8 of 12
+    // and not zero: a world where no realm can ever get on top has no empire to rise or fall, which
+    // is a duller map than the one this is fixing
+    expect(hegemons).toBeGreaterThanOrEqual(1);
+  });
+
+  it("never hands one realm nearly the whole map", () => {
+    const worst = Math.max(...shares.map((s) => s.top));
+    expect(worst).toBeLessThan(0.75);            // was 0.953
   });
 });

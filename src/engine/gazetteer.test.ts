@@ -196,10 +196,13 @@ describe("exported chronicle is byte-stable across the shared-assembler move", (
   //      commonest kind take the world. Added lines only, 4-7 a seed: 121/119/95 to 128/123/99.
   //      The simulation's own `events` anchor in history.test.ts did not move through ANY of this,
   //      which is what proves a chronicle grew and a world did not.
+  //   4. The world DID change: W_DIST/SIZE_CAP were rebalanced so no realm eats the continent, so
+  //      five centuries run differently on every seed and every number here moves with them. This
+  //      is the one re-pin that is not about the telling. 128/123/99 to 122/128/104.
   const pins: Record<number, { en: number; ko: number; lines: number }> = {
-    1: { en: 1628513111, ko: 3818046477, lines: 128 },
-    2: { en: 3362919798, ko: 1241450364, lines: 123 },
-    3: { en: 1663392122, ko: 2554326478, lines:  99 },
+    1: { en: 4013801938, ko: 2389358999, lines: 122 },
+    2: { en: 1184436592, ko: 2359184336, lines: 128 },
+    3: { en:  784962625, ko: 2404284721, lines: 104 },
   };
   for (const seed of [1, 2, 3]) {
     it(`reproduces the pinned chronicle for seed ${seed}`, () => {
