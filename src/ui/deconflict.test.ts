@@ -188,11 +188,13 @@ describe("deconflictLabels scale thresholds", () => {
   };
   const shown = (el: SVGGraphicsElement) => el.style.visibility !== "hidden";
 
-  it("shows only the big names at rest", () => {
+  // The capital used to be withheld here too, and the map opened as a field of unnamed specks
+  // over its own best feature. It is named at rest now; the river and the town still wait.
+  it("shows the regions and the capitals at rest, and holds the rest back", () => {
     const { svg, region, capital, river, town } = build();
     deconflictLabels(svg, 1);
     expect(shown(region)).toBe(true);
-    expect(shown(capital)).toBe(false);
+    expect(shown(capital)).toBe(true);
     expect(shown(river)).toBe(false);
     expect(shown(town)).toBe(false);
   });
@@ -271,5 +273,28 @@ describe("province names", () => {
     expect(big.style.visibility).toBe("");        // emitted first = the larger province
     expect(overlapping.style.visibility).toBe("hidden");
     expect(far.style.visibility).toBe("");
+  });
+});
+
+// A capital's name used to wait for 1.5x zoom, so the first thing a reader saw was a field of
+// unnamed specks — 0 of 28 names on screen at rest. Towns still wait (28 names at once is a
+// thicket); the eight or so capitals are what make the map legible on arrival.
+describe("the capitals are named on arrival", () => {
+  it("shows a capital's name at the default zoom", () => {
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg") as SVGSVGElement;
+    const mk = (cls: string, x: number) => {
+      const t = document.createElementNS("http://www.w3.org/2000/svg", "text");
+      t.setAttribute("class", "city-label " + cls);
+      t.textContent = "Somewhere";
+      (t as unknown as { getBBox: () => DOMRect }).getBBox = () =>
+        ({ x, y: 0, width: 20, height: 8 }) as DOMRect;
+      svg.appendChild(t);
+      return t;
+    };
+    const capital = mk("city-capital", 0);
+    const town = mk("city-town", 200);
+    deconflictLabels(svg, 1);
+    expect(capital.style.visibility, "a capital is named at rest").not.toBe("hidden");
+    expect(town.style.visibility, "a town still waits for the reader to lean in").toBe("hidden");
   });
 });

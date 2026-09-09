@@ -336,7 +336,16 @@ svg.world .legend { pointer-events: none; }
    touch-screen laptops with a trackpad — are untouched. Measured pre-fix: advance 32px, chip
    19px tall; user feel-pass on a real phone asked for bigger than the 44px first cut, and the
    13px button copy read as "tall but tiny" — so text scales up with the box. */
+
+/* A settlement's mark stays the size a mark should be; what a finger or a focus ring needs is a
+   target around it. Measured before this existed: 5px marks against a 24px minimum, and no
+   focusable element on the page at all. Coarse pointers get a wider one — the same courtesy the
+   buttons and sliders below already had, which the markers were left out of. */
+.marker-hit { outline: none; }
+.marker-hit:focus-visible { outline: 2px solid #7a2f2f; outline-offset: 2px; }
+
 @media (pointer: coarse) {
+  .marker-hit { r: 20px; }
   #play button, #landing button, #province-app button { min-height: 44px; padding: 8px 12px; font-size: 14px; touch-action: manipulation; }
   a.home { min-height: 44px; padding: 8px 12px; font-size: 14px; touch-action: manipulation; }
   .neighbor-chip { min-height: 44px; display: inline-flex; align-items: center; padding: 8px 12px; font-size: 14px; touch-action: manipulation; }

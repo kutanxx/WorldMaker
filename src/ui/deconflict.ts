@@ -13,12 +13,16 @@
  */
 export function deconflictLabels(svg: SVGSVGElement, scale = 1): void {
   // selector, priority when they compete, and the zoom at which the name is worth the room.
+  // A capital's name waits for no zoom either. It used to wait for 1.5x, which meant the map opened
+  // as a field of unnamed specks -- 0 of 28 names on screen at rest -- with its best feature, the
+  // city plans, sitting behind dots the reader had no reason to click. Towns still wait: 28 names
+  // at once is a thicket, and the eight or so capitals are what make the map legible on arrival.
   // A province's name waits for no zoom: its view is about provinces, and it was the only view whose
   // own subject went unnamed at rest while the terrain layer's region names were drawn over it. A
   // hundred of them do not fit, and they are not meant to -- they are emitted largest-first, so the
   // cull below keeps the big ones and the rest arrive as the reader leans in.
   const tiers: [string, number, number][] = [
-    [".nation-label.player", 6, 0], [".nation-label:not(.player)", 5, 0], [".city-capital", 4, 1.5],
+    [".nation-label.player", 6, 0], [".nation-label:not(.player)", 5, 0], [".city-capital", 4, 0],
     [".region-label", 3, 0], [".province-label", 3, 0], [".river-label", 2, 2], [".city-town", 1, 2.6],
     // the culture view is about its cultures, so a culture's name outranks the region and city names
     // drawn beneath it, and is there from the start rather than waiting for a zoom. It shares the

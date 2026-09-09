@@ -124,10 +124,23 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     cultureBtn.classList.toggle("active", currentView === "culture");
     provinceBtn.classList.toggle("active", currentView === "province");
     const svg = renderWorld(generated.world, currentView, history.economicZones.map((z) => z.cell), lang);
+    const cityIdOf = (el: Element | null) => {
+      const id = el?.getAttribute("data-city");
+      return id !== null && id !== undefined && id !== "" ? Number(id) : null;
+    };
     svg.addEventListener("click", (e) => {
-      const target = e.target as Element;
-      const id = target.getAttribute("data-city");
-      if (id !== null && id !== "") openCity(Number(id));
+      const id = cityIdOf(e.target as Element);
+      if (id !== null) openCity(id);
+    });
+    // ...and by keyboard. The markers are the only way into the city plans, and until they were
+    // given a target with tabindex the page had no focusable element at all: a keyboard could not
+    // reach a city map by any route. Enter and Space are what a role="button" promises.
+    svg.addEventListener("keydown", (e) => {
+      if (e.key !== "Enter" && e.key !== " ") return;
+      const id = cityIdOf(e.target as Element);
+      if (id === null) return;
+      e.preventDefault();
+      openCity(id);
     });
     const frame = document.createElement("div");
     frame.className = "map-frame";

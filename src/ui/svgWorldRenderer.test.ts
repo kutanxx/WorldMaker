@@ -37,7 +37,10 @@ describe("renderWorld biomes", () => {
     expect(svg.querySelectorAll(".biome-legend .legend-item").length).toBeGreaterThan(0);
   });
   it("keeps a clickable marker per city (capitals as stars, towns as dots)", () => {
-    expect(svg.querySelectorAll(".markers [data-city]").length).toBe(world.cities.length);
+    // three things per city carry the id now — the mark, its hit target, and its name — so the
+    // property is one city per id, not one element per city
+    const ids = new Set([...svg.querySelectorAll(".markers [data-city]")].map((e) => e.getAttribute("data-city")));
+    expect(ids.size).toBe(world.cities.length);
     const capitals = world.cities.filter((c) => c.isCapital).length;
     expect(svg.querySelectorAll(".marker-capital").length).toBe(capitals);
     expect(svg.querySelectorAll(".marker-town").length).toBe(world.cities.length - capitals);
@@ -417,7 +420,7 @@ describe("a city marker says what it is", () => {
   it("names every marker, and says which nation holds it", () => {
     const world = generateWorld({ ...DEFAULT_PARAMS, seed: 5 }).world;
     const svg = renderWorld(world);
-    const markers = [...svg.querySelectorAll("[data-city]")];
+    const markers = [...svg.querySelectorAll(".marker-town, .marker-capital")];
     expect(markers.length).toBe(world.cities.length);
     for (const m of markers) {
       const id = Number(m.getAttribute("data-city"));
@@ -427,5 +430,49 @@ describe("a city marker says what it is", () => {
     }
     // at least one of them names its nation too (an unclaimed town may have none)
     expect(markers.some((m) => (m.querySelector("title")?.textContent ?? "").includes("·"))).toBe(true);
+  });
+});
+
+// The map's best feature — the city plans — was reachable only by hitting a dot. Measured on the
+// live page: 28 markers with a hit box of 5px (8 for a capital), against a 24px minimum touch
+// target; 0 of 28 names shown at the default zoom; 0 labels clickable; 0 focusable elements on the
+// whole page, so a keyboard could not reach a city at all. The mark stays the size it is — that is
+// a cartographic choice — and gains an invisible target around it.
+describe("a city can be reached", () => {
+  const world = () => generateWorld({ ...DEFAULT_PARAMS, seed: 5 }).world;
+
+  it("puts a target around every marker big enough to hit", () => {
+    const w = world();
+    const svg = renderWorld(w);
+    const hits = [...svg.querySelectorAll(".marker-hit")];
+    expect(hits.length).toBe(w.cities.length);
+    for (const h of hits) {
+      // the map is 1000 units wide and draws at roughly 900px, so ~0.9px per unit: a 24px target
+      // needs a radius over 13 units
+      expect(Number(h.getAttribute("r"))).toBeGreaterThanOrEqual(13);
+      expect(h.getAttribute("data-city"), "the target must carry the city it opens").not.toBeNull();
+      expect(h.getAttribute("fill")).toBe("transparent");
+    }
+  });
+
+  it("lets a keyboard reach a city, and says what it is reaching", () => {
+    const w = world();
+    const svg = renderWorld(w);
+    const hits = [...svg.querySelectorAll(".marker-hit")];
+    expect(hits.length, "no targets to check").toBe(w.cities.length);
+    for (const h of hits) {
+      expect(h.getAttribute("tabindex")).toBe("0");
+      expect(h.getAttribute("role")).toBe("button");
+      const id = Number(h.getAttribute("data-city"));
+      expect(h.getAttribute("aria-label") ?? "").toContain(w.cities.find((c) => c.id === id)!.name);
+    }
+  });
+
+  it("makes the name itself open the city, not just the dot beside it", () => {
+    const w = world();
+    const svg = renderWorld(w);
+    const labels = [...svg.querySelectorAll(".city-label")];
+    expect(labels.length).toBe(w.cities.length);
+    for (const l of labels) expect(l.getAttribute("data-city")).not.toBeNull();
   });
 });

@@ -279,3 +279,23 @@ describe("export follows the screen", () => {
     expect(got!.name).toBe("world.svg");
   });
 });
+
+// Until the markers were given a focusable target the page had no focusable element at all
+// (`document.querySelectorAll('[tabindex]').length === 0` on the live site), so the city plans —
+// the best thing the map has — could not be reached by keyboard at all.
+describe("a city opens from the keyboard", () => {
+  it("opens on Enter and on Space, from the marker's target", async () => {
+    for (const key of ["Enter", " "]) {
+      const root = document.createElement("div");
+      document.body.appendChild(root);
+      createApp(root, { ...DEFAULT_PARAMS, seed: 5 });
+      await new Promise((r) => setTimeout(r, 0));
+      const hit = root.querySelector(".marker-hit") as SVGElement;
+      expect(hit, "no focusable marker target").not.toBeNull();
+      hit.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true }));
+      await new Promise((r) => setTimeout(r, 0));
+      expect(root.querySelector("svg.city"), `${key} did not open the city`).not.toBeNull();
+      root.remove();
+    }
+  });
+});

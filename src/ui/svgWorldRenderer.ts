@@ -190,6 +190,16 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
     return nation ? `${c.name}${seat} · ${nation}` : `${c.name}${seat}`;
   };
   for (const c of world.cities) {
+    // The mark itself stays small — a settlement is a point on a map and growing it would be a lie
+    // about the size of the place. What grows is an invisible target around it. Measured on the
+    // live page the marks were 5px across (8 for a capital) against a 24px minimum touch target,
+    // and the page had no focusable element at all, so a keyboard could not reach a city plan.
+    // The target is a mark too, so applyMarkerScale holds it at its screen size through the zoom.
+    markers.appendChild(named(svgEl("circle", {
+      class: "marker-hit", cx: c.x, cy: c.y, r: 14, fill: "transparent",
+      "data-city": c.id, style: "cursor:pointer",
+      tabindex: 0, role: "button", "aria-label": markerTitle(c),
+    }), markerTitle(c)));
     if (c.isCapital) {
       markers.appendChild(named(svgEl("path", {
         class: "marker-capital", d: starPath(c.x, c.y, 5, 4.2, 1.9), "data-cx": c.x.toFixed(1), "data-cy": c.y.toFixed(1),
@@ -205,8 +215,11 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
     }
     // settlement hierarchy: capitals promoted (larger, bold, dark ink); towns demoted
     // (smaller, muted brown) so the eye reads the capitals first.
+    // the name opens the city too: it is several times the area of the dot beside it, and a reader
+    // who can see a name is far likelier to aim at it than at the speck
     const label = svgEl("text", {
       class: "city-label " + (c.isCapital ? "city-capital" : "city-town"),
+      "data-city": c.id, style: "cursor:pointer",
       x: c.x + 5, y: c.y + 3, "font-size": c.isCapital ? 10 : 8,
       "font-weight": c.isCapital ? 600 : 400,
       fill: c.isCapital ? "#2a2118" : "#6b5d42",
