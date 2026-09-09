@@ -68,3 +68,33 @@ describe("when a town came to be", () => {
     }
   });
 });
+
+// The plate said "Realm — Melaelae" for a town whose realm fell in 460, because the fact came from
+// `world.polityOf`: the ownership of year zero. The world map beside it moves through five
+// centuries; this did not. And unlike the map, a city plate carries no scrubber, so naming the
+// realm is not enough — the year has to travel with it or the answer is undated again.
+describe("the realm a plate names is the realm of a stated year", () => {
+  const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 2 });
+  const history = simulateHistory(world, 2);
+  const city = world.cities.find((c) => c.name === "Liaeth")!;
+  const layout = generateCityLayout(cityContext(city), 2);
+  const at = (yearIndex: number) =>
+    cityFacts(world, city, layout, "en", 3, history.cityFoundings, {
+      owner: history.snapshots[yearIndex].owner,
+      polities: history.polities,
+      year: history.snapshots[yearIndex].year,
+    });
+
+  it("names the realm holding the town in that year, not its founding realm", () => {
+    const first = at(0), last = at(history.snapshots.length - 1);
+    const ownerLast = history.snapshots[history.snapshots.length - 1].owner[city.cell];
+    expect(first.realm).toBe(history.polities[history.snapshots[0].owner[city.cell]].name);
+    expect(last.realm).toBe(history.polities[ownerLast].name);
+    expect(last.realm).not.toBe(first.realm);   // seed 2's Liaeth changes hands over the five centuries
+  });
+
+  it("carries the year the answer is true of", () => {
+    expect(at(history.snapshots.length - 1).year).toBe(500);
+    expect(at(0).year).toBe(0);
+  });
+});

@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { generateWorld } from "./world";
 import { DEFAULT_PARAMS } from "../types/world";
 import { simulateHistory } from "./history";
-import { worldToGazetteer } from "./gazetteer";
+import { worldToGazetteer, anArticle } from "./gazetteer";
 import { eventText } from "./eventText";
 
 describe("worldToGazetteer", () => {
@@ -215,4 +215,104 @@ describe("exported chronicle is byte-stable across the shared-assembler move", (
       expect(fnv(ko)).toBe(pins[seed].ko);
     });
   }
+});
+
+// The Realms section described `world.polities` — the eight realms of year zero — in a document
+// whose chronicle runs five centuries. Measured on seeds 1/2/3: nine, six and eight of the realms
+// STANDING at year 500 were never described anywhere, while four to five of the eight it did
+// describe had fallen centuries earlier, with nothing to say so. A GM looking up who rules the east
+// found an entry for a dead realm and no entry for the living one.
+describe("the Realms section describes the realms the world actually had", () => {
+  const realmsOf = (md: string) => {
+    const body = (md.split("## Realms")[1] ?? "").split("## Free Ports")[0];
+    return body.split("\n").filter((l) => l.startsWith("### ")).map((l) => l.slice(4).trim());
+  };
+  const entryFor = (md: string, name: string) => {
+    const body = (md.split("## Realms")[1] ?? "").split("## Free Ports")[0];
+    const i = body.indexOf(`### ${name}\n`);
+    const rest = body.slice(i);
+    const j = rest.indexOf("\n### ", 1);
+    return j < 0 ? rest : rest.slice(0, j);
+  };
+
+  for (const seed of [1, 2, 3]) {
+    it(`gives every realm that ever stood an entry (seed ${seed})`, () => {
+      const { world: w } = generateWorld({ ...DEFAULT_PARAMS, seed });
+      const h = simulateHistory(w, seed);
+      const described = realmsOf(worldToGazetteer(w, h, "en"));
+      for (const p of h.polities) expect(described, `${p.name} is missing`).toContain(p.name);
+      expect(described.length).toBe(h.polities.length);
+    });
+  }
+
+  it("says when a realm stood, and says so differently for one that outlived the chronicle", () => {
+    const { world: w } = generateWorld({ ...DEFAULT_PARAMS, seed: 2 });
+    const h = simulateHistory(w, 2);
+    const md = worldToGazetteer(w, h, "en");
+    const fallen = h.polities.find((p) => p.endedYear !== null)!;
+    const survivor = h.polities.find((p) => p.endedYear === null)!;
+    expect(entryFor(md, fallen.name)).toContain(`${fallen.foundedYear}`);
+    expect(entryFor(md, fallen.name)).toMatch(/fell|Fell/);
+    expect(entryFor(md, survivor.name)).toMatch(/still standing|Still standing/);
+    expect(entryFor(md, survivor.name)).not.toMatch(/\bfell\b/);
+  });
+
+  it("records the greatest extent each realm reached, and when", () => {
+    const { world: w } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });
+    const h = simulateHistory(w, 1);
+    const md = worldToGazetteer(w, h, "en");
+    // recompute the peak independently of the renderer
+    let checked = 0;
+    for (const p of h.polities) {
+      let best = 0, bestYear = 0;
+      for (const s of h.snapshots) {
+        let n = 0;
+        for (const o of s.owner) if (o === p.id) n++;
+        if (n > best) { best = n; bestYear = s.year; }
+      }
+      if (best === 0) continue;
+      const e = entryFor(md, p.name);
+      expect(e, `${p.name} peak ${best}`).toContain(`${best} tiles`);
+      expect(e, `${p.name} peak year ${bestYear}`).toContain(`${bestYear}`);
+      checked++;
+    }
+    expect(checked).toBeGreaterThan(10);
+  });
+
+  it("lists only towns the realm actually held", () => {
+    const { world: w } = generateWorld({ ...DEFAULT_PARAMS, seed: 3 });
+    const h = simulateHistory(w, 3);
+    const md = worldToGazetteer(w, h, "en");
+    let checked = 0;
+    for (const p of h.polities) {
+      const e = entryFor(md, p.name);
+      const everHeld = new Set<string>();
+      for (const s of h.snapshots) for (const c of w.cities) if (s.owner[c.cell] === p.id) everHeld.add(c.name);
+      for (const c of w.cities) {
+        if (everHeld.has(c.name)) continue;
+        // a town it never held must not be listed among its towns
+        const towns = /Its towns are ([^.]*)\./.exec(e)?.[1] ?? "";
+        expect(towns.split(", ").includes(c.name), `${p.name} lists ${c.name}`).toBe(false);
+        checked++;
+      }
+    }
+    expect(checked).toBeGreaterThan(50);
+  });
+});
+
+describe("anArticle", () => {
+  it("turns 'a' into 'an' before a vowel and leaves the rest alone", () => {
+    expect(anArticle("a arid desert")).toBe("an arid desert");
+    expect(anArticle("a open sea")).toBe("an open sea");
+    expect(anArticle("a green forest")).toBe("a green forest");
+    expect(anArticle("a vast northern pinewoods")).toBe("a vast northern pinewoods");
+    expect(anArticle("a small pocket of arid desert")).toBe("a small pocket of arid desert");
+  });
+  it("leaves no 'a' before a vowel anywhere in the document", () => {
+    for (const seed of [1, 2, 3, 4, 5, 6, 7, 8]) {
+      const { world: w } = generateWorld({ ...DEFAULT_PARAMS, seed });
+      const md = worldToGazetteer(w, simulateHistory(w, seed), "en");
+      expect([...md.matchAll(/\ba [aeiou]\w+/g)].map((m) => m[0]), `seed ${seed}`).toEqual([]);
+    }
+  });
 });

@@ -31,6 +31,8 @@ export interface CityFacts {
   name: string;
   founded: number | null;   // null: older than the chronicle (a capital, or a town never founded)
   realm: string | null;
+  /** the year `realm` is true of. A plate carries no scrubber, so an undated realm is a guess. */
+  year: number | null;
   kind: string;
   rank: string;
   population: string;
@@ -39,12 +41,20 @@ export interface CityFacts {
 
 const groups = (n: number) => n.toLocaleString("en-US");
 
+/**
+ * `at` is the moment the reader is looking at — the scrubbed year's ownership and the realms of
+ * that year. Without it the plate falls back to `world.polityOf`, which is YEAR ZERO: the plate
+ * used to answer "Realm — Melaelae" for a town whose realm had fallen forty years earlier, because
+ * the founding owner was the only owner it knew.
+ */
 export function cityFacts(
   world: World, city: CityMarker, layout: CityLayout, lang: Lang, kmPerUnit: number,
   foundings: readonly { cityId: number; year: number }[] = [],
+  at?: { owner: ArrayLike<number>; polities: readonly { id: number; name: string }[]; year: number },
 ): CityFacts {
-  const owner = world.polityOf[city.cell];
-  const realm = owner >= 0 ? world.polities.find((p) => p.id === owner)?.name ?? null : null;
+  const owner = at ? at.owner[city.cell] : world.polityOf[city.cell];
+  const pool = at ? at.polities : world.polities;
+  const realm = owner >= 0 ? pool.find((p) => p.id === owner)?.name ?? null : null;
   const [lo, hi] = POPULATION_BANDS[city.size] ?? POPULATION_BANDS[3];
 
   // the three nearest towns, so a reader can walk out of one plate and into the next
@@ -59,6 +69,7 @@ export function cityFacts(
     name: city.name,
     founded: foundings.find((f) => f.cityId === city.id)?.year ?? null,
     realm,
+    year: at?.year ?? null,
     kind: t(lang, `kind_${layout.archetype.id}` as never),
     rank: t(lang, `rank${city.size}` as never),
     population: `${groups(lo)}–${groups(hi)}`,

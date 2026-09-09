@@ -98,6 +98,13 @@ const REGION_SIZE: Record<GazetteerLang, Record<string, string>> = {
   en: { large: "a vast ", mid: "a ", small: "a small pocket of " },
   ko: { large: "광대한 ", mid: "", small: "자그마한 " },
 };
+// "a arid desert", "a open sea" — the size word for a middling region is the bare article, and two
+// of the nine biome phrases begin with a vowel, so seventeen of these went into the document across
+// eight seeds. Only the leading article is touched; the vast/small forms already read correctly.
+export function anArticle(phrase: string): string {
+  return /^a [aeiou]/i.test(phrase) ? `an ${phrase.slice(2)}` : phrase;
+}
+
 const RIVER_SIZE: Record<GazetteerLang, Record<string, string>> = {
   en: { large: "a great river", mid: "a river", small: "a slender stream" },
   ko: { large: "큰 강", mid: "강", small: "가느다란 물줄기" },
@@ -131,7 +138,7 @@ export function worldToGazetteer(world: World, history: History, lang: Gazetteer
     const dir = inDir(lang, compass(lang, r.centroid[0], r.centroid[1], b));
     L.push(ko
       ? `- **${r.name}** — ${dir}에 펼쳐진 ${size}${phrase}.`
-      : `- **${r.name}** — ${size}${phrase} ${dir}.`);
+      : `- **${r.name}** — ${anArticle(`${size}${phrase}`)} ${dir}.`);
   }
   L.push("");
 
@@ -189,54 +196,92 @@ export function worldToGazetteer(world: World, history: History, lang: Gazetteer
 
   // ── Realms ──────────────────────────────────────────────────────────────────
   L.push(ko ? "## 나라" : "## Realms", "");
-  const byPolity = new Map<number, { cap?: typeof world.cities[number]; towns: string[] }>();
-  for (const city of world.cities) {
-    const e = byPolity.get(city.polityId) ?? { towns: [] };
-    if (city.isCapital) e.cap = city; else e.towns.push(city.name);
-    byPolity.set(city.polityId, e);
+  // Every realm the world ever had, not the eight it began with. This used to walk
+  // `world.polities` — the founding realms, as of year zero — inside a document whose chronicle
+  // runs five centuries. Measured on seeds 1/2/3: nine, six and eight of the realms STANDING at
+  // year 500 appeared nowhere in it, while four to five of the eight it did describe had fallen
+  // long before, with nothing on the page to say so. A reader looking up who held the east got an
+  // entry for a dead realm and none for the living one.
+  //
+  // So each entry is dated: when the realm stood, how it began, how far it reached and when, which
+  // towns it held at that height, and how it ended. All of it comes off the snapshots the
+  // simulation already kept.
+  const cellsAt = history.snapshots.map((snap) => {
+    const count = new Map<number, number>();
+    for (const o of snap.owner) if (o >= 0) count.set(o, (count.get(o) ?? 0) + 1);
+    return count;
+  });
+  // the civil war that made each fragment, so a successor state can say what it broke from
+  const brokeFrom = new Map<number, string>();
+  for (const ev of history.events) {
+    if (ev.type !== "civilwar") continue;
+    for (const id of ev.intoIds ?? []) brokeFrom.set(id, history.polities[ev.polityId]?.name ?? "");
   }
-  // Dominant terrain per realm, so a realm reads as somewhere rather than as a list of names.
-  const realmBiome = new Map<number, number>();
-  {
-    const tally = new Map<number, Map<number, number>>();
-    for (let i = 0; i < grid.count; i++) {
-      const p = world.polityOf[i];
-      if (p < 0 || world.biome[i] === OCEAN) continue;
-      const m = tally.get(p) ?? new Map<number, number>();
-      m.set(world.biome[i], (m.get(world.biome[i]) ?? 0) + 1);
-      tally.set(p, m);
-    }
-    for (const [p, m] of tally) {
-      let best = -1, bn = -1;
-      for (const [bm, cnt] of m) if (cnt > bn) { bn = cnt; best = bm; }
-      realmBiome.set(p, best);
-    }
-  }
-  for (const p of world.polities) {
-    const e = byPolity.get(p.id) ?? { towns: [] };
+
+  for (const p of history.polities) {
     L.push(`### ${p.name}`);
-    const dom = realmBiome.get(p.id);
-    const land = dom !== undefined && dom >= 0 ? bio[dom] : undefined;
-    const cap = e.cap;
-    // The capital's own character was already recorded and never used: whether it stands on the
-    // coast, and whether it sits up in the highlands.
+    // The height of a realm is the fairest moment to describe it by: at its founding it has not
+    // done anything yet, and at its fall there is nothing left to describe.
+    let peak = 0, peakIdx = 0;
+    for (let t = 0; t < cellsAt.length; t++) {
+      const n = cellsAt[t].get(p.id) ?? 0;
+      if (n > peak) { peak = n; peakIdx = t; }
+    }
+    const peakSnap = history.snapshots[peakIdx];
+    const peakYear = peakSnap?.year ?? p.foundedYear;
+
+    let dom = -1;
+    {
+      const tally = new Map<number, number>();
+      if (peakSnap) {
+        for (let i = 0; i < peakSnap.owner.length; i++) {
+          if (peakSnap.owner[i] !== p.id || world.biome[i] === OCEAN) continue;
+          tally.set(world.biome[i], (tally.get(world.biome[i]) ?? 0) + 1);
+        }
+      }
+      let bn = -1;
+      for (const [bm, cnt] of tally) if (cnt > bn) { bn = cnt; dom = bm; }
+    }
+    const land = dom >= 0 ? bio[dom] : undefined;
+    const cap = world.cities.find((c) => c.cell === p.capital);
+    const towns = peakSnap
+      ? world.cities.filter((c) => peakSnap.owner[c.cell] === p.id && c.id !== cap?.id).map((c) => c.name)
+      : [];
+    const parent = brokeFrom.get(p.id);
+    const ended = p.endedYear;
+    // A realm born of a civil war takes an ordinary land cell for its seat, so most fragments have
+    // no town to be named after. "No seat the atlas names" is honest but a dead end for a reader
+    // who wants to know WHERE it was — the free-port entries already answer that with a bearing,
+    // so a seatless realm gets the same one, taken from the cell it was governed from.
+    const seatDir = cap || p.capital < 0 ? "" :
+      compass(lang, grid.points[p.capital * 2], grid.points[p.capital * 2 + 1], b);
+
     const seatTrait = cap
       ? (cap.coastal ? (ko ? "바닷가의 " : "the coastal seat of ")
         : cap.elevation >= world.params.mountainLevel ? (ko ? "산중의 " : "the highland seat of ") : (ko ? "" : "the seat of "))
       : "";
+
     if (ko) {
       const where = land ? `${land}에 자리한 나라.` : "";
-      const seat = cap ? ` 도읍은 ${seatTrait}**${cap.name}**.` : " 정해진 도읍이 없다.";
-      const towns = e.towns.length ? ` 성읍은 ${e.towns.join(", ")}.` : "";
-      L.push(`${where}${seat}${towns}`.trim());
+      const seat = cap ? ` 도읍은 ${seatTrait}**${cap.name}**.`
+        : seatDir ? ` 지도가 이름 붙인 도읍은 없고, 중심은 세계 ${seatDir}에 있었다.` : " 지도가 이름을 붙인 도읍은 없다.";
+      L.push(`${where}${seat}`.trim());
+      const born = parent ? `${p.foundedYear}년 ${parent}에서 갈라져 나왔고` : p.free ? `${p.foundedYear}년 자유도시로 독립했고` : `${p.foundedYear}년에 서서`;
+      const died = ended !== null ? `${ended}년에 무너졌다` : `${history.years}년까지 서 있다`;
+      L.push(`${born}, ${died}.` + (peak > 0 ? ` 최대 판도는 ${peakYear}년의 ${peak}칸.` : ""));
+      if (towns.length) L.push(`그때 거느린 성읍은 ${towns.join(", ")}.`);
       const line = dyn.get(p.id) ?? [];
       if (line.length) L.push("", `역대 군주 — ${line.map((r) => `${r.name} (${r.from}–${r.to})`).join(", ")}`);
       L.push("");
     } else {
       const where = land ? `A realm of the ${land}.` : "";
-      const seat = cap ? ` ${seatTrait.charAt(0).toUpperCase()}${seatTrait.slice(1)}**${cap.name}**.` : " It keeps no fixed seat.";
-      const towns = e.towns.length ? ` Its towns are ${e.towns.join(", ")}.` : "";
-      L.push(`${where}${seat}${towns}`.trim());
+      const seat = cap ? ` ${seatTrait.charAt(0).toUpperCase()}${seatTrait.slice(1)}**${cap.name}**.`
+        : seatDir ? ` No seat the atlas names; it was governed from the ${seatDir}.` : " No seat the atlas names.";
+      L.push(`${where}${seat}`.trim());
+      const born = parent ? `Broke from ${parent} in ${p.foundedYear}` : p.free ? `Declared itself free in ${p.foundedYear}` : `Stood from ${p.foundedYear}`;
+      const died = ended !== null ? `and fell in ${ended}` : `and was still standing at ${history.years}`;
+      L.push(`${born} ${died}.` + (peak > 0 ? ` At its greatest, ${peak} tiles in ${peakYear}.` : ""));
+      if (towns.length) L.push(`Its towns then were ${towns.join(", ")}.`);
       const line = dyn.get(p.id) ?? [];
       if (line.length) L.push("", `Rulers — ${line.map((r) => `${r.name} (${r.from}–${r.to})`).join(", ")}`);
       L.push("");

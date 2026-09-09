@@ -190,6 +190,23 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
   // The chronicle said a town was founded in year 140 and the town was on the map from year 0, so
   // five hundred years of history had nothing to show but borders moving. Scrubbing hides the
   // towns not yet founded rather than redrawing the map: the markers are already in the document.
+  // city cell -> the <span> naming its realm in the list, refilled whenever the year changes
+  const realmCells = new Map<number, HTMLElement>();
+
+  // The list must name the realm the MAP shows holding the town, so it reads the same
+  // province-snapped ownership the political layer paints from — not the raw snapshot, which can
+  // disagree with the picture at a province's edge.
+  function showCityRealms(yearIndex: number): void {
+    if (realmCells.size === 0) return;
+    const world = generated.world;
+    const owner = snapOwnersToProvinces(world.grid.count, world.provinceOf, world.provinces,
+                                        history.snapshots[yearIndex].owner);
+    for (const [cell, el] of realmCells) {
+      const o = owner[cell];
+      el.textContent = o >= 0 ? history.polities[o]?.name ?? "" : "";
+    }
+  }
+
   function showFoundedCities(svg: SVGSVGElement, yearIndex: number): void {
     const hidden = unfoundedAt(yearIndex);
     for (const el of svg.querySelectorAll<SVGElement>(".markers [data-city]")) {
@@ -254,6 +271,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     listTitle.textContent = t(lang, "cityList");
     list.appendChild(listTitle);
     const ul = document.createElement("ul");
+    realmCells.clear();
     const ordered = [...generated.world.cities].sort((a, b) =>
       Number(b.isCapital) - Number(a.isCapital) || b.size - a.size || a.name.localeCompare(b.name));
     for (const c of ordered) {
@@ -261,10 +279,13 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
       const b = document.createElement("button");
       b.className = "city-list-item" + (c.isCapital ? " is-capital" : "");
       b.setAttribute("data-city", String(c.id));
-      const owner = generated.world.polityOf[c.cell];
-      const realm = owner >= 0 ? generated.world.polities.find((p) => p.id === owner)?.name ?? "" : "";
       const nm = document.createElement("span"); nm.className = "city-list-name"; nm.textContent = c.name;
-      const rm = document.createElement("span"); rm.className = "city-list-realm"; rm.textContent = realm;
+      // Filled by `renderYear`, not from `world.polityOf`: that is the ownership of YEAR ZERO, and
+      // the map, legend, scrubber and chronicle beside this list are all in the scrubbed year. It
+      // used to print the founding realm forever — 68% of towns wore the wrong realm at year 500,
+      // and 52% wore one that no longer existed.
+      const rm = document.createElement("span"); rm.className = "city-list-realm";
+      realmCells.set(c.cell, rm);
       b.append(nm, rm);
       b.title = t(lang, "cityListHint");
       b.addEventListener("click", () => openCity(c.id));
@@ -305,6 +326,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
       const snap = history.snapshots[index];
       fillSlot(slot, currentView, index);
       showFoundedCities(svg, index);
+      showCityRealms(index);
       applyChronicleYear(chronicle, snap.year);
       // Scrubbing a year replaces the political layer, so its labels arrive at their base size.
       // Bring them to whatever zoom the reader is at before working out what fits, or a nation's
@@ -375,7 +397,11 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     // map to hunt for another dot. The facts are the ones the world can actually answer for — the
     // founding year an outside review asked for is not among them: the chronicle founds towns the
     // atlas never draws (19 of 19 on seed 1), which is its own bug and not something to paper over.
-    const facts = cityFacts(generated.world, marker, layout, lang, KM_PER_UNIT, history.cityFoundings);
+    // The plate answers for the year the reader scrubbed to, and says which year that was: the
+    // world map has a scrubber to carry that, and a plate does not.
+    const snapNow = history.snapshots[currentYearIndex];
+    const facts = cityFacts(generated.world, marker, layout, lang, KM_PER_UNIT, history.cityFoundings,
+      { owner: snapNow.owner, polities: history.polities, year: snapNow.year });
     const panel = document.createElement("div");
     panel.className = "city-facts";
     const row = (label: string, value: string) => {
@@ -388,7 +414,9 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     };
     panel.append(
       row(t(lang, "factKind"), facts.kind),
-      row(t(lang, "factRealm"), facts.realm ?? t(lang, "factUnclaimed")),
+      row(t(lang, "factRealm"), facts.year === null
+        ? (facts.realm ?? t(lang, "factUnclaimed"))
+        : `${facts.realm ?? t(lang, "factUnclaimed")} · ${t(lang, "year").replace("{y}", String(facts.year))}`),
       row(t(lang, "factPeople"), `${facts.rank} · ${facts.population}`),
       row(t(lang, "factFounded"), facts.founded === null
         ? t(lang, "factAncient")

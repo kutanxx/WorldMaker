@@ -659,3 +659,58 @@ describe("the political map never paints two neighbours the same colour", () => 
     expect(comparisons).toBeGreaterThan(100);   // real borders were compared, not an empty map
   });
 });
+
+// The map, its legend, the scrubber and the chronicle all live in the year the reader has scrubbed
+// to. The city list beside them did not: it read `world.polityOf`, the ownership of YEAR ZERO, and
+// never changed. Measured over six seeds at year 500: 114 of 168 towns were labelled with a realm
+// that no longer held them, and 88 with a realm that no longer existed at all. On seed 2 the legend
+// read Lialtrin/Varkthem/Stumvin/Muthfas while the list beside it read Melaelae/Skyrnfafr/Viorloar,
+// with "500 AY" printed between the two.
+describe("the city list is in the same century as the map", () => {
+  const params = { ...DEFAULT_PARAMS, seed: 2 };
+
+  const openAtYear = (yearIndex: number) => {
+    const root = document.createElement("div");
+    createApp(root, params);
+    const slider = root.querySelector(".timeline-slider") as HTMLInputElement;
+    slider.value = String(yearIndex);
+    slider.dispatchEvent(new Event("input", { bubbles: true }));
+    return root;
+  };
+  const listed = (root: HTMLElement) =>
+    [...root.querySelectorAll(".city-list-item")].map((b) => ({
+      id: Number(b.getAttribute("data-city")),
+      realm: (b.querySelector(".city-list-realm") as HTMLElement).textContent ?? "",
+    }));
+
+  it("names, for every town, the realm that holds it in the scrubbed year", () => {
+    const { world } = generateWorld(params);
+    const history = simulateHistory(world, params.seed);
+    let checked = 0;
+    for (const yearIndex of [0, 25, history.snapshots.length - 1]) {
+      const root = openAtYear(yearIndex);
+      const owner = snapOwnersToProvinces(world.grid.count, world.provinceOf, world.provinces,
+                                          history.snapshots[yearIndex].owner);
+      for (const { id, realm } of listed(root)) {
+        const city = world.cities.find((c) => c.id === id)!;
+        const o = owner[city.cell];
+        const expected = o >= 0 ? history.polities[o].name : "";
+        expect(realm, `year index ${yearIndex}, ${city.name}`).toBe(expected);
+        checked++;
+      }
+    }
+    expect(checked).toBeGreaterThan(60);
+  });
+
+  it("never names a realm that has already fallen", () => {
+    const { world } = generateWorld(params);
+    const history = simulateHistory(world, params.seed);
+    const lastIndex = history.snapshots.length - 1;
+    const root = openAtYear(lastIndex);
+    const standing = new Set<string>();
+    for (const o of history.snapshots[lastIndex].owner) if (o >= 0) standing.add(history.polities[o].name);
+    const named = listed(root).map((r) => r.realm).filter(Boolean);
+    expect(named.length).toBeGreaterThan(10);
+    for (const n of named) expect(standing, `"${n}" no longer exists in 500 AY`).toContain(n);
+  });
+});
