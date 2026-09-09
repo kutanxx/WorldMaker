@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach, beforeEach } from "vitest";
 import { DEFAULT_PARAMS } from "../types/world";
 import { createApp } from "./app";
 import { hashStringToSeed } from "../engine/rng";
@@ -712,5 +712,50 @@ describe("the city list is in the same century as the map", () => {
     const named = listed(root).map((r) => r.realm).filter(Boolean);
     expect(named.length).toBeGreaterThan(10);
     for (const n of named) expect(standing, `"${n}" no longer exists in 500 AY`).toContain(n);
+  });
+});
+
+// The terrain key sits in the map's bottom-left corner and most readers know what a green patch is
+// by the second look. It is furniture, so it folds away — and stays folded, because a reader who
+// put it away did not mean "until the next world".
+describe("the map's legend folds away", () => {
+  const open = () => {
+    const root = document.createElement("div");
+    createApp(root, { ...DEFAULT_PARAMS, seed: 2 });
+    return root;
+  };
+  const legendVisible = (root: HTMLElement) => !root.querySelector(".map-frame")!.classList.contains("legend-off");
+
+  beforeEach(() => { try { localStorage.removeItem("wm:legend"); } catch { /* private mode */ } });
+
+  it("starts folded, with a control to unfold it", () => {
+    const root = open();
+    expect(root.querySelector(".legend-toggle")).not.toBeNull();
+    expect(legendVisible(root)).toBe(false);
+    expect(root.querySelector("svg.world .legend"), "the key is drawn, only hidden").not.toBeNull();
+  });
+
+  it("unfolds and folds again on the control", () => {
+    const root = open();
+    const btn = root.querySelector(".legend-toggle") as HTMLButtonElement;
+    btn.click();
+    expect(legendVisible(root)).toBe(true);
+    btn.click();
+    expect(legendVisible(root)).toBe(false);
+  });
+
+  it("remembers that it was unfolded, into the next world", () => {
+    const first = open();
+    (first.querySelector(".legend-toggle") as HTMLButtonElement).click();
+    expect(localStorage.getItem("wm:legend")).toBe("on");
+    expect(legendVisible(open())).toBe(true);
+  });
+
+  it("says which way it will go", () => {
+    const root = open();
+    const btn = root.querySelector(".legend-toggle") as HTMLButtonElement;
+    expect(btn.getAttribute("aria-expanded")).toBe("false");
+    btn.click();
+    expect(btn.getAttribute("aria-expanded")).toBe("true");
   });
 });

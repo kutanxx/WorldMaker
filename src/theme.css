@@ -18,7 +18,10 @@ body {
   text-align: center; padding: 20px 0 8px; margin: 0; color: #3c2f1c;
   text-shadow: 0 1px 0 rgba(255,255,255,.45);
 }
-#app { max-width: 1040px; margin: 0 auto; padding: 0 16px 32px; }
+/* The map is the product, and it was 796x557 on a 1920px screen — 41% of the window's width, with
+   880px of unused margin either side and 177px of unused height under the timeline, because #app
+   was capped at 1040 back when this page was a column of text. */
+#app { max-width: min(1320px, 100vw - 32px); margin: 0 auto; padding: 0 16px 32px; }
 .controls {
   display: flex; gap: 8px; padding: 10px 12px; align-items: center; flex-wrap: wrap;
   background: #efe6cf; border: 1px solid #cbb784; border-radius: 6px; margin-bottom: 12px;
@@ -60,6 +63,22 @@ a.home:hover { background: #e7cf9c; }
   background: #f3ead2; border: 1px solid #b7a071; border-radius: 4px; color: #3c2f1c; cursor: pointer;
 }
 .map-zoom-controls button:hover { background: #e7d9b6; }
+/* The map's key, folded away by default. Hiding it on screen cannot reach the export: that builds
+   its own SVG and carries no stylesheet, so a downloaded map always has its key. */
+.map-frame.legend-off svg .legend { display: none; }
+.legend-toggle {
+  position: absolute; left: 14px; bottom: 14px; z-index: 5;
+  padding: 4px 10px; font-size: 12px; letter-spacing: .04em; line-height: 1.4;
+  background: rgba(244, 236, 216, 0.88); color: #3c2f1c;
+  border: 1px solid rgba(183, 160, 113, 0.7); border-radius: 6px; cursor: pointer;
+  box-shadow: 0 1px 3px rgba(42, 33, 24, 0.18);
+}
+.legend-toggle:hover { background: #e7d9b6; }
+/* Folded, the chip stands where the key will appear, so it reads as the key's own place. Unfolded,
+   it moves to the opposite corner: fading it in place was the first try and it still covered the
+   bottom row of the key it had just opened, and the key's height changes with the view (eight rows
+   of terrain, eleven of realms), so there is no fixed offset that would clear it. */
+.map-frame:not(.legend-off) .legend-toggle { top: 14px; bottom: auto; }
 .stage svg { display: block; width: 100%; height: auto; }
 /* 1008 ≈ (460+108)/408 * 762 rounded to the #app content width: the viewBox gained the
    countryside ring + legend strip, so widen the cap to keep the walled city the same size */
@@ -89,6 +108,8 @@ svg.world .legend { pointer-events: none; }
    240px as a floor on short windows and gives a tall one nearly half its height. Measured live at
    1280x900: 10 lines visible before, 18 after. */
 .chronicle {
+  /* prose, so it keeps a readable measure rather than stretching with the widened page */
+  max-width: 940px; margin-inline: auto;
   max-height: max(240px, 45vh); overflow: auto; padding: 8px 14px; margin-top: 12px;
   background: #f6efdd; border: 1px solid #cbb784; border-radius: 6px;
 }
@@ -264,7 +285,15 @@ svg.world .legend { pointer-events: none; }
    bare parchment sat under the map inside its own frame, and the stage read as unfinished. The
    `height: 0; min-height: 100%` pair is what keeps the list OUT of the row's intrinsic size: it
    contributes nothing, then fills whatever the map asked for. */
-.map-with-list { display: grid; grid-template-columns: minmax(0, 1fr) 210px; gap: 12px; align-items: stretch; }
+/* Sized by the HEIGHT it may occupy, not by the width available: the map is 1000x700, so the pair
+   is capped at (the vertical room left over) x 10/7, plus the list's 210 and the 12 gap. That keeps
+   the map and the scrubber under it on screen together at any window size — the map grows into a
+   tall window and shrinks out of a short one instead of pushing the timeline under the fold. */
+.map-with-list {
+  display: grid; grid-template-columns: minmax(0, 1fr) 210px; gap: 12px; align-items: stretch;
+  /* the floor keeps a very short window from computing a nonsense cap */
+  max-width: max(620px, calc((100vh - 250px) * 10 / 7 + 222px)); margin-inline: auto; width: 100%;
+}
 .city-list {
   border: 1px solid #cbb784; border-radius: 6px; background: #f6efdc; padding: 8px 6px 8px 10px;
   height: 0; min-height: 100%; overflow: auto;

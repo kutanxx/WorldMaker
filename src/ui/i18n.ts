@@ -94,6 +94,7 @@ export const UI: Record<Lang, Record<string, string>> = {
     cityPlanOf: "Plan of",
     compassN: "N", langToggle: "한국어", home: "🏠", homeLabel: "Home",
     legendTerrain: "Terrain", legendRealms: "Realms", legendCultures: "Cultures", legendDistricts: "Districts",
+    legendToggle: "Key", legendShow: "Show the key", legendHide: "Hide the key",
     // the front page. It used to print every line in both languages at once, so neither read well.
     landingTagline: "A procedural fantasy atlas & chronicle",
     landingCardTitle: "Create a World",
@@ -126,6 +127,7 @@ export const UI: Record<Lang, Record<string, string>> = {
     cityPlanOf: "도면 —",
     compassN: "북", langToggle: "EN", home: "🏠", homeLabel: "홈",
     legendTerrain: "지형", legendRealms: "나라", legendCultures: "문화", legendDistricts: "구역",
+    legendToggle: "범례", legendShow: "범례 펼치기", legendHide: "범례 접기",
     landingTagline: "절차적으로 만들어지는 판타지 지도와 연대기",
     landingCardTitle: "세계 만들기",
     landingCardDesc: "무작위 판타지 세계를 만들고 — 지도, 도시, 강, 역사, 가제티어를 살펴봅니다.",

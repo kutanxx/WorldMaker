@@ -190,6 +190,17 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
   // The chronicle said a town was founded in year 140 and the town was on the map from year 0, so
   // five hundred years of history had nothing to show but borders moving. Scrubbing hides the
   // towns not yet founded rather than redrawing the map: the markers are already in the document.
+  // Whether the map's key is unfolded. Storage can throw outright in privacy mode, and a front
+  // page that will not paint because a preference could not be read is a worse bug than a legend
+  // in the wrong state.
+  const LEGEND_KEY = "wm:legend";
+  function readLegendPref(): boolean {
+    try { return localStorage.getItem(LEGEND_KEY) === "on"; } catch { return false; }
+  }
+  function writeLegendPref(on: boolean): void {
+    try { localStorage.setItem(LEGEND_KEY, on ? "on" : "off"); } catch { /* privacy mode */ }
+  }
+
   // city cell -> the <span> naming its realm in the list, refilled whenever the year changes
   const realmCells = new Map<number, HTMLElement>();
 
@@ -260,6 +271,29 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     const frame = document.createElement("div");
     frame.className = "map-frame";
     frame.appendChild(svg);
+
+    // The key is map furniture: useful once, then in the way of the corner of the world it covers.
+    // It folds, and the choice is remembered — a reader who put it away did not mean "until the
+    // next world". Only the SCREEN is affected: an exported map builds its own SVG and no
+    // stylesheet travels with it, so a downloaded map always carries its key.
+    const legendOn = readLegendPref();
+    frame.classList.toggle("legend-off", !legendOn);
+    const legendBtn = document.createElement("button");
+    legendBtn.type = "button";
+    legendBtn.className = "legend-toggle";
+    legendBtn.textContent = t(lang, "legendToggle");
+    const syncLegend = (on: boolean) => {
+      frame.classList.toggle("legend-off", !on);
+      legendBtn.setAttribute("aria-expanded", String(on));
+      legendBtn.title = t(lang, on ? "legendHide" : "legendShow");
+    };
+    syncLegend(legendOn);
+    legendBtn.addEventListener("click", () => {
+      const on = frame.classList.contains("legend-off");
+      syncLegend(on);
+      writeLegendPref(on);
+    });
+    frame.appendChild(legendBtn);
 
     // The best thing this map has is behind its markers, and until the reader knows a marker leads
     // somewhere there is nothing to tell them so. A list is the signal: it says "there are cities
