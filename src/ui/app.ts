@@ -216,7 +216,40 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     const frame = document.createElement("div");
     frame.className = "map-frame";
     frame.appendChild(svg);
-    stage.appendChild(frame);
+
+    // The best thing this map has is behind its markers, and until the reader knows a marker leads
+    // somewhere there is nothing to tell them so. A list is the signal: it says "there are cities
+    // here" by existing, it is reachable by keyboard for free, and it does not need anyone to hit
+    // a dot. Capitals first, then by size, because that is the order a reader cares about.
+    const list = document.createElement("aside");
+    list.className = "city-list";
+    const listTitle = document.createElement("h2");
+    listTitle.textContent = t(lang, "cityList");
+    list.appendChild(listTitle);
+    const ul = document.createElement("ul");
+    const ordered = [...generated.world.cities].sort((a, b) =>
+      Number(b.isCapital) - Number(a.isCapital) || b.size - a.size || a.name.localeCompare(b.name));
+    for (const c of ordered) {
+      const li = document.createElement("li");
+      const b = document.createElement("button");
+      b.className = "city-list-item" + (c.isCapital ? " is-capital" : "");
+      b.setAttribute("data-city", String(c.id));
+      const owner = generated.world.polityOf[c.cell];
+      const realm = owner >= 0 ? generated.world.polities.find((p) => p.id === owner)?.name ?? "" : "";
+      const nm = document.createElement("span"); nm.className = "city-list-name"; nm.textContent = c.name;
+      const rm = document.createElement("span"); rm.className = "city-list-realm"; rm.textContent = realm;
+      b.append(nm, rm);
+      b.title = t(lang, "cityListHint");
+      b.addEventListener("click", () => openCity(c.id));
+      li.appendChild(b);
+      ul.appendChild(li);
+    }
+    list.appendChild(ul);
+
+    const withList = document.createElement("div");
+    withList.className = "map-with-list";
+    withList.append(frame, list);
+    stage.appendChild(withList);
     cityZoom?.destroy(); cityZoom = null;
     worldZoom?.destroy();
     // Zooming holds the lettering at its on-screen size and then asks deconflictLabels what fits

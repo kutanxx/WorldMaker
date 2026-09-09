@@ -499,3 +499,25 @@ svg.world .legend { pointer-events: none; }
 }
 .city-facts .neighbour:hover { background: #e7d9b6; }
 @media (pointer: coarse) { .city-facts .neighbour { min-height: 34px; padding: 6px 12px; } }
+
+/* The city list. The best thing this map has sits behind its markers, and a four-pixel dot is not
+   an invitation — the list says "there are cities here" by existing, and it is reachable by
+   keyboard without anything being added for it. It sits beside the map on a wide screen and folds
+   under it on a narrow one. */
+.map-with-list { display: grid; grid-template-columns: minmax(0, 1fr) 210px; gap: 12px; align-items: start; }
+.city-list { border: 1px solid #cbb784; border-radius: 6px; background: #f6efdc; padding: 8px 6px 8px 10px; max-height: 620px; overflow: auto; }
+.city-list h2 { margin: 0 0 6px; font-size: 13px; font-variant: small-caps; letter-spacing: 0.08em; color: #8a7a60; font-weight: 600; }
+.city-list ul { list-style: none; margin: 0; padding: 0; }
+.city-list-item {
+  display: flex; justify-content: space-between; gap: 8px; align-items: baseline; width: 100%;
+  font: inherit; font-size: 13px; text-align: left; padding: 3px 6px; border: 0; border-radius: 4px;
+  background: none; color: #3c2f1c; cursor: pointer;
+}
+.city-list-item:hover { background: #e7d9b6; }
+.city-list-item.is-capital .city-list-name { font-weight: 600; }
+.city-list-realm { color: #8a7a60; font-size: 11.5px; white-space: nowrap; }
+@media (max-width: 900px) {
+  .map-with-list { grid-template-columns: minmax(0, 1fr); }
+  .city-list { max-height: 240px; }
+}
+@media (pointer: coarse) { .city-list-item { min-height: 36px; } }

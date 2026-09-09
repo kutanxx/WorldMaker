@@ -535,3 +535,36 @@ describe("a plate tells you where you are and where you can go", () => {
     root.remove();
   });
 });
+
+// The city plans are the best thing this map has and they sat behind four-pixel dots. Enlarging the
+// dots' targets helped whoever already knew to aim at one; nothing told a first-time reader that
+// there was anything to aim at.
+describe("the cities announce themselves", () => {
+  it("lists every city beside the map, capitals first", async () => {
+    const root = document.createElement("div");
+    document.body.appendChild(root);
+    createApp(root, { ...DEFAULT_PARAMS, seed: 5 });
+    await new Promise((r) => setTimeout(r, 0));
+    const items = [...root.querySelectorAll(".city-list-item")];
+    expect(items.length).toBe(28);
+    const caps = items.filter((b) => b.classList.contains("is-capital"));
+    expect(caps.length).toBeGreaterThan(1);
+    // every capital comes before every other town
+    const lastCap = items.lastIndexOf(caps[caps.length - 1]);
+    expect(items.slice(0, lastCap + 1).every((b) => b.classList.contains("is-capital"))).toBe(true);
+    root.remove();
+  });
+
+  it("opens a plan from the list, without anyone hitting a dot", async () => {
+    const root = document.createElement("div");
+    document.body.appendChild(root);
+    createApp(root, { ...DEFAULT_PARAMS, seed: 5 });
+    await new Promise((r) => setTimeout(r, 0));
+    const item = root.querySelectorAll(".city-list-item")[3] as HTMLButtonElement;
+    const name = item.querySelector(".city-list-name")!.textContent;
+    item.click();
+    await new Promise((r) => setTimeout(r, 0));
+    expect(root.querySelector(".city-name-text")?.textContent).toBe(name);
+    root.remove();
+  });
+});
