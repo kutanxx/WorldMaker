@@ -93,7 +93,10 @@ body.map-focus .app-title,
 body.map-focus .controls,
 body.map-focus .city-list,
 body.map-focus .chronicle,
+body.map-focus .city-facts,
 body.map-focus .advanced { display: none; }
+/* the plate's way back off itself stays reachable while the chrome is away */
+body.map-focus .stage > button { position: absolute; left: 12px; top: 12px; z-index: 41; }
 body.map-focus #app { max-width: none; padding: 0; }
 body.map-focus .stage {
   position: fixed; inset: 0; z-index: 40; margin: 0; padding: 8px;
@@ -114,9 +117,16 @@ body.map-focus .timeline { margin: 0; }
    of terrain, eleven of realms), so there is no fixed offset that would clear it. */
 .map-frame:not(.legend-off) .legend-toggle { top: 14px; bottom: auto; }
 .stage svg { display: block; width: 100%; height: auto; }
-/* 1008 ≈ (460+108)/408 * 762 rounded to the #app content width: the viewBox gained the
-   countryside ring + legend strip, so widen the cap to keep the walled city the same size */
-.stage svg.city { max-width: 1008px; margin: 0 auto; }
+/* The plan is 568x460, and like the world map it is sized by the vertical room the chrome leaves
+   it rather than by a fixed number — 1008px was derived from the old 1040px page and stopped
+   following it, so the plate was both cut off at the fold AND the one surface still measured
+   against a page width that no longer exists. Whole-plan-at-once matters here: the town is what
+   you orient by before leaning in, and there is zoom for the leaning. */
+.stage svg.city {
+  max-width: min(100%, calc((100vh - 230px) * 568 / 460));
+  margin: 0 auto;
+}
+body.map-focus .stage svg.city { max-width: min(100%, calc((100vh - 40px) * 568 / 460)); }
 .timeline {
   display: flex; gap: 10px; padding: 10px 12px; align-items: center;
   background: #efe6cf; border: 1px solid #cbb784; border-radius: 6px; margin-top: 12px;

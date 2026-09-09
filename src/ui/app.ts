@@ -201,6 +201,37 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     try { localStorage.setItem(LEGEND_KEY, on ? "on" : "off"); } catch { /* privacy mode */ }
   }
 
+  /**
+   * Focus mode: the drawing takes the window and the page's chrome steps out. Both the world map
+   * and the city plate get the control, because both are sized by the vertical room the chrome
+   * leaves them and both are the reason someone is here.
+   *
+   * Not remembered — a reload that dropped a reader onto a chrome-less screen with no memory of
+   * asking for it is a worse surprise than pressing a button twice — so every new screen starts
+   * out of it. The Escape handler is registered ONCE for the app: hanging one off each frame
+   * leaked a document listener on every regenerate and every trip to a plate and back.
+   */
+  let focusBtn: HTMLButtonElement | null = null;
+  function applyFocus(on: boolean): void {
+    document.body.classList.toggle("map-focus", on);
+    if (!focusBtn) return;
+    focusBtn.setAttribute("aria-pressed", String(on));
+    focusBtn.textContent = t(lang, on ? "focusExit" : "focusEnter");
+    focusBtn.title = t(lang, on ? "focusExitHint" : "focusEnterHint");
+  }
+  function addFocusToggle(frame: HTMLElement): void {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "focus-toggle";
+    b.addEventListener("click", () => applyFocus(!document.body.classList.contains("map-focus")));
+    frame.appendChild(b);
+    focusBtn = b;
+    applyFocus(false);
+  }
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && document.body.classList.contains("map-focus")) applyFocus(false);
+  });
+
   // city cell -> the <span> naming its realm in the list, refilled whenever the year changes
   const realmCells = new Map<number, HTMLElement>();
 
@@ -295,26 +326,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     });
     frame.appendChild(legendBtn);
 
-    // The map is sized by the vertical room the title, the toolbar and the scrubber leave it, so
-    // widening the page cannot make it bigger while the height is what binds. This takes the chrome
-    // away instead and gives the window to the map, keeping the scrubber — a map of one year is
-    // half the map. Not remembered: a reload that dropped a reader onto a chrome-less screen would
-    // be a worse surprise than re-pressing a button.
-    const focusBtn = document.createElement("button");
-    focusBtn.type = "button";
-    focusBtn.className = "focus-toggle";
-    const syncFocus = (on: boolean) => {
-      document.body.classList.toggle("map-focus", on);
-      focusBtn.setAttribute("aria-pressed", String(on));
-      focusBtn.textContent = t(lang, on ? "focusExit" : "focusEnter");
-      focusBtn.title = t(lang, on ? "focusExitHint" : "focusEnterHint");
-    };
-    syncFocus(false);
-    focusBtn.addEventListener("click", () => syncFocus(!document.body.classList.contains("map-focus")));
-    document.addEventListener("keydown", (e) => {
-      if (e.key === "Escape" && document.body.classList.contains("map-focus")) syncFocus(false);
-    });
-    frame.appendChild(focusBtn);
+    addFocusToggle(frame);
 
     // The best thing this map has is behind its markers, and until the reader knows a marker leads
     // somewhere there is nothing to tell them so. A list is the signal: it says "there are cities
@@ -447,6 +459,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     const frame = document.createElement("div");
     frame.className = "map-frame";
     frame.appendChild(citySvg);
+    addFocusToggle(frame);
 
     // A plate carried its name and nothing else, and there was no way off it but back to the world
     // map to hunt for another dot. The facts are the ones the world can actually answer for — the
