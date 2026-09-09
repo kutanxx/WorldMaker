@@ -18,6 +18,15 @@ import { eventText } from "./eventText";
 // Declared here rather than imported from the UI: the engine is DOM-free.
 export type ChronicleLang = "en" | "ko";
 
+// English ordinals, for the accession lines. Gluing "th" onto the number is right from the fourth
+// ruler to the twentieth and wrong for every first, second and third — the teens are the trap on
+// the way past that, since eleven, twelve and thirteen take "th" although one, two and three do not.
+function ordinalEn(n: number): string {
+  const tens = n % 100;
+  if (tens >= 11 && tens <= 13) return `${n}th`;
+  return `${n}${["th", "st", "nd", "rd"][n % 10] ?? "th"}`;
+}
+
 /** What a line is about. Event kinds come straight from the simulation; the rest are mined. */
 export type ChronicleKind =
   | HistoryEventType | "foundings"
@@ -113,7 +122,12 @@ function mined(world: World, history: History, lang: ChronicleLang,
   // simulation reaches equilibrium and simply stops producing events. A century with nothing in it
   // is not an absence of history — it is a century in which the borders held, and saying so is
   // worth a line to anyone reading this for material.
-  for (let t = 0; t < series.length; t++) {
+  // Year zero is not one of them. The founding line already says how many realms stand and names
+  // every one of them, so a standing there repeats it a sentence later in weaker words — and the
+  // "greatest realm" it would crown is an accident of where the seeds fell, not something a realm
+  // did. The wart was invisible while this ran only into the download; it appeared the moment the
+  // chronicle reached the screen.
+  for (let t = 1; t < series.length; t++) {
     const year = history.snapshots[t].year;
     if (year % 100 !== 0) continue;
     let alive = 0, top = -1, tv = 0, held = 0;
@@ -188,7 +202,7 @@ function mined(world: World, history: History, lang: ChronicleLang,
       if (rankAt(pid, r.from) > 3) continue;
       out.push({ year: r.from, rank: 4, kind: "accession", text: ko
         ? `${r.from}년, ${nameOf(pid)}의 ${r.ordinal}대 ${r.name} 즉위`
-        : `Year ${r.from} — ${r.name}, ${r.ordinal}th of ${nameOf(pid)}, takes the seat` });
+        : `Year ${r.from} — ${r.name}, ${ordinalEn(r.ordinal)} of ${nameOf(pid)}, takes the seat` });
     }
   }
 

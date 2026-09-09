@@ -80,8 +80,13 @@ svg.world .legend { pointer-events: none; }
 .city-label { font-family: 'EB Garamond', Georgia, serif; }
 .region-label { font-family: 'EB Garamond', Georgia, serif; opacity: .85; }
 .world-name-text { font-family: 'Cinzel', serif; font-weight: 600; letter-spacing: .08em; }
+/* The chronicle grew from 42-56 lines to 95-121 when the panel started telling the whole history
+   rather than the recorded events alone, and 240px of it is ten lines — half a century through a
+   slot. It is the last thing on the page, so height here pushes nothing off; `max()` keeps the old
+   240px as a floor on short windows and gives a tall one nearly half its height. Measured live at
+   1280x900: 10 lines visible before, 18 after. */
 .chronicle {
-  max-height: 240px; overflow: auto; padding: 8px 14px; margin-top: 12px;
+  max-height: max(240px, 45vh); overflow: auto; padding: 8px 14px; margin-top: 12px;
   background: #f6efdd; border: 1px solid #cbb784; border-radius: 6px;
 }
 .chronicle h3 { font-family: 'Cinzel', serif; font-size: 16px; margin: 4px 0 8px; color: #3c2f1c; }
@@ -242,7 +247,6 @@ svg.world .legend { pointer-events: none; }
 .play-actions .replay-bar { display: flex; align-items: center; gap: 10px; width: 100%; }
 .play-actions .replay-bar .timeline-slider { flex: 1; min-width: 0; }
 .replay-title { font-weight: 600; white-space: nowrap; }
-.chronicle { max-height: 240px; }
 
 /* onboarding + guidance: how-to card (a floating overlay, not another stacked box), legend, advice */
 .howto-slot:not(:empty) {

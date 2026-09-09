@@ -185,10 +185,19 @@ describe("exported chronicle is byte-stable across the shared-assembler move", (
     const i = md.indexOf(marker);
     return i < 0 ? "" : md.slice(i);
   };
+  // Re-pinned once, deliberately: the year-zero century standing was dropped because it repeated
+  // the founding line ("N realms stand") a sentence later. Exactly ONE line left each seed — the
+  // counts fell 122/120/96 to 121/119/95 and nothing else — which is what a change that removes one
+  // line and touches nothing else looks like. Any future move here that shifts a count by more than
+  // it claims to is a bug, not a re-pin.
+  //
+  // Re-pinned a second time, in ENGLISH ONLY: "2th of Syalyear" became "2nd of Syalyear". The counts
+  // held and the Korean hashes held — Korean writes the ordinal as `2대` and never had the bug — so
+  // the three English hashes moving alone is the whole signature of an English-wording fix.
   const pins: Record<number, { en: number; ko: number; lines: number }> = {
-    1: { en: 2079463290, ko: 1853907116, lines: 122 },
-    2: { en: 1185095847, ko: 2430776732, lines: 120 },
-    3: { en:  845363759, ko:  789889609, lines:  96 },
+    1: { en: 3936766834, ko:  495620584, lines: 121 },
+    2: { en: 2157229777, ko: 3591025200, lines: 119 },
+    3: { en:  135696735, ko: 2296620177, lines:  95 },
   };
   for (const seed of [1, 2, 3]) {
     it(`reproduces the pinned chronicle for seed ${seed}`, () => {

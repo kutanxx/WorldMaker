@@ -104,7 +104,7 @@ describe("the panel tells the same chronicle the download does", () => {
       .filter((r) => /takes the seat$/.test(r.textContent ?? ""));
     expect(seats.length).toBeGreaterThan(0);
     // the ruler's own name, not just the realm's: "<name>, Nth of <realm>, takes the seat"
-    expect(seats[0].textContent).toMatch(/^Year \d+ — \w+, \d+th of \w+, takes the seat$/);
+    expect(seats[0].textContent).toMatch(/^Year \d+ — \w+, \d+(?:st|nd|rd|th) of \w+, takes the seat$/);
   });
 
   it("says where the world stands at each century, so a quiet century is not a blank one", () => {
