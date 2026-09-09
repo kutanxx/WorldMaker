@@ -121,9 +121,13 @@ export function worldToGazetteer(world: World, history: History, lang: Gazetteer
   const L: string[] = [];
 
   L.push(`# ${title}`, "");
+  // Both counts, because they are different numbers and the document uses both: the world begins
+  // with `world.polities`, and the Realms section below describes every realm that ever stood. This
+  // line said "a world of 8 realms" directly above a section describing nineteen — the last place
+  // in the document still answering as of year zero.
   L.push(ko
-    ? `${title}는 ${world.polities.length}개 나라와 ${world.cultures.length}개 민족의 세계다.`
-    : `${title} is a world of ${world.polities.length} realms and ${world.cultures.length} peoples.`, "");
+    ? `${title}는 ${world.cultures.length}개 민족의 세계다. ${world.polities.length}개 나라로 시작해, ${history.years}년 동안 모두 ${history.polities.length}개 나라가 서고 스러졌다.`
+    : `${title} is a world of ${world.cultures.length} peoples, founded by ${world.polities.length} realms; ${history.polities.length} in all rose and fell across its ${history.years} years.`, "");
 
   // ── The Land ────────────────────────────────────────────────────────────────
   L.push(ko ? "## 땅" : "## The Land", "");

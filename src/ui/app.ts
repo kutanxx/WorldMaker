@@ -520,7 +520,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
   regenBtn.addEventListener("click", () => regenerate({ ...params, seed: Number(seedInput.value) }));
   randomBtn.addEventListener("click", () => regenerate({ ...params, seed: randomSeed() }));
   jsonBtn.addEventListener("click", () =>
-    downloadBlob("world.json", new Blob([worldToJSON(generated.world)], { type: "application/json" }))
+    downloadBlob("world.json", new Blob([worldToJSON(generated.world, history)], { type: "application/json" }))
   );
   pngBtn.addEventListener("click", async () => {
     try {

@@ -316,3 +316,30 @@ describe("anArticle", () => {
     }
   });
 });
+
+// "Kenvor is a world of 8 realms and 5 peoples" — printed directly above a Realms section that now
+// describes nineteen. The count came from `world.polities`, the founding eight, and was the last
+// line in the document still answering as of year zero.
+describe("the opening line counts the realms the document describes", () => {
+  for (const seed of [1, 2, 3]) {
+    it(`agrees with its own Realms section (seed ${seed})`, () => {
+      const { world: w } = generateWorld({ ...DEFAULT_PARAMS, seed });
+      const h = simulateHistory(w, seed);
+      const md = worldToGazetteer(w, h, "en");
+      const described = (md.split("## Realms")[1] ?? "").split("## Free Ports")[0]
+        .split("\n").filter((l) => l.startsWith("### ")).length;
+      const opening = md.split("\n").slice(0, 4).join(" ");
+      expect(described).toBe(h.polities.length);
+      expect(opening).toContain(`${h.polities.length}`);          // the total it actually describes
+      expect(opening).toContain(`${w.polities.length} realms`);   // and the founding count, said as such
+      expect(opening).not.toBe(`${w.polities.length} realms and ${w.cultures.length} peoples.`);
+    });
+  }
+  it("says it in Korean too", () => {
+    const { world: w } = generateWorld({ ...DEFAULT_PARAMS, seed: 2 });
+    const h = simulateHistory(w, 2);
+    const opening = worldToGazetteer(w, h, "ko").split("\n").slice(0, 4).join(" ");
+    expect(opening).toContain(`${w.polities.length}개 나라`);
+    expect(opening).toContain(`${h.polities.length}개`);
+  });
+});

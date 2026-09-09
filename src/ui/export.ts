@@ -1,7 +1,43 @@
 import type { World } from "../types/world";
+import type { History } from "../engine/history";
+import { buildDynasties } from "../engine/dynasty";
+import { naturalHistory } from "../engine/naturalHistory";
 
-export function worldToJSON(world: World): string {
-  return JSON.stringify(world);
+/**
+ * The world, and the history that happened to it.
+ *
+ * This used to serialize `world` alone: geography, cultures, provinces, rivers and the EIGHT realms
+ * of year zero, with no snapshots, no events and no rulers. A reader taking their world into their
+ * own tool lost five centuries and was never told. The map export carries the scrubbed year and the
+ * gazetteer carries the whole chronicle, so a JSON without the history made the three exports tell
+ * three different stories.
+ *
+ * Structural, not narrated: the chronicle's SENTENCES are language-bound and belong to the
+ * gazetteer, so what travels here is the data they are rendered from — including the natural
+ * history, which is invented at render time and would otherwise be the one part of the story the
+ * machine-readable export could not reach.
+ *
+ * `history` is optional so a world can still be dumped on its own.
+ */
+export function worldToJSON(world: World, history?: History): string {
+  if (!history) return JSON.stringify(world);
+  const dynasties: Record<number, unknown> = {};
+  for (const [id, reigns] of buildDynasties(world, history)) dynasties[id] = reigns;
+  return JSON.stringify({
+    ...world,
+    history: {
+      years: history.years,
+      polities: history.polities,
+      events: history.events,
+      economicZones: history.economicZones,
+      cityFoundings: history.cityFoundings,
+      // typed arrays serialize as objects keyed by index; a plain array is what a consumer expects
+      snapshots: history.snapshots.map((s) => ({ year: s.year, owner: [...s.owner] })),
+      dynasties,
+      naturalHistory: naturalHistory(world, history, "en")
+        .map(({ year, kind, cityId, polityId }) => ({ year, kind, cityId, polityId })),
+    },
+  });
 }
 
 export function svgToString(svg: SVGSVGElement): string {
