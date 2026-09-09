@@ -1,5 +1,9 @@
 body {
   margin: 0;
+  /* Korean has no spaces inside a word but CSS will break one anywhere, which is how the front
+     page came to read "무작위 판타지 세계를 만들 / 고". `keep-all` breaks at word boundaries in
+     Korean and changes nothing for English. */
+  word-break: keep-all;
   font-family: 'EB Garamond', Georgia, serif;
   color: #2a2118;
   background-color: #e8dcc0;
@@ -149,9 +153,12 @@ svg.world .legend { pointer-events: none; }
 @media (max-width: 640px) {
   .app-title { font-size: 21px; padding: 8px 0 4px; letter-spacing: .06em; }
 }
+/* One card, in a row that was built for two. The other was the game's, and when it went this was
+   left as a 204px column of text stranded in 792px of parchment, breaking its own sentence across
+   three lines. A single card is allowed to be a comfortable width. */
 .choice-card {
   display: flex; flex-direction: column; align-items: center; text-align: center;
-  flex: 0 1 170px; max-width: 210px; text-decoration: none;
+  flex: 0 1 380px; max-width: 420px; text-decoration: none;
   background: #f6efdd; border: 1px solid #cbb784; border-radius: 10px; border-top: 3px solid #b7975a;
   padding: 14px 16px 13px; color: #2a2118; box-shadow: 0 1px 4px rgba(60,47,28,.15);
   transition: transform .12s, background .12s, box-shadow .12s;
@@ -236,7 +243,10 @@ svg.world .legend { pointer-events: none; }
   font-size: 13px; color: #42341f;
 }
 .city-fact { display: flex; align-items: baseline; gap: 7px; }
-.city-fact-key { color: #8a7a60; font-variant: small-caps; letter-spacing: 0.05em; }
+/* #8a7a60 read at 3.64:1 on the parchment — under the 4.5 AA asks of text this size, and these are
+   the smallest words on the page. #6b5d42 is already in the palette (the advanced dials use it) and
+   measures 5.60, so the muted register is kept without the legibility cost. */
+.city-fact-key { color: #6b5d42; font-variant: small-caps; letter-spacing: 0.05em; }
 .city-fact-value { display: inline-flex; flex-wrap: wrap; gap: 6px; align-items: baseline; }
 .city-facts .neighbour {
   font: inherit; padding: 1px 8px; border-radius: 9px; cursor: pointer;
@@ -249,9 +259,17 @@ svg.world .legend { pointer-events: none; }
    an invitation — the list says "there are cities here" by existing, and it is reachable by
    keyboard without anything being added for it. It sits beside the map on a wide screen and folds
    under it on a narrow one. */
-.map-with-list { display: grid; grid-template-columns: minmax(0, 1fr) 210px; gap: 12px; align-items: start; }
-.city-list { border: 1px solid #cbb784; border-radius: 6px; background: #f6efdc; padding: 8px 6px 8px 10px; max-height: 620px; overflow: auto; }
-.city-list h2 { margin: 0 0 6px; font-size: 13px; font-variant: small-caps; letter-spacing: 0.08em; color: #8a7a60; font-weight: 600; }
+/* The map sets the height of this row and the list follows it. With `align-items: start` and a
+   620px cap the list was the taller of the two — 638px of towns against a 557px map — so a band of
+   bare parchment sat under the map inside its own frame, and the stage read as unfinished. The
+   `height: 0; min-height: 100%` pair is what keeps the list OUT of the row's intrinsic size: it
+   contributes nothing, then fills whatever the map asked for. */
+.map-with-list { display: grid; grid-template-columns: minmax(0, 1fr) 210px; gap: 12px; align-items: stretch; }
+.city-list {
+  border: 1px solid #cbb784; border-radius: 6px; background: #f6efdc; padding: 8px 6px 8px 10px;
+  height: 0; min-height: 100%; overflow: auto;
+}
+.city-list h2 { margin: 0 0 6px; font-size: 13px; font-variant: small-caps; letter-spacing: 0.08em; color: #6b5d42; font-weight: 600; }
 .city-list ul { list-style: none; margin: 0; padding: 0; }
 .city-list-item {
   display: flex; justify-content: space-between; gap: 8px; align-items: baseline; width: 100%;
@@ -260,9 +278,10 @@ svg.world .legend { pointer-events: none; }
 }
 .city-list-item:hover { background: #e7d9b6; }
 .city-list-item.is-capital .city-list-name { font-weight: 600; }
-.city-list-realm { color: #8a7a60; font-size: 11.5px; white-space: nowrap; }
+.city-list-realm { color: #6b5d42; font-size: 11.5px; white-space: nowrap; }
 @media (max-width: 900px) {
   .map-with-list { grid-template-columns: minmax(0, 1fr); }
-  .city-list { max-height: 240px; }
+  /* stacked: the list no longer sits beside the map, so it has no height to follow */
+  .city-list { height: auto; min-height: 0; max-height: 240px; }
 }
 @media (pointer: coarse) { .city-list-item { min-height: 36px; } }
