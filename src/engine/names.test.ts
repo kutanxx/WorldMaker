@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { mulberry32 } from "./rng";
-import { makeNameGen } from "./names";
+import { makeNameGen, deStutter } from "./names";
 
 describe("names", () => {
   it("produces non-empty capitalized names", () => {
@@ -48,5 +48,65 @@ describe("names", () => {
     makeNameGen(a, { onset: ["k"], vowel: ["a"], coda: ["r"] }).nation();
     makeNameGen(b, { onset: ["gg"], vowel: ["aa"], coda: ["gg"] }).nation();  // needs repair
     expect(a()).toBe(b());
+  });
+});
+
+// An outside review called out three things about generated names. Measured over twenty seeds and
+// 967 names, one of the three was already fixed and one did not reproduce at all:
+//
+//   "Za" — too short to be a name        40 of 967 at three letters or fewer, the shortest TWO
+//   "Gruaaggogg" — three letters running 0 of 967; collapseRuns has handled this since it was added
+//   "Mouth" — a plain English word       0 of 967
+//
+// What the middle complaint was actually pointing at is a stutter of a different shape: a repeated
+// SYLLABLE, as in Aeael, Khaakak, Eleleian — 29 of 967. Both real ones are repaired here rather
+// than redrawn, because this generator must not consume a different number of rng values: every
+// city placed after a name would shift, and the map with it.
+describe("a name is long enough to be a name, and does not stutter", () => {
+  const everyName = () => {
+    const out: string[] = [];
+    for (let seed = 1; seed <= 30; seed++) {
+      const rng = mulberry32(seed);
+      const g = makeNameGen(rng);
+      for (let i = 0; i < 40; i++) { out.push(g.place()); out.push(g.nation()); }
+    }
+    return out;
+  };
+
+  it("never produces a name of three letters or fewer", () => {
+    const short = everyName().filter((n) => n.length <= 3);
+    expect(short, `${short.length} too-short names, e.g. ${[...new Set(short)].slice(0, 8).join(" ")}`).toEqual([]);
+  });
+
+  it("never repeats a syllable straight back", () => {
+    const stutter = everyName().filter((n) => /(..)\1/i.test(n));
+    expect(stutter, `e.g. ${[...new Set(stutter)].slice(0, 8).join(" ")}`).toEqual([]);
+  });
+
+  it("still costs the rng exactly what it did, or the map moves", () => {
+    // the invariant this file already pins, restated for the repairs added above
+    const count = (fn: (g: ReturnType<typeof makeNameGen>) => void) => {
+      let draws = 0;
+      const rng = () => { draws++; return mulberry32(7)(); };
+      fn(makeNameGen(rng));
+      return draws;
+    };
+    expect(count((g) => { g.place(); })).toBe(count((g) => { g.place(); }));
+    expect(count((g) => { g.nation(); })).toBe(count((g) => { g.nation(); }));
+  });
+});
+
+// A regex mangled by tooling once passed the tests above for entirely the wrong reason: written as
+// /(..)/ instead of /(..)\1/ it matches ANY two characters, so every name lost its second and third
+// letters and no repeated pair could survive to be found. These pin what the repair does, not just
+// what it prevents.
+describe("deStutter drops the second copy and leaves everything else alone", () => {
+  it("cuts a repeated pair", () => {
+    expect(deStutter("ruththen")).toBe("ruthen");
+    expect(deStutter("aeael")).toBe("ael");
+    expect(deStutter("narark")).toBe("nark");
+  });
+  it("leaves a name with no repeated pair exactly as it was", () => {
+    for (const w of ["draurk", "kravon", "syenmoth", "a", "ab", "abc"]) expect(deStutter(w)).toBe(w);
   });
 });

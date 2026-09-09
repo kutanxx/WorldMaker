@@ -192,10 +192,24 @@ describe("simulateHistory golden anchor (behaviour lock)", () => {
   // the words changed. `polities` folds `p.name` beside endedYear/origin/free, and realm names come
   // from the same phonetics, so it moves for the same reason and by the same licence. Seed 3 did not
   // move at all: nothing it names happens to have been renamed.
+  // 2026-09-09: `events` and `polities` re-pinned on all three seeds, and nothing else. An outside
+  // review of the live site said generated names were uneven — "Za" too short, "Mouth" a plain
+  // English word, "Gruaaggogg" three letters running. Measured over twenty seeds and 967 names, one
+  // of the three was already handled (collapseRuns: 0 triples) and one did not occur at all (0
+  // English words); the two that were real are a name of three letters or fewer (40 of 967, the
+  // shortest TWO) and a repeated SYLLABLE — Aeael, Khaakak, Ruththen (29 of 967). names.ts repairs
+  // both, and repairs them the way that file insists on: no redraw, so the generator consumes the
+  // same count and nothing downstream of a name moves.
+  //
+  // The licence for this re-pin is the paragraph above: all four counts and `allSnap` came back
+  // byte-identical on every seed — 1648675569 / 4266384045 / 325069013, as pinned since 2026-09-06
+  // — so the simulation ran the same 500 years over the same map and only the words changed.
+  // `events` folds the rendered sentence and `polities` folds `p.name`, so both move for that
+  // reason and no other.
   const anchors: Record<number, { snaps: number; pols: number; evs: number; econ: number; allSnap: number; events: number; polities: number }> = {
-    1: { snaps: 51, pols: 20, evs: 56, econ: 3, allSnap: 1648675569, events: 3929536011, polities: 2314983389 },
-    2: { snaps: 51, pols: 17, evs: 48, econ: 3, allSnap: 4266384045, events:  657182638, polities: 3071929438 },
-    3: { snaps: 51, pols: 17, evs: 42, econ: 3, allSnap:  325069013, events: 3576030188, polities: 1274101309 },
+    1: { snaps: 51, pols: 20, evs: 56, econ: 3, allSnap: 1648675569, events: 1047327764, polities: 2701230301 },
+    2: { snaps: 51, pols: 17, evs: 48, econ: 3, allSnap: 4266384045, events: 3650362872, polities:   38386429 },
+    3: { snaps: 51, pols: 17, evs: 42, econ: 3, allSnap:  325069013, events: 2096907607, polities: 1808909891 },
   };
   for (const seed of [1, 2, 3]) {
     it(`reproduces the pinned hashes for seed ${seed}`, () => {
