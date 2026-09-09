@@ -74,7 +74,6 @@ svg.world .compass,
 svg.world .map-frame,
 svg.world .legend { pointer-events: none; }
 .nation-label { font-family: 'Cinzel', serif; font-weight: 600; }
-.nation-label.player { font-weight: 700; }
 /* The map's own label faces. Sizes are set per-tier on the elements themselves, since they have to
    survive SVG/PNG export, where no stylesheet comes along. */
 .city-label { font-family: 'EB Garamond', Georgia, serif; }

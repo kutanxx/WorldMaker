@@ -2,7 +2,7 @@ import type { World } from "../types/world";
 import { svgEl, legendPanel, INK, LEGEND_TITLE_H, LEGEND_TEXT } from "./renderer";
 import { cellPath, segPath } from "./svgPaths";
 import { politicalBorders } from "../engine/borders";
-import { nationColor, nationCentroids, PLAYER_LABEL_COLOR } from "./nationPalette";
+import { nationColor, nationCentroids } from "./nationPalette";
 
 type GridLike = Pick<World["grid"], "count" | "polygons" | "neighbors" | "points" | "width" | "height">;
 
@@ -11,8 +11,6 @@ export interface PoliticalOpts {
   labels?: boolean;
   legend?: boolean;
   legendTitle?: string; // what the swatches are a key to, already in the reader's language
-  playerPolity?: number; // play mode: render this polity in the reserved player colour + mark its label
-  playerColor?: string;
   /**
    * What colour a realm is drawn in. Defaults to `nationColor`, which indexes the palette by id and
    * therefore draws id 12 exactly like id 0 — see `assignNationColors`, which is what a caller with
@@ -47,12 +45,11 @@ export function politicalLayer(
     }
     for (const [id, d] of byPolity) {
       const free = freeSet.has(id);
-      const isPlayer = id === opts.playerPolity;
       g.appendChild(svgEl("path", {
-        class: free ? "territory free-city" : isPlayer ? "territory player" : "territory",
+        class: free ? "territory free-city" : "territory",
         "data-polity": id, d,
-        fill: free ? FREE_COLOR : isPlayer ? (opts.playerColor ?? colorOf(id)) : colorOf(id),
-        "fill-opacity": free ? 0.72 : isPlayer ? 0.72 : 0.58,
+        fill: free ? FREE_COLOR : colorOf(id),
+        "fill-opacity": free ? 0.72 : 0.58,
       }));
     }
   }
@@ -103,17 +100,13 @@ export function politicalLayer(
         if (c.cells < MIN_LABEL_CELLS) continue;
         const name = nameOf.get(id);
         if (!name) continue;
-        const isPlayer = id === opts.playerPolity;
         const t = svgEl("text", {
-          class: isPlayer ? "nation-label player" : "nation-label", x: c.x, y: c.y, "text-anchor": "middle",
+          class: "nation-label", x: c.x, y: c.y, "text-anchor": "middle",
           "font-size": 11,
-          // player label: gold text + dark halo, so it stays legible ON the magenta player realm
-          // (matching-hue magenta text blended in); AI labels keep near-black text + cream halo
-          fill: isPlayer ? PLAYER_LABEL_COLOR : "#2a2118",
-          stroke: isPlayer ? "#2a1420" : "#f3ead2", "stroke-width": 2.5,
+          fill: "#2a2118", stroke: "#f3ead2", "stroke-width": 2.5,
           "paint-order": "stroke", "stroke-linejoin": "round",
         });
-        t.textContent = isPlayer ? `♛ ${name}` : name;
+        t.textContent = name;
         labels.appendChild(t);
       }
       g.appendChild(labels);

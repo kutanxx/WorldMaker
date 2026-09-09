@@ -4,7 +4,7 @@ import { generateWorld } from "../engine/world";
 import { DEFAULT_PARAMS } from "../types/world";
 import { simulateHistory } from "../engine/history";
 import { politicalLayer } from "./politicalLayer";
-import { nationColor, PLAYER_COLOR, PLAYER_LABEL_COLOR } from "./nationPalette";
+import { nationColor } from "./nationPalette";
 
 const small = { ...DEFAULT_PARAMS, width: 300, height: 300, cellCount: 400, townCount: 6 };
 const { world } = generateWorld({ ...small, seed: 1 });
@@ -79,30 +79,18 @@ describe("politicalLayer", () => {
     expect(g.querySelectorAll(".nation-legend .legend-item").length).toBeGreaterThan(0);
   });
 
-  it("draws the player's nation in the reserved player color with a ♛-marked bold label", () => {
-    // player owns 30 cells (>=25) so its label renders; a single polity keeps the fixture simple
-    const owner = new Int32Array(world.grid.count).fill(-1);
-    for (let i = 0; i < 30; i++) owner[i] = 0;
-    const polities = [{ id: 0, name: "Mine", free: false }];
-    const g = politicalLayer(world.grid, owner, polities, {
-      fills: true, labels: true, playerPolity: 0, playerColor: PLAYER_COLOR,
-    });
-    const terr = g.querySelector('path.territory[data-polity="0"]') as SVGElement;
-    expect(terr.getAttribute("fill")).toBe(PLAYER_COLOR);
-    expect(terr.getAttribute("fill-opacity")).toBe("0.72");
-    expect(terr.classList.contains("player")).toBe(true);
-    const label = g.querySelector(".nation-label.player") as SVGElement;
-    expect(label).not.toBeNull();
-    expect(label.textContent!.startsWith("♛")).toBe(true);
-    expect(label.getAttribute("fill")).toBe(PLAYER_LABEL_COLOR); // player label text is gold — legible on the magenta realm
-  });
-
-  it("leaves fills/labels unchanged when no playerPolity is passed (Version A path)", () => {
+  // Restated: there is no "player" realm any more — the game that had one is gone — so what this
+  // pins is that every realm is drawn the same way, in its palette colour under a plain label.
+  it("draws every realm the same way, in its own colour under a plain label", () => {
     const owner = new Int32Array(world.grid.count).fill(-1);
     for (let i = 0; i < 30; i++) owner[i] = 0;
     const g = politicalLayer(world.grid, owner, [{ id: 0, name: "Mine", free: false }], { fills: true, labels: true });
-    expect((g.querySelector('path.territory[data-polity="0"]') as SVGElement).getAttribute("fill")).toBe(nationColor(0));
-    expect(g.querySelector(".nation-label.player")).toBeNull();
+    const terr = g.querySelector('path.territory[data-polity="0"]') as SVGElement;
+    expect(terr.getAttribute("fill")).toBe(nationColor(0));
+    expect(terr.getAttribute("fill-opacity")).toBe("0.58");
+    const label = g.querySelector(".nation-label") as SVGElement;
+    expect(label.textContent).toBe("Mine");
+    expect(label.getAttribute("fill")).toBe("#2a2118");
   });
 
   it("reflects a later snapshot differently once borders have shifted", () => {

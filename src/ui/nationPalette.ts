@@ -97,16 +97,6 @@ export function assignNationColors(
   return new Map([...chosen].map(([id, c]) => [id, NATION_PALETTE[c]]));
 }
 
-// The player's realm is always rendered in this reserved signature colour (play mode only), so
-// "which realm is mine" needs no swatch-matching. Deep magenta: the one hue family absent from the
-// map (no pinks), colourblind-safe (Okabe-Ito reddish-purple), avoids the blue↔purple confusion a
-// violet would cause given the map's many blues. Render-time only — not seeded.
-export const PLAYER_COLOR = "#c0247a";
-
-// The player's nation LABEL text — gold, so it stays legible ON the magenta player territory
-// (magenta text blended in). Gold contrasts strongly with magenta and matches the gold ♛ crown.
-export const PLAYER_LABEL_COLOR = "#f0c040";
-
 type GridLike = Pick<World["grid"], "count" | "points">;
 
 export interface Centroid {
