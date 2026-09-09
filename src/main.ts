@@ -1,6 +1,6 @@
 import "./theme.css";
 import { createApp } from "./ui/app";
-import { initialParams } from "./ui/urlState";
+import { initialParams, initialSeedName } from "./ui/urlState";
 
 const root = document.getElementById("app");
-if (root) createApp(root, initialParams(location.hash));
+if (root) createApp(root, initialParams(location.hash), initialSeedName(location.hash) ?? undefined);

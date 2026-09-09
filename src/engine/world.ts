@@ -11,7 +11,11 @@ import { assignCultures } from "./culture";
 import { traceRivers, nameRivers } from "./rivers";
 import { buildProvinces, PROVINCE_SALT } from "./provinces";
 
-export function generateWorld(params: WorldParams): GeneratedWorld {
+/**
+ * @param nameOverride what to call this world, when the reader asked for a name. The draw for the
+ * generated name is taken either way, so the rng stream behind everything else is unchanged.
+ */
+export function generateWorld(params: WorldParams, nameOverride?: string): GeneratedWorld {
   const rng = mulberry32(params.seed);
   const grid = generateGrid(rng, params.width, params.height, params.cellCount);
   const heights = assignHeights(rng, grid);
@@ -118,7 +122,7 @@ export function generateWorld(params: WorldParams): GeneratedWorld {
   // polity/cities and the golden regression) is byte-unchanged; reads the built biome array
   const geoRng = mulberry32(deriveSeed(params.seed, 8001));
   const regions = nameGeography(geoRng, detectRegions(grid, Array.from(biome), Array.from(terrain)));
-  const name = worldName(geoRng);
+  const name = nameOverride ?? worldName(geoRng);
 
   // river NAMES on a SEPARATE stream (8002); geometry was already traced (rng-free) above, so the
   // golden regression stays byte-unchanged

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { DEFAULT_PARAMS } from "../types/world";
-import { encodeParams, decodeParams, initialParams, randomSeed, parseSeedValue } from "./urlState";
+import { encodeParams, decodeParams, initialParams, initialSeedName, randomSeed, parseSeedValue } from "./urlState";
 import { hashStringToSeed } from "../engine/rng";
 
 describe("urlState", () => {
@@ -62,5 +62,15 @@ describe("parseSeedValue", () => {
     expect(parseSeedValue(null)).toBeNull();
     expect(parseSeedValue("")).toBeNull();
     expect(parseSeedValue("   ")).toBeNull();
+  });
+});
+
+describe("initialSeedName", () => {
+  it("hands back the name a world was asked for, and nothing when it was a number", () => {
+    expect(initialSeedName("#seed=Avalon")).toBe("Avalon");
+    expect(initialSeedName("#seed=" + encodeURIComponent("아발론"))).toBe("아발론");
+    expect(initialSeedName("#seed=731"), "a number is a seed, not a name").toBeNull();
+    expect(initialSeedName(encodeParams({ ...DEFAULT_PARAMS, seed: 9 })), "a share link is not a name").toBeNull();
+    expect(initialSeedName("")).toBeNull();
   });
 });

@@ -5,6 +5,7 @@ import { renderWorld, politicalOpts, type MapView } from "./svgWorldRenderer";
 import { renderCity } from "./svgCityRenderer";
 import { generateCityLayout, cityContext } from "../engine/city";
 import { encodeParams, randomSeed } from "./urlState";
+import { hashStringToSeed } from "../engine/rng";
 import { worldToJSON, svgToString, svgToPngBlob, downloadBlob } from "./export";
 import { worldToGazetteer } from "../engine/gazetteer";
 import { simulateHistory } from "../engine/history";
@@ -27,7 +28,14 @@ export interface App {
 }
 
 
-export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARAMS): App {
+/**
+ * @param askedName what the reader called this world, when they arrived by naming one. The landing
+ * page invites them to "start from a name" and the name used to be hashed to a seed and discarded,
+ * so a world asked to be "아발론" came back called "The Old Lands". It is kept for as long as it
+ * is true — a fresh seed is a different world and takes a name of its own.
+ */
+export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARAMS, askedName?: string): App {
+  let worldTitle: string | null = askedName ?? null;
   root.innerHTML = "";
 
   const controls = document.createElement("div");
@@ -37,7 +45,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
   root.append(controls, stage);
 
   let params: WorldParams = { ...initial };
-  let generated: GeneratedWorld = generateWorld(params);
+  let generated: GeneratedWorld = generateWorld(params, worldTitle ?? undefined);
   let history = simulateHistory(generated.world, params.seed);
   let timeline: Timeline | null = null;
   let worldZoom: ZoomPan | null = null;
@@ -196,7 +204,11 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     timeline = createTimeline(history, renderYear);
     stage.append(timeline.element, chronicle);
     timeline.setIndex(currentYearIndex); // renders the current year in the current view
-    location.hash = encodeParams(params).slice(1);
+    // a named world keeps its name in the address, so a reload or a shared link still opens the
+    // world the reader asked for rather than a stranger with the same seed
+    location.hash = worldTitle !== null
+      ? "seed=" + encodeURIComponent(worldTitle)
+      : encodeParams(params).slice(1);
   }
 
   function openCity(cityId: number): void {
@@ -237,7 +249,9 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
   function regenerate(p: WorldParams): void {
     params = { ...p };
     seedInput.value = String(params.seed);
-    generated = generateWorld(params);
+    // a new seed is a new world, and it is not the one the reader named
+    if (params.seed !== hashStringToSeed(worldTitle ?? "")) worldTitle = null;
+    generated = generateWorld(params, worldTitle ?? undefined);
     history = simulateHistory(generated.world, params.seed);
     currentYearIndex = 0;
     showWorld();

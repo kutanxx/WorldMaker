@@ -158,3 +158,16 @@ describe("a coastal city knows which way the water is", () => {
     for (const c of inland) expect(c.seaBearing).toBeUndefined();
   });
 });
+
+describe("a world can be given its name", () => {
+  it("wears the name it was asked for, and is otherwise the same world", () => {
+    const params = { ...DEFAULT_PARAMS, seed: 12 };
+    const plain = generateWorld(params).world;
+    const named = generateWorld(params, "Avalon").world;
+    expect(plain.name).not.toBe("Avalon");
+    expect(named.name).toBe("Avalon");
+    // the name must not disturb the generation: every other thing about the world is untouched
+    const strip = (w: typeof plain) => JSON.stringify({ ...w, name: "" });
+    expect(strip(named)).toBe(strip(plain));
+  });
+});

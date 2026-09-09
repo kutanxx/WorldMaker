@@ -1,7 +1,4 @@
 import "./theme.css";
-import { hashStringToSeed } from "./engine/rng";
-import { encodeParams } from "./ui/urlState";
-import { DEFAULT_PARAMS } from "./types/world";
 import { dailyName, dailyTarget } from "./ui/daily";
 
 // A share URL is a hash whose base64 payload is JSON carrying a finite numeric `seed`
@@ -23,10 +20,14 @@ export function redirectTarget(hash: string): string | null {
 
 // "Narnia" → a shareable map URL. The name is hashed to a seed, so the same word always opens the
 // same world. It used to also return a `play` target; the games it pointed at are gone.
+//
+// The link carries the NAME, not the hash of it. The seed is the same either way — map.html reads
+// `#seed=Narnia` and hashes it exactly as this used to — but the word survives the trip, so the
+// world can be called what it was asked to be called instead of being handed a generated name.
 export function nameTargets(name: string): { map: string } | null {
   const t = name.trim();
   if (t.length === 0) return null;
-  return { map: "map.html" + encodeParams({ ...DEFAULT_PARAMS, seed: hashStringToSeed(t) }) };
+  return { map: "map.html#seed=" + encodeURIComponent(t) };
 }
 
 export function renderChooser(root: HTMLElement): void {

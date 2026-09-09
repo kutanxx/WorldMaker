@@ -2,6 +2,7 @@
 import { describe, it, expect } from "vitest";
 import { DEFAULT_PARAMS } from "../types/world";
 import { createApp } from "./app";
+import { hashStringToSeed } from "../engine/rng";
 
 const small = { ...DEFAULT_PARAMS, width: 300, height: 300, cellCount: 400, townCount: 6 };
 
@@ -297,5 +298,31 @@ describe("a city opens from the keyboard", () => {
       expect(root.querySelector("svg.city"), `${key} did not open the city`).not.toBeNull();
       root.remove();
     }
+  });
+});
+
+// "start from a name" and then the name was hashed to a seed and thrown away: an outside review
+// typed "아발론" and the world came back called "The Old Lands".
+describe("a world the reader named", () => {
+  it("is called what it was asked to be called, and keeps the name in the address", async () => {
+    const root = document.createElement("div");
+    document.body.appendChild(root);
+    createApp(root, { ...DEFAULT_PARAMS, seed: hashStringToSeed("Avalon") }, "Avalon");
+    await new Promise((r) => setTimeout(r, 0));
+    expect(root.querySelector(".world-name-text")?.textContent).toBe("Avalon");
+    expect(location.hash).toBe("#seed=Avalon");
+    root.remove();
+  });
+
+  it("lets go of the name when the reader asks for a different world", async () => {
+    const root = document.createElement("div");
+    document.body.appendChild(root);
+    const app = createApp(root, { ...DEFAULT_PARAMS, seed: hashStringToSeed("Avalon") }, "Avalon");
+    await new Promise((r) => setTimeout(r, 0));
+    app.regenerate({ ...DEFAULT_PARAMS, seed: 4242 });
+    await new Promise((r) => setTimeout(r, 0));
+    expect(root.querySelector(".world-name-text")?.textContent).not.toBe("Avalon");
+    expect(location.hash).not.toBe("#seed=Avalon");
+    root.remove();
   });
 });

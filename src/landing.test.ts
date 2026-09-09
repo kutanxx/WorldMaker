@@ -35,14 +35,16 @@ describe("renderChooser", () => {
 
 import { nameTargets } from "./landing";
 import { hashStringToSeed } from "./engine/rng";
-import { decodeParams } from "./ui/urlState";
+import { initialParams } from "./ui/urlState";
 
 describe("nameTargets", () => {
+  // the link used to be a base64 payload, which is why the name it was made from could not be
+  // read back out of it; it is the readable form now and initialParams reads both
   it("routes a name to the map it names, the same world every time", () => {
     const t = nameTargets("Narnia")!;
-    expect(decodeParams(t.map.replace(/^map\.html/, "")).seed).toBe(hashStringToSeed("Narnia"));
+    expect(initialParams(t.map.replace(/^map\.html/, "")).seed).toBe(hashStringToSeed("Narnia"));
     const ko = nameTargets("나니아")!;
-    expect(decodeParams(ko.map.replace(/^map\.html/, "")).seed).toBe(hashStringToSeed("나니아"));
+    expect(initialParams(ko.map.replace(/^map\.html/, "")).seed).toBe(hashStringToSeed("나니아"));
   });
   it("empty/whitespace names route nowhere", () => {
     expect(nameTargets("")).toBeNull();
@@ -78,5 +80,20 @@ describe("daily framing copy", () => {
     const sub = root.querySelector(".landing-daily-sub");
     expect(sub).not.toBeNull();
     expect(sub!.textContent).toContain("UTC");
+  });
+});
+
+// The input says "start from a name", and the name was used as a seed and then thrown away: an
+// outside review typed "아발론" and the world came out called "The Old Lands". The name has to
+// survive the trip, so the link carries it in a form the map can read back.
+describe("a named world is called by its name", () => {
+  it("carries the name in the link, not just its hash", () => {
+    expect(nameTargets("Avalon")!.map).toBe("map.html#seed=Avalon");
+    expect(nameTargets(" 아발론 ")!.map).toBe("map.html#seed=" + encodeURIComponent("아발론"));
+    expect(nameTargets("  ")).toBeNull();
+  });
+  it("still opens the same world it always did for a given name", () => {
+    const target = nameTargets("Narnia")!.map;
+    expect(initialParams(target.slice(target.indexOf("#"))).seed).toBe(hashStringToSeed("Narnia"));
   });
 });

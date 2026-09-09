@@ -35,6 +35,18 @@ export function parseSeedValue(raw: string | null): number | null {
 // catch to DEFAULT_PARAMS, whose seed is 1, so every readable link quietly opened world 1 instead
 // of the world it named. (The app rewrites the hash to the canonical form once it has generated,
 // so the readable name lives in the link that was shared rather than in the address bar after.)
+// The name a world was ASKED for, when the link carried one. The landing page invites the reader
+// to "start from a name" and then used it only as a seed and threw it away: an outside review typed
+// "아발론" and got back a world called "The Old Lands". A number is a seed, not a name.
+export function initialSeedName(hash: string): string | null {
+  const raw = hash.replace(/^#/, "");
+  if (raw.length === 0) return null;
+  const v = new URLSearchParams(raw).get("seed");
+  if (v === null) return null;
+  const t = v.trim();
+  return t.length > 0 && !/^\d+$/.test(t) ? t : null;
+}
+
 export function initialParams(hash: string): WorldParams {
   const raw = hash.replace(/^#/, "");
   if (raw.length === 0) return { ...DEFAULT_PARAMS, seed: randomSeed() };
