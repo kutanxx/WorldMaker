@@ -90,6 +90,9 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
 
   // set every UI string from the current language (called on init and on language toggle)
   function applyLang(): void {
+    // the document's own language, which is what a screen reader and a translation tool go by:
+    // map.html declares lang="ko" and it used to stay that way whatever the toggle said
+    document.documentElement.lang = lang;
     homeBtn.textContent = t(lang, "home");
     homeBtn.title = t(lang, "homeLabel"); // the house carries it; the word cost the toolbar a second row
     regenBtn.textContent = t(lang, "generate");
@@ -213,7 +216,9 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
       deconflictLabels(svg, z); // hide colliding lower-priority labels, and those the zoom has not earned yet
     };
 
-    timeline = createTimeline(history, renderYear);
+    // ...in the reader's language. Without this the timeline took its own Korean default and an
+    // English reader was shown "500년" on the scrubber.
+    timeline = createTimeline(history, renderYear, (y) => t(lang, "year").replace("{y}", String(y)));
     stage.append(timeline.element, chronicle);
     timeline.setIndex(currentYearIndex); // renders the current year in the current view
     // replaceState, not location.hash: re-rendering the same world is not a place to come back to,

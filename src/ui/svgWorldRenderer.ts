@@ -1,5 +1,5 @@
 import type { World } from "../types/world";
-import { svgEl, legendPanel, starPath, compassRose, mapFrame, INK, PARCHMENT, LEGEND_TITLE_H } from "./renderer";
+import { svgEl, legendPanel, starPath, compassRose, mapFrame, INK, PARCHMENT, LEGEND_TITLE_H, LEGEND_TEXT } from "./renderer";
 import { displayBiomes } from "./displayBiome";
 import { OCEAN, ALPINE, BIOME_COLORS } from "../engine/biome";
 import { type Lang, biomeName, t } from "./i18n";
@@ -257,7 +257,7 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
     present.forEach((bm, i) => {
       const y = y0 + i * 14;
       legend.appendChild(svgEl("rect", { class: "legend-item", x: x0, y: y - 8, width: 10, height: 10, fill: BIOME_COLORS[bm], stroke: INK, "stroke-width": 0.6, "vector-effect": "non-scaling-stroke" }));
-      const t = svgEl("text", { x: x0 + 16, y: y, "font-size": 9, fill: "#42341f", "letter-spacing": 0.3 });
+      const t = svgEl("text", { x: x0 + 18, y: y, "font-size": LEGEND_TEXT, fill: "#42341f", "letter-spacing": 0.3 });
       t.textContent = biomeName(lang, bm);
       legend.appendChild(t);
     });

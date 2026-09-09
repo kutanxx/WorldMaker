@@ -1,5 +1,5 @@
 import type { World } from "../types/world";
-import { svgEl, legendPanel, INK, LEGEND_TITLE_H } from "./renderer";
+import { svgEl, legendPanel, INK, LEGEND_TITLE_H, LEGEND_TEXT } from "./renderer";
 import { t, type Lang } from "./i18n";
 import { cellPath, segPath } from "./svgPaths";
 import { politicalBorders } from "../engine/borders";
@@ -163,7 +163,7 @@ export function provinceLayer(
     rows.forEach(([label, mark], i) => {
       const y = y0 + i * 14;
       lg.appendChild(mark(x0, y));
-      const tx = svgEl("text", { x: x0 + 18, y, "font-size": 8.5, fill: INK });
+      const tx = svgEl("text", { x: x0 + 20, y, "font-size": LEGEND_TEXT, fill: INK });
       tx.textContent = label;
       lg.appendChild(tx);
     });

@@ -23,6 +23,13 @@ export const PARCHMENT = "#f3ead2";
 // a dot at each corner, all in the map's own ink.
 // The room a heading needs above the rows. Callers add it to the panel's height and put the panel
 // that much further from the rows, so the swatches do not move.
+// A key nobody can read is a key nobody has. Measured on the live page, legend text rendered at
+// 8.7-9.2 CSS pixels against a widest label of 28.8 units inside a 104-unit panel — small enough to
+// squint at, with three quarters of the panel standing empty. One size for every key on both maps,
+// because they were 9 in one place, 8.5 in another and 7 on the city plate.
+export const LEGEND_TEXT = 11;
+export const LEGEND_TITLE = 10.5;
+export const LEGEND_ROW = 15;      // was 14: taller type needs the room
 export const LEGEND_TITLE_H = 17; // 15 left the heading 2 units off the first swatch; measured
 
 /**
@@ -30,7 +37,7 @@ export const LEGEND_TITLE_H = 17; // 15 left the heading 2 units off the first s
  * thing on these maps is set in the display face, and the legend was the one panel saying nothing
  * about itself.
  */
-export function legendPanel(x: number, y: number, w: number, h: number, title?: string, titleSize = 8.5): SVGElement {
+export function legendPanel(x: number, y: number, w: number, h: number, title?: string, titleSize = LEGEND_TITLE): SVGElement {
   const g = svgEl("g", { class: "legend-panel" });
   const rule = { fill: "none", stroke: INK, "vector-effect": "non-scaling-stroke" };
   g.appendChild(svgEl("rect", {

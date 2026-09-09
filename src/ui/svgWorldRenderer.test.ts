@@ -536,3 +536,43 @@ describe("the province view explains itself", () => {
     expect(words).toContain("Seat");
   });
 });
+
+// A key nobody can read is a key nobody has. Measured on the live page the legend text rendered at
+// 8.7 to 9.2 CSS pixels — and the panel it sat in was three quarters empty, so the smallness bought
+// nothing. It was also three different sizes: 9 on the world, 8.5 on the province key, 7 on a city
+// plate.
+describe("the keys can be read", () => {
+  const world = () => generateWorld({ ...DEFAULT_PARAMS, seed: 5 }).world;
+  it("sets the world's keys at one size, big enough to read", () => {
+    for (const view of ["terrain", "political", "culture", "province"] as const) {
+      const svg = renderWorld(world(), view);
+      const sizes = [...svg.querySelectorAll(".legend text")]
+        .filter((t) => !t.classList.contains("legend-title"))
+        .map((t) => Number(t.getAttribute("font-size")));
+      expect(sizes.length, `${view} has no key`).toBeGreaterThan(0);
+      expect(new Set(sizes).size, `${view} mixes sizes`).toBe(1);
+      // the map is 1000 units drawn at roughly that many CSS pixels, so units are pixels
+      expect(sizes[0], `${view} key text`).toBeGreaterThanOrEqual(11);
+    }
+  });
+  it("keeps every label inside its panel, in both languages", () => {
+    let checked = 0;
+    for (const lang of ["en", "ko"] as const) {
+      for (const view of ["terrain", "political", "culture", "province"] as const) {
+        const svg = renderWorld(world(), view, [], lang);
+        const panel = svg.querySelector(".legend .legend-panel rect") as SVGRectElement | null;
+        if (!panel) continue;
+        const right = Number(panel.getAttribute("x")) + Number(panel.getAttribute("width"));
+        for (const t of svg.querySelectorAll(".legend text")) {
+          checked++;
+          // jsdom has no text metrics; approximate a generous per-character width
+          const chars = (t.textContent ?? "").length;
+          const size = Number(t.getAttribute("font-size"));
+          const end = Number(t.getAttribute("x")) + chars * size * 0.62;
+          expect(end, `${lang}/${view}: "${t.textContent}" runs past its panel`).toBeLessThan(right);
+        }
+      }
+    }
+    expect(checked, "no legend label was actually measured").toBeGreaterThan(30);
+  });
+});

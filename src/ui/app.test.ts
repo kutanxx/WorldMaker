@@ -89,7 +89,9 @@ describe("createApp", () => {
     const slider = root.querySelector(".timeline input[type=range]") as HTMLInputElement;
     slider.value = slider.max; // last frame = year 500
     slider.dispatchEvent(new Event("input"));
-    expect((root.querySelector(".timeline-year") as HTMLElement).textContent).toBe("500년");
+    // the year, not the Korean spelling of it: the readout is in the reader's language now, and
+    // this used to pin "500년" whatever the toggle said
+    expect((root.querySelector(".timeline-year") as HTMLElement).textContent).toContain("500");
   });
   it("defaults to terrain view (no territory fills)", () => {
     const root = document.createElement("div");
@@ -127,7 +129,7 @@ describe("createApp", () => {
     slider.value = slider.max;
     slider.dispatchEvent(new Event("input"));
     (Array.from(root.querySelectorAll(".view-toggle button")).find((b) => b.textContent === "Political") as HTMLButtonElement).click();
-    expect((root.querySelector(".timeline-year") as HTMLElement).textContent).toBe("500년");
+    expect((root.querySelector(".timeline-year") as HTMLElement).textContent).toContain("500");
   });
   it("mounts zoom controls on the world map and again on a city drilldown", () => {
     const root = document.createElement("div");
@@ -403,5 +405,30 @@ describe("a city is a place you can come back to", () => {
     await new Promise((r) => setTimeout(r, 0));
     expect(root.querySelector(".city-name-text"), "a shared city link opened the world map").not.toBeNull();
     root.remove();
+  });
+});
+
+// The timeline was created without a formatYear, so it fell back to the Korean default and an
+// English reader saw "500년" on the scrubber. The document's own language never changed either:
+// map.html declares lang="ko" and it stayed that way whatever the toggle said, which is what a
+// screen reader and a translation tool go by.
+describe("the language toggle changes the language", () => {
+  const yearText = (root: HTMLElement) => root.querySelector(".timeline-year")?.textContent ?? "";
+  it("writes the year in the reader's language, and tells the document which one it is", async () => {
+    localStorage.setItem("wm:lang", "en");
+    const root = document.createElement("div");
+    document.body.appendChild(root);
+    createApp(root, { ...DEFAULT_PARAMS, seed: 5 });
+    await new Promise((r) => setTimeout(r, 0));
+    expect(yearText(root), "the scrubber is still in Korean").not.toContain("년");
+    expect(document.documentElement.lang).toBe("en");
+
+    const btn = [...root.querySelectorAll("button")].find((b) => /한국어|English/.test(b.textContent ?? ""))!;
+    btn.click();
+    await new Promise((r) => setTimeout(r, 0));
+    expect(yearText(root)).toContain("년");
+    expect(document.documentElement.lang).toBe("ko");
+    root.remove();
+    localStorage.removeItem("wm:lang");
   });
 });

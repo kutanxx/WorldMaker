@@ -1,5 +1,5 @@
 import type { World } from "../types/world";
-import { svgEl, legendPanel, INK, LEGEND_TITLE_H } from "./renderer";
+import { svgEl, legendPanel, INK, LEGEND_TITLE_H, LEGEND_TEXT } from "./renderer";
 import { cellPath, segPath } from "./svgPaths";
 import { politicalBorders } from "../engine/borders";
 import { nationColor, nationCentroids, PLAYER_LABEL_COLOR } from "./nationPalette";
@@ -128,7 +128,7 @@ export function politicalLayer(
           class: "legend-item", x: x0, y: y - 8, width: 10, height: 10,
           fill: nationColor(id), stroke: INK, "stroke-width": 0.6, "vector-effect": "non-scaling-stroke",
         }));
-        const t = svgEl("text", { x: x0 + 16, y, "font-size": 9, fill: "#42341f", "letter-spacing": 0.3 });
+        const t = svgEl("text", { x: x0 + 18, y, "font-size": LEGEND_TEXT, fill: "#42341f", "letter-spacing": 0.3 });
         t.textContent = nameOf.get(id) ?? "";
         legend.appendChild(t);
       });

@@ -1,5 +1,5 @@
 import type { World } from "../types/world";
-import { svgEl, legendPanel, INK, LEGEND_TITLE_H } from "./renderer";
+import { svgEl, legendPanel, INK, LEGEND_TITLE_H, LEGEND_TEXT } from "./renderer";
 import { t } from "./i18n";
 import type { Lang } from "./i18n";
 import { cellPath, segPath } from "./svgPaths";
@@ -74,7 +74,7 @@ export function cultureLayer(
   present.forEach((id, i) => {
     const y = y0 + i * 14;
     legend.appendChild(svgEl("rect", { class: "legend-item", x: x0, y: y - 8, width: 10, height: 10, fill: cultures[id]?.color ?? "#888", stroke: INK, "stroke-width": 0.6, "vector-effect": "non-scaling-stroke" }));
-    const t = svgEl("text", { x: x0 + 16, y, "font-size": 9, fill: "#42341f", "letter-spacing": 0.3 });
+    const t = svgEl("text", { x: x0 + 18, y, "font-size": LEGEND_TEXT, fill: "#42341f", "letter-spacing": 0.3 });
     t.textContent = cultures[id]?.name ?? "";
     legend.appendChild(t);
   });

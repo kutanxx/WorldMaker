@@ -552,7 +552,7 @@ export function renderCity(layout: CityLayout, lang: Lang = "en"): SVGSVGElement
   items.forEach(([color, label], i) => {
     const y = y0 + i * 11;
     legend.appendChild(svgEl("rect", { class: "legend-item", x: x0, y: y - 6, width: 8, height: 8, fill: color, stroke: INK, "stroke-width": 0.6 }));
-    const txt = svgEl("text", { x: x0 + 12, y, "font-size": 7, fill: "#42341f", "letter-spacing": 0.3 });
+    const txt = svgEl("text", { x: x0 + 14, y, "font-size": 9, fill: "#42341f", "letter-spacing": 0.3 });
     txt.textContent = label;
     legend.appendChild(txt);
   });
