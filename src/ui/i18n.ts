@@ -94,6 +94,16 @@ export const UI: Record<Lang, Record<string, string>> = {
     cityPlanOf: "Plan of",
     compassN: "N", langToggle: "한국어", home: "🏠", homeLabel: "Home",
     legendTerrain: "Terrain", legendRealms: "Realms", legendCultures: "Cultures", legendDistricts: "Districts",
+    // the front page. It used to print every line in both languages at once, so neither read well.
+    landingTagline: "A procedural fantasy atlas & chronicle",
+    landingCardTitle: "Create a World",
+    landingCardDesc: "Generate a random fantasy world — explore its map, cities, rivers, history, and gazetteer.",
+    landingNamePlaceholder: "start from a name (e.g. Narnia)",
+    landingCreate: "Create",
+    landingDaily: "Daily World",
+    landingDailySub: "A new world every midnight UTC — everyone shares today's world.",
+    landingPreviewOf: "Today's world",
+    landingPreviewOpen: "Open it",
   },
   ko: {
     generate: "생성", randomSeed: "랜덤 시드", exportJson: "JSON",
@@ -116,6 +126,15 @@ export const UI: Record<Lang, Record<string, string>> = {
     cityPlanOf: "도면 —",
     compassN: "북", langToggle: "EN", home: "🏠", homeLabel: "홈",
     legendTerrain: "지형", legendRealms: "나라", legendCultures: "문화", legendDistricts: "구역",
+    landingTagline: "절차적으로 만들어지는 판타지 지도와 연대기",
+    landingCardTitle: "세계 만들기",
+    landingCardDesc: "무작위 판타지 세계를 만들고 — 지도, 도시, 강, 역사, 가제티어를 살펴봅니다.",
+    landingNamePlaceholder: "세계의 이름으로 시작 (예: Narnia)",
+    landingCreate: "만들기",
+    landingDaily: "오늘의 세계",
+    landingDailySub: "매일 자정(UTC) 새로운 세계 — 오늘은 모두가 같은 세계를 봅니다.",
+    landingPreviewOf: "오늘의 세계",
+    landingPreviewOpen: "열어보기",
   },
 };
 

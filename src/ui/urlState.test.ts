@@ -70,6 +70,12 @@ describe("initialSeedName", () => {
     expect(initialSeedName("#seed=Avalon")).toBe("Avalon");
     expect(initialSeedName("#seed=" + encodeURIComponent("아발론"))).toBe("아발론");
     expect(initialSeedName("#seed=731"), "a number is a seed, not a name").toBeNull();
+    // The daily key is a machine key, not a name a reader gave the world. Used as a title it put
+    // "DAILY-2026-09-09" in the cartouche where a world's name goes — on the map page, and then on
+    // the front page too once that started drawing today's world. The seed is unaffected: it comes
+    // from hashing the same string either way, so today's world is still today's world.
+    expect(initialSeedName("#seed=daily-2026-09-09"), "a daily key names a day, not a world").toBeNull();
+    expect(initialSeedName("#seed=Dailyn"), "a real name that merely starts with the word").toBe("Dailyn");
     expect(initialSeedName(encodeParams({ ...DEFAULT_PARAMS, seed: 9 })), "a share link is not a name").toBeNull();
     expect(initialSeedName("")).toBeNull();
   });

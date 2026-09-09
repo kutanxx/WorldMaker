@@ -61,7 +61,13 @@ export function initialSeedName(hash: string): string | null {
   const v = new URLSearchParams(raw).get("seed");
   if (v === null) return null;
   const t = v.trim();
-  return t.length > 0 && !/^\d+$/.test(t) ? t : null;
+  if (t.length === 0 || /^\d+$/.test(t)) return null;
+  // `daily-2026-09-09` is a machine key, not a name a reader gave the world, and using it as one
+  // printed "DAILY-2026-09-09" in the cartouche where a world's name belongs. Falling through to
+  // null lets the generator name the daily world the way it names a random one; the SEED is
+  // untouched, since that comes from hashing the same string either way.
+  if (/^daily-\d{4}-\d{2}-\d{2}$/.test(t)) return null;
+  return t;
 }
 
 export function initialParams(hash: string): WorldParams {
