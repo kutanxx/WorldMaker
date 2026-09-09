@@ -3,6 +3,7 @@ import type { History, HistoryEventType } from "./history";
 import { withJosa } from "./korean";
 import { buildDynasties, rulerAt, type Reign } from "./dynasty";
 import { eventText } from "./eventText";
+import { naturalHistory } from "./naturalHistory";
 
 // One chronicle, assembled once, read by two readers. The downloaded gazetteer and the panel on the
 // site were filling their chronicles from different code: the gazetteer told the recorded events
@@ -30,7 +31,9 @@ function ordinalEn(n: number): string {
 /** What a line is about. Event kinds come straight from the simulation; the rest are mined. */
 export type ChronicleKind =
   | HistoryEventType | "foundings"
-  | "peak" | "fall" | "loss" | "surge" | "hegemon" | "century" | "culture" | "accession";
+  | "peak" | "fall" | "loss" | "surge" | "hegemon" | "century" | "culture" | "accession"
+  // the world's natural history: invented, but landed on towns the atlas drew (naturalHistory.ts)
+  | "plague" | "fire" | "flood" | "winter" | "famine";
 
 /** `rank` only orders lines that share a year, so the output is stable. */
 export interface ChronicleLine { year: number; rank: number; kind: ChronicleKind; text: string }
@@ -243,6 +246,7 @@ export function buildChronicle(world: World, history: History, lang: ChronicleLa
     told.push({ year: ev.year, rank: 0, kind: ev.type, text: eventText(ev, history.polities, lang) });
   }
   told.push(...mined(world, history, lang, dyn));
+  told.push(...naturalHistory(world, history, lang));
   // Stable: year, then kind, then the order each was produced in — no comparison falls through to
   // chance, so the same world always reads the same way.
   told.forEach((t, i) => ((t as ChronicleLine & { i: number }).i = i));

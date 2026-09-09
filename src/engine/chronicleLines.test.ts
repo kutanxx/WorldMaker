@@ -96,3 +96,26 @@ describe("the ordinal an English accession is written with", () => {
     expect(ordinals.has("2th")).toBe(false);
   });
 });
+
+// The chronicle recorded only politics. A world's natural history — plague, fire, flood, a killing
+// winter, a hungry year — is invented rather than simulated, so it lands on towns the atlas
+// actually drew (see naturalHistory.ts) and joins the same single chronicle both readers read.
+describe("the chronicle carries the world's natural history too", () => {
+  it("mixes the misfortunes in among the politics, in year order", () => {
+    const { world, history } = build(1);
+    const lines = buildChronicle(world, history, "en");
+    const natural = lines.filter((l) => ["plague", "fire", "flood", "winter", "famine"].includes(l.kind));
+    expect(natural.length).toBeGreaterThan(2);
+    const years = lines.map((l) => l.year);
+    for (let i = 1; i < years.length; i++) expect(years[i]).toBeGreaterThanOrEqual(years[i - 1]);
+  });
+
+  it("adds them to the chronicle rather than replacing anything in it", () => {
+    const { world, history } = build(2);
+    const lines = buildChronicle(world, history, "en");
+    const natural = lines.filter((l) => ["plague", "fire", "flood", "winter", "famine"].includes(l.kind));
+    // every recorded event still has its line: the sim's own events are untouched by any of this
+    expect(lines.length - natural.length).toBeGreaterThanOrEqual(history.events.length - 7);
+    expect(lines.some((l) => l.kind === "conquer")).toBe(true);
+  });
+});

@@ -185,19 +185,21 @@ describe("exported chronicle is byte-stable across the shared-assembler move", (
     const i = md.indexOf(marker);
     return i < 0 ? "" : md.slice(i);
   };
-  // Re-pinned once, deliberately: the year-zero century standing was dropped because it repeated
-  // the founding line ("N realms stand") a sentence later. Exactly ONE line left each seed — the
-  // counts fell 122/120/96 to 121/119/95 and nothing else — which is what a change that removes one
-  // line and touches nothing else looks like. Any future move here that shifts a count by more than
-  // it claims to is a bug, not a re-pin.
-  //
-  // Re-pinned a second time, in ENGLISH ONLY: "2th of Syalyear" became "2nd of Syalyear". The counts
-  // held and the Korean hashes held — Korean writes the ordinal as `2대` and never had the bug — so
-  // the three English hashes moving alone is the whole signature of an English-wording fix.
+  // Every re-pin below is deliberate, and each one names what it was allowed to move. The rule
+  // this lock exists to enforce: a change may only shift what it claims to shift.
+  //   1. The year-zero century standing was dropped (it repeated the founding line a sentence
+  //      later). Exactly one line left each seed: 122/120/96 to 121/119/95.
+  //   2. "2th of Syalyear" became "2nd". ENGLISH hashes only — the counts held and so did the
+  //      Korean, which writes `2대` and never had the bug.
+  //   3. The chronicle gained the world's natural history (plague, fire, flood, winter, famine),
+  //      and then those lines were fixed to stop striking one town twice and to stop letting the
+  //      commonest kind take the world. Added lines only, 4-7 a seed: 121/119/95 to 128/123/99.
+  //      The simulation's own `events` anchor in history.test.ts did not move through ANY of this,
+  //      which is what proves a chronicle grew and a world did not.
   const pins: Record<number, { en: number; ko: number; lines: number }> = {
-    1: { en: 3936766834, ko:  495620584, lines: 121 },
-    2: { en: 2157229777, ko: 3591025200, lines: 119 },
-    3: { en:  135696735, ko: 2296620177, lines:  95 },
+    1: { en: 1628513111, ko: 3818046477, lines: 128 },
+    2: { en: 3362919798, ko: 1241450364, lines: 123 },
+    3: { en: 1663392122, ko: 2554326478, lines:  99 },
   };
   for (const seed of [1, 2, 3]) {
     it(`reproduces the pinned chronicle for seed ${seed}`, () => {

@@ -109,6 +109,15 @@ svg.world .legend { pointer-events: none; }
 .chronicle-event.evt-hegemon { color: #7a5a2f; font-weight: 600; }
 .chronicle-event.evt-century { color: #6b5a3e; font-style: italic; margin-top: 4px; }
 .chronicle-event.evt-accession { color: #5c5142; }
+/* The world's natural history. These are the lines that are ABOUT a place rather than about a
+   realm, so they take their colour from the thing that happened rather than from the politics
+   around them — and they stay inside the parchment's warm range, since a chronicle that suddenly
+   goes primary at a fire reads as an alert box, not as a record. */
+.chronicle-event.evt-plague { color: #6a3a52; }
+.chronicle-event.evt-fire { color: #a8541f; }
+.chronicle-event.evt-flood { color: #35617a; }
+.chronicle-event.evt-winter { color: #4a6a80; }
+.chronicle-event.evt-famine { color: #7a6a2f; }
 /* The three export buttons each repeated the word "export" — 325px of a 1014px toolbar in Korean,
    274 in English — and that is what pushed the language toggle onto a second row in BOTH languages.
    (The toolbar's width comes from #app's 1040px cap, so the window's size never entered into it.)
