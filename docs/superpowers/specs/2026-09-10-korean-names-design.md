@@ -5,11 +5,12 @@ plus fix A, the repeated region noun). Awaiting spec review.
 
 ## The problem, measured
 
-The site is bilingual and the map is not. Measured on the live page at 1920x945, seed 1, with the
-UI in Korean: of roughly 45 labels on the world map, **17 are English phrases** — `the Bitter
-Jungle`, `Barrens of Dimbrerk`, `Moor of Thithle`, `Zash Fork`, `River Gruathgra` — and every
-proper noun beside them is Latin script: `Sahias`, `Khaagg`, `Krathgath`. A Korean reader gets a
-Korean interface wrapped around an English map.
+The site is bilingual and the map is not. Measured at 1920x945 on seed 1 with the UI in Korean,
+terrain view: **22 labels are visible on the world map and 20 of them are in Latin script.** Ten are
+English phrases — `THE BLACK FOREST`, `BARRENS OF DIMBRERK`, `MOOR OF THITHLE`, `the Green Deep` —
+and the rest are Latin proper nouns: `Sahias`, `Khaagg`, `Krathgath`. (The five river names are in
+the same state; none survived deconfliction at this view.) A Korean reader gets a Korean interface
+wrapped around an English map.
 
 Two different problems wear the same complaint:
 
@@ -97,9 +98,10 @@ syllable `스` tomorrow — and that is a correction, not a regression.
 ### 5. Fix A: the repeated region noun
 
 `Wilds` is in three biome tables. The fix is at selection rather than in the tables: when naming a
-world's regions, prefer a noun this world has not used yet. `pick` draws one rng value regardless of
-the array it is given, so **the draw count does not move and neither does any geometry** — but the
-English strings DO change, so this is its own commit with its own English re-pin.
+world's regions, prefer a noun this world has not used yet. `pick` is `arr[Math.floor(rng() * arr.length)]` — one
+draw whatever the array holds — so **the draw count does not move and neither does any geometry**
+(verified in `rng.ts`, not assumed). The English strings DO change, so this is its own commit with
+its own English re-pin.
 
 ## What must not move, and what may
 
