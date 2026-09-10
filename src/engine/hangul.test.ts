@@ -41,8 +41,9 @@ describe("toHangul", () => {
   });
 
   it("gives korean.ts a real final consonant instead of a guess", () => {
-    // The particle rule reads the Latin LETTER today. Hangul removes the guess: 스 closes on ㅅ.
-    expect(endsWithConsonant(toHangul("Sahias"))).toBe(true);
+    // 스 is ㅅ+ㅡ with empty 받침. Latin path guesses "ends in s" → 이; Hangul path reads the real
+    // empty consonant → 가. This is why we transliterate: to get the real answer instead of the guess.
+    expect(endsWithConsonant(toHangul("Sahias"))).toBe(false);
   });
 
   // Added, not briefed: the case above and this one disagree, and this is the one the particle
