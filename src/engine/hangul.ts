@@ -45,6 +45,12 @@ interface Cons {
   twin?: true;            // BEFORE a vowel it also leaves its 받침 behind, so the sound is written
                           // twice: 글라스, 플랜, 클럽, 슬라이드, 이탈리아, 줄리아. Only ㄹ does this,
                           // and only when it is not opening the word (Korean writes 라, 로 there).
+  glideVowel?: true;      // BEFORE a vowel, read the vowel as its Y-glide nucleus instead of its
+                          // plain one — 샤 섀 셔 셰 쇼 슈, the way `sy`/`ly` already do (샤워, 샴푸,
+                          // 쇼크, 슈퍼). A prevocalic [ʃ] takes a glide in Korean; a word-final or
+                          // preconsonantal one does not (시 either way — see `fill` above and
+                          // hangul.test.ts's `Sainkhaish`/`Dhaishdhar` pins), so this only touches
+                          // the branch where a vowel is actually found after the consonant.
 }
 
 // Consonants, longest key first when scanned. Each row names the tokens that put the letters here.
@@ -52,7 +58,11 @@ const CONSONANTS: [string, Cons][] = [
   // digraphs — names.ts already counts each of these as ONE sound (its DIGRAPHS list), and a reader
   // of Korean expects the same: Khaagg opens 카, not 크하.
   ["th", { on: "s", fill: "eu" }],                       // onset th, thr · coda th
-  ["sh", { on: "s", fill: "i" }],                        // onset sh, sha · coda sh
+  ["sh", { on: "s", fill: "i", glideVowel: true }],      // onset sh, sha · coda sh — prevocalic [ʃ]
+                                                         // takes the glide (Zaiashain 자이아샤인,
+                                                         // Shazar 샤자르); `fill` still gives 시 when
+                                                         // no vowel follows (Sainkhaish 사인카이시,
+                                                         // and the preconsonantal Dhaishdhar 다이시다르)
   ["kh", { on: "k", fill: "eu" }],                       // onset kh (guttural, sibilant) · coda kh
                                                          // (guttural) — it ends words, not just opens
   ["dh", { on: "d", fill: "eu" }],                       // onset dh
@@ -122,6 +132,10 @@ const VOWELS: [string, string[]][] = [
   ["y", ["i"]],            // nordic vowel y, onsets sy/ly — Thykhy is 시키
 ];
 
+// What a plain vowel nucleus becomes when `glideVowel` fires. `i` maps to itself because Korean's
+// own "yi" row (above) already resolves to the bare ㅣ — 시 either way, so `Shi` needs no case here.
+const Y_GLIDE: Record<string, string> = { a: "ya", e: "ye", i: "i", o: "yo", u: "yu" };
+
 const CONS_BY_KEY = new Map(CONSONANTS);
 const VOWEL_BY_KEY = new Map(VOWELS);
 const longestKey = (t: [string, unknown][]) => t.reduce((n, [k]) => Math.max(n, k.length), 0);
@@ -186,7 +200,12 @@ export function toHangul(word: string): string {
         const host = open();
         if (host) host.coda = rule.coda;
       }
-      vowelSyllables(after[1], rule.on);
+      // Only the FIRST nucleus can carry the glide — it is the one the onset actually meets. A run
+      // like `shai` still spills the rest into their own syllables the normal way (샤이, not 샤야이).
+      const nuclei = rule.glideVowel
+        ? after[1].map((n, k) => (k === 0 ? (Y_GLIDE[n] ?? n) : n))
+        : after[1];
+      vowelSyllables(nuclei, rule.on);
       continue;
     }
     // Nothing to open a syllable with. A word-final letter is one the reader stops on, so a

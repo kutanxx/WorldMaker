@@ -21,7 +21,9 @@ describe("eventText — Korean, and written in Korean", () => {
   // change: a Korean reader was being handed a Korean sentence with an English word in the middle
   // of it. NOTHING ELSE about the list moved — the same fifty events, in the same years, in the
   // same order, with the same verbs — and the particles still agree with the name they follow
-  // (자사인이 카악을, 자사인이 다이시다르를).
+  // (자샤인이 카악을, 자샤인이 다이시다르를) — "Zashain" reads 자샤인, not 자사인: `sh` before a
+  // vowel takes a Korean glide (hangul.ts's `glideVowel`), the same treatment `Zaiashain` gets in
+  // nameSuffix.test.ts, which is also why "Sashaish" below reads 사샤이시, not 사사이시.
 
   it("reproduces seed 1's chronicle line for line", () => {
     const h = simulateHistory(build(1), 1);
@@ -31,7 +33,7 @@ describe("eventText — Korean, and written in Korean", () => {
       "0년, 케우스두 건국",
       "0년, 스루스카 건국",
       "0년, 카아르그루스 건국",
-      "0년, 자사인 건국",
+      "0년, 자샤인 건국",
       "0년, 카악 건국",
       "0년, 라엘마에르 건국",
       "0년, 사인카이시 자유무역항 지정",
@@ -40,14 +42,14 @@ describe("eventText — Korean, and written in Korean", () => {
       "10년, 다이시다르 황금기 도래",
       "20년, 케우스두 황금기 도래",
       "20년, 카아르그루스가 그룩 건설",
-      "30년, 자사인 황금기 도래",
+      "30년, 자샤인 황금기 도래",
       "30년, 케우스두가 코리오르베안 건설",
       "40년, 라엘마에르가 코르브룩을 정복",
       "40년, 라엘마에르 황금기 도래",
       "40년, 다이시다르가 지아시다르 건설",
       "50년, 카악이 그라르 건설",
-      "60년, 카악이 사사이시 건설",
-      "90년, 자사인이 카악을 정복",
+      "60년, 카악이 사샤이시 건설",
+      "90년, 자샤인이 카악을 정복",
       "90년, 내란이 라엘마에르를 리아디아르·시아르브로르크로 쪼갬",
       "90년, 시아르브로르크가 엘라르샨 건설",
       "130년, 자유도시 흐레이르 독립 선포",
@@ -57,22 +59,22 @@ describe("eventText — Korean, and written in Korean", () => {
       "250년, 스루스카 황금기 도래",
       "260년, 자유도시 자즈사시 독립 선포",
       "260년, 시아르브로르크가 바슬리스 건설",
-      "270년, 내란이 자사인을 스티르크판드·미아란드로 쪼갬",
+      "270년, 내란이 자샤인을 스티르크판드·미아란드로 쪼갬",
       "300년, 미아란드가 사아르 건설",
-      "320년, 자사인이 다이시다르를 정복",
+      "320년, 자샤인이 다이시다르를 정복",
       "320년, 스티르크판드가 자즈사시 건설",
       "340년, 미아란드가 다아자이흐 건설",
       "350년, 스티르크판드가 리에르미올 건설",
       "360년, 미아란드가 아엘메이르 건설",
-      "380년, 내란이 자사인을 룬브리스·스타에스포움으로 쪼갬",
+      "380년, 내란이 자샤인을 룬브리스·스타에스포움으로 쪼갬",
       "380년, 스타에스포움 황금기 도래",
-      "380년, 자사인이 자라이르 건설",
+      "380년, 자샤인이 자라이르 건설",
       "400년, 자유도시 코리오르베안 독립 선포",
       "400년, 스티르크판드가 코라이스 건설",
       "410년, 스티르크판드가 드루르 건설",
-      "420년, 자사인이 미아란드를 정복",
+      "420년, 자샤인이 미아란드를 정복",
       "420년, 스타에스포움이 시키 건설",
-      "430년, 자사인이 케우스두를 정복",
+      "430년, 자샤인이 케우스두를 정복",
       "440년, 룬브리스가 흐레이르 건설",
       "460년, 자유도시 카아그 독립 선포",
       "500년, 스타에스포움이 스로르구그르 건설",

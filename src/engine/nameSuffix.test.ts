@@ -5,12 +5,13 @@ describe("Korean says what kind of thing a name is", () => {
   it("names a realm by the kind of state it is", () => {
     expect(realmLabelKo("Ceusdu", "kingdom")).toBe("케우스두 왕국");
     expect(realmLabelKo("Hreir", "republic")).toBe("흐레이르 공화국");
-    // The brief's own worked example writes this "자이아샤인 제국" (with 샤), but `toHangul` does not
-    // fuse "sh"+vowel into a y-glide anywhere — only the `sy`/`ly` onsets get that treatment (see
-    // hangul.ts's VOWELS "ya"/"ye"/"yo"/"yi" rows), and "Sainkhaish" is already pinned in
-    // hangul.test.ts as 사인카이시 (시, not a glide). Verified against the actual function rather than
-    // guessed: `toHangul("Zaiashain")` is deterministically "자이아사인", so that is what this locks.
-    expect(realmLabelKo("Zaiashain", "empire")).toBe("자이아사인 제국");
+    // Restored to the brief's original "자이아샤인 제국" (with 샤). A prior pass changed this to
+    // "자이아사인" on the theory that toHangul's `sh` never glides — but that was the bug, not the
+    // brief: Korean writes a PREVOCALIC [ʃ] with a glide (샤 섀 셔 셰 쇼 슈 시 — 샤워, 샴푸, 쇼크, 슈퍼),
+    // the same way its `sy`/`ly` onsets already do (see hangul.ts's `glideVowel` flag on the `sh`
+    // row). A word-final [ʃ] is still plain 시 — hangul.test.ts's "Sainkhaish" -> 사인카이시 pin is
+    // unaffected, since nothing follows that `sh` for a glide to apply to.
+    expect(realmLabelKo("Zaiashain", "empire")).toBe("자이아샤인 제국");
   });
   it("marks a people as a people rather than as a place", () => {
     expect(peopleLabelKo("Druthvrau")).toBe("드루스브라우인");

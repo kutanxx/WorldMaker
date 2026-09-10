@@ -107,6 +107,12 @@ describe("toHangul", () => {
     // two readings: the `sh` here is 시 while the `t` of Trous above is 트.
     expect(toHangul("Sainkhaish")).toBe("사인카이시");
 
+    // glideVowel — a PREVOCALIC [ʃ] takes a Korean glide (샤 섀 셔 셰 쇼 슈), the same treatment the
+    // `sy`/`ly` onsets already get above (Syansyen). The glide is why 샤워, 샴푸, 쇼크, 슈퍼 are
+    // spelled the way they are; final [ʃ] is not prevocalic, so it stays 시 (Sainkhaish, just above).
+    expect(toHangul("Shazar")).toBe("샤자르");
+    expect(toHangul("Shor")).toBe("쇼르");   // sho, isolated from an `ou`/`io` cluster on purpose
+
     // `t`'s 받침 is ㅅ (rocket 로켓). NOT a generated name: no coda token in names.ts or culture.ts
     // ends in `t`, so this row is unreachable from the tables and only a loanword can pin it.
     expect(toHangul("Rocket")).toBe("로켓");

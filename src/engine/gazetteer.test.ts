@@ -233,10 +233,17 @@ describe("exported chronicle is byte-stable across the shared-assembler move", (
   //      particles back off — and changing nothing else — reproduced ko 2399950495 / 2322413515 /
   //      796628344 and history.test.ts's `events` 718178238 / 2255964615 / 3415859447, the exact
   //      values pinned before this change, on all three seeds. `allSnap` never moved at all.
+  //   8. `toHangul`'s `sh` row learned to glide before a vowel (샤 셰 쇼 슈), matching how Korean
+  //      already writes a prevocalic [ʃ] (샤워, 샴푸, 쇼크, 슈퍼) and how the `sy`/`ly` onsets already
+  //      glide. `Zashain` reads 자샤인, not 자사인, and every name that carries `sh`+vowel with it
+  //      moves the same way — ONLY the KOREAN hashes move, and NOT ONE LINE COUNT does (123/130/105
+  //      before and after), because the change is a spelling correction, not an addition or a loss.
+  //      A word-final or preconsonantal `sh` (사인카이시, 지아시다르) is unaffected and out of scope,
+  //      which is why those names' English hashes and the line counts hold.
   const pins: Record<number, { en: number; ko: number; lines: number }> = {
-    1: { en: 4144700973, ko: 1430401842, lines: 123 },
-    2: { en: 2256232225, ko: 3713337419, lines: 130 },
-    3: { en: 3521961453, ko: 1423698531, lines: 105 },
+    1: { en: 4144700973, ko: 1536594626, lines: 123 },
+    2: { en: 2256232225, ko: 2181530387, lines: 130 },
+    3: { en: 3521961453, ko: 1233108995, lines: 105 },
   };
   for (const seed of [1, 2, 3]) {
     it(`reproduces the pinned chronicle for seed ${seed}`, () => {
