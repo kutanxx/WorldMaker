@@ -1,6 +1,6 @@
 import type { HistoryEvent, HistoryPolity } from "./historySim";
 import { withJosa } from "./korean";
-import { toHangul } from "./hangul";
+import { properNoun } from "./hangul";
 
 export type EventLang = "en" | "ko";
 
@@ -22,7 +22,7 @@ export function eventText(e: HistoryEvent, polities: HistoryPolity[], lang: Even
   // Realms and towns are single invented words, so Korean writes them the way it writes any foreign
   // name. Applied HERE rather than stored on the polity: the record keeps one name and the sentence
   // is built in the reader's language, which is the same rule the rest of this file follows.
-  const say = (s: string) => (ko ? toHangul(s) : s);
+  const say = (s: string) => properNoun(ko, s);
   const nameOf = (id: number) => say(polities[id]?.name ?? String(id));
   const y = e.year;
   const self = nameOf(e.polityId);

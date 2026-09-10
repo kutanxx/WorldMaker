@@ -1,7 +1,7 @@
 import type { World } from "../types/world";
 import type { History, HistoryEventType } from "./history";
 import { withJosa } from "./korean";
-import { toHangul } from "./hangul";
+import { properNoun } from "./hangul";
 import { buildDynasties, rulerAt, type Reign } from "./dynasty";
 import { eventText } from "./eventText";
 import { naturalHistory } from "./naturalHistory";
@@ -78,7 +78,7 @@ function mined(world: World, history: History, lang: ChronicleLang,
   });
   // Realms, peoples and rulers are single invented words: Korean writes a foreign name by
   // transliterating it, and the record keeps one name for both languages.
-  const say = (s: string) => (ko ? toHangul(s) : s);
+  const say = (s: string) => properNoun(ko, s);
   const nameOf = (p: number) => say(history.polities[p]?.name ?? String(p));
   // Who held the realm when it happened. A peak or a collapse with a name on it is a person's
   // reign; without one it is a statistic.
@@ -279,7 +279,7 @@ export function buildChronicle(world: World, history: History, lang: ChronicleLa
       const names = founded
         .map((e) => history.polities.find((p) => p.id === e.polityId)?.name)
         .filter((n): n is string => !!n)
-        .map((n) => (ko ? toHangul(n) : n));
+        .map((n) => properNoun(ko, n));
       told.push({ year: ev.year, rank: 0, kind: "foundings", text: ko
         ? `${ev.year}년, ${names.length}개 나라가 서다 — ${names.join(", ")}`
         : `Year ${ev.year} — ${names.length} realms stand: ${names.join(", ")}` });

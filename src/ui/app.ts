@@ -261,12 +261,15 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     const world = generated.world;
     const owner = snapOwnersToProvinces(world.grid.count, world.provinceOf, world.provinces,
                                         history.snapshots[yearIndex].owner);
+    // The list is a column of realm NAMES — a label, not a sentence — so it takes the same
+    // government suffix the map does, through the same seam. Built once outside the loop: every
+    // city in the list shares one labeller, and a fresh closure per row bought nothing but a
+    // Map.get(id) repeated once per row instead of once per year.
+    const labelOf = polityLabeller(lang, governmentForms);
     for (const [cell, el] of realmCells) {
       const o = owner[cell];
       const realm = o >= 0 ? history.polities[o]?.name : undefined;
-      // The list is a column of realm NAMES — a label, not a sentence — so it takes the same
-      // government suffix the map does, through the same seam.
-      el.textContent = realm === undefined ? "" : polityLabeller(lang, governmentForms)(o, realm);
+      el.textContent = realm === undefined ? "" : labelOf(o, realm);
     }
   }
 
@@ -360,8 +363,17 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     list.appendChild(listTitle);
     const ul = document.createElement("ul");
     realmCells.clear();
+    // The tiebreaker sorts by the name actually ON THE BUTTON, not the underlying Latin `c.name` —
+    // in Korean that RENDERS as `properName(lang, c.name)`, and sorting by the untransliterated name
+    // instead put same-size Korean towns in an order that reads as arbitrary to the reader who never
+    // sees the Latin form at all.
+    // The tiebreaker sorts by the name actually ON THE BUTTON, not the underlying Latin `c.name` —
+    // in Korean that RENDERS as `properName(lang, c.name)`, and sorting by the untransliterated name
+    // instead put same-size Korean towns in an order that reads as arbitrary to the reader who never
+    // sees the Latin form at all.
     const ordered = [...generated.world.cities].sort((a, b) =>
-      Number(b.isCapital) - Number(a.isCapital) || b.size - a.size || a.name.localeCompare(b.name));
+      Number(b.isCapital) - Number(a.isCapital) || b.size - a.size
+      || properName(lang, a.name).localeCompare(properName(lang, b.name)));
     for (const c of ordered) {
       const li = document.createElement("li");
       const b = document.createElement("button");

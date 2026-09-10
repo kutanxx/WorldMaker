@@ -1,4 +1,4 @@
-import { toHangul } from "../engine/hangul";
+import { toHangul, properNoun } from "../engine/hangul";
 import type { GovernmentForm } from "../engine/government";
 import { realmLabelKo, peopleLabelKo } from "../engine/nameSuffix";
 import type { Lang } from "./i18n";
@@ -16,9 +16,13 @@ import type { Lang } from "./i18n";
  *
  * Kept out of `i18n.ts` on purpose: that module's scope note says it localises UI chrome and NOT
  * generated content, and this is generated content.
+ *
+ * Delegates to `properNoun` (src/engine/hangul.ts) rather than restating `ko ? toHangul(s) : s`
+ * itself — that one-line rule was written out independently at six call sites (four in the engine,
+ * this one, and `chronicleLines.ts`'s second inline copy) as separate tasks each reached for it.
  */
 export function properName(lang: Lang, name: string): string {
-  return lang === "ko" ? toHangul(name) : name;
+  return properNoun(lang === "ko", name);
 }
 
 /**

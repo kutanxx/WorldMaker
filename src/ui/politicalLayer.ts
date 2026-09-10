@@ -46,10 +46,13 @@ export function politicalLayer(
   const recorded = new Map(polities.map((p) => [p.id, p.name]));
   const labelOf = opts.labelOf ?? ((_id: number, name: string) => name);
   // An unnamed realm stays unnamed: the labeller is asked only about names that exist, so it never
-  // has to invent one and the `if (!name)` guards below still mean what they meant.
+  // has to invent one and the `if (!name)` guards below still mean what they meant. `n` is checked
+  // for TRUTH rather than for `undefined`, because `""` is also not a name to hand the labeller —
+  // with a government form in hand, `labelOf(id, "")` can come back "왕국", a suffix with nothing to
+  // attach to, which is truthy and would slip the guards below a bare label they exist to stop.
   const nameOf = (id: number): string | undefined => {
     const n = recorded.get(id);
-    return n === undefined ? undefined : labelOf(id, n);
+    return n ? labelOf(id, n) : undefined;
   };
   const colorOf = opts.colorOf ?? nationColor;
   const freeSet = new Set(polities.filter((p) => p.free).map((p) => p.id));

@@ -13,7 +13,7 @@
 ## Global Constraints
 
 - **Determinism:** no task may change how many values come off any rng. `pick(rng, arr)` is `arr[Math.floor(rng() * arr.length)]` — one draw whatever the array holds — so editing a word TABLE is safe, but adding or removing a `pick`/`rng()` call is not.
-- **`allSnap` and the world goldens must never move.** `src/engine/history.test.ts` asserts `allSnap` before `events`/`polities`; `src/engine/world.test.ts` pins `polityOf=1350115163`, `cityCells=4294534188`, 28 cities. If any of those move, the change touched the engine — revert, do not re-pin.
+- **`allSnap` and the world goldens must never move.** `src/engine/history.test.ts` asserts `allSnap` before `events`/`polities`; `src/engine/world.test.ts` pins `polityOf=1026682088`, `cityCells=2824879792`, `provinceOf=2545381283`, 28 cities. If any of those move, the change touched the engine — revert, do not re-pin.
 - **English output must not move in Tasks 1-3 and 5.** Only Task 4 (region nouns) may move English, and it re-pins with the reason recorded.
 - **Korean re-pins are expected** in Task 3 and Task 5: `src/engine/gazetteer.test.ts` (the `ko` FNV) and any Korean literal in `src/ui/chronicle.test.ts`. **Line COUNTS must hold** (123/130/105) — a moved count means something was added or dropped, not translated.
 - **Engine stays DOM-free.** `toHangul` and `featureLabel` live in `src/engine/`; `src/ui/` may import them, never the reverse.

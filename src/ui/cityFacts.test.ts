@@ -105,6 +105,28 @@ describe("the realm line carries its form of government", () => {
   });
 });
 
+// I1: `cityFacts` feeds the plate's own name and its neighbours' names, and nothing asserted either
+// one was actually transliterated — deleting `properName(` from cityFacts.ts:70 or :76 left every
+// other test green while a Korean reader saw a Latin name in the facts panel beside a Hangul plate.
+describe("the facts panel names in the reader's language", () => {
+  const world = generateWorld({ ...DEFAULT_PARAMS, seed: 1 }).world;
+  const hasLatin = (s: string) => /[A-Za-z]/.test(s);
+
+  it("keeps the plate's own name and its neighbours' names out of Latin in Korean, and in Latin in English", () => {
+    const c = world.cities[0];
+    const layout = generateCityLayout(cityContext(c), 1);
+    for (const lang of ["en", "ko"] as const) {
+      const f = cityFacts(world, c, layout, lang, KM_PER_UNIT);
+      const names = [f.name, ...f.neighbours.map((n) => n.name)];
+      expect(names.length).toBeGreaterThan(1);   // the own name plus at least one neighbour
+      for (const name of names) {
+        if (lang === "ko") expect(hasLatin(name), `"${name}" has a Latin letter on the Korean plate`).toBe(false);
+        else expect(hasLatin(name), `"${name}" has no Latin letter in English`).toBe(true);
+      }
+    }
+  });
+});
+
 describe("the realm a plate names is the realm of a stated year", () => {
   const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 2 });
   const history = simulateHistory(world, 2);

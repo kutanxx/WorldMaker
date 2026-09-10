@@ -566,6 +566,32 @@ describe("the plate says what it is", () => {
     expect(svg.querySelector(":scope > title")?.textContent ?? "").toContain("Sah");
     expect(svg.querySelector(":scope > desc")?.textContent ?? "").not.toBe("");
   });
+
+  // I1: the city plate was the one Korean surface with no guard on its own name — `townName` feeds
+  // the root <title> AND the on-plate name text, and deleting `properName(` from either call site
+  // left the whole 800-test suite green while a Korean reader opened a town titled "Testburg" over
+  // a Hangul legend. Mirrors svgWorldRenderer.test.ts's "draws every map name in the language it
+  // was asked for", scoped to the two sites that test does not reach (it is the WORLD map's guard).
+  it("names the plate's own title and heading in the reader's language", () => {
+    const layout = generateCityLayout(cityContext(marker), 7);
+    const hasLatin = (s: string) => /[A-Za-z]/.test(s);
+    for (const lang of ["en", "ko"] as const) {
+      const svg = renderCity(layout, lang);
+      const rootTitle = svg.querySelector(":scope > title")?.textContent ?? "";
+      const nameText = svg.querySelector(".city-name-text")?.textContent ?? "";
+      expect(rootTitle, `${lang}: root title is empty`).not.toBe("");
+      expect(nameText, `${lang}: .city-name-text is empty`).not.toBe("");
+      if (lang === "ko") {
+        expect(hasLatin(rootTitle), `title "${rootTitle}" has a Latin letter on the Korean plate`).toBe(false);
+        expect(hasLatin(nameText), `name "${nameText}" has a Latin letter on the Korean plate`).toBe(false);
+      } else {
+        // asserted in English too, so this proves the language switch does something rather than
+        // that the generated name happens to be Hangul-free either way
+        expect(hasLatin(rootTitle), `title "${rootTitle}" has no Latin letter in English`).toBe(true);
+        expect(hasLatin(nameText), `name "${nameText}" has no Latin letter in English`).toBe(true);
+      }
+    }
+  });
 });
 
 // The countryside branched on biome in its COUNTS from the start and never in its picture: a taiga

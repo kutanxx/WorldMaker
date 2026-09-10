@@ -2,7 +2,7 @@ import type { World, CityMarker } from "../types/world";
 import type { History } from "./history";
 import { mulberry32, deriveSeed } from "./rng";
 import { withJosa } from "./korean";
-import { toHangul } from "./hangul";
+import { properNoun } from "./hangul";
 import { TUNDRA, TAIGA, ALPINE, TEMPERATE_FOREST, TROPICAL, DESERT } from "./biome";
 import type { ChronicleLang } from "./chronicleLines";
 
@@ -53,7 +53,7 @@ export function naturalHistory(world: World, history: History, lang: ChronicleLa
   const years = history.snapshots.map((s) => s.year).filter((y) => y > 0);
   // Towns and realms are single invented words; Korean transliterates a foreign name. Done at the
   // point the SENTENCE is built, so the record still keeps one name per place.
-  const say = (s: string) => (ko ? toHangul(s) : s);
+  const say = (s: string) => properNoun(ko, s);
   const realmName = (id: number) => say(history.polities[id]?.name ?? "");
 
   // Which towns each kind of misfortune is even possible in. A flood needs the river the atlas

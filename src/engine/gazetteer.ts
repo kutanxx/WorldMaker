@@ -7,7 +7,7 @@ import { buildDynasties } from "./dynasty";
 import { classifyGovernments } from "./government";
 import { buildChronicle } from "./chronicleLines";
 import { featureLabel, worldNameIn } from "./featureLabel";
-import { toHangul } from "./hangul";
+import { properNoun } from "./hangul";
 import { realmLabelKo, peopleLabelKo } from "./nameSuffix";
 // 는 was hardcoded after the world's title. It was harmless while the title was Latin and the rule
 // went by the final letter; a Hangul title is chosen by its final consonant, and 소덴드 takes 은.
@@ -132,7 +132,7 @@ export function worldToGazetteer(world: World, history: History, lang: Gazetteer
   // and a ruler are single invented words and are transliterated. `world.name` is "the Hollow
   // Realm" — it carries letters (w, p) that no invented word contains, and toHangul has no rule
   // for them.
-  const say = (n: string) => (ko ? toHangul(n) : n);
+  const say = (n: string) => properNoun(ko, n);
   // A people's own heading in "## 민족" STANDS ALONE as a label — the identical shape realmLabelKo
   // already earns for a realm's "### {name}" heading — so it takes peopleLabelKo's fused 인, not
   // `say`'s bare transliteration. Every other mention of a people's name in this document (the
