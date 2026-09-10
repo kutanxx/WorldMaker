@@ -112,7 +112,10 @@ export const NOUN_KO: Record<string, string> = {
   Peaks: "봉우리", Mountains: "산맥", Range: "연봉", Spires: "첨봉", Heights: "고지",
   // rivers (rivers.ts RIVER_NOUNS — the same table, because a river noun and a region noun can
   // never both be right for one label and keeping them apart would only add a second lookup)
-  River: "강", Water: "물줄기", Run: "개울", Fork: "갈래", Flow: "흐름", Race: "급류", Rill: "실개천",
+  River: "강", Water: "물줄기", Run: "개울", Fork: "갈래", Flow: "흐름", Rill: "실개천",
+  // Race (급류) left with the English word it translated: "the Iron Race" read as a people, not a
+  // water. 여울 is the shallow, quick stretch a beck IS, and shares no register with the six above.
+  Beck: "여울",
 };
 
 // The world's own nouns are a SEPARATE table, exactly as `WORLD_NOUN` is separate from `NOUNS` in

@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { traceRivers, nameRivers } from "./rivers";
+import { traceRivers, nameRivers, RIVER_NOUNS } from "./rivers";
+import { generateWorld } from "./world";
+import { DEFAULT_PARAMS } from "../types/world";
 import { mulberry32 } from "./rng";
 import { DEFAULT_PHON } from "./names";
 
@@ -88,5 +90,49 @@ describe("nameRivers", () => {
     const l = nameRivers(mulberry32(3), trunks, () => liquid);
     // both valid & deterministic; the profiles produce different strings
     expect(g.map((r) => r.name)).not.toEqual(l.map((r) => r.name));
+  });
+});
+
+// One product, two standards — and this one I built myself. `nameGeography` walks a taken region
+// noun to the next free entry in its own table; `nameRivers`, written the same week, did not, so a
+// map that no longer calls two regions "Wilds" still called two rivers "Fork". Measured over twenty
+// seeds and 97 rivers: **18 of 20 worlds repeated a river noun**, which is what five draws from a
+// seven-word table gives you (the birthday arithmetic puts it at 85%).
+//
+// Unlike the region tables, this one CAN reach zero: `MAX_NAMED` is 5 and there are seven nouns, so
+// the pigeonhole that leaves regions at 5-of-20 never bites here.
+describe("a map does not name two rivers the same thing", () => {
+  it("uses each river noun at most once per world", () => {
+    let repeats = 0;
+    const worst: string[] = [];
+    for (let seed = 1; seed <= 20; seed++) {
+      const { world } = generateWorld({ ...DEFAULT_PARAMS, seed });
+      const nouns = world.rivers.map((r) => r.label.noun);
+      if (new Set(nouns).size !== nouns.length) { repeats++; worst.push(`seed ${seed}: ${nouns.join(", ")}`); }
+    }
+    expect(repeats, `${repeats} of 20 worlds repeat a river noun — e.g. ${worst[0]}`).toBe(0);
+  });
+
+  // English puts exactly one hydronym in front of its name: "River Thames". "Rill Lyer" and
+  // "Race Ggor" are not word orders English uses, and the generator was producing them for every
+  // noun in the table. The pattern is still DRAWN the same way — the draw is untouched — the
+  // result is simply read as the ordinary "Lyer Rill" order unless the noun is one that leads.
+  it("puts only River in front of the name it belongs to", () => {
+    const bad: string[] = [];
+    for (let seed = 1; seed <= 20; seed++) {
+      const { world } = generateWorld({ ...DEFAULT_PARAMS, seed });
+      for (const r of world.rivers) {
+        if (r.label.pattern === "nounFirst" && r.label.noun !== "River") bad.push(`${r.name} (seed ${seed})`);
+      }
+    }
+    expect(bad, `${bad.length} rivers lead with a noun English does not lead with: ${bad.slice(0, 6).join(", ")}`).toEqual([]);
+  });
+
+  // "the Iron Race" reads as a people, not as a water — a millrace is too specialised a sense to
+  // carry a fantasy map, and it was 8 of the 97 rivers measured. `Beck` is a real hydronym across
+  // northern England (Troutbeck, Holbeck) and cannot be read as anything but water.
+  it("has no noun that reads as something other than water", () => {
+    expect(RIVER_NOUNS).not.toContain("Race");
+    expect(RIVER_NOUNS).toContain("Beck");
   });
 });

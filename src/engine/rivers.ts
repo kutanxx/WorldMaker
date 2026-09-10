@@ -145,9 +145,19 @@ export function traceRivers(
   return { segments, trunks, riverCells };
 }
 
-export const RIVER_NOUNS = ["River", "Water", "Run", "Fork", "Flow", "Race", "Rill"];
+// ⚠ "Race" was here and is not, because "the Iron Race" reads as a PEOPLE — a millrace is too
+// specialised a sense to carry a fantasy map, and it was 8 of the 97 rivers measured over twenty
+// seeds. `Beck` is a real hydronym across northern England (Troutbeck, Holbeck) and cannot be read
+// as anything but water. Seven words for at most MAX_NAMED=5 rivers is what lets the walk below
+// reach zero repeats, which the region tables cannot.
+export const RIVER_NOUNS = ["River", "Water", "Run", "Fork", "Flow", "Beck", "Rill"];
 
-function riverName(rng: Rng, phon: Phonetics): { name: string; label: FeatureLabel } {
+// The one hydronym English puts in FRONT of the name — "River Thames". The generator was applying
+// that order to every noun in the table, producing "Rill Lyer" and "Race Ggor", word orders English
+// does not use. 16 of 97 rivers came out that way.
+const LEADS = "River";
+
+function riverName(rng: Rng, phon: Phonetics): FeatureLabel {
   const noun = pick(rng, RIVER_NOUNS);
   const ng = makeNameGen(rng, phon);
   const r = rng();
@@ -162,14 +172,44 @@ function riverName(rng: Rng, phon: Phonetics): { name: string; label: FeatureLab
     : r < 0.75
       ? { pattern: "attributive", kind: -1, noun, proper: ng.place() }
       : { pattern: "nounFirst", kind: -1, noun, proper: ng.place() };
-  return { name: featureLabel(label, "en"), label };
+  return label;
+}
+
+/**
+ * The label a river actually wears, once the map it belongs to has had its say.
+ *
+ * Two corrections are applied AFTER the draw, and neither of them draws: the noun is walked to one
+ * this map has not used, and a leading noun that does not lead in English is read in the ordinary
+ * order instead. Both have to happen here rather than in `riverName`, because both depend on
+ * something a single river cannot see — the other rivers, and the noun the walk landed on.
+ */
+function settle(label: FeatureLabel, used: Set<string>): FeatureLabel {
+  // Walked, never redrawn: `pick` costs an rng value and every river, town and realm placed after
+  // this one sits downstream of it. Starting from the index drawn and stepping forward is the same
+  // technique `nameGeography` uses for region nouns and `lengthen()` in names.ts uses for short
+  // names. Seven nouns against at most five rivers means there is always a free one to reach.
+  let noun = label.noun;
+  if (used.has(noun)) {
+    const start = RIVER_NOUNS.indexOf(noun);
+    for (let step = 1; step <= RIVER_NOUNS.length; step++) {
+      const cand = RIVER_NOUNS[(start + step) % RIVER_NOUNS.length];
+      if (!used.has(cand)) { noun = cand; break; }
+    }
+  }
+  used.add(noun);
+  const pattern = label.pattern === "nounFirst" && noun !== LEADS ? "attributive" : label.pattern;
+  return { ...label, noun, pattern };
 }
 
 export function nameRivers(
   rng: Rng, trunks: RawRiver[], phonAt: (cell: number) => Phonetics,
 ): River[] {
+  // One map, one set of names: a world that no longer calls two regions "Wilds" was still calling
+  // two rivers "Fork". Measured before this existed: 18 of 20 worlds repeated a river noun, which
+  // is what five draws from a seven-word table gives (85% by the birthday arithmetic).
+  const used = new Set<string>();
   return trunks.map((t) => {
-    const { name, label } = riverName(rng, phonAt(t.mouthCell));
-    return { name, label, path: t.path, flux: t.flux, mouth: t.path[0] };
+    const label = settle(riverName(rng, phonAt(t.mouthCell)), used);
+    return { name: featureLabel(label, "en"), label, path: t.path, flux: t.flux, mouth: t.path[0] };
   });
 }

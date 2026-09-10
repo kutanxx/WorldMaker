@@ -318,7 +318,14 @@ describe("the Land section's English names are pinned", () => {
   const fold = (h: number, v: number) => (Math.imul(h ^ v, 16777619) >>> 0);
   const fnv = (s: string) => { let h = 2166136261 >>> 0; for (let i = 0; i < s.length; i++) h = fold(h, s.charCodeAt(i)); return h >>> 0; };
   const landOf = (md: string) => md.slice(md.indexOf("## The Land"), md.indexOf("## Peoples"));
-  const pins: Record<number, number> = { 1: 3599660719, 2: 3925439592, 3: 617219288 };
+  // Re-pinned when the river nouns were cleaned up: `Race` left the table (it read as a people —
+  // "the Iron Race" — not as a water) and `Beck` took its place; a river noun this map has already
+  // used is now WALKED to a free one, taking noun repeats from 18 of 20 worlds to none; and only
+  // "River" leads its name, because "Rill Lyer" and "Race Ggor" are word orders English does not
+  // use. All three change English river names, which is what this golden exists to notice.
+  // ⚠ `allSnap` and world.test.ts did NOT move, which is what says the walk walked instead of
+  // drawing — the same evidence the region-noun walk was accepted on.
+  const pins: Record<number, number> = { 1: 2570778574, 2: 3217608244, 3: 2647779583 };
   for (const seed of [1, 2, 3]) {
     it(`reproduces the pinned English Land section for seed ${seed}`, () => {
       const { world: w } = generateWorld({ ...DEFAULT_PARAMS, seed });

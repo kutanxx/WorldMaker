@@ -103,9 +103,13 @@ describe("featureLabel in Korean", () => {
     expect(featureLabel({ pattern: "adj", kind: OCEAN, adj: "Endless", noun: "Expanse" }, "ko"))
       .toBe(`${ADJ_KO["Endless"]} ${NOUN_KO["Expanse"]}`);
     expect(WORLD_NOUN_KO["Expanse"]).not.toBe(NOUN_KO["Expanse"]);
-    // ...and a river drawn with the adjective pattern still reads as a river.
-    expect(featureLabel({ pattern: "adj", kind: -1, adj: "Endless", noun: "Race" }, "ko"))
-      .toBe(`${ADJ_KO["Endless"]} ${NOUN_KO["Race"]}`);
+    // ...and a river drawn with the adjective pattern still reads as a river. `Beck` is the newest
+    // word in RIVER_NOUNS, so this doubles as the check that a table edit brought its Korean with
+    // it — an English river noun with no Korean entry renders as the English word, which is how
+    // "the Iron Race" would have surfaced on a Korean map had 급류 not been replaced alongside it.
+    expect(NOUN_KO["Beck"], "Beck joined RIVER_NOUNS without a Korean word").toBeTruthy();
+    expect(featureLabel({ pattern: "adj", kind: -1, adj: "Endless", noun: "Beck" }, "ko"))
+      .toBe(`${ADJ_KO["Endless"]} ${NOUN_KO["Beck"]}`);
     // nounKo()'s `kind === -1 && WORLD_NOUN_KO[label.noun]` check only picks out a world (and not
     // a river sharing that kind) because it holds — a table edit that let a river noun creep into
     // WORLD_NOUN would silently start rendering that river as a world every time it rolled it.
