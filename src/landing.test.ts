@@ -146,6 +146,10 @@ describe("the landing speaks one language, and the one the reader already chose"
     (root.querySelector(".landing-lang") as HTMLButtonElement).click();
     expect(root.querySelector(".landing-preview-link"), "the map vanished on toggle").not.toBeNull();
     expect(root.textContent).toContain("세계 만들기");
+    // The redraw calls fillPreview with the new language, and the caption is part of what it wipes
+    // and repaints — it must carry no Latin letter into Korean, not just SOME Hangul (a Hangul
+    // subtitle next to an English world name would still pass a "contains Hangul" check).
+    expect(root.querySelector(".landing-preview-cap")!.textContent).not.toMatch(/[A-Za-z]/);
   });
 
   it("remembers the choice for the map page to pick up", () => {
@@ -200,5 +204,18 @@ describe("the landing shows today's world, and shows the one it links to", () =>
     expect(slot.hasAttribute("hidden")).toBe(false);
     expect(slot.querySelector("svg.world")).not.toBeNull();
     expect(slot.querySelector("a")!.getAttribute("href")).toBe(dailyTarget(new Date("2026-09-09T00:00:00Z")));
+  });
+
+  // The daily world's `world.name` is the generated English composite ("the Hollow Realm") unless a
+  // reader named it themselves — the preview never lets a reader name it, so the caption used to
+  // print that raw English name even in Korean: "오늘의 세계 · 09-10 — the Hollow Realm". The map
+  // beside it was already Korean (`renderWorld(..., lang)`); only the caption had not caught up.
+  it("captions the Korean preview in Korean, not the raw generated English name", () => {
+    const root = document.createElement("div");
+    renderChooser(root);
+    fillPreview(root, new Date("2026-09-09T00:00:00Z"), "ko");
+    const cap = root.querySelector(".landing-preview-cap")!;
+    expect(cap.textContent).toMatch(/[가-힣]/);
+    expect(cap.textContent).not.toMatch(/[A-Za-z]/);
   });
 });

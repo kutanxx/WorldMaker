@@ -17,9 +17,14 @@ describe("featureLabel", () => {
     expect(featureLabel({ pattern: "attributive", kind: -1, noun: "", proper: "Sodend" }, "en")).toBe("Sodend");
   });
 
-  // THE test of this task. The structure is not a second opinion about the name, it IS the name:
-  // if this passes on every seed, no English string on the map or in the gazetteer can move.
-  it("reproduces every generated English name, byte for byte, across twenty seeds", () => {
+  // NOT a lock on English: `r.name` is now COMPUTED as `featureLabel(label, "en")` at generation
+  // time (geography.ts, rivers.ts, provinces.ts), so both sides of this assertion move together —
+  // this cannot go red from an English word changing. What it DOES pin is that the two paths a
+  // reader can hit — the recorded `r.name` and a fresh `featureLabel(r.label, "en")` call — still
+  // agree, which matters because the map reads one and the gazetteer builds sentences from the
+  // other. What actually locks English is the gazetteer's `en` FNV pin plus its literal event list
+  // (gazetteer.test.ts) — and, for regions/rivers specifically, the golden added below.
+  it("agrees with the recorded name on every generated region, river and world, across twenty seeds", () => {
     let checked = 0;
     for (let seed = 1; seed <= 20; seed++) {
       const { world } = generateWorld({ ...DEFAULT_PARAMS, seed });
@@ -101,6 +106,11 @@ describe("featureLabel in Korean", () => {
     // ...and a river drawn with the adjective pattern still reads as a river.
     expect(featureLabel({ pattern: "adj", kind: -1, adj: "Endless", noun: "Race" }, "ko"))
       .toBe(`${ADJ_KO["Endless"]} ${NOUN_KO["Race"]}`);
+    // nounKo()'s `kind === -1 && WORLD_NOUN_KO[label.noun]` check only picks out a world (and not
+    // a river sharing that kind) because it holds — a table edit that let a river noun creep into
+    // WORLD_NOUN would silently start rendering that river as a world every time it rolled it.
+    expect(RIVER_NOUNS.some((n) => (WORLD_NOUN as readonly string[]).includes(n)),
+      "a RIVER_NOUNS word also appears in WORLD_NOUN").toBe(false);
   });
 
   it("has a Korean word for every English one the generator can pick", () => {
@@ -120,6 +130,13 @@ describe("featureLabel in Korean", () => {
     expect(new Set(all).size, `${all.length - new Set(all).size} Korean nouns are shared`).toBe(all.length);
     const adjs = Object.values(ADJ_KO);
     expect(new Set(adjs).size, `${adjs.length - new Set(adjs).size} Korean adjectives are shared`).toBe(adjs.length);
+    // nounKo() decides world-vs-region/river by the ENGLISH key alone, then hands back whichever
+    // table's Korean word that key pointed to. That choice only reads correctly to a Korean reader
+    // if the two tables never hand back the SAME word for two different kinds of thing — otherwise
+    // a world's "reaches" and a region's own noun could print identically with no way to tell them apart.
+    const worldWords = new Set(Object.values(WORLD_NOUN_KO));
+    const shared = [...new Set(all)].filter((w) => worldWords.has(w));
+    expect(shared, `Korean word(s) shared between NOUN_KO and WORLD_NOUN_KO: ${shared.join(", ")}`).toEqual([]);
   });
 
   // The map is the point of the whole feature: not one Latin letter may reach a Korean reader.

@@ -259,6 +259,33 @@ describe("exported chronicle is byte-stable across the shared-assembler move", (
   }
 });
 
+// featureLabel.test.ts's "agrees with the recorded name" test only proves the map and the gazetteer
+// read the SAME English string — `r.name` is computed as `featureLabel(r.label, "en")` at generation
+// time, so both sides of that assertion move together and it cannot go red from an English word
+// changing underneath it. Nothing pinned the actual English region/river names themselves. This is
+// that pin: an FNV over "## The Land" (regions and rivers, English only — the section a sibling task
+// is about to touch on purpose). A future edit to ADJ/NOUNS/RIVER_NOUNS/the naming logic should move
+// this hash; if it doesn't, the edit did nothing, and if some OTHER change moves it, that change
+// reached a name it had no business touching.
+//
+// A sibling task (forms of government / region nouns) is about to change the region NOUNS
+// deliberately — when that lands, re-pin these three numbers and say so in the commit, the same way
+// gazetteer.test.ts's chronicle `pins` block records what each re-pin was allowed to move.
+describe("the Land section's English names are pinned", () => {
+  const fold = (h: number, v: number) => (Math.imul(h ^ v, 16777619) >>> 0);
+  const fnv = (s: string) => { let h = 2166136261 >>> 0; for (let i = 0; i < s.length; i++) h = fold(h, s.charCodeAt(i)); return h >>> 0; };
+  const landOf = (md: string) => md.slice(md.indexOf("## The Land"), md.indexOf("## Peoples"));
+  const pins: Record<number, number> = { 1: 3974367560, 2: 2502458337, 3: 2789173942 };
+  for (const seed of [1, 2, 3]) {
+    it(`reproduces the pinned English Land section for seed ${seed}`, () => {
+      const { world: w } = generateWorld({ ...DEFAULT_PARAMS, seed });
+      const h = simulateHistory(w, seed);
+      const en = worldToGazetteer(w, h, "en");
+      expect(fnv(landOf(en))).toBe(pins[seed]);
+    });
+  }
+});
+
 // The Realms section described `world.polities` — the eight realms of year zero — in a document
 // whose chronicle runs five centuries. Measured on seeds 1/2/3: nine, six and eight of the realms
 // STANDING at year 500 were never described anywhere, while four to five of the eight it did
