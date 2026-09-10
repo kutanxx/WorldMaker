@@ -1,5 +1,6 @@
 import type { HistoryEvent, HistoryPolity } from "./historySim";
 import { withJosa } from "./korean";
+import { toHangul } from "./hangul";
 
 export type EventLang = "en" | "ko";
 
@@ -17,20 +18,24 @@ function joinEn(names: string[]): string {
 // byte-identical to the sentences the simulation used to build, and the golden anchor in
 // history.test.ts holds it that way.
 export function eventText(e: HistoryEvent, polities: HistoryPolity[], lang: EventLang): string {
-  const nameOf = (id: number) => polities[id]?.name ?? String(id);
   const ko = lang === "ko";
+  // Realms and towns are single invented words, so Korean writes them the way it writes any foreign
+  // name. Applied HERE rather than stored on the polity: the record keeps one name and the sentence
+  // is built in the reader's language, which is the same rule the rest of this file follows.
+  const say = (s: string) => (ko ? toHangul(s) : s);
+  const nameOf = (id: number) => say(polities[id]?.name ?? String(id));
   const y = e.year;
   const self = nameOf(e.polityId);
   switch (e.type) {
     case "found":
       return ko ? `${y}년, ${self} 건국` : `Year ${y} — ${self} is founded`;
     case "staple":
-      return ko ? `${y}년, ${e.name ?? ""} 자유무역항 지정`
+      return ko ? `${y}년, ${say(e.name ?? "")} 자유무역항 지정`
                 : `Year ${y} — ${e.name ?? ""} is named a free port`;
     case "goldenage":
       return ko ? `${y}년, ${self} 황금기 도래` : `Year ${y} — a golden age dawns in ${self}`;
     case "newCity":
-      return ko ? `${y}년, ${withJosa(self, "이/가")} ${e.name ?? ""} 건설`
+      return ko ? `${y}년, ${withJosa(self, "이/가")} ${say(e.name ?? "")} 건설`
                 : `Year ${y} — ${self} founds ${e.name ?? ""}`;
     case "conquer": {
       const prey = nameOf(e.otherId ?? -1);

@@ -6,6 +6,11 @@ import {
 import { buildDynasties } from "./dynasty";
 import { classifyGovernments } from "./government";
 import { buildChronicle } from "./chronicleLines";
+import { featureLabel, worldNameIn } from "./featureLabel";
+import { toHangul } from "./hangul";
+// 는 was hardcoded after the world's title. It was harmless while the title was Latin and the rule
+// went by the final letter; a Hangul title is chosen by its final consonant, and 소덴드 takes 은.
+import { withJosa } from "./korean";
 
 // Declared here rather than imported from `src/ui/i18n.ts`: the engine is DOM-free and must not
 // depend on the presentation layer. The union is deliberately the same one the UI uses, so the app
@@ -121,7 +126,15 @@ export function worldToGazetteer(world: World, history: History, lang: Gazetteer
   // land each realm came to hold — never invented for the page.
   const gov = classifyGovernments(world, history);
   const dyn = buildDynasties(world, history, gov);
-  const title = world.name.charAt(0).toUpperCase() + world.name.slice(1);
+  // Two doors, and which one a name goes through is not a choice. A world's, a region's and a
+  // river's name has a common noun IN it and is rebuilt from its parts; a people, a realm, a town
+  // and a ruler are single invented words and are transliterated. `world.name` is "the Hollow
+  // Realm" — it carries letters (w, p) that no invented word contains, and toHangul has no rule
+  // for them.
+  const say = (n: string) => (ko ? toHangul(n) : n);
+  // The English title capitalises the article; Korean has no case to raise, and its name is built
+  // from the label rather than from the finished English string.
+  const title = ko ? worldNameIn(world, "ko") : world.name.charAt(0).toUpperCase() + world.name.slice(1);
   const L: string[] = [];
 
   L.push(`# ${title}`, "");
@@ -130,7 +143,7 @@ export function worldToGazetteer(world: World, history: History, lang: Gazetteer
   // line said "a world of 8 realms" directly above a section describing nineteen — the last place
   // in the document still answering as of year zero.
   L.push(ko
-    ? `${title}는 ${world.cultures.length}개 민족의 세계다. ${world.polities.length}개 나라로 시작해, ${history.years}년 동안 모두 ${history.polities.length}개 나라가 서고 스러졌다.`
+    ? `${withJosa(title, "은/는")} ${world.cultures.length}개 민족의 세계다. ${world.polities.length}개 나라로 시작해, ${history.years}년 동안 모두 ${history.polities.length}개 나라가 서고 스러졌다.`
     : `${title} is a world of ${world.cultures.length} peoples, founded by ${world.polities.length} realms; ${history.polities.length} in all rose and fell across its ${history.years} years.`, "");
 
   // ── The Land ────────────────────────────────────────────────────────────────
@@ -145,7 +158,7 @@ export function worldToGazetteer(world: World, history: History, lang: Gazetteer
     const phrase = bio[r.kind] ?? (ko ? "거친 땅" : "wild country");
     const dir = inDir(lang, compass(lang, r.centroid[0], r.centroid[1], b));
     L.push(ko
-      ? `- **${r.name}** — ${dir}에 펼쳐진 ${size}${phrase}.`
+      ? `- **${featureLabel(r.label, "ko")}** — ${dir}에 펼쳐진 ${size}${phrase}.`
       : `- **${r.name}** — ${anArticle(`${size}${phrase}`)} ${dir}.`);
   }
   L.push("");
@@ -162,8 +175,8 @@ export function worldToGazetteer(world: World, history: History, lang: Gazetteer
       const to = compass(lang, r.mouth[0], r.mouth[1], b);
       L.push(ko
         ? (from === to
-          ? `- **${r.name}** — 세계 ${to}${objectParticle(to)} 흐르는 ${kind}.`
-          : `- **${r.name}** — 세계 ${from}에서 발원해 ${to}에서 바다로 드는 ${kind}.`)
+          ? `- **${featureLabel(r.label, "ko")}** — 세계 ${to}${objectParticle(to)} 흐르는 ${kind}.`
+          : `- **${featureLabel(r.label, "ko")}** — 세계 ${from}에서 발원해 ${to}에서 바다로 드는 ${kind}.`)
         : (from === to
           ? `- **${r.name}** — ${kind} running through the ${to}.`
           : `- **${r.name}** — ${kind} rising in the ${from} and meeting the sea in the ${to}.`));
@@ -191,13 +204,13 @@ export function worldToGazetteer(world: World, history: History, lang: Gazetteer
   }
   world.cultures.forEach((cult, i) => {
     const a = agg[i];
-    if (!a || a.n === 0) { L.push(`- **${cult.name}** — ${ko ? "흩어져 사는 민족." : "a scattered people."}`); return; }
+    if (!a || a.n === 0) { L.push(`- **${say(cult.name)}** — ${ko ? "흩어져 사는 민족." : "a scattered people."}`); return; }
     let dom = OCEAN, dn = -1;
     for (const [bm, cnt] of a.biome) if (bm !== OCEAN && cnt > dn) { dn = cnt; dom = bm; }
     const dir = compass(lang, a.sx / a.n, a.sy / a.n, b);
     const t = townsPerCulture[i];
     L.push(ko
-      ? `- **${cult.name}** — 세계 ${dir}, ${bio[dom] ?? "거친 땅"}에 사는 민족.` + (t ? ` 성읍 ${t}곳을 품는다.` : "")
+      ? `- **${say(cult.name)}** — 세계 ${dir}, ${bio[dom] ?? "거친 땅"}에 사는 민족.` + (t ? ` 성읍 ${t}곳을 품는다.` : "")
       : `- **${cult.name}** — a people of the ${bio[dom] ?? "wild country"} in the ${dir}.` + (t ? ` They hold ${t} town${t > 1 ? "s" : ""}.` : ""));
   });
   L.push("");
@@ -223,11 +236,11 @@ export function worldToGazetteer(world: World, history: History, lang: Gazetteer
   const brokeFrom = new Map<number, string>();
   for (const ev of history.events) {
     if (ev.type !== "civilwar") continue;
-    for (const id of ev.intoIds ?? []) brokeFrom.set(id, history.polities[ev.polityId]?.name ?? "");
+    for (const id of ev.intoIds ?? []) brokeFrom.set(id, say(history.polities[ev.polityId]?.name ?? ""));
   }
 
   for (const p of history.polities) {
-    L.push(`### ${p.name}`);
+    L.push(`### ${say(p.name)}`);
     // The height of a realm is the fairest moment to describe it by: at its founding it has not
     // done anything yet, and at its fall there is nothing left to describe.
     let peak = 0, peakIdx = 0;
@@ -253,7 +266,7 @@ export function worldToGazetteer(world: World, history: History, lang: Gazetteer
     const land = dom >= 0 ? bio[dom] : undefined;
     const cap = world.cities.find((c) => c.cell === p.capital);
     const towns = peakSnap
-      ? world.cities.filter((c) => peakSnap.owner[c.cell] === p.id && c.id !== cap?.id).map((c) => c.name)
+      ? world.cities.filter((c) => peakSnap.owner[c.cell] === p.id && c.id !== cap?.id).map((c) => say(c.name))
       : [];
     const parent = brokeFrom.get(p.id);
     const ended = p.endedYear;
@@ -279,7 +292,7 @@ export function worldToGazetteer(world: World, history: History, lang: Gazetteer
     if (ko) {
       const kind = form.form === "republic" ? "자유도시" : "나라";
       const where = land ? `${land}에 자리한 ${kind}.` : "";
-      const seat = cap ? ` 도읍은 ${seatTrait}**${cap.name}**.`
+      const seat = cap ? ` 도읍은 ${seatTrait}**${say(cap.name)}**.`
         : seatDir ? ` 지도가 이름 붙인 도읍은 없고, 중심은 세계 ${seatDir}에 있었다.` : " 지도가 이름을 붙인 도읍은 없다.";
       L.push(`${where}${seat}`.trim());
       const born = parent ? `${p.foundedYear}년 ${parent}에서 갈라져 나왔고` : p.free ? `${p.foundedYear}년 자유도시로 독립했고` : `${p.foundedYear}년에 서서`;
@@ -294,7 +307,7 @@ export function worldToGazetteer(world: World, history: History, lang: Gazetteer
       const heading = form.form === "republic" ? "역대 수반"
         : form.form === "empire" ? (bornImperial ? "역대 황제" : `역대 군주(${since}년부터 황제)`)
         : "역대 군주";
-      if (line.length) L.push("", `${heading} — ${line.map((r) => `${r.name} (${r.from}–${r.to})`).join(", ")}`);
+      if (line.length) L.push("", `${heading} — ${line.map((r) => `${say(r.name)} (${r.from}–${r.to})`).join(", ")}`);
       L.push("");
     } else {
       const where = land ? `A ${form.form === "republic" ? "free city" : "realm"} of the ${land}.` : "";
@@ -325,11 +338,12 @@ export function worldToGazetteer(world: World, history: History, lang: Gazetteer
       // Every free port used to get one identical sentence. Each one sits in a real place, under a
       // real realm — both were already in the data.
       const owner = world.polityOf[z.cell];
-      const realm = owner >= 0 ? world.polities.find((p) => p.id === owner)?.name : undefined;
+      const held = owner >= 0 ? world.polities.find((p) => p.id === owner)?.name : undefined;
+      const realm = held === undefined ? undefined : say(held);
       const px = grid.points[z.cell * 2], py = grid.points[z.cell * 2 + 1];
       const dir = compass(lang, px, py, b);
       L.push(ko
-        ? `- **${z.name}** — 세계 ${dir}의 자유도시.` + (realm ? ` ${realm}의 땅에 선다.` : "")
+        ? `- **${say(z.name)}** — 세계 ${dir}의 자유도시.` + (realm ? ` ${realm}의 땅에 선다.` : "")
         : `- **${z.name}** — a free port of the ${dir}.` + (realm ? ` It stands on ${realm}'s ground.` : ""));
     }
     L.push("");

@@ -23,6 +23,7 @@ import { applyLabelScale, applyMarkerScale } from "./labelScale";
 import { layOutLabelsForExport } from "./exportLabels";
 import { type Lang, t } from "./i18n";
 import { detectLang, saveLang } from "./lang";
+import { properName } from "./properName";
 
 export interface App {
   regenerate(p: WorldParams): void;
@@ -256,7 +257,8 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
                                         history.snapshots[yearIndex].owner);
     for (const [cell, el] of realmCells) {
       const o = owner[cell];
-      el.textContent = o >= 0 ? history.polities[o]?.name ?? "" : "";
+      const realm = o >= 0 ? history.polities[o]?.name : undefined;
+      el.textContent = realm === undefined ? "" : properName(lang, realm);
     }
   }
 
@@ -357,7 +359,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
       const b = document.createElement("button");
       b.className = "city-list-item" + (c.isCapital ? " is-capital" : "");
       b.setAttribute("data-city", String(c.id));
-      const nm = document.createElement("span"); nm.className = "city-list-name"; nm.textContent = c.name;
+      const nm = document.createElement("span"); nm.className = "city-list-name"; nm.textContent = properName(lang, c.name);
       // Filled by `renderYear`, not from `world.polityOf`: that is the ownership of YEAR ZERO, and
       // the map, legend, scrubber and chronicle beside this list are all in the scrubbed year. It
       // used to print the founding realm forever — 68% of towns wore the wrong realm at year 500,

@@ -5,6 +5,7 @@ import { simulateHistory } from "./history";
 import { worldToGazetteer, anArticle } from "./gazetteer";
 import { eventText } from "./eventText";
 import { classifyGovernments } from "./government";
+import { toHangul } from "./hangul";
 
 describe("worldToGazetteer", () => {
   const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });
@@ -160,6 +161,17 @@ describe("worldToGazetteer", () => {
       const hangul = en.match(/[가-힣]/g) ?? [];
       expect(hangul).toEqual([]);          // shows the offending characters when it fails
     });
+
+    // ...and the other way, which is the whole point of the feature. Every proper noun in the
+    // document — the world, its regions and rivers, its peoples, realms, towns and rulers — is
+    // either rebuilt from its parts or transliterated, so nothing Latin is left for a Korean
+    // reader to trip over. (Numbers and markdown are not letters and are unaffected.)
+    it(`writes a Korean document with no Latin left in it (seed ${s})`, () => {
+      const { world: w } = generateWorld({ ...DEFAULT_PARAMS, seed: s });
+      const h = simulateHistory(w, s);
+      const kr = worldToGazetteer(w, h, "ko");
+      expect(kr.match(/[A-Za-z]/g) ?? []).toEqual([]);
+    });
   }
 
   it("still writes the Korean document in Korean", () => {
@@ -210,10 +222,21 @@ describe("exported chronicle is byte-stable across the shared-assembler move", (
   //      ONE LINE COUNT does (123/130/105 before and after), because nothing was added or removed;
   //      the same sentences carry different proper nouns. `history.test.ts`'s `allSnap` did not move
   //      either, so the world under the names is the same world.
+  //   7. The Korean document became Korean: every proper noun in it — realms, peoples, towns,
+  //      rulers, and the world/region/river names built from their parts — is now written in
+  //      Hangul instead of Latin, and two particles that follow a name were fixed to agree with
+  //      it (the hardcoded 를 after the overtaken realm, and the hardcoded 는 after the world's
+  //      title). THE THREE KOREAN HASHES MOVE AND NOTHING ELSE DOES: the English hashes are
+  //      byte-identical, and the line counts hold at 123/130/105 in BOTH languages, which is what
+  //      says a sentence was translated rather than added or lost.
+  //      Proved by substitution rather than asserted: switching the transliteration and those two
+  //      particles back off — and changing nothing else — reproduced ko 2399950495 / 2322413515 /
+  //      796628344 and history.test.ts's `events` 718178238 / 2255964615 / 3415859447, the exact
+  //      values pinned before this change, on all three seeds. `allSnap` never moved at all.
   const pins: Record<number, { en: number; ko: number; lines: number }> = {
-    1: { en: 4144700973, ko: 2399950495, lines: 123 },
-    2: { en: 2256232225, ko: 2322413515, lines: 130 },
-    3: { en: 3521961453, ko:  796628344, lines: 105 },
+    1: { en: 4144700973, ko: 1430401842, lines: 123 },
+    2: { en: 2256232225, ko: 3713337419, lines: 130 },
+    3: { en: 3521961453, ko: 1423698531, lines: 105 },
   };
   for (const seed of [1, 2, 3]) {
     it(`reproduces the pinned chronicle for seed ${seed}`, () => {
@@ -221,7 +244,15 @@ describe("exported chronicle is byte-stable across the shared-assembler move", (
       const h = simulateHistory(w, seed);
       const en = chronicleOf(worldToGazetteer(w, h, "en"), "## Chronicle");
       const ko = chronicleOf(worldToGazetteer(w, h, "ko"), "## 연대기");
-      expect(en.split("\n").filter((l) => l.startsWith("- ")).length).toBe(pins[seed].lines);
+      const enLines = en.split("\n").filter((l) => l.startsWith("- "));
+      const koLines = ko.split("\n").filter((l) => l.startsWith("- "));
+      expect(enLines.length).toBe(pins[seed].lines);
+      // The Korean count was not pinned, and a translation pass is exactly the change that could
+      // drop a sentence in one language only. Both counts, and — line for line — the same year in
+      // the same place, so a reordering cannot hide behind a matching total either.
+      expect(koLines.length).toBe(pins[seed].lines);
+      const year = (l: string) => Number(l.match(/\d+/)?.[0]);
+      expect(koLines.map(year)).toEqual(enLines.map(year));
       expect(fnv(en)).toBe(pins[seed].en);
       expect(fnv(ko)).toBe(pins[seed].ko);
     });
@@ -373,6 +404,10 @@ describe("the Realms section tells kingdoms, republics and empires apart", () =>
   const en = worldToGazetteer(world, history, "en");
   const ko = worldToGazetteer(world, history, "ko");
   const pick = (f: string) => history.polities.filter((p) => forms.get(p.id)!.form === f);
+  // The Korean document heads a realm entry with the realm's name written in Hangul, so a Korean
+  // entry has to be found by its Korean heading — looking it up by the recorded Latin name matches
+  // nothing at all.
+  const kEntry = (name: string) => entryFor(ko, toHangul(name), "## 나라");
 
   it("speaks of no kings at all in a free city's entry", () => {
     const republics = pick("republic");
@@ -381,7 +416,7 @@ describe("the Realms section tells kingdoms, republics and empires apart", () =>
       const e = entryFor(en, p.name, "## Realms");
       expect(e, p.name).toContain("Elected heads —");
       expect(e, p.name).not.toContain("Rulers —");
-      const k = entryFor(ko, p.name, "## 나라");
+      const k = kEntry(p.name);
       expect(k, p.name).toContain("역대 수반 —");
       expect(k, p.name).not.toContain("역대 군주");
     }
@@ -394,7 +429,7 @@ describe("the Realms section tells kingdoms, republics and empires apart", () =>
       const since = forms.get(p.id)!.since!;
       const e = entryFor(en, p.name, "## Realms");
       expect(e, p.name).toMatch(/empire|Emperors/);
-      const k = entryFor(ko, p.name, "## 나라");
+      const k = kEntry(p.name);
       expect(k, p.name).toContain("제국");
       // A realm that only came to rule other peoples partway through says when; one that did so
       // from its first day has no such year to give and must not invent one.
@@ -410,7 +445,7 @@ describe("the Realms section tells kingdoms, republics and empires apart", () =>
     expect(kingdoms.length).toBeGreaterThan(0);
     for (const p of kingdoms) {
       expect(entryFor(en, p.name, "## Realms"), p.name).toContain("Rulers —");
-      expect(entryFor(ko, p.name, "## 나라"), p.name).toContain("역대 군주 —");
+      expect(kEntry(p.name), p.name).toContain("역대 군주 —");
       expect(entryFor(en, p.name, "## Realms"), p.name).not.toContain("Emperors —");
     }
   });

@@ -5,6 +5,7 @@ import type { WardType } from "../engine/city/zoning";
 import type { Point, Polygon, Polyline } from "../engine/geometry";
 import { pointInPolygon } from "../engine/geometry";
 import { type Lang, WARD_NAME, t, featureName, type FeatureKey } from "./i18n";
+import { properName } from "./properName";
 
 // A distinct (but parchment-muted) colour per district so the wards read apart — each
 // functional zone gets its own hue. harbor stays untinted (its docks are the waterfront
@@ -113,13 +114,16 @@ function avg(poly: Polygon): [number, number] {
 
 export function renderCity(layout: CityLayout, lang: Lang = "en"): SVGSVGElement {
   const fn = (k: FeatureKey) => featureName(lang, k);
+  // A town's name is one invented word, so it is transliterated rather than rebuilt: it has no
+  // common noun in it to translate.
+  const townName = properName(lang, layout.name);
   const { w, h } = layout.bounds;
   const LEGW = 108; // right-hand strip that holds the district key, OUTSIDE the map so it never covers the city
   const root = svgEl("svg", { width: "100%", viewBox: `0 0 ${w + LEGW} ${h}`, class: "city", role: "img" }) as SVGSVGElement;
   // the plate announces itself as one thing rather than an untitled graphic (and both elements
   // travel into the exported file, which carries no stylesheet but does carry the document)
   const rootTitle = svgEl("title");   // a DIRECT child of <svg>, or it is not the root's name
-  rootTitle.textContent = `${t(lang, "cityPlanOf")} ${layout.name}`;
+  rootTitle.textContent = `${t(lang, "cityPlanOf")} ${townName}`;
   root.appendChild(rootTitle);
   const rootDesc = svgEl("desc");
   rootDesc.textContent = `${layout.archetype.id} · ${layout.wards.length} ${t(lang, "legendDistricts")}`;
@@ -583,7 +587,7 @@ export function renderCity(layout: CityLayout, lang: Lang = "en"): SVGSVGElement
     "font-size": 18, "font-family": "Cinzel, serif", "font-weight": 600, "letter-spacing": 0.06,
     fill: INK, stroke: PARCHMENT, "stroke-width": 2.5, "paint-order": "stroke",
   });
-  title.textContent = layout.name;
+  title.textContent = townName;
   titleG.appendChild(title);
   titleG.appendChild(svgEl("line", {
     x1: (w + LEGW) / 2 - 46, y1: 38, x2: (w + LEGW) / 2 + 46, y2: 38,

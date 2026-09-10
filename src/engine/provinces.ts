@@ -2,6 +2,7 @@ import type { Rng } from "./rng";
 import { OCEAN } from "./terrain";
 import { makeNameGen } from "./names";
 import { featureName } from "./geography";
+import type { FeatureLabel } from "./featureLabel";
 
 export const PROVINCE_SALT = 8100;
 export const PROVINCE_TARGET = 100;
@@ -52,6 +53,13 @@ export function assignProvinces(grid: GridLike, terrain: ArrayLike<number>, seed
 
 export interface Province {
   id: number; name: string; cells: number; centroid: [number, number]; seedCell: number; biome: number;
+  /**
+   * The parts the name was built from, so it can be said in another language — exactly as `Region`
+   * carries it. A province had kept only the rendered English string, and the province VIEW draws
+   * roughly a hundred of those labels on the map: without this the one map view with the most
+   * lettering on it was also the only one that stayed in English.
+   */
+  label: FeatureLabel;
 }
 
 export function buildProvinces(
@@ -86,10 +94,9 @@ export function buildProvinces(
   for (let p = 0; p < count; p++) {
     let domB = 0, domN = -1;
     for (const [b, n] of biomeCount[p]) if (n > domN) { domN = n; domB = b; }
+    const named = featureName(rng, ng, domB);
     provinces.push({
-      // featureName now returns { name, label } so region/world naming can carry structure (Task
-      // 1, korean-names); provinces only ever needed the string, so only .name is taken here.
-      id: p, name: featureName(rng, ng, domB).name, cells: cells[p],
+      id: p, name: named.name, label: named.label, cells: cells[p],
       centroid: [sumX[p] / cells[p], sumY[p] / cells[p]], seedCell: seedCells[p], biome: domB,
     });
   }
