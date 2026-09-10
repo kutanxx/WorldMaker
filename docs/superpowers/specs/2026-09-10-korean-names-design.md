@@ -1,7 +1,8 @@
 # Korean names — design
 
-**Status:** approved in chat (scope: transliterate proper nouns AND translate the phrase names;
-plus fix A, the repeated region noun). Awaiting spec review.
+**Status:** APPROVED. Scope: transliterate the proper nouns, translate the phrase names, fix A (the
+repeated region noun), and include the Korean display suffixes for realms and peoples (question 3
+below). Questions 1 and 2 settled as proposed.
 
 ## The problem, measured
 
@@ -118,15 +119,37 @@ its own English re-pin.
 2. `toHangul()` + its tests. No visible change.
 3. Korean wiring at the five display sites + Korean re-pin. **This is where the map changes.**
 4. Fix A + English re-pin.
+5. The Korean realm/people suffixes (item 6). Display only; no re-pin beyond the Korean gazetteer.
 
-## Open questions for review
+### 6. Korean display suffixes for realms and peoples — IN SCOPE
 
-1. **Region labels are uppercased** (`r.name.toUpperCase()` for land). `toUpperCase()` does nothing
-   to Hangul, so the Korean map loses that distinction. Proposal: keep the existing size and
-   letter-spacing, drop the uppercase step for Korean rather than inventing a new device.
-2. **The world's own name** (`Sodend`) — transliterate too (소덴드), for consistency. Confirm.
-3. **Free, if wanted:** the Korean realm label could read `케우스두 왕국 / 공화국 / 제국` by reusing
-   `classifyGovernments` from 2026-09-10, and a people could read `드루스브라우인`. Both are display
-   suffixes: **no generated name changes and nothing already deployed moves.** They answer two of
-   the naming complaints (a realm reads like a town; a people reads like a place) without touching
-   the generator. Say whether to include them.
+Two of the naming complaints are that a realm reads like a town (`Sahias` the city and `Ceusdu` the
+realm come out of one generator with one phonology) and that a people reads like a place
+(`Druthvrau` the people and `Brastrial` the region likewise). Korean can answer both **without the
+generator changing a single name**, because Korean marks the category with a suffix:
+
+| | Korean |
+|---|---|
+| kingdom | 케우스두 **왕국** |
+| republic (a free city) | 흐레이르 **공화국** |
+| empire | 자이아샤인 **제국** |
+| a people | 드루스브라우**인** |
+
+The form comes from `classifyGovernments()` (2026-09-10, `7f87b0b`), which already reads each
+realm's form off the record. Nothing generated changes, nothing already deployed moves, and the
+English map is untouched — English has no equally natural suffix, and inventing one ("the Realm of
+X") would be a different decision on a different day.
+
+⚠ Where it applies: the map's realm labels, the city list's realm column, the city plate's realm
+line, and the Korean gazetteer's realm headings. NOT inside chronicle sentences, where the realm is
+the grammatical subject of a clause that already says what happened to it — "케우스두 왕국이 …를
+정복" reads as a translation, not as a chronicle. One place per surface, decided by whether the name
+stands alone as a label or sits inside a sentence.
+
+## Settled questions
+
+1. **Region labels are uppercased** (`r.name.toUpperCase()` for land) and `toUpperCase()` does
+   nothing to Hangul. Settled: keep the existing size and letter-spacing and simply drop the
+   uppercase step in Korean, rather than inventing a new device for one script.
+2. **The world's own name** (`Sodend`) is transliterated too (소덴드).
+3. **The suffixes above** are in scope — see item 6.
