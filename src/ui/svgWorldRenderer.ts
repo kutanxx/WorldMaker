@@ -7,6 +7,8 @@ import { type Lang, biomeName, t } from "./i18n";
 import { coastline, type Segment } from "../engine/borders";
 import { cellPath, segPath } from "./svgPaths";
 import { politicalLayer, type PoliticalOpts } from "./politicalLayer";
+import { properName, polityLabeller } from "./properName";
+import { featureLabel, worldNameIn } from "../engine/featureLabel";
 import { cultureLayer } from "./cultureLayer";
 import { provinceLayer, snapOwnersToProvinces } from "./provinceLayer";
 
@@ -16,11 +18,14 @@ export type MapView = "terrain" | "political" | "culture" | "province";
 // reader sees through a culture fill; the palette test reads it.
 export const OVERLAY_BIOME_OPACITY = 0.6;
 
-export function politicalOpts(view: MapView, lang: Lang = "en", colorOf?: (id: number) => string): PoliticalOpts {
+// `labelOf` follows `colorOf`: politicalLayer is given the finished answer rather than the language
+// to work it out from, so the layer never learns about Hangul or about the i18n table.
+export function politicalOpts(view: MapView, lang: Lang = "en", colorOf?: (id: number) => string,
+                              labelOf: (id: number, name: string) => string = polityLabeller(lang)): PoliticalOpts {
   // the title comes in as a finished string so politicalLayer stays free of the i18n table
   return view === "political"
-    ? { fills: true, labels: true, legend: true, legendTitle: t(lang, "legendRealms"), colorOf }
-    : {};
+    ? { fills: true, labels: true, legend: true, legendTitle: t(lang, "legendRealms"), colorOf, labelOf }
+    : { labelOf };
 }
 
 
@@ -42,8 +47,13 @@ function named<T extends SVGElement>(el: T, text: string): T {
 // use ONE colouring: this draws `world.polityOf` (the eight realms of year zero) while the scrubber
 // redraws from the history's snapshots, and a realm that changed colour between the two would be a
 // drift bug of exactly the kind the shared chronicle assembler was built to end.
-export function renderWorld(world: World, view: MapView = "terrain", econZones: number[] = [], lang: Lang = "en", unfounded: ReadonlySet<number> = new Set(), colorOf?: (id: number) => string): SVGSVGElement {
+export function renderWorld(world: World, view: MapView = "terrain", econZones: number[] = [], lang: Lang = "en", unfounded: ReadonlySet<number> = new Set(), colorOf?: (id: number) => string, labelOf: (id: number, name: string) => string = polityLabeller(lang)): SVGSVGElement {
   const grid = world.grid;
+  // Every proper noun this function draws goes through one of two doors, and which door is not a
+  // choice: a name with a common noun IN it (the world's, a region's, a river's) is rebuilt from
+  // its parts, while a bare invented word (a town, a realm) is transliterated. Running "the Hollow
+  // Realm" through `properName` would hand toHangul letters no invented word contains.
+  const nm = (name: string) => properName(lang, name);
   const root = svgEl("svg", {
     width: "100%",
     viewBox: `0 0 ${grid.width} ${grid.height}`,
@@ -54,7 +64,8 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
   // description, announcing as nothing at all. A title and a description of the view make it one
   // thing that can be spoken. Both are real SVG elements, so they travel into the exported file.
   const rootTitle = svgEl("title");
-  rootTitle.textContent = `${t(lang, "mapOf")} ${world.name}`;
+  const worldName = worldNameIn(world, lang);
+  rootTitle.textContent = `${t(lang, "mapOf")} ${worldName}`;
   const rootDesc = svgEl("desc");
   rootDesc.textContent = t(lang, `view${view.charAt(0).toUpperCase()}${view.slice(1)}` as never);
   root.append(rootTitle, rootDesc);
@@ -105,7 +116,7 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
       : view === "province" ? provinceLayer(grid, world.provinceOf, world.provinces, { owner: world.polityOf, legend: true, lang })
         // terrain/political: snap nation ownership to whole provinces so borders (and political fills)
         // fall on province edges — the SAME geometry the province view uses, so views stay consistent.
-        : politicalLayer(grid, snapOwnersToProvinces(grid.count, world.provinceOf, world.provinces, world.polityOf), world.polities, politicalOpts(view, lang, colorOf)));
+        : politicalLayer(grid, snapOwnersToProvinces(grid.count, world.provinceOf, world.provinces, world.polityOf), world.polities, politicalOpts(view, lang, colorOf, labelOf)));
   root.appendChild(slot);
 
   // mountain relief: a small peak glyph on each alpine cell so ranges read as mountains rather
@@ -173,7 +184,11 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
       "letter-spacing": isSea ? "0" : (fs * 0.16).toFixed(1),
       stroke: PARCHMENT, "stroke-width": 2, "paint-order": "stroke",
     });
-    t.textContent = isSea ? r.name : r.name.toUpperCase();
+    // UPPERCASE is an English typographic device for a region name and does nothing whatever to
+    // Hangul — there are no cases to raise — so the Korean map keeps the size and the tracking,
+    // which is what carries the register anyway.
+    const regionName = featureLabel(r.label, lang);
+    t.textContent = isSea || lang === "ko" ? regionName : regionName.toUpperCase();
     regionLabels.appendChild(t);
   }
   root.appendChild(regionLabels);
@@ -198,7 +213,7 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
       stroke: PARCHMENT, "stroke-width": 1.8, "paint-order": "stroke", "font-style": "italic",
       transform: `rotate(${deg.toFixed(1)} ${lx.toFixed(1)} ${ly.toFixed(1)})`,
     });
-    t.textContent = r.name;
+    t.textContent = featureLabel(r.label, lang);
     riverLabels.appendChild(t);
   }
   root.appendChild(riverLabels);
@@ -210,12 +225,13 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
   // map's own tooltip, needing no CSS and surviving export.
   const nationOf = (c: { cell: number }) => {
     const p = world.polityOf[c.cell];
-    return p >= 0 ? world.polities.find((q) => q.id === p)?.name ?? null : null;
+    const name = p >= 0 ? world.polities.find((q) => q.id === p)?.name : undefined;
+    return name === undefined ? null : labelOf(p, name);
   };
   const markerTitle = (c: { name: string; cell: number; isCapital: boolean }) => {
     const nation = nationOf(c);
     const seat = c.isCapital ? ` (${t(lang, "capitalSeat")})` : "";
-    return nation ? `${c.name}${seat} · ${nation}` : `${c.name}${seat}`;
+    return nation ? `${nm(c.name)}${seat} · ${nation}` : `${nm(c.name)}${seat}`;
   };
   for (const c of world.cities) {
     if (unfounded.has(c.id)) continue;   // the chronicle has not founded it yet
@@ -254,7 +270,7 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
       fill: c.isCapital ? "#2a2118" : "#6b5d42",
       stroke: PARCHMENT, "stroke-width": 1.6, "paint-order": "stroke",
     });
-    label.textContent = c.name;
+    label.textContent = nm(c.name);
     markers.appendChild(label);
   }
   root.appendChild(markers);
@@ -310,7 +326,7 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
     class: "world-name-text", x: grid.width / 2, y: 36, "text-anchor": "middle",
     "font-size": 22, fill: INK, stroke: PARCHMENT, "stroke-width": 3, "paint-order": "stroke",
   });
-  wt.textContent = world.name;
+  wt.textContent = worldName;
   title.appendChild(wt);
   title.appendChild(svgEl("line", {
     x1: grid.width / 2 - 70, y1: 44, x2: grid.width / 2 + 70, y2: 44,

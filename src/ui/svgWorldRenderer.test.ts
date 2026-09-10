@@ -576,6 +576,40 @@ describe("the keys can be read", () => {
     }
     expect(checked, "no legend label was actually measured").toBeGreaterThan(30);
   });
+
+  // The MAP is what this task is named for, and it is the one surface that had no automated guard:
+  // the gazetteer got one the same day (gazetteer.test.ts, "no Latin left in it"), the map did not.
+  // Four wiring sites hand a name to a <text> node — cultureLayer.ts, provinceLayer.ts,
+  // svgWorldRenderer.ts's region/river/city/title labels, and politicalLayer.ts's nation labels —
+  // and a regression at any one of them back to the raw English name would leave all 776 other tests
+  // green. This reuses the lang x view loop already above rather than adding a second one.
+  //
+  // M2: the loop above read only <text> nodes, which left the root <title> (svgWorldRenderer.ts:67,
+  // `worldNameIn`) and every city marker's tooltip (`markerTitle` at :234, on both the hit-circle and
+  // the capital-star/town-dot) outside it — an SVG <title> carries no letters a <text> query can see.
+  // Checking "text, title" together catches a regression at either kind of node with the one loop.
+  it("draws every map name in the language it was asked for", () => {
+    let mapTextChecked = 0;
+    for (const lang of ["en", "ko"] as const) {
+      for (const view of ["terrain", "political", "culture", "province"] as const) {
+        const svg = renderWorld(world(), view, [], lang);
+        for (const el of svg.querySelectorAll("text, title")) {
+          if (el.closest(".legend")) continue;      // UI chrome headings, already localised on their own path
+          if (el.closest(".scale-bar")) continue;    // "360 km" — an SI unit, kept in Latin by Korean map convention
+          mapTextChecked++;
+          const hasLatin = /[A-Za-z]/.test(el.textContent ?? "");
+          if (lang === "ko") {
+            expect(hasLatin, `${view}: "${el.textContent}" has a Latin letter on the Korean map`).toBe(false);
+          } else {
+            // asserted in English too, so the test proves the language switch does something rather
+            // than that every generated name happens to be Hangul-free either way
+            expect(hasLatin, `${view}: "${el.textContent}" has no Latin letter in English`).toBe(true);
+          }
+        }
+      }
+    }
+    expect(mapTextChecked, "no map text was actually checked").toBeGreaterThan(30);
+  });
 });
 
 // One product, two legends, two sizes. Measured at 1920x945 on the live page: the world map draws

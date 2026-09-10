@@ -234,9 +234,21 @@ describe("simulateHistory golden anchor (behaviour lock)", () => {
     // line by line as well — substituting each old name for its new one makes all 142 chronicle
     // lines of seeds 1-3 identical, except one where the Korean subject particle correctly followed
     // the new name's final consonant (`Kaarkgruau가` -> `Kaargruth이`).
-    1: { snaps: 51, pols: 18, evs: 50, econ: 3, allSnap:  245822489, events:  718178238, polities: 2494072566 },
-    2: { snaps: 51, pols: 19, evs: 49, econ: 3, allSnap: 4064983612, events: 2255964615, polities: 3237195845 },
-    3: { snaps: 51, pols: 17, evs: 43, econ: 3, allSnap: 4006220817, events: 3415859447, polities: 2334058053 },
+    // Re-pinned again when the Korean map became Korean. `events` folds the KOREAN sentence, and a
+    // Korean sentence now writes a realm's name in Hangul (`Sodend` -> `소덴드`), so all three move
+    // — while `polities`, which folds the RECORDED `p.name`, and `allSnap`, and every count, are
+    // byte-identical on all three seeds. That split is the proof: the telling changed and the world
+    // did not. Confirmed by substitution as well — switching the transliteration back off, and
+    // nothing else, reproduced 718178238 / 2255964615 / 3415859447 exactly.
+    // 2026-09-10: `events` re-pinned again, on all three seeds — `polities`, `allSnap` and every
+    // count held. `toHangul`'s `sh` row now glides before a vowel (Korean writes a prevocalic [ʃ]
+    // with one — 샤 셰 쇼 슈, matching `sy`/`ly`), so a rendered event naming `Zashain` now reads
+    // 자샤인 where it used to read 자사인. `polities` folds `p.name`, the un-transliterated Latin
+    // string, so it does not see the correction; that is the split that proves only the telling of
+    // an already-correct world moved.
+    1: { snaps: 51, pols: 18, evs: 50, econ: 3, allSnap:  245822489, events: 2053291310, polities: 2494072566 },
+    2: { snaps: 51, pols: 19, evs: 49, econ: 3, allSnap: 4064983612, events: 1894625198, polities: 3237195845 },
+    3: { snaps: 51, pols: 17, evs: 43, econ: 3, allSnap: 4006220817, events: 3579332151, polities: 2334058053 },
   };
   for (const seed of [1, 2, 3]) {
     it(`reproduces the pinned hashes for seed ${seed}`, () => {

@@ -1,5 +1,6 @@
 import type { Province } from "../engine/provinces";
 import type { Phonetics } from "../engine/names";
+import type { FeatureLabel } from "../engine/featureLabel";
 
 export interface WorldParams {
   seed: number;
@@ -40,6 +41,7 @@ export interface Polity {
 
 export interface Region {
   name: string;
+  label: FeatureLabel;
   kind: number;
   centroid: [number, number];
   cells: number;
@@ -51,6 +53,7 @@ export interface RiverSegment {
 
 export interface River {
   name: string;
+  label: FeatureLabel;
   path: [number, number][];
   flux: number;
   mouth: [number, number];
@@ -64,6 +67,7 @@ export interface CultureInfo { name: string; color: string; phon: Phonetics }
 export interface World {
   params: WorldParams;
   name: string;
+  nameLabel: FeatureLabel;
   regions: Region[];
   cultureOf: number[];
   cultures: CultureInfo[];

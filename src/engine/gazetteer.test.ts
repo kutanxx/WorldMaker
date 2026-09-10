@@ -5,6 +5,7 @@ import { simulateHistory } from "./history";
 import { worldToGazetteer, anArticle } from "./gazetteer";
 import { eventText } from "./eventText";
 import { classifyGovernments } from "./government";
+import { realmLabelKo, peopleLabelKo } from "./nameSuffix";
 
 describe("worldToGazetteer", () => {
   const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });
@@ -139,6 +140,20 @@ describe("worldToGazetteer", () => {
     expect(ko).toContain("치세)");
   });
 
+  it("marks every people's label in ## 민족 as a people, not a place (peopleLabelKo, not say)", () => {
+    // realmLabelKo already got the same standalone-label treatment for realm headings (the
+    // "## 나라" test above, via kEntry) — this is the other half the controller ruled on: a culture's
+    // own heading in "## 민족" is a label too (`- **NAME**` — the identical shape), so it takes
+    // peopleLabelKo's fused 인, not a bare transliteration. The chronicle's prose about a people
+    // (e.g. "민족의 땅을 다스리게 되다") stays untouched — that's a clause, not a label, and is checked
+    // separately below to still read without 인.
+    const peoples = ko.slice(ko.indexOf("## 민족"), ko.indexOf("## 나라"));
+    const labels = [...peoples.matchAll(/^- \*\*(.+?)\*\*/gm)].map((m) => m[1]);
+    expect(labels.length).toBe(world.cultures.length);
+    for (const l of labels) expect(l, l).toMatch(/인$/);
+    for (const cult of world.cultures) expect(labels).toContain(peopleLabelKo(cult.name));
+  });
+
   it("mentions the peoples a realm came to rule", () => {
     // Every world generates five cultures and the chronicle never mentioned one of them, though a
     // realm reaching over a second people's land sits in `cultureOf` crossed with the snapshots.
@@ -159,6 +174,17 @@ describe("worldToGazetteer", () => {
       const en = worldToGazetteer(w, h, "en");
       const hangul = en.match(/[가-힣]/g) ?? [];
       expect(hangul).toEqual([]);          // shows the offending characters when it fails
+    });
+
+    // ...and the other way, which is the whole point of the feature. Every proper noun in the
+    // document — the world, its regions and rivers, its peoples, realms, towns and rulers — is
+    // either rebuilt from its parts or transliterated, so nothing Latin is left for a Korean
+    // reader to trip over. (Numbers and markdown are not letters and are unaffected.)
+    it(`writes a Korean document with no Latin left in it (seed ${s})`, () => {
+      const { world: w } = generateWorld({ ...DEFAULT_PARAMS, seed: s });
+      const h = simulateHistory(w, s);
+      const kr = worldToGazetteer(w, h, "ko");
+      expect(kr.match(/[A-Za-z]/g) ?? []).toEqual([]);
     });
   }
 
@@ -210,10 +236,37 @@ describe("exported chronicle is byte-stable across the shared-assembler move", (
   //      ONE LINE COUNT does (123/130/105 before and after), because nothing was added or removed;
   //      the same sentences carry different proper nouns. `history.test.ts`'s `allSnap` did not move
   //      either, so the world under the names is the same world.
+  //   7. The Korean document became Korean: every proper noun in it — realms, peoples, towns,
+  //      rulers, and the world/region/river names built from their parts — is now written in
+  //      Hangul instead of Latin, and two particles that follow a name were fixed to agree with
+  //      it (the hardcoded 를 after the overtaken realm, and the hardcoded 는 after the world's
+  //      title). THE THREE KOREAN HASHES MOVE AND NOTHING ELSE DOES: the English hashes are
+  //      byte-identical, and the line counts hold at 123/130/105 in BOTH languages, which is what
+  //      says a sentence was translated rather than added or lost.
+  //      Proved by substitution rather than asserted: switching the transliteration and those two
+  //      particles back off — and changing nothing else — reproduced ko 2399950495 / 2322413515 /
+  //      796628344 and history.test.ts's `events` 718178238 / 2255964615 / 3415859447, the exact
+  //      values pinned before this change, on all three seeds. `allSnap` never moved at all.
+  //   8. `toHangul`'s `sh` row learned to glide before a vowel (샤 셰 쇼 슈), matching how Korean
+  //      already writes a prevocalic [ʃ] (샤워, 샴푸, 쇼크, 슈퍼) and how the `sy`/`ly` onsets already
+  //      glide. `Zashain` reads 자샤인, not 자사인, and every name that carries `sh`+vowel with it
+  //      moves the same way — ONLY the KOREAN hashes move, and NOT ONE LINE COUNT does (123/130/105
+  //      before and after), because the change is a spelling correction, not an addition or a loss.
+  //      A word-final or preconsonantal `sh` (사인카이시, 지아시다르) is unaffected and out of scope,
+  //      which is why those names' English hashes and the line counts hold.
+  //   9. `peopleLabelKo` (드루스브라우 -> 드루스브라우인) was wired into "## 민족"'s own labels and the
+  //      culture map's label/legend (src/engine/gazetteer.ts, src/ui/cultureLayer.ts) — a real change
+  //      to the Korean document's Peoples section. NEITHER hash below moved, and that is expected
+  //      rather than a hole in this lock: `chronicleOf` only folds the "## Chronicle"/"## 연대기"
+  //      SLICE, which `worldToGazetteer` emits after "## 나라" and never carries a Peoples-section
+  //      label (a people's name only re-appears inside a chronicle CLAUSE — "민족의 땅을 다스리게 되다"
+  //      — which stayed on `say`, unchanged, by the same label-vs-clause rule item 7 already drew for
+  //      a realm's name). Confirmed empirically: the full suite ran green with the wiring in place, on
+  //      the first pass, with no pin in this file or `history.test.ts` touched.
   const pins: Record<number, { en: number; ko: number; lines: number }> = {
-    1: { en: 4144700973, ko: 2399950495, lines: 123 },
-    2: { en: 2256232225, ko: 2322413515, lines: 130 },
-    3: { en: 3521961453, ko:  796628344, lines: 105 },
+    1: { en: 4144700973, ko: 1536594626, lines: 123 },
+    2: { en: 2256232225, ko: 2181530387, lines: 130 },
+    3: { en: 3521961453, ko: 1233108995, lines: 105 },
   };
   for (const seed of [1, 2, 3]) {
     it(`reproduces the pinned chronicle for seed ${seed}`, () => {
@@ -221,9 +274,57 @@ describe("exported chronicle is byte-stable across the shared-assembler move", (
       const h = simulateHistory(w, seed);
       const en = chronicleOf(worldToGazetteer(w, h, "en"), "## Chronicle");
       const ko = chronicleOf(worldToGazetteer(w, h, "ko"), "## 연대기");
-      expect(en.split("\n").filter((l) => l.startsWith("- ")).length).toBe(pins[seed].lines);
+      const enLines = en.split("\n").filter((l) => l.startsWith("- "));
+      const koLines = ko.split("\n").filter((l) => l.startsWith("- "));
+      expect(enLines.length).toBe(pins[seed].lines);
+      // The Korean count was not pinned, and a translation pass is exactly the change that could
+      // drop a sentence in one language only. Both counts, and — line for line — the same year in
+      // the same place, so a reordering cannot hide behind a matching total either.
+      expect(koLines.length).toBe(pins[seed].lines);
+      const year = (l: string) => Number(l.match(/\d+/)?.[0]);
+      expect(koLines.map(year)).toEqual(enLines.map(year));
       expect(fnv(en)).toBe(pins[seed].en);
       expect(fnv(ko)).toBe(pins[seed].ko);
+    });
+  }
+});
+
+// featureLabel.test.ts's "agrees with the recorded name" test only proves the map and the gazetteer
+// read the SAME English string — `r.name` is computed as `featureLabel(r.label, "en")` at generation
+// time, so both sides of that assertion move together and it cannot go red from an English word
+// changing underneath it. Nothing pinned the actual English region/river names themselves. This is
+// that pin: an FNV over "## The Land" (regions and rivers, English only — the section a sibling task
+// is about to touch on purpose). A future edit to ADJ/NOUNS/RIVER_NOUNS/the naming logic should move
+// this hash; if it doesn't, the edit did nothing, and if some OTHER change moves it, that change
+// reached a name it had no business touching.
+//
+// A sibling task (forms of government / region nouns) is about to change the region NOUNS
+// deliberately — when that lands, re-pin these three numbers and say so in the commit, the same way
+// gazetteer.test.ts's chronicle `pins` block records what each re-pin was allowed to move.
+//
+// RE-PINNED (korean-names task 4): 19 of 20 worlds were measured repeating a region noun — `Wilds`
+// alone is registered in TAIGA, TEMPERATE_FOREST and TROPICAL at once, and took 22 of 247 regions
+// between them, so two different places on the same map ended up both called "the Wilds".
+// nameGeography now walks a taken noun to the next free entry in its OWN biome's table, starting
+// from the index it drew — no rng is touched, the technique `lengthen()` in names.ts already uses —
+// rather than redrawing or borrowing another biome's word. That is exactly what these three hashes
+// were pinned to catch: only the words a few regions carry moved, nothing about how the world is
+// shaped did, which is also why this is the ONLY thing in the whole suite that re-pinned — the
+// chronicle `pins` block above reproduced untouched (region nouns never reach the chronicle text),
+// and so did history.test.ts's `allSnap` and world.test.ts's golden hashes (no draw moved). Five of
+// the twenty worlds still repeat a noun after the walk — measured and explained in
+// geography.test.ts, where a biome's own table has no free entry left to walk to.
+describe("the Land section's English names are pinned", () => {
+  const fold = (h: number, v: number) => (Math.imul(h ^ v, 16777619) >>> 0);
+  const fnv = (s: string) => { let h = 2166136261 >>> 0; for (let i = 0; i < s.length; i++) h = fold(h, s.charCodeAt(i)); return h >>> 0; };
+  const landOf = (md: string) => md.slice(md.indexOf("## The Land"), md.indexOf("## Peoples"));
+  const pins: Record<number, number> = { 1: 3599660719, 2: 3925439592, 3: 617219288 };
+  for (const seed of [1, 2, 3]) {
+    it(`reproduces the pinned English Land section for seed ${seed}`, () => {
+      const { world: w } = generateWorld({ ...DEFAULT_PARAMS, seed });
+      const h = simulateHistory(w, seed);
+      const en = worldToGazetteer(w, h, "en");
+      expect(fnv(landOf(en))).toBe(pins[seed]);
     });
   }
 });
@@ -373,6 +474,12 @@ describe("the Realms section tells kingdoms, republics and empires apart", () =>
   const en = worldToGazetteer(world, history, "en");
   const ko = worldToGazetteer(world, history, "ko");
   const pick = (f: string) => history.polities.filter((p) => forms.get(p.id)!.form === f);
+  // The Korean document heads a realm entry with the realm's name AND its form of government — the
+  // point of this whole task — so a Korean entry has to be found by that full heading. Looking it up
+  // by the bare transliterated name (`toHangul(name)` alone, with no suffix) matches nothing: the
+  // heading now reads "케우스두 왕국", not "케우스두".
+  const kEntry = (p: { id: number; name: string }) =>
+    entryFor(ko, realmLabelKo(p.name, forms.get(p.id)!.form), "## 나라");
 
   it("speaks of no kings at all in a free city's entry", () => {
     const republics = pick("republic");
@@ -381,7 +488,7 @@ describe("the Realms section tells kingdoms, republics and empires apart", () =>
       const e = entryFor(en, p.name, "## Realms");
       expect(e, p.name).toContain("Elected heads —");
       expect(e, p.name).not.toContain("Rulers —");
-      const k = entryFor(ko, p.name, "## 나라");
+      const k = kEntry(p);
       expect(k, p.name).toContain("역대 수반 —");
       expect(k, p.name).not.toContain("역대 군주");
     }
@@ -394,7 +501,7 @@ describe("the Realms section tells kingdoms, republics and empires apart", () =>
       const since = forms.get(p.id)!.since!;
       const e = entryFor(en, p.name, "## Realms");
       expect(e, p.name).toMatch(/empire|Emperors/);
-      const k = entryFor(ko, p.name, "## 나라");
+      const k = kEntry(p);
       expect(k, p.name).toContain("제국");
       // A realm that only came to rule other peoples partway through says when; one that did so
       // from its first day has no such year to give and must not invent one.
@@ -410,7 +517,7 @@ describe("the Realms section tells kingdoms, republics and empires apart", () =>
     expect(kingdoms.length).toBeGreaterThan(0);
     for (const p of kingdoms) {
       expect(entryFor(en, p.name, "## Realms"), p.name).toContain("Rulers —");
-      expect(entryFor(ko, p.name, "## 나라"), p.name).toContain("역대 군주 —");
+      expect(kEntry(p), p.name).toContain("역대 군주 —");
       expect(entryFor(en, p.name, "## Realms"), p.name).not.toContain("Emperors —");
     }
   });

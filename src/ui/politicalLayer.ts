@@ -18,6 +18,17 @@ export interface PoliticalOpts {
    * function, so a swatch cannot disagree with the territory it is a key to.
    */
   colorOf?: (id: number) => string;
+  /**
+   * What a realm is CALLED on the drawing, given its id and the name the record holds. Defaults to
+   * the recorded name.
+   *
+   * This layer is handed polities as `{id, name?}` and has no history and no language to look
+   * anything up in, so a Korean map cannot be made by teaching it Korean — it is made by the caller
+   * passing the labeller, exactly as it already passes `colorOf`. The id is in the signature
+   * although Korean does not need it: a realm's form of government (kingdom / republic / empire)
+   * lives in the history, is looked up by id, and reaches the map through this same seam.
+   */
+  labelOf?: (id: number, name: string) => string;
 }
 
 const MIN_LABEL_CELLS = 25;
@@ -32,7 +43,17 @@ export function politicalLayer(
   opts: PoliticalOpts = {},
 ): SVGGElement {
   const g = svgEl("g", { class: "political" }) as SVGGElement;
-  const nameOf = new Map(polities.map((p) => [p.id, p.name]));
+  const recorded = new Map(polities.map((p) => [p.id, p.name]));
+  const labelOf = opts.labelOf ?? ((_id: number, name: string) => name);
+  // An unnamed realm stays unnamed: the labeller is asked only about names that exist, so it never
+  // has to invent one and the `if (!name)` guards below still mean what they meant. `n` is checked
+  // for TRUTH rather than for `undefined`, because `""` is also not a name to hand the labeller —
+  // with a government form in hand, `labelOf(id, "")` can come back "왕국", a suffix with nothing to
+  // attach to, which is truthy and would slip the guards below a bare label they exist to stop.
+  const nameOf = (id: number): string | undefined => {
+    const n = recorded.get(id);
+    return n ? labelOf(id, n) : undefined;
+  };
   const colorOf = opts.colorOf ?? nationColor;
   const freeSet = new Set(polities.filter((p) => p.free).map((p) => p.id));
 
@@ -77,7 +98,7 @@ export function politicalLayer(
         d: `M${c.x.toFixed(1)},${(c.y - 1.7).toFixed(1)}L${c.x.toFixed(1)},${(c.y - 7).toFixed(1)}L${(c.x + 4).toFixed(1)},${(c.y - 6).toFixed(1)}L${c.x.toFixed(1)},${(c.y - 5).toFixed(1)}`,
         fill: "#efe7d2", stroke: "#4a3f2c", "stroke-width": 0.6, "stroke-linejoin": "round",
       }));
-      const name = nameOf.get(id);
+      const name = nameOf(id);
       if (name) {
         const tx = svgEl("text", {
           class: "free-city-label", x: c.x, y: c.y + 5.5, "text-anchor": "middle",
@@ -98,7 +119,7 @@ export function politicalLayer(
       const labels = svgEl("g", { class: "nation-labels" });
       for (const [id, c] of centroids) {
         if (c.cells < MIN_LABEL_CELLS) continue;
-        const name = nameOf.get(id);
+        const name = nameOf(id);
         if (!name) continue;
         const t = svgEl("text", {
           class: "nation-label", x: c.x, y: c.y, "text-anchor": "middle",
@@ -114,7 +135,7 @@ export function politicalLayer(
 
     if (opts.legend) {
       const rows = [...centroids.entries()]
-        .filter(([id]) => nameOf.get(id))
+        .filter(([id]) => nameOf(id))
         .sort((a, b) => b[1].cells - a[1].cells)
         .slice(0, 10);
       const legend = svgEl("g", { class: "legend nation-legend" });
@@ -130,7 +151,7 @@ export function politicalLayer(
           fill: colorOf(id), stroke: INK, "stroke-width": 0.6, "vector-effect": "non-scaling-stroke",
         }));
         const t = svgEl("text", { x: x0 + LEGEND_SWATCH + LEGEND_GAP, y, "font-size": LEGEND_TEXT, fill: "#42341f", "letter-spacing": 0.3 });
-        t.textContent = nameOf.get(id) ?? "";
+        t.textContent = nameOf(id) ?? "";
         legend.appendChild(t);
       });
       g.appendChild(legend);

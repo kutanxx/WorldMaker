@@ -2,6 +2,7 @@ import type { World, CityMarker } from "../types/world";
 import type { History } from "./history";
 import { mulberry32, deriveSeed } from "./rng";
 import { withJosa } from "./korean";
+import { properNoun } from "./hangul";
 import { TUNDRA, TAIGA, ALPINE, TEMPERATE_FOREST, TROPICAL, DESERT } from "./biome";
 import type { ChronicleLang } from "./chronicleLines";
 
@@ -50,7 +51,10 @@ export function naturalHistory(world: World, history: History, lang: ChronicleLa
   };
   const foundedAt = new Map(history.cityFoundings.map((f) => [f.cityId, f.year]));
   const years = history.snapshots.map((s) => s.year).filter((y) => y > 0);
-  const realmName = (id: number) => history.polities[id]?.name ?? "";
+  // Towns and realms are single invented words; Korean transliterates a foreign name. Done at the
+  // point the SENTENCE is built, so the record still keeps one name per place.
+  const say = (s: string) => properNoun(ko, s);
+  const realmName = (id: number) => say(history.polities[id]?.name ?? "");
 
   // Which towns each kind of misfortune is even possible in. A flood needs the river the atlas
   // drew through the town; a fire needs a town built of timber; a winter needs the cold country.
@@ -122,12 +126,14 @@ export function naturalHistory(world: World, history: History, lang: ChronicleLa
     struck.add(city.id);
     used.set(kind, used.get(kind)! + 1);
 
-    const town = city.name;
+    const town = say(city.name);
     const self = realmName(pid);
     // A realm often takes its name from its seat, and then the clause naming the realm says the
     // town's name a second time in the same sentence ("at Zaiashair; Zaiashair counts what it
-    // lost"). Where they are the same word, the sentence has only one place to name.
-    const realm = self === town ? "" : self;
+    // lost"). Where they are the same word, the sentence has only one place to name. Compared on
+    // the RECORDED names, not the written ones: two different words could transliterate alike, and
+    // that is a collision to ignore rather than a repetition to fix.
+    const realm = history.polities[pid]?.name === city.name ? "" : self;
     const text = ko ? koText(kind, year, town, realm) : enText(kind, year, town, realm);
     out.push({ year, rank: 5, kind, text, cityId: city.id, polityId: pid });
   }

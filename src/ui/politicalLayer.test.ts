@@ -98,6 +98,20 @@ describe("politicalLayer", () => {
     const b = politicalLayer(world.grid, h.snapshots[h.snapshots.length - 1].owner, h.polities, { fills: true });
     expect(dstr(a)).not.toBe(dstr(b));
   });
+
+  // M6: `nameOf` guarded `undefined` but not `""`. With a government form in hand, `labelOf(id, "")`
+  // returns a truthy suffix — " 왕국" — with nothing in front of it, so the `if (name)` map-label
+  // guard and the `.filter(([id]) => nameOf(id))` legend guard would both let a nameless realm
+  // through and draw a bare "왕국" where nothing should be drawn at all.
+  it("draws no label or legend row for a realm with no name, even when the labeller would suffix it", () => {
+    const owner = new Int32Array(world.grid.count).fill(-1);
+    for (let i = 0; i < 30; i++) owner[i] = 0;
+    const suffixEvenEmpty = (_id: number, name: string) => `${name} 왕국`;
+    const g = politicalLayer(world.grid, owner, [{ id: 0, name: "", free: false }],
+      { fills: true, labels: true, legend: true, labelOf: suffixEvenEmpty });
+    expect(g.querySelectorAll(".nation-label").length).toBe(0);
+    expect(g.querySelectorAll(".nation-legend .legend-item").length).toBe(0);
+  });
 });
 
 // The fills and the legend each called `nationColor(id)` directly, so there was no way to give the

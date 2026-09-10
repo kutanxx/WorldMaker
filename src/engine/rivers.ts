@@ -3,6 +3,7 @@ import type { Rng } from "./rng";
 import { pick } from "./rng";
 import { makeNameGen, type Phonetics } from "./names";
 import { ADJ } from "./geography";
+import { featureLabel, type FeatureLabel } from "./featureLabel";
 import { OCEAN } from "./terrain";
 import {
   TUNDRA, TAIGA, TEMPERATE_FOREST, GRASSLAND, DESERT, TROPICAL, WETLAND, ALPINE,
@@ -144,24 +145,31 @@ export function traceRivers(
   return { segments, trunks, riverCells };
 }
 
-const RIVER_NOUNS = ["River", "Water", "Run", "Fork", "Flow", "Race", "Rill"];
+export const RIVER_NOUNS = ["River", "Water", "Run", "Fork", "Flow", "Race", "Rill"];
 
-function riverName(rng: Rng, phon: Phonetics): string {
+function riverName(rng: Rng, phon: Phonetics): { name: string; label: FeatureLabel } {
   const noun = pick(rng, RIVER_NOUNS);
   const ng = makeNameGen(rng, phon);
   const r = rng();
-  if (r < 0.45) return `the ${pick(rng, ADJ)} ${noun}`;
-  if (r < 0.75) return `${ng.place()} ${noun}`;
-  return `${noun} ${ng.place()}`;
+  // ⚠ Same draw order as the if-chain this replaces: noun, then r, then the adjective or the
+  // place — reordering moves every river (and everything named after it) downstream.
+  //
+  // The third branch ("Race Ggor") renders the RIVER_NOUNS word first, the invented place second —
+  // the opposite order from "attributive" (proper then noun). "nounFirst" keeps `noun` meaning
+  // "the table word" here too, so a Korean lookup can key on `label.noun` with no exception.
+  const label: FeatureLabel = r < 0.45
+    ? { pattern: "adj", kind: -1, adj: pick(rng, ADJ), noun }
+    : r < 0.75
+      ? { pattern: "attributive", kind: -1, noun, proper: ng.place() }
+      : { pattern: "nounFirst", kind: -1, noun, proper: ng.place() };
+  return { name: featureLabel(label, "en"), label };
 }
 
 export function nameRivers(
   rng: Rng, trunks: RawRiver[], phonAt: (cell: number) => Phonetics,
 ): River[] {
-  return trunks.map((t) => ({
-    name: riverName(rng, phonAt(t.mouthCell)),
-    path: t.path,
-    flux: t.flux,
-    mouth: t.path[0],
-  }));
+  return trunks.map((t) => {
+    const { name, label } = riverName(rng, phonAt(t.mouthCell));
+    return { name, label, path: t.path, flux: t.flux, mouth: t.path[0] };
+  });
 }

@@ -5,6 +5,7 @@ import type { Lang } from "./i18n";
 import { cellPath, segPath } from "./svgPaths";
 import { politicalBorders } from "../engine/borders";
 import { nationCentroids } from "./nationPalette";
+import { peopleLabel } from "./properName";
 
 type GridLike = Pick<World["grid"], "count" | "polygons" | "points" | "width" | "height" | "neighbors">;
 
@@ -59,7 +60,7 @@ export function cultureLayer(
       "font-size": 13, fill: "#2a2118", stroke: "#f3ead2", "stroke-width": 2.6,
       "paint-order": "stroke", "stroke-linejoin": "round",
     });
-    t.textContent = cultures[id].name;
+    t.textContent = peopleLabel(lang, cultures[id].name);
     labels.appendChild(t);
   }
   g.appendChild(labels);
@@ -75,7 +76,8 @@ export function cultureLayer(
     const y = y0 + i * LEGEND_ROW;
     legend.appendChild(svgEl("rect", { class: "legend-item", x: x0, y: y - 9, width: LEGEND_SWATCH, height: LEGEND_SWATCH, fill: cultures[id]?.color ?? "#888", stroke: INK, "stroke-width": 0.6, "vector-effect": "non-scaling-stroke" }));
     const t = svgEl("text", { x: x0 + LEGEND_SWATCH + LEGEND_GAP, y, "font-size": LEGEND_TEXT, fill: "#42341f", "letter-spacing": 0.3 });
-    t.textContent = cultures[id]?.name ?? "";
+    const cname = cultures[id]?.name;
+    t.textContent = cname === undefined ? "" : peopleLabel(lang, cname);
     legend.appendChild(t);
   });
   g.appendChild(legend);

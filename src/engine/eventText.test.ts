@@ -11,64 +11,73 @@ const build = (seed: number) => generateWorld({ ...DEFAULT_PARAMS, seed }).world
 const P = (id: number, name: string): HistoryPolity =>
   ({ id, name, color: "#000", capital: 0, foundedYear: 0, endedYear: null, origin: "initial", free: false });
 
-describe("eventText — Korean is byte-identical to what the simulation used to write", () => {
+describe("eventText — Korean, and written in Korean", () => {
   // The across-seeds equivalence check lived here while `HistoryEvent.text` still existed. It is
   // now the events golden anchor in history.test.ts, which folds this exact rendering on seeds
-  // 1, 2 and 3 and reproduces its pre-existing pinned values.
+  // 1, 2 and 3.
+  //
+  // These lines used to be the sentences the simulation itself built, Latin names and all
+  // ("0년, Dhaishdhar 건국"). The names are written in Hangul now, which is the whole point of the
+  // change: a Korean reader was being handed a Korean sentence with an English word in the middle
+  // of it. NOTHING ELSE about the list moved — the same fifty events, in the same years, in the
+  // same order, with the same verbs — and the particles still agree with the name they follow
+  // (자샤인이 카악을, 자샤인이 다이시다르를) — "Zashain" reads 자샤인, not 자사인: `sh` before a
+  // vowel takes a Korean glide (hangul.ts's `glideVowel`), the same treatment `Zaiashain` gets in
+  // nameSuffix.test.ts, which is also why "Sashaish" below reads 사샤이시, not 사사이시.
 
   it("reproduces seed 1's chronicle line for line", () => {
     const h = simulateHistory(build(1), 1);
     expect(h.events.map((e) => eventText(e, h.polities, "ko"))).toEqual([
-      "0년, Dhaishdhar 건국",
-      "0년, Korvruk 건국",
-      "0년, Ceusdu 건국",
-      "0년, Thruthkha 건국",
-      "0년, Kaargruth 건국",
-      "0년, Zashain 건국",
-      "0년, Khaak 건국",
-      "0년, Laelmaer 건국",
-      "0년, Sainkhaish 자유무역항 지정",
-      "0년, Graurk 자유무역항 지정",
-      "0년, Hreir 자유무역항 지정",
-      "10년, Dhaishdhar 황금기 도래",
-      "20년, Ceusdu 황금기 도래",
-      "20년, Kaargruth이 Gruk 건설",
-      "30년, Zashain 황금기 도래",
-      "30년, Ceusdu가 Coriorvean 건설",
-      "40년, Laelmaer이 Korvruk을 정복",
-      "40년, Laelmaer 황금기 도래",
-      "40년, Dhaishdhar이 Ziashdhar 건설",
-      "50년, Khaak이 Grar 건설",
-      "60년, Khaak이 Sashaish 건설",
-      "90년, Zashain이 Khaak을 정복",
-      "90년, 내란이 Laelmaer을 Riadiar·Thiarbrork으로 쪼갬",
-      "90년, Thiarbrork이 Elarsyan 건설",
-      "130년, 자유도시 Hreir 독립 선포",
-      "130년, Riadiar이 Syansyen 건설",
-      "140년, Riadiar이 Melialae 건설",
-      "150년, Thiarbrork 황금기 도래",
-      "250년, Thruthkha 황금기 도래",
-      "260년, 자유도시 Zazsash 독립 선포",
-      "260년, Thiarbrork이 Vathlith 건설",
-      "270년, 내란이 Zashain을 Stirkfand·Miarand으로 쪼갬",
-      "300년, Miarand이 Saar 건설",
-      "320년, Zashain이 Dhaishdhar을 정복",
-      "320년, Stirkfand이 Zazsash 건설",
-      "340년, Miarand이 Dhaazaih 건설",
-      "350년, Stirkfand이 Liermiol 건설",
-      "360년, Miarand이 Aelmeir 건설",
-      "380년, 내란이 Zashain을 Lunbris·Staethfoum으로 쪼갬",
-      "380년, Staethfoum 황금기 도래",
-      "380년, Zashain이 Zarair 건설",
-      "400년, 자유도시 Coriorvean 독립 선포",
-      "400년, Stirkfand이 Corais 건설",
-      "410년, Stirkfand이 Drur 건설",
-      "420년, Zashain이 Miarand을 정복",
-      "420년, Staethfoum이 Thykhy 건설",
-      "430년, Zashain이 Ceusdu를 정복",
-      "440년, Lunbris이 Hreir 건설",
-      "460년, 자유도시 Khaagg 독립 선포",
-      "500년, Staethfoum이 Throrgugr 건설",
+      "0년, 다이시다르 건국",
+      "0년, 코르브룩 건국",
+      "0년, 케우스두 건국",
+      "0년, 스루스카 건국",
+      "0년, 카아르그루스 건국",
+      "0년, 자샤인 건국",
+      "0년, 카악 건국",
+      "0년, 라엘마에르 건국",
+      "0년, 사인카이시 자유무역항 지정",
+      "0년, 그라우르크 자유무역항 지정",
+      "0년, 흐레이르 자유무역항 지정",
+      "10년, 다이시다르 황금기 도래",
+      "20년, 케우스두 황금기 도래",
+      "20년, 카아르그루스가 그룩 건설",
+      "30년, 자샤인 황금기 도래",
+      "30년, 케우스두가 코리오르베안 건설",
+      "40년, 라엘마에르가 코르브룩을 정복",
+      "40년, 라엘마에르 황금기 도래",
+      "40년, 다이시다르가 지아시다르 건설",
+      "50년, 카악이 그라르 건설",
+      "60년, 카악이 사샤이시 건설",
+      "90년, 자샤인이 카악을 정복",
+      "90년, 내란이 라엘마에르를 리아디아르·시아르브로르크로 쪼갬",
+      "90년, 시아르브로르크가 엘라르샨 건설",
+      "130년, 자유도시 흐레이르 독립 선포",
+      "130년, 리아디아르가 샨셴 건설",
+      "140년, 리아디아르가 멜리알라에 건설",
+      "150년, 시아르브로르크 황금기 도래",
+      "250년, 스루스카 황금기 도래",
+      "260년, 자유도시 자즈사시 독립 선포",
+      "260년, 시아르브로르크가 바슬리스 건설",
+      "270년, 내란이 자샤인을 스티르크판드·미아란드로 쪼갬",
+      "300년, 미아란드가 사아르 건설",
+      "320년, 자샤인이 다이시다르를 정복",
+      "320년, 스티르크판드가 자즈사시 건설",
+      "340년, 미아란드가 다아자이흐 건설",
+      "350년, 스티르크판드가 리에르미올 건설",
+      "360년, 미아란드가 아엘메이르 건설",
+      "380년, 내란이 자샤인을 룬브리스·스타에스포움으로 쪼갬",
+      "380년, 스타에스포움 황금기 도래",
+      "380년, 자샤인이 자라이르 건설",
+      "400년, 자유도시 코리오르베안 독립 선포",
+      "400년, 스티르크판드가 코라이스 건설",
+      "410년, 스티르크판드가 드루르 건설",
+      "420년, 자샤인이 미아란드를 정복",
+      "420년, 스타에스포움이 시키 건설",
+      "430년, 자샤인이 케우스두를 정복",
+      "440년, 룬브리스가 흐레이르 건설",
+      "460년, 자유도시 카아그 독립 선포",
+      "500년, 스타에스포움이 스로르구그르 건설",
     ]);
   });
 });
@@ -145,20 +154,25 @@ describe("eventText — the parts a single seed does not exercise", () => {
   it("joins three successors as a sentence, not as an array", () => {
     expect(eventText(war([1, 2, 3]), pols, "en"))
       .toBe("Year 300 — civil war splits Aeltha into Bryn, Corran and Dhaish");
-    // "Dhaish" closes on a consonant and is not ㄹ, so it takes 으로. (The ㄹ exception — a name
-    // ending in l/r takes 로 — is covered by seed 1's real line, "…Thaendfoul로 쪼갬".)
+    // The particle follows the name AS WRITTEN, and transliteration is what decides that: "Dhaish"
+    // reads as closing on a consonant in Latin and took 으로 before, while 다이시 is an open
+    // syllable and takes 로.
     expect(eventText(war([1, 2, 3]), pols, "ko"))
-      .toBe("300년, 내란이 Aeltha를 Bryn·Corran·Dhaish으로 쪼갬");
+      .toBe("300년, 내란이 아엘사를 브린·코르란·다이시로 쪼갬");
   });
 
   it("picks the Korean particle from the name's final sound", () => {
-    // 받침 있는 이름 → 을, 없는 이름 → 를; and the civil-war particle follows the LAST successor.
-    const consonant = [P(0, "Vaealelael"), P(1, "Khokgraur")];
-    const vowel = [P(0, "Vaealelael"), P(1, "Kaarkgruau")];
+    // 받침 있는 이름 → 을, 없는 이름 → 를. Which names those ARE changed with the transliteration,
+    // and the fixture had to change with it: "Khokgraur" closes on a consonant as Latin but is
+    // written 코크그라우르, whose last syllable is open — 를, and correctly so, exactly as Korean
+    // writes 카이사르를. A name that closes in Hangul has to end in a real 받침, so 카악 takes over
+    // the 을 half of this test.
+    const closed = [P(0, "Vaealelael"), P(1, "Khaak")];
+    const open = [P(0, "Vaealelael"), P(1, "Kaarkgruau")];
     const conquer = (year: number): HistoryEvent =>
       ({ year, type: "conquer", polityId: 0, otherId: 1 });
-    expect(eventText(conquer(30), consonant, "ko")).toBe("30년, Vaealelael이 Khokgraur을 정복");
-    expect(eventText(conquer(70), vowel, "ko")).toBe("70년, Vaealelael이 Kaarkgruau를 정복");
+    expect(eventText(conquer(30), closed, "ko")).toBe("30년, 바에알렐라엘이 카악을 정복");
+    expect(eventText(conquer(70), open, "ko")).toBe("70년, 바에알렐라엘이 카아르크그루아우를 정복");
   });
 
   it("prints an unknown id rather than throwing", () => {

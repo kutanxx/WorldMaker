@@ -122,7 +122,12 @@ export function generateWorld(params: WorldParams, nameOverride?: string): Gener
   // polity/cities and the golden regression) is byte-unchanged; reads the built biome array
   const geoRng = mulberry32(deriveSeed(params.seed, 8001));
   const regions = nameGeography(geoRng, detectRegions(grid, Array.from(biome), Array.from(terrain)));
-  const name = nameOverride ?? worldName(geoRng);
+  // worldName's draw always happens, override or not — its result just may not be DISPLAYED. That
+  // keeps world.nameLabel meaningful even when the reader supplied their own name (so a named and
+  // an unnamed world otherwise stay byte-identical, per world.test.ts "a world can be given its name").
+  const generatedName = worldName(geoRng);
+  const name = nameOverride ?? generatedName.name;
+  const nameLabel = generatedName.label;
 
   // river NAMES on a SEPARATE stream (8002); geometry was already traced (rng-free) above, so the
   // golden regression stays byte-unchanged
@@ -137,6 +142,7 @@ export function generateWorld(params: WorldParams, nameOverride?: string): Gener
   const world: World = {
     params,
     name,
+    nameLabel,
     regions,
     cultureOf: Array.from(cultureOf),
     cultures: cultures.map((c) => ({ name: c.name, color: c.color, phon: c.phon })),

@@ -2,6 +2,7 @@ import type { Rng } from "./rng";
 import { pick } from "./rng";
 import { makeNameGen } from "./names";
 import type { Region } from "../types/world";
+import { featureLabel, type FeatureLabel } from "./featureLabel";
 import {
   OCEAN, TUNDRA, TAIGA, TEMPERATE_FOREST, GRASSLAND, DESERT, TROPICAL, WETLAND, ALPINE,
 } from "./biome";
@@ -16,7 +17,7 @@ const MAX_REGIONS = 12; // avoid label clutter (land)
 const MAX_SEAS = 2;
 
 // feature nouns by biome kind (research: the noun depends on the terrain)
-const NOUNS: Record<number, string[]> = {
+export const NOUNS: Record<number, string[]> = {
   [OCEAN]: ["Sea", "Deep", "Gulf", "Waters", "Expanse", "Main"],
   [TUNDRA]: ["Tundra", "Frostlands", "Barrens"],
   [TAIGA]: ["Pinewood", "Taiga", "Wilds"],
@@ -30,7 +31,7 @@ const NOUNS: Record<number, string[]> = {
 export const ADJ = ["Ashen", "Grey", "Green", "Golden", "White", "Black", "Bitter", "Broken",
   "Endless", "Silent", "Frozen", "Shrouded", "Sunken", "Hollow", "Iron", "Amber",
   "Pale", "Riven", "Cold", "Old"];
-const WORLD_NOUN = ["Realm", "Lands", "Reaches", "Dominion", "Expanse"];
+export const WORLD_NOUN = ["Realm", "Lands", "Reaches", "Dominion", "Expanse"];
 
 // same-biome connected components (land) + the deepest point of the largest sea(s)
 export function detectRegions(grid: GridLike, biome: number[], terrain: number[]): RawRegion[] {
@@ -90,20 +91,54 @@ export function detectRegions(grid: GridLike, biome: number[], terrain: number[]
   return regions;
 }
 
-export function featureName(rng: Rng, ng: { nation(): string }, kind: number): string {
+export function featureName(rng: Rng, ng: { nation(): string }, kind: number): { name: string; label: FeatureLabel } {
   const noun = pick(rng, NOUNS[kind] ?? ["Land"]);
   const r = rng();
-  if (r < 0.45) return `the ${pick(rng, ADJ)} ${noun}`;
-  if (r < 0.75) return `${noun} of ${ng.nation()}`;
-  return `${ng.nation()} ${noun}`;
+  // ⚠ The branches must draw in the SAME ORDER as the if-chain they replace — noun, then r, then
+  // either an adjective or a nation — or every world downstream of this call moves.
+  const label: FeatureLabel = r < 0.45
+    ? { pattern: "adj", kind, adj: pick(rng, ADJ), noun }
+    : r < 0.75
+      ? { pattern: "of", kind, noun, proper: ng.nation() }
+      : { pattern: "attributive", kind, noun, proper: ng.nation() };
+  return { name: featureLabel(label, "en"), label };
 }
 
+// Measured over twenty seeds: 15 of 20 worlds called two different regions by the same noun, because
+// `Wilds` is registered in TAIGA, TEMPERATE_FOREST and TROPICAL at once and took 22 of 247 regions
+// between them. A retry (redraw the noun until it's free) would work, but every draw after it in the
+// same rng stream is downstream of world geometry — a retry loop would silently move the map. So a
+// taken noun is instead WALKED to the next free entry in its own biome's table, starting from the
+// index it drew: no rng is touched, exactly the technique `lengthen()` in names.ts already uses for
+// too-short names. If the whole table is already spoken for, the repeat is kept rather than reaching
+// into another biome's list — a borrowed word would say a forest is a desert.
 export function nameGeography(rng: Rng, raws: RawRegion[]): Region[] {
   const ng = makeNameGen(rng);
-  return raws.map((r) => ({ name: featureName(rng, ng, r.kind), kind: r.kind, centroid: r.centroid, cells: r.cells }));
+  const usedNouns = new Set<string>();
+  const regions = raws.map((r) => {
+    let { name, label } = featureName(rng, ng, r.kind);
+    if (usedNouns.has(label.noun)) {
+      const list = NOUNS[r.kind] ?? ["Land"];
+      const start = list.indexOf(label.noun);
+      for (let step = 1; step <= list.length; step++) {
+        const candidate = list[(start + step) % list.length];
+        if (!usedNouns.has(candidate)) {
+          label = { ...label, noun: candidate };
+          name = featureLabel(label, "en");
+          break;
+        }
+      }
+    }
+    usedNouns.add(label.noun);
+    return { name, label, kind: r.kind, centroid: r.centroid, cells: r.cells };
+  });
+  return regions;
 }
 
-export function worldName(rng: Rng): string {
+export function worldName(rng: Rng): { name: string; label: FeatureLabel } {
   const ng = makeNameGen(rng);
-  return rng() < 0.5 ? ng.nation() : `the ${pick(rng, ADJ)} ${pick(rng, WORLD_NOUN)}`;
+  const label: FeatureLabel = rng() < 0.5
+    ? { pattern: "attributive", kind: -1, noun: "", proper: ng.nation() }
+    : { pattern: "adj", kind: -1, adj: pick(rng, ADJ), noun: pick(rng, WORLD_NOUN) };
+  return { name: featureLabel(label, "en"), label };
 }

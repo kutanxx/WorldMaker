@@ -6,6 +6,7 @@ import { t, type Lang } from "./ui/i18n";
 import { initialParams, initialSeedName } from "./ui/urlState";
 import { generateWorld } from "./engine/world";
 import { renderWorld } from "./ui/svgWorldRenderer";
+import { worldNameIn } from "./engine/featureLabel";
 import type { WorldParams } from "./types/world";
 
 type StorageLike = Pick<Storage, "getItem" | "setItem">;
@@ -132,7 +133,7 @@ export function fillPreview(root: HTMLElement, day: Date, lang: Lang = "en"): vo
   link.appendChild(renderWorld(world, "terrain", [], lang));
   const cap = document.createElement("p");
   cap.className = "landing-preview-cap";
-  cap.textContent = `${t(lang, "landingPreviewOf")} · ${dailyName(day).slice(6)} — ${world.name}`;
+  cap.textContent = `${t(lang, "landingPreviewOf")} · ${dailyName(day).slice(6)} — ${worldNameIn(world, lang)}`;
   slot.replaceChildren(link, cap);
   slot.hidden = false;
 }

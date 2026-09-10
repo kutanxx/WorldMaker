@@ -7,6 +7,7 @@ import { initialCity, decodeParams } from "./urlState";
 import { generateWorld } from "../engine/world";
 import { simulateHistory } from "../engine/history";
 import { snapOwnersToProvinces } from "./provinceLayer";
+import { properName } from "./properName";
 
 const small = { ...DEFAULT_PARAMS, width: 300, height: 300, cellCount: 400, townCount: 6 };
 
@@ -556,6 +557,66 @@ describe("the cities announce themselves", () => {
     const lastCap = items.lastIndexOf(caps[caps.length - 1]);
     expect(items.slice(0, lastCap + 1).every((b) => b.classList.contains("is-capital"))).toBe(true);
     root.remove();
+  });
+
+  // I1: the list renders Hangul through `properName` but nothing asserted the result actually WAS
+  // Hangul — deleting `properName(` from app.ts:370 left every other test green while a Korean
+  // reader saw a Latin name in the list beside a Korean map.
+  it("names the city list in the reader's language", () => {
+    localStorage.setItem("wm:lang", "en"); // pin the starting language; the toggle below leaves it ko
+    const root = document.createElement("div");
+    document.body.appendChild(root);
+    createApp(root, small);
+    const hasLatin = (s: string) => /[A-Za-z]/.test(s);
+    const namesEn = [...root.querySelectorAll(".city-list-name")].map((el) => el.textContent ?? "");
+    expect(namesEn.length).toBeGreaterThan(0);
+    for (const n of namesEn) expect(hasLatin(n), `"${n}" has no Latin letter in English`).toBe(true);
+    (root.querySelector(".lang-toggle") as HTMLButtonElement).click(); // en -> ko
+    const namesKo = [...root.querySelectorAll(".city-list-name")].map((el) => el.textContent ?? "");
+    expect(namesKo.length).toBe(namesEn.length);
+    for (const n of namesKo) expect(hasLatin(n), `"${n}" has a Latin letter on the Korean list`).toBe(false);
+    root.remove();
+    localStorage.removeItem("wm:lang");
+  });
+
+  // M7: the tiebreaker sorted by the Latin `c.name`, a string the Korean reader never sees, while
+  // the button renders `properName(lang, c.name)` — so same-size Korean towns could land in an
+  // order that has nothing to do with what is actually printed on the list.
+  it("sorts the Korean city list by the name it renders, not the Latin name underneath", () => {
+    localStorage.setItem("wm:lang", "ko");
+    const root = document.createElement("div");
+    document.body.appendChild(root);
+    const params = { ...DEFAULT_PARAMS, seed: 5 };
+    createApp(root, params);
+    const { world } = generateWorld(params);
+    const byId = new Map(world.cities.map((c) => [c.id, c]));
+    const items = [...root.querySelectorAll(".city-list-item")];
+    // walk runs of consecutive items sharing (isCapital, size) — exactly the groups M7's tiebreak
+    // orders — and check each run's rendered names are non-decreasing under localeCompare
+    let groupsChecked = 0;
+    for (let i = 0; i < items.length; ) {
+      const c0 = byId.get(Number(items[i].getAttribute("data-city")))!;
+      let j = i;
+      const names: string[] = [];
+      while (j < items.length) {
+        const c = byId.get(Number(items[j].getAttribute("data-city")))!;
+        if (c.isCapital !== c0.isCapital || c.size !== c0.size) break;
+        const rendered = items[j].querySelector(".city-list-name")!.textContent ?? "";
+        expect(rendered, `city ${c.id}`).toBe(properName("ko", c.name)); // the group is keyed right
+        names.push(rendered);
+        j++;
+      }
+      if (names.length > 1) {
+        groupsChecked++;
+        for (let k = 1; k < names.length; k++) {
+          expect(names[k].localeCompare(names[k - 1]), `"${names[k - 1]}" then "${names[k]}"`).toBeGreaterThanOrEqual(0);
+        }
+      }
+      i = j;
+    }
+    expect(groupsChecked, "no same-size group to check the tiebreak on").toBeGreaterThan(0);
+    root.remove();
+    localStorage.removeItem("wm:lang");
   });
 
   it("opens a plan from the list, without anyone hitting a dot", async () => {

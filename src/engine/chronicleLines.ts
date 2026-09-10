@@ -1,6 +1,7 @@
 import type { World } from "../types/world";
 import type { History, HistoryEventType } from "./history";
 import { withJosa } from "./korean";
+import { properNoun } from "./hangul";
 import { buildDynasties, rulerAt, type Reign } from "./dynasty";
 import { eventText } from "./eventText";
 import { naturalHistory } from "./naturalHistory";
@@ -75,13 +76,16 @@ function mined(world: World, history: History, lang: ChronicleLang,
     for (let i = 0; i < snap.owner.length; i++) { const o = snap.owner[i]; if (o >= 0 && o < n) c[o]++; }
     return c;
   });
-  const nameOf = (p: number) => history.polities[p]?.name ?? String(p);
+  // Realms, peoples and rulers are single invented words: Korean writes a foreign name by
+  // transliterating it, and the record keeps one name for both languages.
+  const say = (s: string) => properNoun(ko, s);
+  const nameOf = (p: number) => say(history.polities[p]?.name ?? String(p));
   // Who held the realm when it happened. A peak or a collapse with a name on it is a person's
   // reign; without one it is a statistic.
   const underOf = (p: number, year: number) => {
     const r = rulerAt(dyn.get(p) ?? [], year);
     if (!r) return "";
-    return ko ? ` (${r.name} 치세)` : ` (under ${r.name})`;
+    return ko ? ` (${say(r.name)} 치세)` : ` (under ${r.name})`;
   };
   const out: ChronicleLine[] = [];
 
@@ -133,7 +137,9 @@ function mined(world: World, history: History, lang: ChronicleLang,
     if (lastTop >= 0) {
       const year = history.snapshots[t].year;
       out.push({ year, rank: 1, kind: "hegemon", text: ko
-        ? `${year}년, ${withJosa(nameOf(top), "이/가")} ${nameOf(lastTop)}를 제치고 가장 큰 나라가 되다`
+        // 를 was hardcoded here. It was already wrong half the time and it is wrong more often now
+        // that the name it follows is Hangul, whose final consonant the particle is chosen by.
+        ? `${year}년, ${withJosa(nameOf(top), "이/가")} ${withJosa(nameOf(lastTop), "을/를")} 제치고 가장 큰 나라가 되다`
         : `Year ${year} — ${nameOf(top)} overtakes ${nameOf(lastTop)} as the greatest realm` });
     }
     lastTop = top;
@@ -187,7 +193,7 @@ function mined(world: World, history: History, lang: ChronicleLang,
         if (c === home || seenCulture.has(key)) continue;
         seenCulture.add(key);
         if (t === 0) continue;                 // held from the first day: not a moment, just a fact
-        gained.push(world.cultures[c]?.name ?? String(c));
+        gained.push(say(world.cultures[c]?.name ?? String(c)));
       }
       // One conquest can reach two peoples at once; that is one line, not two identical ones.
       if (!gained.length) continue;
@@ -207,7 +213,7 @@ function mined(world: World, history: History, lang: ChronicleLang,
     if (!f || f.form !== "empire" || f.since === null || f.since <= p.foundedYear) continue;
     const year = f.since;
     out.push({ year, rank: 2, kind: "empire", text: ko
-      ? `${year}년, ${withJosa(p.name, "이/가")} 여러 민족의 땅을 아울러 제국이 되다${underOf(p.id, year)}`
+      ? `${year}년, ${withJosa(say(p.name), "이/가")} 여러 민족의 땅을 아울러 제국이 되다${underOf(p.id, year)}`
       : `Year ${year} — ${p.name} becomes an empire, ruling peoples not its own${underOf(p.id, year)}` });
   }
 
@@ -236,7 +242,7 @@ function mined(world: World, history: History, lang: ChronicleLang,
       // the moment is what makes a succession matter to anyone outside the realm.
       if (rankAt(pid, r.from) > 3) continue;
       out.push({ year: r.from, rank: 4, kind: "accession", text: ko
-        ? `${r.from}년, ${nameOf(pid)}의 ${r.ordinal}대 ${r.name} 즉위`
+        ? `${r.from}년, ${nameOf(pid)}의 ${r.ordinal}대 ${say(r.name)} 즉위`
         : `Year ${r.from} — ${r.name}, ${ordinalEn(r.ordinal)} of ${nameOf(pid)}, takes the seat` });
     }
   }
@@ -272,7 +278,8 @@ export function buildChronicle(world: World, history: History, lang: ChronicleLa
       if (ev !== founded[0]) continue;            // the rest are folded into the line below
       const names = founded
         .map((e) => history.polities.find((p) => p.id === e.polityId)?.name)
-        .filter((n): n is string => !!n);
+        .filter((n): n is string => !!n)
+        .map((n) => properNoun(ko, n));
       told.push({ year: ev.year, rank: 0, kind: "foundings", text: ko
         ? `${ev.year}년, ${names.length}개 나라가 서다 — ${names.join(", ")}`
         : `Year ${ev.year} — ${names.length} realms stand: ${names.join(", ")}` });

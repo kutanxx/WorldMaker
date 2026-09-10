@@ -4,6 +4,7 @@ import { t, type Lang } from "./i18n";
 import { cellPath, segPath } from "./svgPaths";
 import { politicalBorders } from "../engine/borders";
 import type { Province } from "../engine/provinces";
+import { featureLabel } from "../engine/featureLabel";
 
 type GridLike = Pick<World["grid"], "count" | "polygons" | "neighbors" | "points" | "height">;
 
@@ -91,6 +92,10 @@ export function provinceLayer(
   opts: { fills?: boolean; labels?: boolean; owner?: ArrayLike<number>; legend?: boolean; lang?: Lang } = {},
 ): SVGGElement {
   const { fills = true, labels = true, owner, legend = false, lang = "en" } = opts;
+  // A province name is a composite ("Barrens of Dimbrerk"), so it is rebuilt from its parts rather
+  // than transliterated. This is the view with the most lettering on it — roughly a hundred labels
+  // — and it was the last one still drawing English at a Korean reader.
+  const provinceName = (p: Province) => featureLabel(p.label, lang);
   const g = svgEl("g", { class: "province" }) as SVGGElement;
 
   if (fills) {
@@ -108,7 +113,7 @@ export function provinceLayer(
         fill: provinceColor(hues[prov.id]), "fill-opacity": 0.7,
       });
       const title = svgEl("title");
-      title.textContent = prov.name;
+      title.textContent = provinceName(prov);
       path.appendChild(title);
       g.appendChild(path);
     }
@@ -177,7 +182,7 @@ export function provinceLayer(
         class: "province-label", x: prov.centroid[0] + 4, y: prov.centroid[1] + 3,
         "text-anchor": "start", "font-size": 7,
       });
-      tx.textContent = prov.name;
+      tx.textContent = provinceName(prov);
       lg.appendChild(tx);
     }
     g.appendChild(lg);

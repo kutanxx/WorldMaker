@@ -20,8 +20,12 @@ const grid = {
 };
 const provinceOf = [0, 0, 1, -1];
 const provinces: Province[] = [
-  { id: 0, name: "the Grey Fields", cells: 2, centroid: [5, 5], seedCell: 0, biome: 4 },
-  { id: 1, name: "Iron Wastes", cells: 1, centroid: [20, 5], seedCell: 2, biome: 5 },
+  // A province carries the parts of its name beside the finished English string, exactly as a
+  // region does, so the province view can be drawn in Korean (korean-names task 3).
+  { id: 0, name: "the Grey Fields", cells: 2, centroid: [5, 5], seedCell: 0, biome: 4,
+    label: { pattern: "adj", kind: 4, adj: "Grey", noun: "Fields" } },
+  { id: 1, name: "Iron Wastes", cells: 1, centroid: [20, 5], seedCell: 2, biome: 5,
+    label: { pattern: "attributive", kind: 5, noun: "Wastes", proper: "Iron" } },
 ];
 
 describe("provinceLayer", () => {
