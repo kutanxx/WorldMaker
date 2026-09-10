@@ -42,6 +42,9 @@ interface Cons {
                           //   and only after a real vowel (book 북) — after a filler syllable it
                           //   stays its own (Bismarck 비스마르크), which is why `hold` is not a flag.
   glide?: true;           // never takes the vowel after it (see `fj`)
+  twin?: true;            // BEFORE a vowel it also leaves its 받침 behind, so the sound is written
+                          // twice: 글라스, 플랜, 클럽, 슬라이드, 이탈리아, 줄리아. Only ㄹ does this,
+                          // and only when it is not opening the word (Korean writes 라, 로 there).
 }
 
 // Consonants, longest key first when scanned. Each row names the tokens that put the letters here.
@@ -50,7 +53,8 @@ const CONSONANTS: [string, Cons][] = [
   // of Korean expects the same: Khaagg opens 카, not 크하.
   ["th", { on: "s", fill: "eu" }],                       // onset th, thr · coda th
   ["sh", { on: "s", fill: "i" }],                        // onset sh, sha · coda sh
-  ["kh", { on: "k", fill: "eu" }],                       // onset kh · coda kh
+  ["kh", { on: "k", fill: "eu" }],                       // onset kh (guttural, sibilant) · coda kh
+                                                         // (guttural) — it ends words, not just opens
   ["dh", { on: "d", fill: "eu" }],                       // onset dh
   ["ch", { on: "ch", fill: "i" }],                       // no token spells it; names.ts DIGRAPHS does
   ["gg", { on: "g", fill: "eu" }],                       // onset gg · coda gg — ㄱ not ㄲ: Korean does
@@ -70,7 +74,10 @@ const CONSONANTS: [string, Cons][] = [
   ["h", { on: "h", fill: "eu" }],                                  // onset h, hr · coda h
   ["j", { on: "j", fill: "i" }],                                   // onset fj only
   ["k", { on: "k", fill: "eu", coda: "g", hold: "end" }],          // onset k, kr, sk · coda k, rk
-  ["l", { on: "r", fill: "eu", coda: "l", hold: "any" }],          // onset l, gl, el, li, ly, val, mel
+  ["l", { on: "r", fill: "eu", coda: "l", hold: "any", twin: true }], // onset l, gl, el, li, ly, val,
+                                                                   // mel · coda l, el — the codas are
+                                                                   // what `hold` is here for, and `gl`
+                                                                   // is what `twin` is here for
   ["m", { on: "m", fill: "eu", coda: "m", hold: "any" }],          // onset m, mel · coda m, um
   ["n", { on: "n", fill: "eu", coda: "n", hold: "any" }],          // onset n · coda n, nd, an, rn
   ["r", { on: "r", fill: "eu" }],                                  // onset r, br, tr, kr, gr, hr, vr,
@@ -92,11 +99,14 @@ const CONSONANTS: [string, Cons][] = [
 // The `y` rows are the exception that earns the mechanism: y is a VOWEL in names.ts (its VOWELS
 // string), and `sy`/`ly` meeting a vowel token makes 샤/료 rather than 시아/리오.
 const VOWELS: [string, string[]][] = [
-  ["ya", ["ya"]],          // onset sy, ly + vowel a
-  ["ye", ["ye"]],          // onset sy, ly + vowel e
+  ["ya", ["ya"]],          // onset sy, ly + vowel a; also + ea/ae, trimmed to one vowel by weld's
+                           // two-vowel cap (Lyanael, Melearlyal)
+  ["ye", ["ye"]],          // onset sy, ly + vowel e; also + ei/ae trimmed the same way (Syansyen)
   ["yo", ["yo"]],          // onset ly + vowel io, trimmed to o by weld's two-vowel cap
   ["yu", ["yu"]],          // no profile pairs them today; the row costs nothing and closes the glide
-  ["yi", ["i"]],           // nordic vowel y grown by lengthen — Korean writes yi as 이
+  ["yi", ["i"]],           // mostly liquid onset sy/ly + vowel ei/ea, trimmed to one vowel by weld's
+                           // two-vowel cap (Syilin, Lyir, Elanlyil); also the nordic vowel y grown by
+                           // lengthen. Korean writes yi as 이
 
   ["aa", ["a", "a"]],      // guttural vowel aa, sibilant vowel aa
   ["ae", ["a", "e"]],      // DEFAULT_PHON vowel ae, liquid onset/vowel ae
@@ -167,6 +177,15 @@ export function toHangul(word: string): string {
     const after = rule.glide ? null : match(VOWEL_BY_KEY, VOWEL_MAX, w, i);
     if (after) {
       i += after[0].length;
+      // A prevocalic ㄹ that is not word-initial is written TWICE — a 받침 on the syllable before
+      // it as well as the onset of its own. `open()` returning null is exactly the word-initial
+      // case (nothing has been written yet), so 라/로 at the head of a name falls out for free.
+      // Without this `l` and `r` produce identical strings; the ㄹㄹ is how Korean keeps 멜리아
+      // and 메리아 apart, and `gl` is one of DEFAULT_PHON's fourteen onsets.
+      if (rule.twin && rule.coda) {
+        const host = open();
+        if (host) host.coda = rule.coda;
+      }
       vowelSyllables(after[1], rule.on);
       continue;
     }
