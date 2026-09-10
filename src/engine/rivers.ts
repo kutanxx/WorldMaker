@@ -154,16 +154,14 @@ function riverName(rng: Rng, phon: Phonetics): { name: string; label: FeatureLab
   // ⚠ Same draw order as the if-chain this replaces: noun, then r, then the adjective or the
   // place — reordering moves every river (and everything named after it) downstream.
   //
-  // The third branch ("Race Ggor") never had " of " in it, so it cannot be the "of" pattern
-  // without changing the English string. It is still shaped like "attributive" (two words, no
-  // joiner) — just with the RIVER_NOUNS word rendered first, so `proper`/`noun` are swapped from
-  // their documented roles (`noun` is normally the table word, `proper` the invented one) for
-  // this one branch only. Flagged in the task-1 report for whoever writes the Korean noun lookup.
+  // The third branch ("Race Ggor") renders the RIVER_NOUNS word first, the invented place second —
+  // the opposite order from "attributive" (proper then noun). "nounFirst" keeps `noun` meaning
+  // "the table word" here too, so a Korean lookup can key on `label.noun` with no exception.
   const label: FeatureLabel = r < 0.45
     ? { pattern: "adj", kind: -1, adj: pick(rng, ADJ), noun }
     : r < 0.75
       ? { pattern: "attributive", kind: -1, noun, proper: ng.place() }
-      : { pattern: "attributive", kind: -1, noun: ng.place(), proper: noun };
+      : { pattern: "nounFirst", kind: -1, noun, proper: ng.place() };
   return { name: featureLabel(label, "en"), label };
 }
 
