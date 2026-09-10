@@ -811,3 +811,41 @@ describe("the map can take the whole window", () => {
     expect(focused()).toBe(false);
   });
 });
+
+// Twelve controls at exactly the same weight, colour and size: measured at 1920x945, every one of
+// them wore background #f3ead2, border #b7a071, weight 400, 14px — so "Generate" looked like "PNG",
+// and at 71px it was the NARROWEST control in the bar apart from the home icon. A toolbar with no
+// primary makes the reader read all of it, every time.
+//
+// Measuring also moved the answer: `Generate` re-runs the seed already in the box, so pressing it
+// without editing the seed produces the same world and nothing visibly happens. The die is the
+// control that always yields something new, so the die is the primary — and the seed box keeps its
+// own button as the way to reach a particular world.
+describe("the toolbar says which control is the main one", () => {
+  it("has exactly one primary control, and it is the one that always makes a new world", () => {
+    const root = document.createElement("div");
+    createApp(root, small);
+    const primary = Array.from(root.querySelectorAll(".controls .primary"));
+    expect(primary.length).toBe(1);
+    expect(primary[0].classList.contains("random-seed")).toBe(true);
+  });
+
+  it("keeps the seed box and its button as one control, not two rivals", () => {
+    const root = document.createElement("div");
+    createApp(root, small);
+    const group = root.querySelector(".controls .seed-group")!;
+    expect(group).not.toBeNull();
+    expect(group.querySelector("input[type=number]")).not.toBeNull();
+    expect(group.querySelector("button")).not.toBeNull();
+    // and the die is NOT inside it: it belongs to the same zone but is its own action
+    expect(group.querySelector(".random-seed")).toBeNull();
+  });
+
+  it("names the die by what it gives you, not by the machinery", () => {
+    const root = document.createElement("div");
+    createApp(root, small);
+    const die = root.querySelector(".controls .random-seed")!;
+    expect(die.textContent).toContain("New world");
+    expect(die.textContent).not.toContain("seed");
+  });
+});

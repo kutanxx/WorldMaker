@@ -22,10 +22,37 @@ body {
    880px of unused margin either side and 177px of unused height under the timeline, because #app
    was capped at 1040 back when this page was a column of text. */
 #app { max-width: min(1320px, 100vw - 32px); margin: 0 auto; padding: 0 16px 32px; }
+/* Twelve controls at one weight. Measured at 1920x945: every control in this bar wore background
+   #f3ead2, border #b7a071, weight 400 and 14px, so the button that makes a world looked exactly
+   like the button that saves a PNG — and at 71px "Generate" was the narrowest of them all bar the
+   home icon. What follows gives the bar a primary and three zones.
+
+   ⚠ The hierarchy is bought with WEIGHT, FILL and GROUPING, never with size. A previous pass spent
+   real work getting this toolbar down to one row (KO 849px / EN 974px against 1014 available) by
+   folding three export buttons into one segmented control; padding a primary button up would spend
+   that again. The gaps below are redistributed, not added: 8px everywhere becomes 6px inside a zone
+   and 18px between zones, which is about ten pixels in total. */
 .controls {
-  display: flex; gap: 8px; padding: 10px 12px; align-items: center; flex-wrap: wrap;
+  display: flex; gap: 6px; padding: 10px 12px; align-items: center; flex-wrap: wrap;
   background: #efe6cf; border: 1px solid #cbb784; border-radius: 6px; margin-bottom: 12px;
 }
+/* make a world | look at it | take it away — the zones, said with space */
+.controls > .seed-group, .controls > .view-toggle, .controls > .export-group { margin-left: 12px; }
+.controls > .lang-toggle { margin-left: auto; }        /* furniture, at the far end */
+
+/* The one primary. Filled in the ink the chronicle already uses for its hegemon lines, on the
+   parchment's own cream: contrast 5.50, which clears AA, and neither colour is new.
+   ⚠ Deliberately NOT the view toggle's gold (#d8b25a). A primary action and an active mode must not
+   share a fill inside one bar, or each one starts to look like the other. */
+.controls button.primary {
+  background: #7a5a2f; border-color: #6a4d28; color: #f6efdd; font-weight: 600;
+}
+.controls button.primary:hover { background: #6a4d28; }
+
+/* The seed box and its button, welded: one control that means "take me to this world". */
+.seed-group { display: inline-flex; align-items: center; gap: 0; }
+.seed-group input[type=number] { border-radius: 4px 0 0 4px; }
+.seed-group button { border-radius: 0 4px 4px 0; border-left: none; }
 button, input {
   padding: 5px 10px; font-family: inherit; font-size: 14px; color: #3c2f1c;
   background: #f3ead2; border: 1px solid #b7a071; border-radius: 4px; cursor: pointer;

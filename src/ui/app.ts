@@ -67,12 +67,20 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
   const homeBtn = document.createElement("a"); // back to the landing chooser (index.html — relative for the Pages subpath)
   homeBtn.className = "home";
   homeBtn.setAttribute("href", "index.html");
+  // The seed box and its button are ONE control: the button applies the number beside it. Measured
+  // apart, they read as two rival ways to make a world sitting next to a third (the die), all in
+  // the same colour — and the one called "Generate" is the one that does nothing visible when the
+  // seed has not been edited, because it re-runs the world already on screen.
+  const seedGroup = document.createElement("div");
+  seedGroup.className = "seed-group";
   const seedInput = document.createElement("input");
   seedInput.type = "number";
   seedInput.value = String(params.seed);
   const regenBtn = document.createElement("button");
+  seedGroup.append(seedInput, regenBtn);
+  // The primary action, and the only one in the bar: a die always yields a world you have not seen.
   const randomBtn = document.createElement("button");
-  randomBtn.className = "random-seed";
+  randomBtn.className = "random-seed primary";
   // One control, not three buttons each repeating the verb: the formats name themselves and the
   // download arrow says what the group does. See the note in theme.css for what that bought.
   const exportGroup = document.createElement("div");
@@ -128,7 +136,10 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     advanced.appendChild(row);
     return { key, name, input, read };
   });
-  controls.append(homeBtn, seedInput, regenBtn, randomBtn, exportGroup, gazBtn, viewToggle, langBtn);
+  // Ordered by what a reader is doing, in three zones the CSS separates by space rather than by
+  // size: make a world, look at it, take it away. The language toggle and the home link are
+  // furniture and sit at the two ends.
+  controls.append(homeBtn, seedGroup, randomBtn, viewToggle, exportGroup, gazBtn, langBtn);
   root.appendChild(advanced);
 
   // set every UI string from the current language (called on init and on language toggle)
@@ -141,7 +152,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     homeBtn.textContent = t(lang, "home");
     homeBtn.title = t(lang, "homeLabel"); // the house carries it; the word cost the toolbar a second row
     regenBtn.textContent = t(lang, "generate");
-    randomBtn.textContent = "🎲 " + t(lang, "randomSeed");
+    randomBtn.textContent = "🎲 " + t(lang, "newWorld");
     jsonBtn.textContent = t(lang, "exportJson");
     pngBtn.textContent = t(lang, "exportPng");
     svgBtn.textContent = t(lang, "exportSvg");
