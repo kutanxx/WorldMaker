@@ -32,8 +32,10 @@ describe("geography", () => {
     expect(/Peaks|Mountains|Range|Spires|Heights/.test(a[1].name)).toBe(true);
   });
   it("worldName is a non-empty deterministic string", () => {
-    expect(worldName(mulberry32(2))).toBe(worldName(mulberry32(2)));
-    expect(worldName(mulberry32(2)).length).toBeGreaterThan(0);
+    // worldName now returns { name, label } (korean-names task 1) so the label can ride beside
+    // the string; this test only ever cared about the string.
+    expect(worldName(mulberry32(2)).name).toBe(worldName(mulberry32(2)).name);
+    expect(worldName(mulberry32(2)).name.length).toBeGreaterThan(0);
   });
   it("a generated world has a name and named regions", () => {
     const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });

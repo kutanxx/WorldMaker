@@ -87,7 +87,9 @@ export function buildProvinces(
     let domB = 0, domN = -1;
     for (const [b, n] of biomeCount[p]) if (n > domN) { domN = n; domB = b; }
     provinces.push({
-      id: p, name: featureName(rng, ng, domB), cells: cells[p],
+      // featureName now returns { name, label } so region/world naming can carry structure (Task
+      // 1, korean-names); provinces only ever needed the string, so only .name is taken here.
+      id: p, name: featureName(rng, ng, domB).name, cells: cells[p],
       centroid: [sumX[p] / cells[p], sumY[p] / cells[p]], seedCell: seedCells[p], biome: domB,
     });
   }
