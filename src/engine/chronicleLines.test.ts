@@ -3,6 +3,7 @@ import { generateWorld } from "./world";
 import { DEFAULT_PARAMS } from "../types/world";
 import { simulateHistory } from "./history";
 import { buildChronicle, isMoment } from "./chronicleLines";
+import { classifyGovernments } from "./government";
 
 const build = (seed: number) => {
   const { world } = generateWorld({ ...DEFAULT_PARAMS, seed });
@@ -168,5 +169,47 @@ describe("moments and record", () => {
     const named = buildChronicle(world, history, "en")
       .filter((l) => isMoment(l.kind) && /\(under \w+\)/.test(l.text));
     expect(named.length).toBeGreaterThan(3);
+  });
+});
+
+// The gazetteer is a download. A reader who never downloads it would see nothing of this at all —
+// so the year a realm becomes an empire, which is a thing that HAPPENED and not a fact about the
+// record, belongs in the chronicle beside the moving map as well as in the document.
+describe("the year a realm becomes an empire", () => {
+  const seeds = [1, 2, 3, 4, 5];
+  it("is told once, on the year the second people came under it", () => {
+    let told = 0;
+    for (const seed of seeds) {
+      const { world } = generateWorld({ ...DEFAULT_PARAMS, seed });
+      const history = simulateHistory(world, seed);
+      const forms = classifyGovernments(world, history);
+      const lines = buildChronicle(world, history, "en");
+      for (const p of history.polities) {
+        const f = forms.get(p.id)!;
+        const mine = lines.filter((l) => l.kind === "empire" && l.text.includes(p.name));
+        if (f.form !== "empire" || f.since! <= p.foundedYear) {
+          // A realm that ruled other peoples from its first day did not BECOME anything, and a
+          // kingdom has no such year. Neither may be announced.
+          expect(mine.length, `${p.name} on seed ${seed}`).toBe(0);
+          continue;
+        }
+        expect(mine.length, `${p.name} on seed ${seed}`).toBe(1);
+        expect(mine[0].year).toBe(f.since);
+        told++;
+      }
+    }
+    expect(told).toBeGreaterThan(4);       // or the seeds do not exercise the claim
+  });
+
+  it("reaches the panel, because becoming an empire is a moment and not a statistic", () => {
+    expect(isMoment("empire")).toBe(true);
+  });
+
+  it("is told in the reader's language", () => {
+    const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });
+    const history = simulateHistory(world, 1);
+    const ko = buildChronicle(world, history, "ko").filter((l) => l.kind === "empire");
+    expect(ko.length).toBeGreaterThan(0);
+    for (const l of ko) expect(l.text).toContain("제국");
   });
 });

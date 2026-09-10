@@ -4,6 +4,7 @@ import { DEFAULT_PARAMS } from "../types/world";
 import { simulateHistory } from "./history";
 import { worldToGazetteer, anArticle } from "./gazetteer";
 import { eventText } from "./eventText";
+import { classifyGovernments } from "./government";
 
 describe("worldToGazetteer", () => {
   const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });
@@ -199,10 +200,16 @@ describe("exported chronicle is byte-stable across the shared-assembler move", (
   //   4. The world DID change: W_DIST/SIZE_CAP were rebalanced so no realm eats the continent, so
   //      five centuries run differently on every seed and every number here moves with them. This
   //      is the one re-pin that is not about the telling. 128/123/99 to 122/128/104.
+  //   5. Realms gained forms of government (kingdom / republic / empire), and the chronicle gained
+  //      ONE kind of line with them: the year a kingdom becomes an empire. Added lines only, and
+  //      exactly as many as there are such years — 1/2/1 a seed: 122/128/104 to 123/130/105. The
+  //      republics' elected terms replaced their reigns in the same change and moved NOTHING here,
+  //      which is the expected result: a free city holds five tiles and never crosses the size a
+  //      chronicle line needs. `history.test.ts`'s own anchors did not move through any of it.
   const pins: Record<number, { en: number; ko: number; lines: number }> = {
-    1: { en: 4013801938, ko: 2389358999, lines: 122 },
-    2: { en: 1184436592, ko: 2359184336, lines: 128 },
-    3: { en:  784962625, ko: 2404284721, lines: 104 },
+    1: { en: 2665342061, ko: 1135836791, lines: 123 },
+    2: { en: 1950600995, ko:  132019357, lines: 130 },
+    3: { en: 2534064816, ko:  788469839, lines: 105 },
   };
   for (const seed of [1, 2, 3]) {
     it(`reproduces the pinned chronicle for seed ${seed}`, () => {
@@ -341,5 +348,66 @@ describe("the opening line counts the realms the document describes", () => {
     const opening = worldToGazetteer(w, h, "ko").split("\n").slice(0, 4).join(" ");
     expect(opening).toContain(`${w.polities.length}개 나라`);
     expect(opening).toContain(`${h.polities.length}개`);
+  });
+});
+
+// A gazetteer that gives every realm the same three sentences reads as one country wearing nineteen
+// names. The world already distinguished them and the prose ignored it: a city the simulation
+// recorded as having declared itself FREE was handed ten hereditary monarchs, one line under the
+// sentence saying so. Forms of government are read off the record, never invented for the page.
+describe("the Realms section tells kingdoms, republics and empires apart", () => {
+  const entryFor = (md: string, name: string, head: string) => {
+    const body = (md.split(head)[1] ?? "").split("\n## ")[0];
+    const i = body.indexOf(`### ${name}\n`);
+    const rest = body.slice(i);
+    const j = rest.indexOf("\n### ", 1);
+    return j < 0 ? rest : rest.slice(0, j);
+  };
+  const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });
+  const history = simulateHistory(world, 1);
+  const forms = classifyGovernments(world, history);
+  const en = worldToGazetteer(world, history, "en");
+  const ko = worldToGazetteer(world, history, "ko");
+  const pick = (f: string) => history.polities.filter((p) => forms.get(p.id)!.form === f);
+
+  it("speaks of no kings at all in a free city's entry", () => {
+    const republics = pick("republic");
+    expect(republics.length).toBeGreaterThan(0);
+    for (const p of republics) {
+      const e = entryFor(en, p.name, "## Realms");
+      expect(e, p.name).toContain("Elected heads —");
+      expect(e, p.name).not.toContain("Rulers —");
+      const k = entryFor(ko, p.name, "## 나라");
+      expect(k, p.name).toContain("역대 수반 —");
+      expect(k, p.name).not.toContain("역대 군주");
+    }
+  });
+
+  it("names an empire an empire, and says which year it became one", () => {
+    const empires = pick("empire");
+    expect(empires.length).toBeGreaterThan(0);
+    for (const p of empires) {
+      const since = forms.get(p.id)!.since!;
+      const e = entryFor(en, p.name, "## Realms");
+      expect(e, p.name).toMatch(/empire|Emperors/);
+      const k = entryFor(ko, p.name, "## 나라");
+      expect(k, p.name).toContain("제국");
+      // A realm that only came to rule other peoples partway through says when; one that did so
+      // from its first day has no such year to give and must not invent one.
+      if (since > p.foundedYear) {
+        expect(e, p.name).toContain(`${since}`);
+        expect(k, p.name).toContain(`${since}년`);
+      }
+    }
+  });
+
+  it("leaves a kingdom's entry as it was", () => {
+    const kingdoms = pick("kingdom");
+    expect(kingdoms.length).toBeGreaterThan(0);
+    for (const p of kingdoms) {
+      expect(entryFor(en, p.name, "## Realms"), p.name).toContain("Rulers —");
+      expect(entryFor(ko, p.name, "## 나라"), p.name).toContain("역대 군주 —");
+      expect(entryFor(en, p.name, "## Realms"), p.name).not.toContain("Emperors —");
+    }
   });
 });

@@ -4,6 +4,7 @@ import {
   OCEAN, TUNDRA, TAIGA, TEMPERATE_FOREST, GRASSLAND, DESERT, TROPICAL, WETLAND, ALPINE,
 } from "./biome";
 import { buildDynasties } from "./dynasty";
+import { classifyGovernments } from "./government";
 import { buildChronicle } from "./chronicleLines";
 
 // Declared here rather than imported from `src/ui/i18n.ts`: the engine is DOM-free and must not
@@ -116,7 +117,10 @@ export function worldToGazetteer(world: World, history: History, lang: Gazetteer
   const b = landBounds(world);
   const bio = BIOME_PHRASE[lang];
   const ko = lang === "ko";
-  const dyn = buildDynasties(world, history);
+  // What kind of state each realm was. Read off the record — who declared themselves free, whose
+  // land each realm came to hold — never invented for the page.
+  const gov = classifyGovernments(world, history);
+  const dyn = buildDynasties(world, history, gov);
   const title = world.name.charAt(0).toUpperCase() + world.name.slice(1);
   const L: string[] = [];
 
@@ -265,29 +269,51 @@ export function worldToGazetteer(world: World, history: History, lang: Gazetteer
         : cap.elevation >= world.params.mountainLevel ? (ko ? "산중의 " : "the highland seat of ") : (ko ? "" : "the seat of "))
       : "";
 
+    // The three forms differ in the noun the entry opens with, in whether an imperial date is given,
+    // and in what the list of names at the foot is CALLED. Nothing else moves: a republic still
+    // reaches its height in a year and still holds towns.
+    const form = gov.get(p.id) ?? { form: "kingdom" as const, since: null };
+    const since = form.since;
+    const bornImperial = since !== null && since <= p.foundedYear;
+
     if (ko) {
-      const where = land ? `${land}에 자리한 나라.` : "";
+      const kind = form.form === "republic" ? "자유도시" : "나라";
+      const where = land ? `${land}에 자리한 ${kind}.` : "";
       const seat = cap ? ` 도읍은 ${seatTrait}**${cap.name}**.`
         : seatDir ? ` 지도가 이름 붙인 도읍은 없고, 중심은 세계 ${seatDir}에 있었다.` : " 지도가 이름을 붙인 도읍은 없다.";
       L.push(`${where}${seat}`.trim());
       const born = parent ? `${p.foundedYear}년 ${parent}에서 갈라져 나왔고` : p.free ? `${p.foundedYear}년 자유도시로 독립했고` : `${p.foundedYear}년에 서서`;
       const died = ended !== null ? `${ended}년에 무너졌다` : `${history.years}년까지 서 있다`;
       L.push(`${born}, ${died}.` + (peak > 0 ? ` 최대 판도는 ${peakYear}년의 ${peak}칸.` : ""));
+      if (form.form === "empire") {
+        L.push(bornImperial ? "선 날부터 다른 민족의 땅을 거느린 제국이었다."
+          : `${since}년, 두 번째 민족의 땅을 품으며 제국이 되었다.`);
+      }
       if (towns.length) L.push(`그때 거느린 성읍은 ${towns.join(", ")}.`);
       const line = dyn.get(p.id) ?? [];
-      if (line.length) L.push("", `역대 군주 — ${line.map((r) => `${r.name} (${r.from}–${r.to})`).join(", ")}`);
+      const heading = form.form === "republic" ? "역대 수반"
+        : form.form === "empire" ? (bornImperial ? "역대 황제" : `역대 군주(${since}년부터 황제)`)
+        : "역대 군주";
+      if (line.length) L.push("", `${heading} — ${line.map((r) => `${r.name} (${r.from}–${r.to})`).join(", ")}`);
       L.push("");
     } else {
-      const where = land ? `A realm of the ${land}.` : "";
+      const where = land ? `A ${form.form === "republic" ? "free city" : "realm"} of the ${land}.` : "";
       const seat = cap ? ` ${seatTrait.charAt(0).toUpperCase()}${seatTrait.slice(1)}**${cap.name}**.`
         : seatDir ? ` No seat the atlas names; it was governed from the ${seatDir}.` : " No seat the atlas names.";
       L.push(`${where}${seat}`.trim());
       const born = parent ? `Broke from ${parent} in ${p.foundedYear}` : p.free ? `Declared itself free in ${p.foundedYear}` : `Stood from ${p.foundedYear}`;
       const died = ended !== null ? `and fell in ${ended}` : `and was still standing at ${history.years}`;
       L.push(`${born} ${died}.` + (peak > 0 ? ` At its greatest, ${peak} tiles in ${peakYear}.` : ""));
+      if (form.form === "empire") {
+        L.push(bornImperial ? "An empire from its first day, holding land that was never its own people's."
+          : `An empire from ${since}, when a second people's land came under it.`);
+      }
       if (towns.length) L.push(`Its towns then were ${towns.join(", ")}.`);
       const line = dyn.get(p.id) ?? [];
-      if (line.length) L.push("", `Rulers — ${line.map((r) => `${r.name} (${r.from}–${r.to})`).join(", ")}`);
+      const heading = form.form === "republic" ? "Elected heads"
+        : form.form === "empire" ? (bornImperial ? "Emperors" : `Rulers, emperors from ${since}`)
+        : "Rulers";
+      if (line.length) L.push("", `${heading} — ${line.map((r) => `${r.name} (${r.from}–${r.to})`).join(", ")}`);
       L.push("");
     }
   }
@@ -314,7 +340,7 @@ export function worldToGazetteer(world: World, history: History, lang: Gazetteer
   let lastCentury = -1;
   // The chronicle itself is assembled in `chronicleLines.ts`, which the on-screen panel reads too;
   // all that belongs here is the markdown around it.
-  for (const t of buildChronicle(world, history, lang, dyn)) {
+  for (const t of buildChronicle(world, history, lang, dyn, gov)) {
     const century = Math.floor(t.year / 100);
     if (century !== lastCentury) { lastCentury = century; L.push("", ko ? `### ${century * 100}년대` : `### ${century * 100}s`); }
     L.push(`- ${t.text}`);

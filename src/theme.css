@@ -177,6 +177,10 @@ svg.world .legend { pointer-events: none; }
 .chronicle-event.evt-hegemon { color: #7a5a2f; font-weight: 600; }
 .chronicle-event.evt-century { color: #6b5a3e; font-style: italic; margin-top: 4px; }
 .chronicle-event.evt-accession { color: #5c5142; }
+/* A realm becoming an empire and a realm becoming the hegemon of its age are the same sentence in
+   two keys — one is standing over other peoples, the other over other realms — so they share a
+   register rather than each inventing a colour. Both are rare: one or two lines in five centuries. */
+.chronicle-event.evt-empire { color: #7a5a2f; font-weight: 600; }
 /* The world's natural history. These are the lines that are ABOUT a place rather than about a
    realm, so they take their colour from the thing that happened rather than from the politics
    around them — and they stay inside the parchment's warm range, since a chronicle that suddenly

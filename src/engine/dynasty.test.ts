@@ -2,7 +2,8 @@ import { describe, it, expect } from "vitest";
 import { generateWorld } from "./world";
 import { DEFAULT_PARAMS } from "../types/world";
 import { simulateHistory } from "./history";
-import { buildDynasties, rulerAt } from "./dynasty";
+import { buildDynasties, rulerAt, TERM_MAX, REIGN_MIN } from "./dynasty";
+import { classifyGovernments } from "./government";
 
 describe("dynasties", () => {
   const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 7 });
@@ -44,6 +45,30 @@ describe("dynasties", () => {
     const { world: w2 } = generateWorld({ ...DEFAULT_PARAMS, seed: 7 });
     const d2 = buildDynasties(w2, simulateHistory(w2, 7));
     expect(d2.get(0)!.map((r) => r.name)).toEqual(dyn.get(0)!.map((r) => r.name));
+  });
+
+  it("gives a free city elected terms, not reigns that outlast a lifetime", () => {
+    // A head of state who holds the seat for sixty years is a king whatever the entry calls him.
+    // The realms the simulation says threw off a crown get terms short enough to be terms.
+    const forms = classifyGovernments(world, history);
+    const republics = history.polities.filter((p) => forms.get(p.id)!.form === "republic");
+    expect(republics.length).toBeGreaterThan(0);
+    for (const p of republics) {
+      for (const r of dyn.get(p.id)!) expect(r.to - r.from).toBeLessThanOrEqual(TERM_MAX);
+    }
+    // and the crowned realms are untouched: their spans are still a reign's length
+    const kings = history.polities.filter((p) => forms.get(p.id)!.form !== "republic");
+    const spans = kings.flatMap((p) => dyn.get(p.id)!.map((r) => r.to - r.from));
+    expect(Math.max(...spans)).toBeGreaterThan(TERM_MAX);
+    expect(spans.filter((s) => s >= REIGN_MIN).length).toBeGreaterThan(0);
+  });
+
+  it("marks whose seat is held by election, so no caller has to guess", () => {
+    const forms = classifyGovernments(world, history);
+    for (const p of history.polities) {
+      const elected = forms.get(p.id)!.form === "republic";
+      for (const r of dyn.get(p.id)!) expect(r.elected).toBe(elected);
+    }
   });
 
   it("names a ruler for any year the realm was standing", () => {

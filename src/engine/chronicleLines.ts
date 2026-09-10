@@ -4,6 +4,7 @@ import { withJosa } from "./korean";
 import { buildDynasties, rulerAt, type Reign } from "./dynasty";
 import { eventText } from "./eventText";
 import { naturalHistory } from "./naturalHistory";
+import { classifyGovernments, type GovernmentForm } from "./government";
 
 // One chronicle, assembled once, read by two readers. The downloaded gazetteer and the panel on the
 // site were filling their chronicles from different code: the gazetteer told the recorded events
@@ -31,7 +32,7 @@ function ordinalEn(n: number): string {
 /** What a line is about. Event kinds come straight from the simulation; the rest are mined. */
 export type ChronicleKind =
   | HistoryEventType | "foundings"
-  | "peak" | "fall" | "loss" | "surge" | "hegemon" | "century" | "culture" | "accession"
+  | "peak" | "fall" | "loss" | "surge" | "hegemon" | "century" | "culture" | "accession" | "empire"
   // the world's natural history: invented, but landed on towns the atlas drew (naturalHistory.ts)
   | "plague" | "fire" | "flood" | "winter" | "famine";
 
@@ -63,7 +64,7 @@ export function isMoment(kind: ChronicleKind): boolean {
 // told. Deriving it here rather than emitting it from the simulation means the world's history is
 // unchanged — only the telling of it grows.
 function mined(world: World, history: History, lang: ChronicleLang,
-                dyn: Map<number, Reign[]>): ChronicleLine[] {
+                dyn: Map<number, Reign[]>, forms: Map<number, GovernmentForm>): ChronicleLine[] {
   const ko = lang === "ko";
   const n = history.polities.length;
   if (!history.snapshots.length || n === 0) return [];
@@ -197,6 +198,19 @@ function mined(world: World, history: History, lang: ChronicleLang,
     }
   }
 
+  // The year a kingdom turns into an empire. The culture lines above already say, year by year,
+  // whose land came under whom; this is the line that says what that AMOUNTS to, and it is the only
+  // place a reader who never downloads the gazetteer meets the word. A realm that ruled other
+  // peoples from its first day became nothing and is not announced.
+  for (const p of history.polities) {
+    const f = forms.get(p.id);
+    if (!f || f.form !== "empire" || f.since === null || f.since <= p.foundedYear) continue;
+    const year = f.since;
+    out.push({ year, rank: 2, kind: "empire", text: ko
+      ? `${year}년, ${withJosa(p.name, "이/가")} 여러 민족의 땅을 아울러 제국이 되다${underOf(p.id, year)}`
+      : `Year ${year} — ${p.name} becomes an empire, ruling peoples not its own${underOf(p.id, year)}` });
+  }
+
   // Accessions, but only where a realm is large enough for its succession to be news. Narrating
   // every crowning of every realm would bury the chronicle: eight to sixteen realms across five
   // centuries make far more successions than events.
@@ -238,7 +252,10 @@ function mined(world: World, history: History, lang: ChronicleLang,
  * realm entries too) does not build them twice; it is deterministic either way.
  */
 export function buildChronicle(world: World, history: History, lang: ChronicleLang,
-                               dyn: Map<number, Reign[]> = buildDynasties(world, history)): ChronicleLine[] {
+                               dyn?: Map<number, Reign[]>,
+                               forms: Map<number, GovernmentForm> = classifyGovernments(world, history),
+                              ): ChronicleLine[] {
+  dyn ??= buildDynasties(world, history, forms);
   const ko = lang === "ko";
   // Every chronicle opened with one "founded" line per realm — eight identical-shaped lines before
   // anything happened, on every seed and in both languages. They are one event in the world's life,
@@ -263,7 +280,7 @@ export function buildChronicle(world: World, history: History, lang: ChronicleLa
     }
     told.push({ year: ev.year, rank: 0, kind: ev.type, text: eventText(ev, history.polities, lang) });
   }
-  told.push(...mined(world, history, lang, dyn));
+  told.push(...mined(world, history, lang, dyn, forms));
   told.push(...naturalHistory(world, history, lang));
   // Stable: year, then kind, then the order each was produced in — no comparison falls through to
   // chance, so the same world always reads the same way.
