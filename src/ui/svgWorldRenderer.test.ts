@@ -9,6 +9,7 @@ import { snapOwnersToProvinces } from "./provinceLayer";
 import { displayBiomes } from "./displayBiome";
 import { OCEAN } from "../engine/terrain";
 import { BIOME_COLORS } from "../engine/biome";
+import { LEGEND_ROW, LEGEND_TEXT, LEGEND_SWATCH } from "./renderer";
 
 describe("renderWorld biomes", () => {
   const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });
@@ -574,5 +575,51 @@ describe("the keys can be read", () => {
       }
     }
     expect(checked, "no legend label was actually measured").toBeGreaterThan(30);
+  });
+});
+
+// One product, two legends, two sizes. Measured at 1920x945 on the live page: the world map draws
+// its 1000-unit viewBox at 993px (x0.993) while the city plate draws its 568 at 883 (x1.554), so
+// the plate's key came out 28% larger in type and 25% larger in swatch than the world map's — 14.0
+// CSS px against 10.9, 12.4 against 9.9 — although the world map is the one a reader spends their
+// time on. The world legend's units are raised to land on the plate's rendered size; the plate,
+// which is the one that reads correctly, is left alone as the reference.
+//
+// The drift had a structure: `LEGEND_ROW` was raised to 15 with the comment "taller type needs the
+// room" and NOTHING USED IT — all four world legends wrote their own `14`. This is the test that
+// makes them share one row.
+describe("the map's legends are one size, not four", () => {
+  const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });
+  const views = [["terrain", ".biome-legend"], ["political", ".nation-legend"],
+                 ["culture", ".culture-legend"], ["province", ".legend"]] as const;
+
+  for (const [view, sel] of views) {
+    it(`${view}: rows sit one LEGEND_ROW apart and the type is LEGEND_TEXT`, () => {
+      const svg = renderWorld(world, view);
+      const legend = svg.querySelector(sel);
+      expect(legend, `${view} draws no legend`).not.toBeNull();
+      // The rows are read off the WORDS, because the province key marks its rows with rules and a
+      // dot rather than with colour swatches — every legend has one line of type per row.
+      const rows = Array.from(legend!.querySelectorAll("text")).slice(1); // [0] is the heading
+      expect(rows.length, `${view} has no keyed rows`).toBeGreaterThan(1);
+      for (let i = 1; i < rows.length; i++) {
+        const step = Number(rows[i].getAttribute("y")) - Number(rows[i - 1].getAttribute("y"));
+        expect(step, `${view} row ${i}`).toBe(LEGEND_ROW);
+      }
+      for (const t of rows) expect(Number(t.getAttribute("font-size"))).toBe(LEGEND_TEXT);
+      // where a row IS a colour swatch, the swatch is the shared size too
+      for (const r of Array.from(legend!.querySelectorAll("rect.legend-item"))) {
+        expect(Number(r.getAttribute("width"))).toBe(LEGEND_SWATCH);
+      }
+    });
+  }
+
+  it("keeps the world key at the size the city plate already reads at", () => {
+    // The plate sets its key in 9 units and renders at x1.554 = 14.0 CSS px. The world map renders
+    // at x0.993, so it needs 14 units to land in the same place. This is a floor: the number may
+    // rise if the map ever renders smaller, but it must never quietly fall back to 11.
+    expect(LEGEND_TEXT).toBeGreaterThanOrEqual(14);
+    expect(LEGEND_ROW).toBeGreaterThanOrEqual(17);
+    expect(LEGEND_SWATCH).toBeGreaterThanOrEqual(12);
   });
 });

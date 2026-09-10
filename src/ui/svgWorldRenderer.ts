@@ -1,5 +1,5 @@
 import type { World } from "../types/world";
-import { svgEl, legendPanel, starPath, compassRose, mapFrame, INK, PARCHMENT, LEGEND_TITLE_H, LEGEND_TEXT } from "./renderer";
+import { svgEl, legendPanel, starPath, compassRose, mapFrame, INK, PARCHMENT, LEGEND_TITLE_H, LEGEND_TEXT, LEGEND_ROW, LEGEND_SWATCH, LEGEND_GAP, LEGEND_W_FIXED } from "./renderer";
 import { scaleBar, KM_PER_UNIT, KM_PER_WALKING_DAY } from "./scaleBar";
 import { displayBiomes } from "./displayBiome";
 import { OCEAN, ALPINE, BIOME_COLORS } from "../engine/biome";
@@ -264,13 +264,13 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
   if (view === "terrain") {
     const present = [...byBiome.keys()].sort((a, b) => a - b);
     const legend = svgEl("g", { class: "legend biome-legend" });
-    const x0 = 14, y0 = grid.height - 14 - present.length * 14;
+    const x0 = 14, y0 = grid.height - 14 - present.length * LEGEND_ROW;
     // the heading grows the panel UPWARD so the key stays anchored to the map's bottom-left corner
-    legend.appendChild(legendPanel(x0 - 5, y0 - 10 - LEGEND_TITLE_H, 104, present.length * 14 + 14 + LEGEND_TITLE_H, t(lang, "legendTerrain")));
+    legend.appendChild(legendPanel(x0 - 5, y0 - 10 - LEGEND_TITLE_H, LEGEND_W_FIXED, present.length * LEGEND_ROW + 14 + LEGEND_TITLE_H, t(lang, "legendTerrain")));
     present.forEach((bm, i) => {
-      const y = y0 + i * 14;
-      legend.appendChild(svgEl("rect", { class: "legend-item", x: x0, y: y - 8, width: 10, height: 10, fill: BIOME_COLORS[bm], stroke: INK, "stroke-width": 0.6, "vector-effect": "non-scaling-stroke" }));
-      const t = svgEl("text", { x: x0 + 18, y: y, "font-size": LEGEND_TEXT, fill: "#42341f", "letter-spacing": 0.3 });
+      const y = y0 + i * LEGEND_ROW;
+      legend.appendChild(svgEl("rect", { class: "legend-item", x: x0, y: y - 9, width: LEGEND_SWATCH, height: LEGEND_SWATCH, fill: BIOME_COLORS[bm], stroke: INK, "stroke-width": 0.6, "vector-effect": "non-scaling-stroke" }));
+      const t = svgEl("text", { x: x0 + LEGEND_SWATCH + LEGEND_GAP, y: y, "font-size": LEGEND_TEXT, fill: "#42341f", "letter-spacing": 0.3 });
       t.textContent = biomeName(lang, bm);
       legend.appendChild(t);
     });

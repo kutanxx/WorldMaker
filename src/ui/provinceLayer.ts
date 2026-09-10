@@ -1,5 +1,5 @@
 import type { World } from "../types/world";
-import { svgEl, legendPanel, INK, LEGEND_TITLE_H, LEGEND_TEXT } from "./renderer";
+import { svgEl, legendPanel, INK, LEGEND_TITLE_H, LEGEND_TEXT, LEGEND_ROW, LEGEND_SWATCH, LEGEND_GAP, LEGEND_W_FIXED } from "./renderer";
 import { t, type Lang } from "./i18n";
 import { cellPath, segPath } from "./svgPaths";
 import { politicalBorders } from "../engine/borders";
@@ -158,12 +158,12 @@ export function provinceLayer(
       [t(lang, "keySeat"), (x, y) => svgEl("circle", { cx: x + 6, cy: y - 3, r: 1.6, fill: "#2a2118", stroke: "#f4ecd8", "stroke-width": 0.6 })],
     ];
     const lg = svgEl("g", { class: "legend province-legend" });
-    const x0 = 14, y0 = grid.height - 14 - rows.length * 14;
-    lg.appendChild(legendPanel(x0 - 5, y0 - 10 - LEGEND_TITLE_H, 104, rows.length * 14 + 14 + LEGEND_TITLE_H, t(lang, "legendProvinces")));
+    const x0 = 14, y0 = grid.height - 14 - rows.length * LEGEND_ROW;
+    lg.appendChild(legendPanel(x0 - 5, y0 - 10 - LEGEND_TITLE_H, LEGEND_W_FIXED, rows.length * LEGEND_ROW + 14 + LEGEND_TITLE_H, t(lang, "legendProvinces")));
     rows.forEach(([label, mark], i) => {
-      const y = y0 + i * 14;
+      const y = y0 + i * LEGEND_ROW;
       lg.appendChild(mark(x0, y));
-      const tx = svgEl("text", { x: x0 + 20, y, "font-size": LEGEND_TEXT, fill: INK });
+      const tx = svgEl("text", { x: x0 + LEGEND_SWATCH + LEGEND_GAP, y, "font-size": LEGEND_TEXT, fill: INK });
       tx.textContent = label;
       lg.appendChild(tx);
     });

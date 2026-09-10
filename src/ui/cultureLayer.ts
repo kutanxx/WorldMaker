@@ -1,5 +1,5 @@
 import type { World } from "../types/world";
-import { svgEl, legendPanel, INK, LEGEND_TITLE_H, LEGEND_TEXT } from "./renderer";
+import { svgEl, legendPanel, INK, LEGEND_TITLE_H, LEGEND_TEXT, LEGEND_ROW, LEGEND_SWATCH, LEGEND_GAP, LEGEND_W_NAMED } from "./renderer";
 import { t } from "./i18n";
 import type { Lang } from "./i18n";
 import { cellPath, segPath } from "./svgPaths";
@@ -16,7 +16,7 @@ const MIN_LABEL_CELLS = 20;
 // variation without raising the separation, because two cultures meeting on the SAME biome are
 // separated by this number alone.
 export const CULTURE_FILL_OPACITY = 0.7;
-const LEGEND_W = 120;
+const LEGEND_W = LEGEND_W_NAMED;
 
 export function cultureLayer(
   grid: GridLike,
@@ -69,12 +69,12 @@ export function cultureLayer(
   // bottom-LEFT, matching the biome legend: only one legend is drawn per view, and the
       // bottom-right corner belongs to the zoom controls, which were sitting on top of this one.
       const x0 = 14;
-  const y0 = grid.height - 14 - present.length * 14;
-  legend.appendChild(legendPanel(x0 - 5, y0 - 10 - LEGEND_TITLE_H, LEGEND_W, present.length * 14 + 14 + LEGEND_TITLE_H, t(lang, "legendCultures")));
+  const y0 = grid.height - 14 - present.length * LEGEND_ROW;
+  legend.appendChild(legendPanel(x0 - 5, y0 - 10 - LEGEND_TITLE_H, LEGEND_W, present.length * LEGEND_ROW + 14 + LEGEND_TITLE_H, t(lang, "legendCultures")));
   present.forEach((id, i) => {
-    const y = y0 + i * 14;
-    legend.appendChild(svgEl("rect", { class: "legend-item", x: x0, y: y - 8, width: 10, height: 10, fill: cultures[id]?.color ?? "#888", stroke: INK, "stroke-width": 0.6, "vector-effect": "non-scaling-stroke" }));
-    const t = svgEl("text", { x: x0 + 18, y, "font-size": LEGEND_TEXT, fill: "#42341f", "letter-spacing": 0.3 });
+    const y = y0 + i * LEGEND_ROW;
+    legend.appendChild(svgEl("rect", { class: "legend-item", x: x0, y: y - 9, width: LEGEND_SWATCH, height: LEGEND_SWATCH, fill: cultures[id]?.color ?? "#888", stroke: INK, "stroke-width": 0.6, "vector-effect": "non-scaling-stroke" }));
+    const t = svgEl("text", { x: x0 + LEGEND_SWATCH + LEGEND_GAP, y, "font-size": LEGEND_TEXT, fill: "#42341f", "letter-spacing": 0.3 });
     t.textContent = cultures[id]?.name ?? "";
     legend.appendChild(t);
   });

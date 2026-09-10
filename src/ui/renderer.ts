@@ -27,10 +27,38 @@ export const PARCHMENT = "#f3ead2";
 // 8.7-9.2 CSS pixels against a widest label of 28.8 units inside a 104-unit panel — small enough to
 // squint at, with three quarters of the panel standing empty. One size for every key on both maps,
 // because they were 9 in one place, 8.5 in another and 7 on the city plate.
-export const LEGEND_TEXT = 11;
-export const LEGEND_TITLE = 10.5;
-export const LEGEND_ROW = 15;      // was 14: taller type needs the room
-export const LEGEND_TITLE_H = 17; // 15 left the heading 2 units off the first swatch; measured
+// The key, in map units. These are DELIBERATELY larger than they look: the world map draws its
+// 1000-unit viewBox at about 993 CSS px, so a unit is a pixel — while the city plate draws its 568
+// at 883, where a unit is 1.55 pixels. Measured on the live page at 1920x945, that left the plate's
+// key 28% larger in type and 25% larger in swatch than the world map's (14.0 CSS px against 10.9,
+// 12.4 against 9.9), on the map a reader spends the most time with. These numbers land the world
+// key on the plate's rendered size: 14 x 0.993 = 13.9 against the plate's 14.0, and so on.
+// ⚠ The plate keeps its own smaller numbers (9 / 7.5 / 11) and is the reference; changing these
+// does not touch it.
+export const LEGEND_TEXT = 14;
+export const LEGEND_TITLE = 12;
+// ⚠ USE THIS. It sat here at 15 with the note below and every one of the four legends wrote its own
+// `14` instead — which is exactly how the map ended up with a key nobody had measured in one place.
+export const LEGEND_ROW = 17;      // was 14: taller type needs the room
+export const LEGEND_SWATCH = 12;   // the colour chip, and the width the words are indented past
+export const LEGEND_GAP = 9;       // swatch to word
+export const LEGEND_TITLE_H = 20; // 15 left the heading 2 units off the first swatch; measured
+
+// How wide the cartouche is, measured rather than guessed. The longest row was taken across seeds
+// 1/2/3/7/11 in BOTH languages, from the panel's own left edge: 82.3 units for the fixed keys
+// (biomes, and the province key's rules and dot) and 93.4 for the ones that carry generated names
+// (realms, peoples), which are capped at ten letters. Plus a right margin matching the 5-unit inset
+// on the left, and headroom for a name no seed here happened to produce.
+// ⚠ Raising the type first, then measuring, made these SMALLER than they were before it (104/112/
+// 120): the old panels carried up to 42 units of empty parchment, and a panel that covers the map
+// should not be wider than its own words.
+// ⚠ These are set by the GUARD in svgWorldRenderer.test.ts, not by the browser numbers above. That
+// test bounds a label at 0.62 em a character because jsdom cannot measure text — generous for Latin
+// (the real face measures about 0.48) and NOT generous for Korean, whose glyphs are full-width. The
+// browser said 96 and 112 would do for every seed sampled; the guard says 112 and 124 for a label
+// neither of us has seen yet, and on this the guard wins.
+export const LEGEND_W_FIXED = 112;
+export const LEGEND_W_NAMED = 124;
 
 /**
  * The cartouche a legend sits in. `title` names what the swatches are a key TO — every other titled

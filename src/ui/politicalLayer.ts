@@ -1,5 +1,5 @@
 import type { World } from "../types/world";
-import { svgEl, legendPanel, INK, LEGEND_TITLE_H, LEGEND_TEXT } from "./renderer";
+import { svgEl, legendPanel, INK, LEGEND_TITLE_H, LEGEND_TEXT, LEGEND_ROW, LEGEND_SWATCH, LEGEND_GAP, LEGEND_W_NAMED } from "./renderer";
 import { cellPath, segPath } from "./svgPaths";
 import { politicalBorders } from "../engine/borders";
 import { nationColor, nationCentroids } from "./nationPalette";
@@ -21,7 +21,7 @@ export interface PoliticalOpts {
 }
 
 const MIN_LABEL_CELLS = 25;
-const LEGEND_W = 112;
+const LEGEND_W = LEGEND_W_NAMED;
 
 const FREE_COLOR = "#b7b1a4"; // neutral grey for independent free cities
 
@@ -121,15 +121,15 @@ export function politicalLayer(
       // bottom-LEFT, matching the biome legend: only one legend is drawn per view, and the
       // bottom-right corner belongs to the zoom controls, which were sitting on top of this one.
       const x0 = 14;
-      const y0 = grid.height - 14 - rows.length * 14;
-      legend.appendChild(legendPanel(x0 - 5, y0 - 10 - LEGEND_TITLE_H, LEGEND_W, rows.length * 14 + 14 + LEGEND_TITLE_H, opts.legendTitle));
+      const y0 = grid.height - 14 - rows.length * LEGEND_ROW;
+      legend.appendChild(legendPanel(x0 - 5, y0 - 10 - LEGEND_TITLE_H, LEGEND_W, rows.length * LEGEND_ROW + 14 + LEGEND_TITLE_H, opts.legendTitle));
       rows.forEach(([id], i) => {
-        const y = y0 + i * 14;
+        const y = y0 + i * LEGEND_ROW;
         legend.appendChild(svgEl("rect", {
-          class: "legend-item", x: x0, y: y - 8, width: 10, height: 10,
+          class: "legend-item", x: x0, y: y - 9, width: LEGEND_SWATCH, height: LEGEND_SWATCH,
           fill: colorOf(id), stroke: INK, "stroke-width": 0.6, "vector-effect": "non-scaling-stroke",
         }));
-        const t = svgEl("text", { x: x0 + 18, y, "font-size": LEGEND_TEXT, fill: "#42341f", "letter-spacing": 0.3 });
+        const t = svgEl("text", { x: x0 + LEGEND_SWATCH + LEGEND_GAP, y, "font-size": LEGEND_TEXT, fill: "#42341f", "letter-spacing": 0.3 });
         t.textContent = nameOf.get(id) ?? "";
         legend.appendChild(t);
       });
