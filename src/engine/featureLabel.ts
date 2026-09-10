@@ -97,8 +97,18 @@ export const NOUN_KO: Record<string, string> = {
   Main: "창해",
   // cold + forest
   Tundra: "툰드라", Frostlands: "서리벌판", Barrens: "황무지",
+  // Added when the tundra and taiga tables were measured too short to avoid repeating themselves
+  // (each peaks at four regions in one world against three words). Every one of these has to be a
+  // word no other entry already uses — the uniqueness test below is what stops a map that stopped
+  // repeating itself in English from repeating itself in Korean.
+  Snows: "설원", Icefields: "빙원",
   Pinewood: "침엽수림", Taiga: "타이가", Wilds: "야생지",
+  Firwood: "전나무숲", Hinterland: "오지",
   Forest: "숲", Woods: "수풀",
+  // 녹림 rather than 푸른숲, because Green + Forest already renders "푸른 숲" and the two would
+  // collide on a map that is meant to have stopped colliding.
+  Greenwood: "녹림",
+  Thickets: "덤불숲", Cloudwood: "운무림",
   // Reach is a stretch of ground inside a FOREST biome, so "벌판" (bare open plain) said the
   // opposite of what it names — and 평원/들판/서리벌판 already hold the open country.
   Reach: "너른땅",

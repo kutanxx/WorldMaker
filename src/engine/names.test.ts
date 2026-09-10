@@ -5,6 +5,8 @@ import { generateWorld } from "./world";
 import { DEFAULT_PARAMS } from "../types/world";
 import { simulateHistory } from "./history";
 import { buildDynasties } from "./dynasty";
+import { ADJ, NOUNS, WORLD_NOUN } from "./geography";
+import { RIVER_NOUNS } from "./rivers";
 
 describe("names", () => {
   it("produces non-empty capitalized names", () => {
@@ -152,12 +154,13 @@ describe("names a reader can say", () => {
   // Region and river names are phrases — "Heights of Lurknaend" — and only the invented word in
   // them is this generator's doing. An earlier pass at this measurement counted across the spaces
   // and reported "the Endless Frostlands" as a five-consonant name.
-  const ENGLISH = new Set(["the", "of", "and", "rill", "river", "brook", "heights", "mountains",
-    "frostlands", "barrens", "wilds", "woods", "fields", "sands", "plains", "pinewood", "rainforest",
-    "spires", "marsh", "coast", "isles", "vale", "reach", "expanse", "desert", "forest", "hills",
-    "steppe", "tundra", "jungle", "fens", "shore", "cold", "endless", "broken", "black", "iron",
-    "old", "golden", "shrouded", "great", "far", "deep", "high", "white", "red", "grey", "gray",
-    "silent", "lost", "burning"]);
+  // ⚠ Read off the SOURCE TABLES, never listed by hand. This was a hand-written literal, and the
+  // day someone added `Cloudwood` to the tropical nouns it failed here as an eleven-letter
+  // "invented" word — the test does not know an English word it was never told about. The tables
+  // are the authority on which words this generator did not invent.
+  const ENGLISH = new Set(["the", "of", "and",
+    ...ADJ, ...Object.values(NOUNS).flat(), ...RIVER_NOUNS, ...WORLD_NOUN,
+  ].map((w) => w.toLowerCase()));
 
   const words: { word: string; culture: number }[] = [];
   for (let seed = 1; seed <= 20; seed++) {

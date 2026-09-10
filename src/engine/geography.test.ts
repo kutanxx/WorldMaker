@@ -66,6 +66,6 @@ describe("geography", () => {
       const nouns = world.regions.map((r) => r.label.noun);
       if (new Set(nouns).size !== nouns.length) repeats++;
     }
-    expect(repeats, `${repeats} of 20 worlds repeat a region noun`).toBe(5);
+    expect(repeats, `${repeats} of 20 worlds repeat a region noun`).toBe(0);
   });
 });

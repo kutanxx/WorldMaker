@@ -325,7 +325,15 @@ describe("the Land section's English names are pinned", () => {
   // use. All three change English river names, which is what this golden exists to notice.
   // ⚠ `allSnap` and world.test.ts did NOT move, which is what says the walk walked instead of
   // drawing — the same evidence the region-noun walk was accepted on.
-  const pins: Record<number, number> = { 1: 2570778574, 2: 3217608244, 3: 2647779583 };
+  // Re-pinned again, one change later: the region tables were measured too short to stop repeating
+  // themselves (tundra and taiga each peak at four regions in one world against three words) and
+  // were filled — Snows, Icefields, Firwood, Hinterland, Greenwood, Thickets, Cloudwood — with
+  // `Wilds` becoming taiga's alone rather than sitting in three tables at once. Growing a table
+  // changes which word an unchanged draw lands on (`pick` is `arr[floor(rng()*arr.length)]`), so
+  // every region name moves. Repeats: 5 of 20 worlds to NONE, and none in 60.
+  // ⚠ `allSnap` and world.test.ts did not move — the draw COUNT is what geometry rides on, and one
+  // draw is one draw whatever the array holds.
+  const pins: Record<number, number> = { 1: 1706927783, 2: 1717908128, 3: 4103908609 };
   for (const seed of [1, 2, 3]) {
     it(`reproduces the pinned English Land section for seed ${seed}`, () => {
       const { world: w } = generateWorld({ ...DEFAULT_PARAMS, seed });

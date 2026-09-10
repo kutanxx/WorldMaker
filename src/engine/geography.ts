@@ -19,12 +19,21 @@ const MAX_SEAS = 2;
 // feature nouns by biome kind (research: the noun depends on the terrain)
 export const NOUNS: Record<number, string[]> = {
   [OCEAN]: ["Sea", "Deep", "Gulf", "Waters", "Expanse", "Main"],
-  [TUNDRA]: ["Tundra", "Frostlands", "Barrens"],
-  [TAIGA]: ["Pinewood", "Taiga", "Wilds"],
-  [TEMPERATE_FOREST]: ["Forest", "Woods", "Wilds", "Reach", "Wold"],
+  // ⚠ Sized by measurement, not by taste. Over sixty seeds the most regions of ONE kind a world
+  // raised was: tundra 4, taiga 4, forest 4, alpine 4, grassland 3, tropical 3, ocean 2, desert 2,
+  // wetland 1. A table shorter than its own maximum cannot avoid repeating itself however well the
+  // walk works — three of these were, which is what left 5 of 20 worlds calling two places the same
+  // thing after the walk landed.
+  // ⚠ And a SHARED word shortens both tables that hold it, because whichever biome draws first
+  // takes it: `Wilds` sat in taiga, forest AND tropical, so a map with four taiga regions could be
+  // down to two usable words. `Wilds` is now taiga's alone. `Barrens` still spans tundra and desert
+  // — deliberately: desert peaks at 2 against a 4-word table, so it can spare one.
+  [TUNDRA]: ["Tundra", "Frostlands", "Barrens", "Snows", "Icefields"],
+  [TAIGA]: ["Pinewood", "Taiga", "Wilds", "Firwood", "Hinterland"],
+  [TEMPERATE_FOREST]: ["Forest", "Woods", "Greenwood", "Reach", "Wold"],
   [GRASSLAND]: ["Plains", "Steppe", "Downs", "Fields"],
   [DESERT]: ["Wastes", "Sands", "Dunes", "Barrens"],
-  [TROPICAL]: ["Jungle", "Rainforest", "Wilds"],
+  [TROPICAL]: ["Jungle", "Rainforest", "Thickets", "Cloudwood"],
   [WETLAND]: ["Marsh", "Fens", "Mire", "Moor"],
   [ALPINE]: ["Peaks", "Mountains", "Range", "Spires", "Heights"],
 };
