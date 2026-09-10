@@ -154,11 +154,6 @@ function match<T>(table: Map<string, T>, max: number, w: string, i: number): [st
 interface Syl { on: string; nuc: string; coda: string; fromVowel: boolean }
 
 /**
- * Write a generated Latin name in Hangul. Pure: no rng, no state, the same word always the same
- * string — the map is drawn from a seed and a name that moved between two renders would move the
- * label with it.
- */
-/**
  * A single invented proper noun, written for the reader's language. Cities, realms, peoples and
  * rulers have no structure to render — one made-up word out of the token tables above — so Korean
  * writes it by transliterating it (`toHangul`) and English leaves it alone. That one-line rule was
@@ -172,6 +167,11 @@ export function properNoun(ko: boolean, word: string): string {
   return ko ? toHangul(word) : word;
 }
 
+/**
+ * Write a generated Latin name in Hangul. Pure: no rng, no state, the same word always the same
+ * string — the map is drawn from a seed and a name that moved between two renders would move the
+ * label with it.
+ */
 export function toHangul(word: string): string {
   const w = word.toLowerCase();
   const parts: (Syl | string)[] = [];

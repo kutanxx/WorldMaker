@@ -367,10 +367,6 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     // in Korean that RENDERS as `properName(lang, c.name)`, and sorting by the untransliterated name
     // instead put same-size Korean towns in an order that reads as arbitrary to the reader who never
     // sees the Latin form at all.
-    // The tiebreaker sorts by the name actually ON THE BUTTON, not the underlying Latin `c.name` —
-    // in Korean that RENDERS as `properName(lang, c.name)`, and sorting by the untransliterated name
-    // instead put same-size Korean towns in an order that reads as arbitrary to the reader who never
-    // sees the Latin form at all.
     const ordered = [...generated.world.cities].sort((a, b) =>
       Number(b.isCapital) - Number(a.isCapital) || b.size - a.size
       || properName(lang, a.name).localeCompare(properName(lang, b.name)));
