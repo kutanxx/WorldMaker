@@ -271,11 +271,24 @@ describe("exported chronicle is byte-stable across the shared-assembler move", (
 // A sibling task (forms of government / region nouns) is about to change the region NOUNS
 // deliberately — when that lands, re-pin these three numbers and say so in the commit, the same way
 // gazetteer.test.ts's chronicle `pins` block records what each re-pin was allowed to move.
+//
+// RE-PINNED (korean-names task 4): 19 of 20 worlds were measured repeating a region noun — `Wilds`
+// alone is registered in TAIGA, TEMPERATE_FOREST and TROPICAL at once, and took 22 of 247 regions
+// between them, so two different places on the same map ended up both called "the Wilds".
+// nameGeography now walks a taken noun to the next free entry in its OWN biome's table, starting
+// from the index it drew — no rng is touched, the technique `lengthen()` in names.ts already uses —
+// rather than redrawing or borrowing another biome's word. That is exactly what these three hashes
+// were pinned to catch: only the words a few regions carry moved, nothing about how the world is
+// shaped did, which is also why this is the ONLY thing in the whole suite that re-pinned — the
+// chronicle `pins` block above reproduced untouched (region nouns never reach the chronicle text),
+// and so did history.test.ts's `allSnap` and world.test.ts's golden hashes (no draw moved). Five of
+// the twenty worlds still repeat a noun after the walk — measured and explained in
+// geography.test.ts, where a biome's own table has no free entry left to walk to.
 describe("the Land section's English names are pinned", () => {
   const fold = (h: number, v: number) => (Math.imul(h ^ v, 16777619) >>> 0);
   const fnv = (s: string) => { let h = 2166136261 >>> 0; for (let i = 0; i < s.length; i++) h = fold(h, s.charCodeAt(i)); return h >>> 0; };
   const landOf = (md: string) => md.slice(md.indexOf("## The Land"), md.indexOf("## Peoples"));
-  const pins: Record<number, number> = { 1: 3974367560, 2: 2502458337, 3: 2789173942 };
+  const pins: Record<number, number> = { 1: 3599660719, 2: 3925439592, 3: 617219288 };
   for (const seed of [1, 2, 3]) {
     it(`reproduces the pinned English Land section for seed ${seed}`, () => {
       const { world: w } = generateWorld({ ...DEFAULT_PARAMS, seed });
