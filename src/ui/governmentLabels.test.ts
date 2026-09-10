@@ -76,13 +76,13 @@ function openKoreanPoliticalAtYear13() {
 }
 
 describe("the map and its legend carry a realm's form of government", () => {
-  it("labels every visible nation with one of 왕국/공화국/제국, all three represented", () => {
+  it("labels every visible nation with one of 왕국/자유도시/제국, all three represented", () => {
     const root = openKoreanPoliticalAtYear13();
     const labels = [...root.querySelectorAll(".nation-label")].map((e) => e.textContent ?? "");
     expect(labels.length, "no nation labels rendered — test setup is broken, not the wiring").toBeGreaterThan(2);
-    for (const l of labels) expect(l, l).toMatch(/(왕국|공화국|제국)$/);
+    for (const l of labels) expect(l, l).toMatch(/(왕국|자유도시|제국)$/);
     expect(labels.some((l) => l.endsWith("왕국")), labels.join(", ")).toBe(true);
-    expect(labels.some((l) => l.endsWith("공화국")), labels.join(", ")).toBe(true);
+    expect(labels.some((l) => l.endsWith("자유도시")), labels.join(", ")).toBe(true);
     expect(labels.some((l) => l.endsWith("제국")), labels.join(", ")).toBe(true);
     root.remove();
   });
@@ -91,20 +91,20 @@ describe("the map and its legend carry a realm's form of government", () => {
     const root = openKoreanPoliticalAtYear13();
     const rows = [...root.querySelectorAll(".nation-legend text:not(.legend-title)")].map((e) => e.textContent ?? "");
     expect(rows.length).toBeGreaterThan(2);
-    for (const l of rows) expect(l, l).toMatch(/(왕국|공화국|제국)$/);
-    expect(rows.some((l) => l.endsWith("공화국")), rows.join(", ")).toBe(true);
+    for (const l of rows) expect(l, l).toMatch(/(왕국|자유도시|제국)$/);
+    expect(rows.some((l) => l.endsWith("자유도시")), rows.join(", ")).toBe(true);
   });
 });
 
 describe("the city list's realm column carries a realm's form of government", () => {
-  it("labels every listed realm with one of 왕국/공화국/제국, all three represented", () => {
+  it("labels every listed realm with one of 왕국/자유도시/제국, all three represented", () => {
     const root = openKoreanPoliticalAtYear13();
     const realms = [...new Set([...root.querySelectorAll(".city-list-realm")].map((e) => e.textContent ?? ""))]
       .filter(Boolean);
     expect(realms.length, "no realms in the city list — test setup is broken, not the wiring").toBeGreaterThan(2);
-    for (const l of realms) expect(l, l).toMatch(/(왕국|공화국|제국)$/);
+    for (const l of realms) expect(l, l).toMatch(/(왕국|자유도시|제국)$/);
     expect(realms.some((l) => l.endsWith("왕국")), realms.join(", ")).toBe(true);
-    expect(realms.some((l) => l.endsWith("공화국")), realms.join(", ")).toBe(true);
+    expect(realms.some((l) => l.endsWith("자유도시")), realms.join(", ")).toBe(true);
     expect(realms.some((l) => l.endsWith("제국")), realms.join(", ")).toBe(true);
     root.remove();
   });
@@ -115,7 +115,7 @@ describe("the city list's realm column carries a realm's form of government", ()
 // directly with a hand-built `forms` map, which pins `cityFacts`'s own parameter handling but never
 // exercises `app.ts` (~line 493) actually threading the real `governmentForms` into that call. Drop
 // that argument at the call site and every other test in this suite — including cityFacts.test.ts's
-// own forms-map tests — stays green while the plate silently loses its 왕국/공화국/제국. This test
+// own forms-map tests — stays green while the plate silently loses its 왕국/자유도시/제국. This test
 // forces a form onto the capital's own realm id (found by recomputing the world/history outside the
 // app the same way app.test.ts's other correlation tests do — createApp's internals aren't reachable
 // from here) and reads the rendered plate, not `cityFacts`'s return value, so it can only pass if the
@@ -123,7 +123,7 @@ describe("the city list's realm column carries a realm's form of government", ()
 describe("the city plate carries a realm's form of government", () => {
   afterEach(() => { forcedCityOwner = null; });
 
-  it("labels the plate's realm line with 왕국/공화국/제국, not a bare transliteration", () => {
+  it("labels the plate's realm line with 왕국/자유도시/제국, not a bare transliteration", () => {
     const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });
     const history = simulateHistory(world, 1);
     const city = world.cities[0]; // the capital: "in somebody's realm by construction" (cityFacts.test.ts)

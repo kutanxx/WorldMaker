@@ -13,7 +13,10 @@ import type { Government } from "./government";
 // own government classifier already agree on.
 const FORM_WORD: Record<Government, string> = {
   kingdom: "왕국",
-  republic: "공화국",
+  // 자유도시, not 공화국. Every other line of the document already says 자유도시 — five times a
+  // realm against 공화국 once — and a five-tile city that threw off a crown is not a republic in
+  // the modern sense the word carries. The three forms still read as three kinds of polity.
+  republic: "자유도시",
   empire: "제국",
 };
 

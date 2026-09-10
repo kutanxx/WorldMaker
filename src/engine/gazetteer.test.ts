@@ -537,3 +537,34 @@ describe("the Realms section tells kingdoms, republics and empires apart", () =>
     }
   });
 });
+
+// One Korean document called two different things by one word, and one thing by two words. A realm
+// that declared itself free is a 자유도시; an economic zone is a 자유무역항 — and the gazetteer's
+// Free Ports section was titled `## 자유도시` and described each port as "세계 남부의 자유도시",
+// while the chronicle called the very same zones 자유무역항. Measured on seed 1: `흐레이르` appears
+// as a free REALM under its own heading AND as a free PORT under that section, so the same name
+// came up twice with the same word meaning two different things. English never had the problem —
+// it says `free city` and `free port`.
+describe("a Korean document uses one word for one thing", () => {
+  for (const seed of [1, 2, 3]) {
+    it(`keeps 자유도시 for a realm and 자유무역항 for a port (seed ${seed})`, () => {
+      const { world: w } = generateWorld({ ...DEFAULT_PARAMS, seed });
+      const h = simulateHistory(w, seed);
+      const ko = worldToGazetteer(w, h, "ko");
+
+      // the ports section is titled and worded as ports
+      const i = ko.indexOf("## 자유무역항");
+      if (h.economicZones.length) {
+        expect(i, "the ports section is not titled 자유무역항").toBeGreaterThan(-1);
+        const ports = ko.slice(i).split("\n## ")[0];
+        expect(ports).not.toContain("자유도시");
+        expect(ports.split("\n").filter((l) => l.startsWith("- ")).length).toBe(h.economicZones.length);
+      }
+      // ...and the old title is gone entirely
+      expect(ko).not.toContain("## 자유도시");
+
+      // a free realm still IS one, in its own entry and in the chronicle
+      if (h.polities.some((p) => p.free)) expect(ko).toContain("자유도시로 독립했고");
+    });
+  }
+});

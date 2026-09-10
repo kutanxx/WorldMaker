@@ -347,7 +347,13 @@ export function worldToGazetteer(world: World, history: History, lang: Gazetteer
 
   // ── Free Ports ──────────────────────────────────────────────────────────────
   if (history.economicZones.length) {
-    L.push(ko ? "## 자유도시" : "## Free Ports", "");
+    // ⚠ 자유무역항, not 자유도시 — that word belongs to a realm that declared itself free, and this
+    // section is about trading zones. The two sat in ONE document under one word: on seed 1
+    // `흐레이르` appeared as a free realm with its own entry AND here as a port, so the same name
+    // came up twice saying the same word and meaning two different things. The chronicle already
+    // said 자유무역항; this is the page catching up to it. English never had the collision — it
+    // says free city and free port.
+    L.push(ko ? "## 자유무역항" : "## Free Ports", "");
     for (const z of history.economicZones) {
       // Every free port used to get one identical sentence. Each one sits in a real place, under a
       // real realm — both were already in the data.
@@ -357,7 +363,7 @@ export function worldToGazetteer(world: World, history: History, lang: Gazetteer
       const px = grid.points[z.cell * 2], py = grid.points[z.cell * 2 + 1];
       const dir = compass(lang, px, py, b);
       L.push(ko
-        ? `- **${say(z.name)}** — 세계 ${dir}의 자유도시.` + (realm ? ` ${realm}의 땅에 선다.` : "")
+        ? `- **${say(z.name)}** — 세계 ${dir}의 자유무역항.` + (realm ? ` ${realm}의 땅에 선다.` : "")
         : `- **${z.name}** — a free port of the ${dir}.` + (realm ? ` It stands on ${realm}'s ground.` : ""));
     }
     L.push("");

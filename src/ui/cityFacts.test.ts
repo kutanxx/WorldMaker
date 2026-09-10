@@ -86,10 +86,10 @@ describe("the realm line carries its form of government", () => {
   const layout = generateCityLayout(cityContext(city), 1);
   const owner = world.polityOf[city.cell];
 
-  it("labels the realm 왕국/공화국/제국 by the form given — the same word for the same form every time", () => {
+  it("labels the realm 왕국/자유도시/제국 by the form given — the same word for the same form every time", () => {
     const cases: [GovernmentForm, RegExp][] = [
       [{ form: "kingdom", since: null }, /왕국$/],
-      [{ form: "republic", since: null }, /공화국$/],
+      [{ form: "republic", since: null }, /자유도시$/],
       [{ form: "empire", since: 100 }, /제국$/],
     ];
     for (const [form, suffix] of cases) {
@@ -101,7 +101,7 @@ describe("the realm line carries its form of government", () => {
 
   it("falls back to plain transliteration when no forms map is given, same as before this parameter existed", () => {
     const f = cityFacts(world, city, layout, "ko", KM_PER_UNIT);
-    expect(f.realm).not.toMatch(/(왕국|공화국|제국)$/);
+    expect(f.realm).not.toMatch(/(왕국|자유도시|제국)$/);
   });
 });
 

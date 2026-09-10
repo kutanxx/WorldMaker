@@ -25,7 +25,7 @@ describe("polityLabeller", () => {
   it("names a realm by its form of government, one word for each of the three", () => {
     const label = polityLabeller("ko", forms);
     expect(label(1, "Ceusdu")).toBe("케우스두 왕국");
-    expect(label(2, "Hreir")).toBe("흐레이르 공화국");
+    expect(label(2, "Hreir")).toBe("흐레이르 자유도시");
     expect(label(3, "Ceusdu")).toBe("케우스두 제국");
   });
 
