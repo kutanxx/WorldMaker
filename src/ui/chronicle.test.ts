@@ -46,7 +46,7 @@ describe("renderChronicle", () => {
     // the eight foundings are one line; assert that line rather than the first row, whose identity
     // is a question of ordering and not of language
     expect(el.querySelector(".evt-foundings")!.textContent)
-      .toBe("Year 0 — 8 realms stand: Dhaishdhar, Korvruk, Ceusdu, Thruthkhagg, Kaarkgruau, Zaiashain, Khaak, Laelmaer");
+      .toBe("Year 0 — 8 realms stand: Dhaishdhar, Korvruk, Ceusdu, Thruthkha, Kaargruth, Zashain, Khaak, Laelmaer");
   });
   it("still tells it in Korean when the reader is reading Korean", () => {
     const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });

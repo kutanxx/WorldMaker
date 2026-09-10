@@ -227,9 +227,16 @@ describe("simulateHistory golden anchor (behaviour lock)", () => {
   // into seed 5's chronicle. That fallback only ever existed to protect this anchor, and this is
   // the change that re-pins it.
   const anchors: Record<number, { snaps: number; pols: number; evs: number; econ: number; allSnap: number; events: number; polities: number }> = {
-    1: { snaps: 51, pols: 18, evs: 50, econ: 3, allSnap:  245822489, events: 1579709799, polities: 3714686391 },
-    2: { snaps: 51, pols: 19, evs: 49, econ: 3, allSnap: 4064983612, events: 1569999620, polities:  324312568 },
-    3: { snaps: 51, pols: 17, evs: 43, econ: 3, allSnap: 4006220817, events: 2560112396, polities:  341609610 },
+    // Re-pinned when the name generator learned what a reader can say (seam repairs in names.ts).
+    // ONLY the two hashes that fold NAME TEXT moved — `events` folds the rendered sentence and
+    // `polities` folds `p.name`. **`allSnap` did not move on any of the three seeds**, and neither
+    // did the counts, which is the whole proof: the same world, told with sayable names. Verified
+    // line by line as well — substituting each old name for its new one makes all 142 chronicle
+    // lines of seeds 1-3 identical, except one where the Korean subject particle correctly followed
+    // the new name's final consonant (`Kaarkgruau가` -> `Kaargruth이`).
+    1: { snaps: 51, pols: 18, evs: 50, econ: 3, allSnap:  245822489, events:  718178238, polities: 2494072566 },
+    2: { snaps: 51, pols: 19, evs: 49, econ: 3, allSnap: 4064983612, events: 2255964615, polities: 3237195845 },
+    3: { snaps: 51, pols: 17, evs: 43, econ: 3, allSnap: 4006220817, events: 3415859447, polities: 2334058053 },
   };
   for (const seed of [1, 2, 3]) {
     it(`reproduces the pinned hashes for seed ${seed}`, () => {

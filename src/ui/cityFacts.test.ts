@@ -76,7 +76,14 @@ describe("when a town came to be", () => {
 describe("the realm a plate names is the realm of a stated year", () => {
   const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 2 });
   const history = simulateHistory(world, 2);
-  const city = world.cities.find((c) => c.name === "Liaeth")!;
+  // Chosen by the property the test is about — a town that changes hands across the five centuries
+  // — and not by name. It used to name Liaeth outright, and broke the day the name generator was
+  // taught to make sayable names: the town was still there, still changing hands, and the test
+  // could no longer find it. A test that pins a generated string is testing the generator.
+  const lastSnap = history.snapshots[history.snapshots.length - 1];
+  const city = world.cities.find((c) =>
+    history.snapshots[0].owner[c.cell] >= 0 && lastSnap.owner[c.cell] >= 0
+    && history.snapshots[0].owner[c.cell] !== lastSnap.owner[c.cell])!;
   const layout = generateCityLayout(cityContext(city), 2);
   const at = (yearIndex: number) =>
     cityFacts(world, city, layout, "en", 3, history.cityFoundings, {
@@ -90,7 +97,7 @@ describe("the realm a plate names is the realm of a stated year", () => {
     const ownerLast = history.snapshots[history.snapshots.length - 1].owner[city.cell];
     expect(first.realm).toBe(history.polities[history.snapshots[0].owner[city.cell]].name);
     expect(last.realm).toBe(history.polities[ownerLast].name);
-    expect(last.realm).not.toBe(first.realm);   // seed 2's Liaeth changes hands over the five centuries
+    expect(last.realm).not.toBe(first.realm);   // which is how the town was chosen, above
   });
 
   it("carries the year the answer is true of", () => {

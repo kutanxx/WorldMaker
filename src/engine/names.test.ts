@@ -1,6 +1,10 @@
 import { describe, it, expect } from "vitest";
 import { mulberry32 } from "./rng";
 import { makeNameGen, deStutter } from "./names";
+import { generateWorld } from "./world";
+import { DEFAULT_PARAMS } from "../types/world";
+import { simulateHistory } from "./history";
+import { buildDynasties } from "./dynasty";
 
 describe("names", () => {
   it("produces non-empty capitalized names", () => {
@@ -108,5 +112,117 @@ describe("deStutter drops the second copy and leaves everything else alone", () 
   });
   it("leaves a name with no repeated pair exactly as it was", () => {
     for (const w of ["draurk", "kravon", "syenmoth", "a", "ab", "abc"]) expect(deStutter(w)).toBe(w);
+  });
+});
+
+// A name a reader cannot say is an obstacle, not a proper noun, and the generator was producing
+// them at a rate the eye notices. Measured over twenty seeds and every invented word the world
+// carries — cities, rivers, realms, peoples, regions, rulers, 4,128 of them — against fifty real
+// place names (London, Trondheim, Samarkand, Ephesus) measured the same way:
+//
+//                       real places      generated
+//   4+ consonants             0%            3.5%     Gruarkvrogr, Skeifrbrynd, Fjeifrhrarn
+//   3+ vowels                 0%           16.7%     Vaeieliael, Melenaeiael, Aeioanlia
+//   10 letters or more        4%           17.2%
+//
+// Digraphs are counted as ONE sound: `th`, `sh`, `kh`, `gg` are single consonants to a reader, and
+// a metric that calls "Thorne" a four-consonant pile-up would send the repair after the wrong
+// names. The measurement per people is what named the culprits — the melodic profile put a 3-vowel
+// run in HALF its names, which no amount of staring at the guttural ones would have found.
+describe("names a reader can say", () => {
+  const DIGRAPHS = ["th", "sh", "kh", "dh", "ch", "gg", "ck", "ph"];
+  const VOWEL = new Set(["a", "e", "i", "o", "u", "y"]);
+  const unitsOf = (word: string): string[] => {
+    const w = word.toLowerCase(); const out: string[] = [];
+    for (let i = 0; i < w.length; ) {
+      const two = w.slice(i, i + 2);
+      if (DIGRAPHS.includes(two)) { out.push(two); i += 2; continue; }
+      out.push(w[i]); i += 1;
+    }
+    return out;
+  };
+  const longestRun = (word: string, vowels: boolean) => {
+    let best = 0, run = 0;
+    for (const u of unitsOf(word)) {
+      if (VOWEL.has(u) !== vowels) { run = 0; continue; }
+      run++; if (run > best) best = run;
+    }
+    return best;
+  };
+  // Region and river names are phrases — "Heights of Lurknaend" — and only the invented word in
+  // them is this generator's doing. An earlier pass at this measurement counted across the spaces
+  // and reported "the Endless Frostlands" as a five-consonant name.
+  const ENGLISH = new Set(["the", "of", "and", "rill", "river", "brook", "heights", "mountains",
+    "frostlands", "barrens", "wilds", "woods", "fields", "sands", "plains", "pinewood", "rainforest",
+    "spires", "marsh", "coast", "isles", "vale", "reach", "expanse", "desert", "forest", "hills",
+    "steppe", "tundra", "jungle", "fens", "shore", "cold", "endless", "broken", "black", "iron",
+    "old", "golden", "shrouded", "great", "far", "deep", "high", "white", "red", "grey", "gray",
+    "silent", "lost", "burning"]);
+
+  const words: { word: string; culture: number }[] = [];
+  for (let seed = 1; seed <= 20; seed++) {
+    const { world } = generateWorld({ ...DEFAULT_PARAMS, seed });
+    const history = simulateHistory(world, seed);
+    const dyn = buildDynasties(world, history);
+    const cultOf = (cell: number) => (cell >= 0 && cell < world.cultureOf.length ? world.cultureOf[cell] : -1);
+    const add = (name: string, culture: number) => {
+      for (const w of name.split(/[^A-Za-z]+/)) if (w && !ENGLISH.has(w.toLowerCase())) words.push({ word: w, culture });
+    };
+    for (const c of world.cities) add(c.name, cultOf(c.cell));
+    for (const r of world.rivers) add(r.name, -1);
+    for (const p of history.polities) add(p.name, cultOf(p.capital));
+    for (const c of world.cultures) add(c.name, -1);
+    for (const r of world.regions) add(r.name, -1);
+    for (const [, reigns] of dyn) for (const r of reigns) add(r.name, -1);
+  }
+
+  it("has the world to measure in the first place", () => {
+    expect(words.length).toBeGreaterThan(3000);
+  });
+
+  it("never piles four consonants in a row, which no real place name does either", () => {
+    const bad = words.filter((w) => longestRun(w.word, false) >= 4).map((w) => w.word);
+    expect(bad, `${bad.length} of ${words.length}, e.g. ${[...new Set(bad)].slice(0, 10).join(" ")}`).toEqual([]);
+  });
+
+  it("never piles three vowels in a row", () => {
+    const bad = words.filter((w) => longestRun(w.word, true) >= 3).map((w) => w.word);
+    expect(bad, `${bad.length} of ${words.length}, e.g. ${[...new Set(bad)].slice(0, 10).join(" ")}`).toEqual([]);
+  });
+
+  it("stays inside the length a reader will retype", () => {
+    // Ten, which is where the real sample stops (Alexandria, Strasbourg) — not nine, which cut into
+    // words that were already fine and left Dhaishdha, Staethfou, endings that read as amputations.
+    const bad = words.filter((w) => w.word.length > 10).map((w) => w.word);
+    expect(bad, `${bad.length} of ${words.length}, e.g. ${[...new Set(bad)].slice(0, 10).join(" ")}`).toEqual([]);
+  });
+
+  // The failure mode of "make it readable" is "make it all the same". This is the guard against it:
+  // it passes today and has to keep passing, or legibility was bought by flattening the map's five
+  // peoples into one. Each profile is a distribution over letters; two peoples are distinct when
+  // their distributions are far apart.
+  it("keeps the five peoples sounding like five peoples", () => {
+    const profile = (p: number) => {
+      const freq = new Map<string, number>();
+      let total = 0;
+      for (const w of words.filter((x) => x.culture === p)) {
+        for (const ch of w.word.toLowerCase()) { freq.set(ch, (freq.get(ch) ?? 0) + 1); total++; }
+      }
+      return { freq, total };
+    };
+    const profiles = [0, 1, 2, 3, 4].map(profile);
+    for (const p of profiles) expect(p.total).toBeGreaterThan(200);
+    const distance = (a: typeof profiles[0], b: typeof profiles[0]) => {
+      let d = 0;
+      for (const ch of new Set([...a.freq.keys(), ...b.freq.keys()])) {
+        d += Math.abs((a.freq.get(ch) ?? 0) / a.total - (b.freq.get(ch) ?? 0) / b.total);
+      }
+      return d;                                  // 0 = identical, 2 = no letters in common
+    };
+    for (let i = 0; i < profiles.length; i++) {
+      for (let j = i + 1; j < profiles.length; j++) {
+        expect(distance(profiles[i], profiles[j]), `peoples ${i} and ${j} sound alike`).toBeGreaterThan(0.5);
+      }
+    }
   });
 });

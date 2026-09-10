@@ -206,10 +206,14 @@ describe("exported chronicle is byte-stable across the shared-assembler move", (
   //      republics' elected terms replaced their reigns in the same change and moved NOTHING here,
   //      which is the expected result: a free city holds five tiles and never crosses the size a
   //      chronicle line needs. `history.test.ts`'s own anchors did not move through any of it.
+  //   6. The names changed — the generator learned what a reader can say. Every hash moves and NOT
+  //      ONE LINE COUNT does (123/130/105 before and after), because nothing was added or removed;
+  //      the same sentences carry different proper nouns. `history.test.ts`'s `allSnap` did not move
+  //      either, so the world under the names is the same world.
   const pins: Record<number, { en: number; ko: number; lines: number }> = {
-    1: { en: 2665342061, ko: 1135836791, lines: 123 },
-    2: { en: 1950600995, ko:  132019357, lines: 130 },
-    3: { en: 2534064816, ko:  788469839, lines: 105 },
+    1: { en: 4144700973, ko: 2399950495, lines: 123 },
+    2: { en: 2256232225, ko: 2322413515, lines: 130 },
+    3: { en: 3521961453, ko:  796628344, lines: 105 },
   };
   for (const seed of [1, 2, 3]) {
     it(`reproduces the pinned chronicle for seed ${seed}`, () => {
