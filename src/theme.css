@@ -53,6 +53,27 @@ body {
 .seed-group { display: inline-flex; align-items: center; gap: 0; }
 .seed-group input[type=number] { border-radius: 4px 0 0 4px; }
 .seed-group button { border-radius: 0 4px 4px 0; border-left: none; }
+
+/* Narrow windows: the bar folds, and the fold is worth 27 pixels. Measured at 1024 in English —
+   953px of content box against 980 needed (908 of controls plus 72 of gaps) — so the language
+   toggle dropped to a second row. The thirteen padded controls all carry 10px either side; at 6px
+   they give back 104, and the bar then needs 875.
+   ⚠ 7px was tried first and was not enough for the case that motivated this. The relation measured
+   across widths is `content = viewport - 71`, so 7px (901 needed) holds only to a 972px viewport —
+   and the window this is for is HALF A 1920 SCREEN, which is 960. At 6px it holds to about 946.
+   ⚠ Taken from PADDING and not from labels. The other way to find 27px is to drop the word from
+   "📜 Gazetteer" or shorten the view names, which turns a width problem into a content decision and
+   sells back the clarity the primary-action pass just bought.
+   ⚠ `pointer: fine` only. 1024 is a tablet width too, and a finger needs the roomier target more
+   than that device needs one row — on a touch screen, folding is the right answer. The repo already
+   draws this line with `(pointer: coarse)` blocks elsewhere.
+   Holds one row down to a viewport of about 950px — MEASURED, not computed: 950 and 960 hold, 946
+   folds. That takes in a half-screen window on a 1920 display, which is the case this is for.
+   Below that it folds, and below that folding is the right answer.
+   Korean only ever needed 851 and never folded; it simply gets the tighter padding too. */
+@media (max-width: 1060px) and (pointer: fine) {
+  .controls button, .controls input, .controls a.home { padding-left: 6px; padding-right: 6px; }
+}
 button, input {
   padding: 5px 10px; font-family: inherit; font-size: 14px; color: #3c2f1c;
   background: #f3ead2; border: 1px solid #b7a071; border-radius: 4px; cursor: pointer;

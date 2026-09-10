@@ -24,6 +24,20 @@ describe("coarse-pointer ergonomics", () => {
     const coarse = css.slice(css.indexOf("@media (pointer: coarse)"));
     expect(coarse).toContain(".marker-hit");
   });
+  // The toolbar folds to two rows in English below ~1035px, so a narrow-window block tightens its
+  // controls' padding from 10px to 6px. That block must NOT reach a touch screen: 1024 is a tablet
+  // width, and a finger needs the roomier target more than that device needs one row. On a touch
+  // screen, folding is the right answer.
+  it("does not compact the toolbar on touch screens, only on fine-pointer windows", () => {
+    const css = read("src/theme.css");
+    const i = css.indexOf("@media (max-width: 1060px)");
+    expect(i, "the narrow-window toolbar block is gone").toBeGreaterThan(-1);
+    const query = css.slice(i, css.indexOf("{", i));
+    expect(query).toContain("pointer: fine");
+    const block = css.slice(i, css.indexOf("}", css.indexOf("{", i) + 1));
+    expect(block).toContain(".controls button");
+  });
+
   it("carries no rules for pages this site no longer has", () => {
     const css = read("src/theme.css");
     for (const gone of [".play-shell", "#play ", "#province-app", ".goal-chip", ".challenge-chip", ".neighbor-chip", ".tip-strip"]) {
