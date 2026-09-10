@@ -4,6 +4,7 @@ import { provinceLayer, provinceOwners, snapOwnersToProvinces } from "./province
 import { generateWorld } from "../engine/world";
 import { DEFAULT_PARAMS } from "../types/world";
 import type { Province } from "../engine/provinces";
+import { simulateHistory } from "../engine/history";
 
 // 4 cells in a row (squares), cells 0-1 = province 0, cell 2 = province 1, cell 3 = ocean (-1)
 const grid = {
@@ -153,5 +154,50 @@ describe("no two provinces that touch wear the same colour", () => {
     const total = w.provinces.length;
     expect(used.size).toBeGreaterThanOrEqual(10);
     expect(Math.max(...used.values()) / total).toBeLessThan(0.2); // measured: 11%
+  });
+});
+
+// A free city holds five cells and a province is far bigger, so snapping ownership to whole
+// provinces — which is what makes political borders fall on province edges — erased every free city
+// from the map. Measured on seed 1 at year 500: all four free realms still held their own seats in
+// the simulation and said so in the gazetteer, while the map and the city list showed the empire
+// around them. The map, the list and the document gave two different answers to "who holds this
+// town", and the free-city markers the layer already draws never appeared, because their anchor was
+// computed from the very array that had erased them.
+describe("an enclave smaller than a province survives the snap", () => {
+  const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });
+  const history = simulateHistory(world, 1);
+  const last = history.snapshots[history.snapshots.length - 1];
+  const free = history.polities.filter((p) => p.free);
+
+  it("has free cities holding ground at the end, or the claim below is untested", () => {
+    expect(free.length).toBeGreaterThan(0);
+    for (const p of free) expect(last.owner[p.capital], `${p.name} lost its own seat`).toBe(p.id);
+  });
+
+  it("loses them without `keep`, and keeps them with it", () => {
+    const plain = snapOwnersToProvinces(world.grid.count, world.provinceOf, world.provinces, last.owner);
+    const kept = snapOwnersToProvinces(world.grid.count, world.provinceOf, world.provinces, last.owner,
+                                       new Set(free.map((p) => p.id)));
+    for (const p of free) {
+      expect(plain[p.capital], `${p.name} should be swallowed without keep`).not.toBe(p.id);
+      expect(kept[p.capital], `${p.name} should survive with keep`).toBe(p.id);
+    }
+  });
+
+  it("leaves every other cell exactly where the snap put it", () => {
+    const freeIds = new Set(free.map((p) => p.id));
+    const plain = snapOwnersToProvinces(world.grid.count, world.provinceOf, world.provinces, last.owner);
+    const kept = snapOwnersToProvinces(world.grid.count, world.provinceOf, world.provinces, last.owner, freeIds);
+    let moved = 0;
+    for (let c = 0; c < world.grid.count; c++) {
+      if (plain[c] !== kept[c]) {
+        expect(freeIds.has(kept[c]), `cell ${c} changed owner and is not a free city`).toBe(true);
+        moved++;
+      }
+    }
+    // small, and no larger than the ground those realms actually hold
+    expect(moved).toBeGreaterThan(0);
+    expect(moved).toBeLessThanOrEqual(free.reduce((n, p) => n + [...last.owner].filter((o) => o === p.id).length, 0));
   });
 });

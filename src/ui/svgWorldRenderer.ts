@@ -116,6 +116,10 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
       : view === "province" ? provinceLayer(grid, world.provinceOf, world.provinces, { owner: world.polityOf, legend: true, lang })
         // terrain/political: snap nation ownership to whole provinces so borders (and political fills)
         // fall on province edges — the SAME geometry the province view uses, so views stay consistent.
+        // ⚠ No `keep` set here, and none needed: this draws `world.polityOf`, the ownership of year
+        // ZERO, and a free city is something the simulation declares later — `world.polities` has no
+        // `free` flag at all. The per-year layer app.ts swaps into this slot is where free realms
+        // have to survive the snap; see snapOwnersToProvinces.
         : politicalLayer(grid, snapOwnersToProvinces(grid.count, world.provinceOf, world.provinces, world.polityOf), world.polities, politicalOpts(view, lang, colorOf, labelOf)));
   root.appendChild(slot);
 

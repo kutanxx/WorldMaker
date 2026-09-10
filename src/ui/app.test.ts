@@ -704,8 +704,13 @@ describe("the political map never paints two neighbours the same colour", () => 
       const fills = fillsByPolity(root);
       // the app snaps ownership to whole provinces before painting, so the borders to check are
       // the SNAPPED ones — raw ownership has neighbours the reader is never shown
+      // The same `keep` the app passes: a free city's ground is smaller than a province, and it is
+      // held out of the snap so the map, this list and the gazetteer stop giving two answers to
+      // "who holds this town". Without it this expectation names the empire around a free city and
+      // the list — correctly — names the free city.
+      const freeRealms = new Set(history.polities.filter((p) => p.free).map((p) => p.id));
       const owner = snapOwnersToProvinces(world.grid.count, world.provinceOf, world.provinces,
-                                          history.snapshots[yearIndex].owner);
+                                          history.snapshots[yearIndex].owner, freeRealms);
       for (let i = 0; i < owner.length; i++) {
         const a = owner[i];
         if (a < 0 || !fills.has(a)) continue;
@@ -750,8 +755,13 @@ describe("the city list is in the same century as the map", () => {
     let checked = 0;
     for (const yearIndex of [0, 25, history.snapshots.length - 1]) {
       const root = openAtYear(yearIndex);
+      // The same `keep` the app passes: a free city's ground is smaller than a province, and it is
+      // held out of the snap so the map, this list and the gazetteer stop giving two answers to
+      // "who holds this town". Without it this expectation names the empire around a free city and
+      // the list — correctly — names the free city.
+      const freeRealms = new Set(history.polities.filter((p) => p.free).map((p) => p.id));
       const owner = snapOwnersToProvinces(world.grid.count, world.provinceOf, world.provinces,
-                                          history.snapshots[yearIndex].owner);
+                                          history.snapshots[yearIndex].owner, freeRealms);
       for (const { id, realm } of listed(root)) {
         const city = world.cities.find((c) => c.id === id)!;
         const o = owner[city.cell];

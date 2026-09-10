@@ -75,12 +75,34 @@ export function provinceOwners(
 // (via provinceOwners); ocean / province-less cells stay -1. Feed this to politicalBorders /
 // politicalLayer and the nation borders + fills fall on province edges — the EU4 whole-province
 // model — so every map view (terrain/political/province) agrees on where a country ends.
+/**
+ * `keep` names the realms an enclave smaller than a province belongs to — their cells are left
+ * exactly as the simulation recorded them instead of being rounded up to whoever holds the province
+ * around them.
+ *
+ * Snapping exists so political borders fall on province edges and the two views agree, and that is
+ * worth an exception here rather than a rule. A free city holds five cells; a province is far
+ * bigger; so the snap erased every free city from the map. Measured on seed 1 at year 500: all four
+ * free realms still held their own seats in the simulation AND said so in the gazetteer, while the
+ * map and the city list showed the surrounding empire — one screen, two answers to "who holds this
+ * town". It also left the free-city markers this file draws permanently invisible, because their
+ * anchor was computed from the array that had just erased them.
+ *
+ * ⚠ Not applied by the province view, which is ABOUT provinces: a hole in it would spoil the thing
+ * that view exists to show.
+ */
 export function snapOwnersToProvinces(
   count: number, provinceOf: ArrayLike<number>, provinces: Province[], owner: ArrayLike<number>,
+  keep?: ReadonlySet<number>,
 ): Int32Array {
   const powners = provinceOwners(provinceOf, provinces, owner);
   const snapped = new Int32Array(count).fill(-1);
-  for (let c = 0; c < count; c++) { const p = provinceOf[c]; if (p >= 0) snapped[c] = powners[p]; }
+  for (let c = 0; c < count; c++) {
+    const o = owner[c];
+    if (keep !== undefined && o >= 0 && keep.has(o)) { snapped[c] = o; continue; }
+    const p = provinceOf[c];
+    if (p >= 0) snapped[c] = powners[p];
+  }
   return snapped;
 }
 

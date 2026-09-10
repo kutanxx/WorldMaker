@@ -2,10 +2,12 @@
 //
 // Two of the five realm-label sites — the map's labels + legend (threaded through app.ts's
 // `governmentForms`) and the city list's realm column (`showCityRealms`) — were wired but checked
-// only by a manual browser pass. That pass could not even observe a live 공화국: measured on seed 1,
-// the free city that IS a republic in the historical record gets swallowed into a neighbouring
-// kingdom's province the moment ownership is snapped to whole provinces (the same snapping the map
-// and city list both draw from) at every year the browser pass scrubbed to. So this file does not
+// only by a manual browser pass. That pass could not even observe a live 자유도시: measured on seed 1,
+// the free city that IS one in the historical record was swallowed into a neighbouring kingdom's
+// province the moment ownership was snapped to whole provinces (the same snapping the map and city
+// list both draw from) at every year the browser pass scrubbed to. ⚠ That swallowing is FIXED —
+// snapOwnersToProvinces now keeps an enclave smaller than a province, and freeCity.test.ts is the
+// guard — but the approach below still stands on its own merits, because it does not
 // hunt for a seed/year that naturally leaves a republic standing — it constructs the case, by
 // overriding `classifyGovernments`'s answer for three realms that ARE genuinely visible on the map at
 // a fixed seed/year. The point is proving the map, legend and city list each consult whatever form
@@ -148,3 +150,4 @@ describe("the city plate carries a realm's form of government", () => {
     root.remove();
   });
 });
+

@@ -256,11 +256,15 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
   // The list must name the realm the MAP shows holding the town, so it reads the same
   // province-snapped ownership the political layer paints from — not the raw snapshot, which can
   // disagree with the picture at a province's edge.
+  // The realms whose ground is smaller than a province and must survive the snap. Built once: it is
+  // a property of the history, not of the year being looked at.
+  const freeRealms = new Set(history.polities.filter((p) => p.free).map((p) => p.id));
+
   function showCityRealms(yearIndex: number): void {
     if (realmCells.size === 0) return;
     const world = generated.world;
     const owner = snapOwnersToProvinces(world.grid.count, world.provinceOf, world.provinces,
-                                        history.snapshots[yearIndex].owner);
+                                        history.snapshots[yearIndex].owner, freeRealms);
     // The list is a column of realm NAMES — a label, not a sentence — so it takes the same
     // government suffix the map does, through the same seam. Built once outside the loop: every
     // city in the list shares one labeller, and a fresh closure per row bought nothing but a
@@ -291,7 +295,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
       slot.replaceChildren(provinceLayer(world.grid, world.provinceOf, world.provinces, { owner: snap.owner, legend: true, lang }));
     } else {
       // nation ownership snapped to whole provinces so terrain/political borders match the province view
-      const snapped = snapOwnersToProvinces(world.grid.count, world.provinceOf, world.provinces, snap.owner);
+      const snapped = snapOwnersToProvinces(world.grid.count, world.provinceOf, world.provinces, snap.owner, freeRealms);
       slot.replaceChildren(politicalLayer(world.grid, snapped, history.polities, politicalOpts(view, lang, colorOf, polityLabeller(lang, governmentForms))));
     }
   }
