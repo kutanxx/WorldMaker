@@ -5,7 +5,7 @@ import { simulateHistory } from "./history";
 import { worldToGazetteer, anArticle } from "./gazetteer";
 import { eventText } from "./eventText";
 import { classifyGovernments } from "./government";
-import { realmLabelKo } from "./nameSuffix";
+import { realmLabelKo, peopleLabelKo } from "./nameSuffix";
 
 describe("worldToGazetteer", () => {
   const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });
@@ -140,6 +140,20 @@ describe("worldToGazetteer", () => {
     expect(ko).toContain("치세)");
   });
 
+  it("marks every people's label in ## 민족 as a people, not a place (peopleLabelKo, not say)", () => {
+    // realmLabelKo already got the same standalone-label treatment for realm headings (the
+    // "## 나라" test above, via kEntry) — this is the other half the controller ruled on: a culture's
+    // own heading in "## 민족" is a label too (`- **NAME**` — the identical shape), so it takes
+    // peopleLabelKo's fused 인, not a bare transliteration. The chronicle's prose about a people
+    // (e.g. "민족의 땅을 다스리게 되다") stays untouched — that's a clause, not a label, and is checked
+    // separately below to still read without 인.
+    const peoples = ko.slice(ko.indexOf("## 민족"), ko.indexOf("## 나라"));
+    const labels = [...peoples.matchAll(/^- \*\*(.+?)\*\*/gm)].map((m) => m[1]);
+    expect(labels.length).toBe(world.cultures.length);
+    for (const l of labels) expect(l, l).toMatch(/인$/);
+    for (const cult of world.cultures) expect(labels).toContain(peopleLabelKo(cult.name));
+  });
+
   it("mentions the peoples a realm came to rule", () => {
     // Every world generates five cultures and the chronicle never mentioned one of them, though a
     // realm reaching over a second people's land sits in `cultureOf` crossed with the snapshots.
@@ -240,6 +254,15 @@ describe("exported chronicle is byte-stable across the shared-assembler move", (
   //      before and after), because the change is a spelling correction, not an addition or a loss.
   //      A word-final or preconsonantal `sh` (사인카이시, 지아시다르) is unaffected and out of scope,
   //      which is why those names' English hashes and the line counts hold.
+  //   9. `peopleLabelKo` (드루스브라우 -> 드루스브라우인) was wired into "## 민족"'s own labels and the
+  //      culture map's label/legend (src/engine/gazetteer.ts, src/ui/cultureLayer.ts) — a real change
+  //      to the Korean document's Peoples section. NEITHER hash below moved, and that is expected
+  //      rather than a hole in this lock: `chronicleOf` only folds the "## Chronicle"/"## 연대기"
+  //      SLICE, which `worldToGazetteer` emits after "## 나라" and never carries a Peoples-section
+  //      label (a people's name only re-appears inside a chronicle CLAUSE — "민족의 땅을 다스리게 되다"
+  //      — which stayed on `say`, unchanged, by the same label-vs-clause rule item 7 already drew for
+  //      a realm's name). Confirmed empirically: the full suite ran green with the wiring in place, on
+  //      the first pass, with no pin in this file or `history.test.ts` touched.
   const pins: Record<number, { en: number; ko: number; lines: number }> = {
     1: { en: 4144700973, ko: 1536594626, lines: 123 },
     2: { en: 2256232225, ko: 2181530387, lines: 130 },

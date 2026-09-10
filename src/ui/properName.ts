@@ -1,6 +1,6 @@
 import { toHangul } from "../engine/hangul";
 import type { GovernmentForm } from "../engine/government";
-import { realmLabelKo } from "../engine/nameSuffix";
+import { realmLabelKo, peopleLabelKo } from "../engine/nameSuffix";
 import type { Lang } from "./i18n";
 
 /**
@@ -40,4 +40,18 @@ export function polityLabeller(lang: Lang, forms?: Map<number, GovernmentForm>):
     const form = forms?.get(id)?.form;
     return form ? realmLabelKo(name, form) : toHangul(name);
   };
+}
+
+/**
+ * A people's name, written for the reader's language, marked as a PEOPLE rather than as a place —
+ * the culture view's map label and legend row are the two sites that draw a culture's name STANDING
+ * ALONE, the same boundary `polityLabeller` draws for a realm's heading. Takes the raw Latin name and
+ * calls `peopleLabelKo` directly, the same way `polityLabeller` calls `realmLabelKo` directly, rather
+ * than composing `properName(lang, name) + "인"`: chaining through `properName` first would run
+ * already-transliterated Korean back through `toHangul` a second time (its token tables match Latin
+ * letters, not Hangul) and produce nonsense, the exact trap `nameSuffix.ts`'s own doc comment warns
+ * every caller off.
+ */
+export function peopleLabel(lang: Lang, name: string): string {
+  return lang === "ko" ? peopleLabelKo(name) : name;
 }

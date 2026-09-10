@@ -8,7 +8,7 @@ import { classifyGovernments } from "./government";
 import { buildChronicle } from "./chronicleLines";
 import { featureLabel, worldNameIn } from "./featureLabel";
 import { toHangul } from "./hangul";
-import { realmLabelKo } from "./nameSuffix";
+import { realmLabelKo, peopleLabelKo } from "./nameSuffix";
 // 는 was hardcoded after the world's title. It was harmless while the title was Latin and the rule
 // went by the final letter; a Hangul title is chosen by its final consonant, and 소덴드 takes 은.
 import { withJosa } from "./korean";
@@ -133,6 +133,11 @@ export function worldToGazetteer(world: World, history: History, lang: Gazetteer
   // Realm" — it carries letters (w, p) that no invented word contains, and toHangul has no rule
   // for them.
   const say = (n: string) => (ko ? toHangul(n) : n);
+  // A people's own heading in "## 민족" STANDS ALONE as a label — the identical shape realmLabelKo
+  // already earns for a realm's "### {name}" heading — so it takes peopleLabelKo's fused 인, not
+  // `say`'s bare transliteration. Every other mention of a people's name in this document (the
+  // chronicle's "민족의 땅을 다스리게 되다") stays inside a clause and goes through `say`, unchanged.
+  const peopleLabel = (n: string) => (ko ? peopleLabelKo(n) : n);
   // The English title capitalises the article; Korean has no case to raise, and its name is built
   // from the label rather than from the finished English string.
   const title = ko ? worldNameIn(world, "ko") : world.name.charAt(0).toUpperCase() + world.name.slice(1);
@@ -205,13 +210,13 @@ export function worldToGazetteer(world: World, history: History, lang: Gazetteer
   }
   world.cultures.forEach((cult, i) => {
     const a = agg[i];
-    if (!a || a.n === 0) { L.push(`- **${say(cult.name)}** — ${ko ? "흩어져 사는 민족." : "a scattered people."}`); return; }
+    if (!a || a.n === 0) { L.push(`- **${peopleLabel(cult.name)}** — ${ko ? "흩어져 사는 민족." : "a scattered people."}`); return; }
     let dom = OCEAN, dn = -1;
     for (const [bm, cnt] of a.biome) if (bm !== OCEAN && cnt > dn) { dn = cnt; dom = bm; }
     const dir = compass(lang, a.sx / a.n, a.sy / a.n, b);
     const t = townsPerCulture[i];
     L.push(ko
-      ? `- **${say(cult.name)}** — 세계 ${dir}, ${bio[dom] ?? "거친 땅"}에 사는 민족.` + (t ? ` 성읍 ${t}곳을 품는다.` : "")
+      ? `- **${peopleLabel(cult.name)}** — 세계 ${dir}, ${bio[dom] ?? "거친 땅"}에 사는 민족.` + (t ? ` 성읍 ${t}곳을 품는다.` : "")
       : `- **${cult.name}** — a people of the ${bio[dom] ?? "wild country"} in the ${dir}.` + (t ? ` They hold ${t} town${t > 1 ? "s" : ""}.` : ""));
   });
   L.push("");

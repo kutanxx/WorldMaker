@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from "vitest";
 import { cultureLayer } from "./cultureLayer";
+import { peopleLabelKo } from "../engine/nameSuffix";
 
 // 4 cells in a row: cells 0-1 = culture 0, cell 2 = culture 1, cell 3 = ocean (-1)
 const grid = {
@@ -99,5 +100,35 @@ describe("the culture legend", () => {
   it("says what it is a key to", () => {
     const g = cultureLayer(grid, [0, 0, 1, -1], cultures, "en");
     expect(g.querySelector(".culture-legend .legend-title")?.textContent).toBe("Cultures");
+  });
+});
+
+// The same complaint `realmLabelKo` answered for a realm's name applies here: a culture drawn across
+// its territory with nothing but a transliterated name reads as a PLACE, not the people who live
+// there. peopleLabelKo is the fix (드루스브라우 the place -> 드루스브라우인 the people); this proves it
+// actually reaches the two places a reader sees a culture's name — the map label and the legend row —
+// not just that the function exists and is unit-tested in isolation.
+describe("a culture reads as a people in Korean, not a place", () => {
+  it("marks the legend row with 인, fused with no space", () => {
+    const g = cultureLayer(grid, [0, 0, 1, -1], cultures, "ko");
+    const rows = [...g.querySelectorAll(".culture-legend text:not(.legend-title)")].map((e) => e.textContent);
+    expect(rows).toEqual(cultures.map((c) => peopleLabelKo(c.name)));
+  });
+
+  it("marks the map label the same way", () => {
+    // MIN_LABEL_CELLS (20) gates whether a culture gets a map label at all, and the 4-cell fixture
+    // above is far under it by design (it exists to test borders/fills cheaply) — so this needs its
+    // own bigger, single-culture strip grid purely to earn a label.
+    const n = 25;
+    const points: number[] = [], polygons: number[][][] = [], neighbors: number[][] = [];
+    for (let i = 0; i < n; i++) {
+      points.push(i * 10, 0);
+      polygons.push([[i * 10, 0], [i * 10 + 10, 0], [i * 10 + 10, 10], [i * 10, 10]]);
+      neighbors.push([i - 1, i + 1].filter((j) => j >= 0 && j < n));
+    }
+    const bigGrid = { count: n, width: n * 10, height: 10, points, polygons, neighbors };
+    const g = cultureLayer(bigGrid, new Array(n).fill(0), [cultures[0]], "ko");
+    const label = g.querySelector(".culture-label");
+    expect(label?.textContent).toBe(peopleLabelKo(cultures[0].name));
   });
 });

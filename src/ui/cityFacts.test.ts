@@ -5,6 +5,7 @@ import { simulateHistory } from "../engine/history";
 import { generateCityLayout, cityContext } from "../engine/city";
 import { DEFAULT_PARAMS } from "../types/world";
 import { KM_PER_UNIT } from "./scaleBar";
+import type { GovernmentForm } from "../engine/government";
 
 // A plate carried its name and nothing else — no realm, no size, no sense of what kind of place it
 // was, and no way to get from it to the town next door. An outside review asked for all of that and
@@ -73,6 +74,37 @@ describe("when a town came to be", () => {
 // `world.polityOf`: the ownership of year zero. The world map beside it moves through five
 // centuries; this did not. And unlike the map, a city plate carries no scrubber, so naming the
 // realm is not enough — the year has to travel with it or the answer is undated again.
+// The plate's realm line reads a label ("Realm — 케우스두 왕국"), and the seam it goes through
+// (`polityLabeller`) is the same one the map, its legend and the city list use — but this call site,
+// the `forms` parameter itself, was covered only by a manual browser pass, on a seed whose scrubbed
+// year happened to have no free-standing republic to look at. Constructing the three forms directly
+// (rather than hunting a seed/year that naturally has all three alive at once) is deliberate: the
+// point is that `cityFacts` actually consults whatever `forms` it is given, not that some seed does.
+describe("the realm line carries its form of government", () => {
+  const world = generateWorld({ ...DEFAULT_PARAMS, seed: 1 }).world;
+  const city = world.cities[0];
+  const layout = generateCityLayout(cityContext(city), 1);
+  const owner = world.polityOf[city.cell];
+
+  it("labels the realm 왕국/공화국/제국 by the form given — the same word for the same form every time", () => {
+    const cases: [GovernmentForm, RegExp][] = [
+      [{ form: "kingdom", since: null }, /왕국$/],
+      [{ form: "republic", since: null }, /공화국$/],
+      [{ form: "empire", since: 100 }, /제국$/],
+    ];
+    for (const [form, suffix] of cases) {
+      const forms = new Map<number, GovernmentForm>([[owner, form]]);
+      const f = cityFacts(world, city, layout, "ko", KM_PER_UNIT, [], undefined, forms);
+      expect(f.realm, form.form).toMatch(suffix);
+    }
+  });
+
+  it("falls back to plain transliteration when no forms map is given, same as before this parameter existed", () => {
+    const f = cityFacts(world, city, layout, "ko", KM_PER_UNIT);
+    expect(f.realm).not.toMatch(/(왕국|공화국|제국)$/);
+  });
+});
+
 describe("the realm a plate names is the realm of a stated year", () => {
   const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 2 });
   const history = simulateHistory(world, 2);
