@@ -1,7 +1,8 @@
 import type { CityMarker, World } from "../types/world";
 import type { CityLayout } from "../engine/city";
+import type { GovernmentForm } from "../engine/government";
 import { t, type Lang } from "./i18n";
-import { properName } from "./properName";
+import { properName, polityLabeller } from "./properName";
 
 /**
  * What a plate can honestly say about the town it draws.
@@ -52,11 +53,15 @@ export function cityFacts(
   world: World, city: CityMarker, layout: CityLayout, lang: Lang, kmPerUnit: number,
   foundings: readonly { cityId: number; year: number }[] = [],
   at?: { owner: ArrayLike<number>; polities: readonly { id: number; name: string }[]; year: number },
+  // What kind of state the realm line's realm is — a kingdom/republic/empire, read off the record
+  // by `classifyGovernments`. Optional for the same reason `polityLabeller`'s is: a caller with no
+  // history handy (a test, an older call site) still gets a plate, just without the government word.
+  forms?: Map<number, GovernmentForm>,
 ): CityFacts {
   const owner = at ? at.owner[city.cell] : world.polityOf[city.cell];
   const pool = at ? at.polities : world.polities;
   const realmName = owner >= 0 ? pool.find((p) => p.id === owner)?.name : undefined;
-  const realm = realmName === undefined ? null : properName(lang, realmName);
+  const realm = realmName === undefined ? null : polityLabeller(lang, forms)(owner, realmName);
   const [lo, hi] = POPULATION_BANDS[city.size] ?? POPULATION_BANDS[3];
 
   // the three nearest towns, so a reader can walk out of one plate and into the next

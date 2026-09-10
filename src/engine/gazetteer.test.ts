@@ -5,7 +5,7 @@ import { simulateHistory } from "./history";
 import { worldToGazetteer, anArticle } from "./gazetteer";
 import { eventText } from "./eventText";
 import { classifyGovernments } from "./government";
-import { toHangul } from "./hangul";
+import { realmLabelKo } from "./nameSuffix";
 
 describe("worldToGazetteer", () => {
   const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });
@@ -444,10 +444,12 @@ describe("the Realms section tells kingdoms, republics and empires apart", () =>
   const en = worldToGazetteer(world, history, "en");
   const ko = worldToGazetteer(world, history, "ko");
   const pick = (f: string) => history.polities.filter((p) => forms.get(p.id)!.form === f);
-  // The Korean document heads a realm entry with the realm's name written in Hangul, so a Korean
-  // entry has to be found by its Korean heading — looking it up by the recorded Latin name matches
-  // nothing at all.
-  const kEntry = (name: string) => entryFor(ko, toHangul(name), "## 나라");
+  // The Korean document heads a realm entry with the realm's name AND its form of government — the
+  // point of this whole task — so a Korean entry has to be found by that full heading. Looking it up
+  // by the bare transliterated name (`toHangul(name)` alone, with no suffix) matches nothing: the
+  // heading now reads "케우스두 왕국", not "케우스두".
+  const kEntry = (p: { id: number; name: string }) =>
+    entryFor(ko, realmLabelKo(p.name, forms.get(p.id)!.form), "## 나라");
 
   it("speaks of no kings at all in a free city's entry", () => {
     const republics = pick("republic");
@@ -456,7 +458,7 @@ describe("the Realms section tells kingdoms, republics and empires apart", () =>
       const e = entryFor(en, p.name, "## Realms");
       expect(e, p.name).toContain("Elected heads —");
       expect(e, p.name).not.toContain("Rulers —");
-      const k = kEntry(p.name);
+      const k = kEntry(p);
       expect(k, p.name).toContain("역대 수반 —");
       expect(k, p.name).not.toContain("역대 군주");
     }
@@ -469,7 +471,7 @@ describe("the Realms section tells kingdoms, republics and empires apart", () =>
       const since = forms.get(p.id)!.since!;
       const e = entryFor(en, p.name, "## Realms");
       expect(e, p.name).toMatch(/empire|Emperors/);
-      const k = kEntry(p.name);
+      const k = kEntry(p);
       expect(k, p.name).toContain("제국");
       // A realm that only came to rule other peoples partway through says when; one that did so
       // from its first day has no such year to give and must not invent one.
@@ -485,7 +487,7 @@ describe("the Realms section tells kingdoms, republics and empires apart", () =>
     expect(kingdoms.length).toBeGreaterThan(0);
     for (const p of kingdoms) {
       expect(entryFor(en, p.name, "## Realms"), p.name).toContain("Rulers —");
-      expect(kEntry(p.name), p.name).toContain("역대 군주 —");
+      expect(kEntry(p), p.name).toContain("역대 군주 —");
       expect(entryFor(en, p.name, "## Realms"), p.name).not.toContain("Emperors —");
     }
   });

@@ -8,6 +8,7 @@ import { classifyGovernments } from "./government";
 import { buildChronicle } from "./chronicleLines";
 import { featureLabel, worldNameIn } from "./featureLabel";
 import { toHangul } from "./hangul";
+import { realmLabelKo } from "./nameSuffix";
 // 는 was hardcoded after the world's title. It was harmless while the title was Latin and the rule
 // went by the final letter; a Hangul title is chosen by its final consonant, and 소덴드 takes 은.
 import { withJosa } from "./korean";
@@ -240,7 +241,15 @@ export function worldToGazetteer(world: World, history: History, lang: Gazetteer
   }
 
   for (const p of history.polities) {
-    L.push(`### ${say(p.name)}`);
+    // Read once, up front: the heading needs it too. A realm heading STANDS ALONE as a label — the
+    // same reason a Korean map draws "케우스두 왕국" rather than leaving a reader to guess whether
+    // Ceusdu is a kingdom or its own capital — so it goes through `realmLabelKo`, not `say`, which
+    // only transliterates. This is deliberately NOT how a realm's name reads inside a sentence a few
+    // lines down (`parent`, `realm` in Free Ports): a clause like "broke from X" already carries its
+    // own grammar, and stacking a second noun onto it there would read as a translation of an
+    // English sentence rather than as a chronicle.
+    const form = gov.get(p.id) ?? { form: "kingdom" as const, since: null };
+    L.push(`### ${ko ? realmLabelKo(p.name, form.form) : p.name}`);
     // The height of a realm is the fairest moment to describe it by: at its founding it has not
     // done anything yet, and at its fall there is nothing left to describe.
     let peak = 0, peakIdx = 0;
@@ -284,8 +293,8 @@ export function worldToGazetteer(world: World, history: History, lang: Gazetteer
 
     // The three forms differ in the noun the entry opens with, in whether an imperial date is given,
     // and in what the list of names at the foot is CALLED. Nothing else moves: a republic still
-    // reaches its height in a year and still holds towns.
-    const form = gov.get(p.id) ?? { form: "kingdom" as const, since: null };
+    // reaches its height in a year and still holds towns. (`form` was already read above, for the
+    // heading.)
     const since = form.since;
     const bornImperial = since !== null && since <= p.foundedYear;
 

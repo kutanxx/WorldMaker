@@ -1,4 +1,6 @@
 import { toHangul } from "../engine/hangul";
+import type { GovernmentForm } from "../engine/government";
+import { realmLabelKo } from "../engine/nameSuffix";
 import type { Lang } from "./i18n";
 
 /**
@@ -22,9 +24,20 @@ export function properName(lang: Lang, name: string): string {
 /**
  * The same thing shaped as `politicalLayer`'s `labelOf`. That layer is handed polities as
  * `{id, name?}` and knows nothing about language — a caller supplies the labeller, the way it
- * already supplies `colorOf`. Returned as a function of the id too, because the next task hangs a
- * realm's form of government (kingdom / republic / empire) off this same seam.
+ * already supplies `colorOf`. Takes the id because a realm's form of government (kingdom / republic
+ * / empire) lives in `history`, not on the polity object, and is looked up by id.
+ *
+ * `forms` is optional so every existing call site that has no history handy (a caller mid-migration,
+ * a test) keeps working exactly as before: plain transliteration, no government word. When it IS
+ * given and Korean is asked for, the realm's own name is handed straight to `realmLabelKo` — NOT
+ * wrapped through `properName` first, which would run already-Korean text back through `toHangul`
+ * and produce nonsense. That is why this function does not simply compose `properName` with a
+ * suffix: it replaces the transliterating call for the one case that needs more than a name.
  */
-export function polityLabeller(lang: Lang): (id: number, name: string) => string {
-  return (_id, name) => properName(lang, name);
+export function polityLabeller(lang: Lang, forms?: Map<number, GovernmentForm>): (id: number, name: string) => string {
+  return (id, name) => {
+    if (lang !== "ko") return name;
+    const form = forms?.get(id)?.form;
+    return form ? realmLabelKo(name, form) : toHangul(name);
+  };
 }

@@ -12,6 +12,7 @@ import { worldToJSON, svgToString, svgToPngBlob, downloadBlob } from "./export";
 import { worldToGazetteer } from "../engine/gazetteer";
 import { simulateHistory } from "../engine/history";
 import { assignNationColors, nationColor } from "./nationPalette";
+import { classifyGovernments, type GovernmentForm } from "../engine/government";
 import { renderChronicle, applyChronicleYear } from "./chronicle";
 import { createTimeline, type Timeline } from "./timeline";
 import { attachZoomPan, type ZoomPan } from "./zoomPan";
@@ -23,7 +24,7 @@ import { applyLabelScale, applyMarkerScale } from "./labelScale";
 import { layOutLabelsForExport } from "./exportLabels";
 import { type Lang, t } from "./i18n";
 import { detectLang, saveLang } from "./lang";
-import { properName } from "./properName";
+import { properName, polityLabeller } from "./properName";
 
 export interface App {
   regenerate(p: WorldParams): void;
@@ -57,6 +58,11 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
   // 12 measured seeds. See `assignNationColors`.
   let nationColors = assignNationColors(generated.world.grid.neighbors, history.snapshots.map((s) => s.owner));
   const colorOf = (id: number): string => nationColors.get(id) ?? nationColor(id);
+  // What kind of state each realm was (kingdom / republic / empire), read off the same record the
+  // chronicle already reads it from. One map per world, like `nationColors` — a realm's form does
+  // not change as the scrubber moves, so this is computed once and handed to `polityLabeller`
+  // wherever a realm's name is drawn as a label rather than read inside a sentence.
+  let governmentForms: Map<number, GovernmentForm> = classifyGovernments(generated.world, history);
   let timeline: Timeline | null = null;
   let worldZoom: ZoomPan | null = null;
   let cityZoom: ZoomPan | null = null;
@@ -258,7 +264,9 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     for (const [cell, el] of realmCells) {
       const o = owner[cell];
       const realm = o >= 0 ? history.polities[o]?.name : undefined;
-      el.textContent = realm === undefined ? "" : properName(lang, realm);
+      // The list is a column of realm NAMES — a label, not a sentence — so it takes the same
+      // government suffix the map does, through the same seam.
+      el.textContent = realm === undefined ? "" : polityLabeller(lang, governmentForms)(o, realm);
     }
   }
 
@@ -281,7 +289,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     } else {
       // nation ownership snapped to whole provinces so terrain/political borders match the province view
       const snapped = snapOwnersToProvinces(world.grid.count, world.provinceOf, world.provinces, snap.owner);
-      slot.replaceChildren(politicalLayer(world.grid, snapped, history.polities, politicalOpts(view, lang, colorOf)));
+      slot.replaceChildren(politicalLayer(world.grid, snapped, history.polities, politicalOpts(view, lang, colorOf, polityLabeller(lang, governmentForms))));
     }
   }
 
@@ -293,7 +301,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     politicalBtn.classList.toggle("active", currentView === "political");
     cultureBtn.classList.toggle("active", currentView === "culture");
     provinceBtn.classList.toggle("active", currentView === "province");
-    const svg = renderWorld(generated.world, currentView, history.economicZones.map((z) => z.cell), lang, new Set(), colorOf);
+    const svg = renderWorld(generated.world, currentView, history.economicZones.map((z) => z.cell), lang, new Set(), colorOf, polityLabeller(lang, governmentForms));
     const cityIdOf = (el: Element | null) => {
       const id = el?.getAttribute("data-city");
       return id !== null && id !== undefined && id !== "" ? Number(id) : null;
@@ -482,7 +490,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     // world map has a scrubber to carry that, and a plate does not.
     const snapNow = history.snapshots[currentYearIndex];
     const facts = cityFacts(generated.world, marker, layout, lang, KM_PER_UNIT, history.cityFoundings,
-      { owner: snapNow.owner, polities: history.polities, year: snapNow.year });
+      { owner: snapNow.owner, polities: history.polities, year: snapNow.year }, governmentForms);
     const panel = document.createElement("div");
     panel.className = "city-facts";
     const row = (label: string, value: string) => {
@@ -551,6 +559,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     generated = generateWorld(params, worldTitle ?? undefined);
     history = simulateHistory(generated.world, params.seed);
     nationColors = assignNationColors(generated.world.grid.neighbors, history.snapshots.map((s) => s.owner));
+    governmentForms = classifyGovernments(generated.world, history);
     currentYearIndex = 0;
     showWorld();
   }
@@ -581,7 +590,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
 
   // Export the world at the year + view the timeline is currently showing.
   function exportWorldSvg(): SVGSVGElement {
-    const svg = renderWorld(generated.world, currentView, history.economicZones.map((z) => z.cell), lang, unfoundedAt(currentYearIndex), colorOf);
+    const svg = renderWorld(generated.world, currentView, history.economicZones.map((z) => z.cell), lang, unfoundedAt(currentYearIndex), colorOf, polityLabeller(lang, governmentForms));
     fillSlot(svg.querySelector(".political-slot") as SVGGElement, currentView, currentYearIndex);
     // This is a fresh render that has never been in the document, so its labels have never been laid
     // out against each other — left alone, every name in the world goes into the file, stacked.
