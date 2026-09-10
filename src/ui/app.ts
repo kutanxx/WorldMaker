@@ -415,7 +415,15 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
       },
     });
 
-    const chronicle = renderChronicle(generated.world, history, lang);
+    // The row hands back a YEAR; the timeline works in snapshot indices. The snapshots are the
+    // only record of which years exist, so the year is matched against them rather than divided by
+    // a tick length the panel would then have to know about.
+    const jumpToYear = (year: number) => {
+      let best = 0;
+      for (let i = 0; i < history.snapshots.length; i++) if (history.snapshots[i].year <= year) best = i;
+      timeline?.setIndex(best);
+    };
+    const chronicle = renderChronicle(generated.world, history, lang, jumpToYear);
     const slot = svg.querySelector(".political-slot") as SVGGElement;
     const renderYear = (index: number): void => {
       currentYearIndex = index;

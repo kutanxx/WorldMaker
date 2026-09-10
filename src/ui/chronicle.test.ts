@@ -177,3 +177,47 @@ describe("the panel shows what happened, and leaves the record to the gazetteer"
     expect(el.textContent).toMatch(/\(under \w+\)/);
   });
 });
+
+// A chronicle beside a moving map is only worth its column if it is a way INTO the map. Every row
+// already knows its year (`data-year`, used to grey the future) and the timeline already exposes
+// `setIndex`; nothing joined them, so a reader who saw "190년, X가 Y를 정복" had to go and hunt for
+// 190 on a 500-year slider by feel.
+describe("a chronicle row is a way into the map", () => {
+  const world = generateWorld({ ...DEFAULT_PARAMS, seed: 1 }).world;
+  const history = simulateHistory(world, 1);
+
+  it("gives every row a real button, so the keyboard and a screen reader get it for free", () => {
+    const el = renderChronicle(world, history, "ko", () => {});
+    const rows = el.querySelectorAll(".chronicle-event");
+    expect(rows.length).toBeGreaterThan(10);
+    for (const row of rows) {
+      const btn = row.querySelector("button");
+      expect(btn, `row "${row.textContent}" has no button`).not.toBeNull();
+      expect(btn!.tagName).toBe("BUTTON");
+    }
+  });
+
+  it("hands back the year the row is about", () => {
+    const picked: number[] = [];
+    const el = renderChronicle(world, history, "ko", (y) => picked.push(y));
+    const rows = [...el.querySelectorAll<HTMLElement>(".chronicle-event")];
+    const row = rows[rows.length - 1];              // a late row: the interesting direction is forward
+    (row.querySelector("button") as HTMLButtonElement).click();
+    expect(picked).toEqual([Number(row.dataset.year)]);
+  });
+
+  it("still renders without a handler, because the gazetteer's chronicle has nowhere to jump", () => {
+    const el = renderChronicle(world, history, "ko");
+    expect(el.querySelectorAll(".chronicle-event").length).toBeGreaterThan(10);
+    (el.querySelector(".chronicle-event button") as HTMLButtonElement).click();  // must not throw
+  });
+
+  it("keeps the row's text as its text, so the future-greying and the era grouping still work", () => {
+    const el = renderChronicle(world, history, "ko", () => {});
+    const row = el.querySelector<HTMLElement>(".chronicle-event")!;
+    expect(row.textContent!.length).toBeGreaterThan(5);
+    expect(row.dataset.year).toBeTruthy();
+    applyChronicleYear(el, 0);
+    expect(el.querySelectorAll(".chronicle-event.future").length).toBeGreaterThan(0);
+  });
+});

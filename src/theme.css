@@ -179,7 +179,24 @@ body.map-focus .stage svg.city { max-width: min(100%, calc((100vh - 40px) * 568 
   display: flex; gap: 10px; padding: 10px 12px; align-items: center;
   background: #efe6cf; border: 1px solid #cbb784; border-radius: 6px; margin-top: 12px;
 }
-.timeline-slider { flex: 1; }
+.timeline-track { flex: 1; display: flex; flex-direction: column; gap: 1px; }
+/* ⚠ The global `button, input` rule was giving this range input 5px/10px of padding, which put its
+   box 22px wider than the tick row beneath it — so every century mark drifted left of the year it
+   named, worst at the end, where "500" sat 22px short of where the thumb can actually reach. A
+   slider is not a text field; it takes no padding. */
+.timeline-slider { width: 100%; padding: 0; margin: 0; }
+/* The century marks sit UNDER the track, positioned by their fraction of the run. `left` is the
+   centre of the label, so each one is pulled back half its own width — otherwise every number
+   hangs to the right of the year it names, and the last one falls off the end. */
+/* The thumb's CENTRE travels from half a thumb in to half a thumb from the end, not from edge to
+   edge — so a mark placed at a flat percentage of the track points slightly wide, and the error is
+   biggest exactly where a reader checks it, at 0 and at 500. `--thumb` is what the positions below
+   are inset by; it is the one number to change if the thumb is ever styled. */
+.timeline-ticks { position: relative; height: 12px; --thumb: 16px; }
+.timeline-tick {
+  position: absolute; transform: translateX(-50%);
+  font-size: 9.5px; color: #6b5d42; font-variant-numeric: tabular-nums; user-select: none;
+}
 .timeline-year { min-width: 56px; font-variant-numeric: tabular-nums; font-weight: 600; }
 .political .territory { pointer-events: none; }
 /* map labels + furniture must never intercept a click meant for a city marker underneath — the
@@ -208,7 +225,20 @@ svg.world .legend { pointer-events: none; }
 .chronicle h3 { font-family: 'Cinzel', serif; font-size: 16px; margin: 4px 0 8px; color: #3c2f1c; }
 .chronicle-list { list-style: none; padding-left: 0; margin: 0; }
 .chronicle-era { font-family: 'Cinzel', serif; font-weight: 600; margin: 10px 0 4px; color: #7a5a2f; border-bottom: 1px solid #d8c9a3; }
-.chronicle-event { padding: 2px 0; font-size: 14px; }
+.chronicle-event { padding: 0; font-size: 14px; }
+/* A row is a control — it takes the map to the year it names — and a control nobody can see is a
+   feature nobody uses. The button is flat so the panel still reads as prose, and everything that
+   says "you may press this" is spent on the hover and the focus ring instead of on a border.
+   `inherit` on colour and size is what keeps the per-kind colours (evt-conquer, evt-fall...) and
+   the era grouping looking exactly as they did when these were plain <li> text. */
+.chronicle-jump {
+  display: block; width: 100%; text-align: left; padding: 2px 4px; margin: 0;
+  font: inherit; color: inherit; background: none; border: none; border-radius: 3px;
+  cursor: pointer;
+}
+.chronicle-jump:hover { background: #e7d9b6; }
+.chronicle-jump:focus-visible { outline: 2px solid #7a5a2f; outline-offset: -2px; }
+.chronicle-event.future .chronicle-jump { cursor: pointer; }
 .chronicle-event.future { opacity: .4; }
 .chronicle-event.evt-conquer { color: #7a2f2f; }
 .chronicle-event.evt-civilwar { color: #8a3a1a; }

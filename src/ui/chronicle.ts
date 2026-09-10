@@ -9,7 +9,14 @@ import { buildChronicle, isMoment } from "../engine/chronicleLines";
 // Until this took a world, the panel drew the raw events alone and told the reader less than half
 // the history the downloaded gazetteer told (56/48/42 lines against 122/120/96 on seeds 1/2/3),
 // with no ruler ever named. Both now come off `buildChronicle`.
-export function renderChronicle(world: World, history: History, lang: Lang): HTMLElement {
+/**
+ * `onPick` is what makes a row a way INTO the map: the panel sits beside a moving map and every
+ * row already knows its year, but nothing joined the two, so a reader who saw a conquest in 190 had
+ * to hunt for 190 on a 500-year slider by feel. Optional, because the gazetteer builds this same
+ * chronicle for a document, where there is nothing to jump to.
+ */
+export function renderChronicle(world: World, history: History, lang: Lang,
+                                onPick?: (year: number) => void): HTMLElement {
   const root = document.createElement("div");
   root.className = "chronicle";
   const title = document.createElement("h3");
@@ -38,7 +45,16 @@ export function renderChronicle(world: World, history: History, lang: Lang): HTM
     const row = document.createElement("li");
     row.className = `chronicle-event evt-${e.kind}`;
     row.dataset.year = String(e.year);
-    row.textContent = e.text;
+    // A real <button>, not a click handler on the <li>. The row is a control — it moves the map to
+    // the year it names — and a button is what gives it Enter, Space, a focus ring and a name a
+    // screen reader will read, none of which a listener on a list item gets. The panel's own
+    // machinery is untouched: `row.textContent` is still the sentence, so the future-greying and
+    // the century grouping read exactly what they always read.
+    const jump = document.createElement("button");
+    jump.className = "chronicle-jump";
+    jump.textContent = e.text;
+    if (onPick) jump.addEventListener("click", () => onPick(e.year));
+    row.appendChild(jump);
     list!.appendChild(row);
   }
   return root;

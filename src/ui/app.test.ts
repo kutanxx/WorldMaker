@@ -910,3 +910,48 @@ describe("the toolbar says which control is the main one", () => {
     expect(die.textContent).not.toContain("seed");
   });
 });
+
+// The panel and the map ran on the same year and never spoke. Every row knew its year and the
+// timeline knew how to go to one; joining them is what turns a column of sentences into an index
+// into the map — which is the only reason a chronicle earns its place beside one.
+describe("clicking a chronicle row takes the map to that year", () => {
+  it("moves the year the map is drawn at", async () => {
+    const root = document.createElement("div");
+    document.body.appendChild(root);
+    createApp(root, { ...DEFAULT_PARAMS, seed: 5 });
+    await new Promise((r) => setTimeout(r, 0));
+
+    const before = root.querySelector(".timeline-year")!.textContent;
+    const rows = [...root.querySelectorAll<HTMLElement>(".chronicle-event")];
+    expect(rows.length, "no chronicle rows to click").toBeGreaterThan(3);
+    // a row from late in the record: the direction that matters is forward, into the future the
+    // panel greys out
+    const target = rows[rows.length - 1];
+    const year = Number(target.dataset.year);
+    expect(year).toBeGreaterThan(0);
+
+    (target.querySelector("button") as HTMLButtonElement).click();
+    await new Promise((r) => setTimeout(r, 0));
+
+    const after = root.querySelector(".timeline-year")!.textContent;
+    expect(after, "the timeline did not move").not.toBe(before);
+    expect(after, `the readout should name ${year}`).toContain(String(year));
+    // and the panel agrees with the map: that row is no longer in the future
+    expect(target.classList.contains("future"), "the clicked row is still greyed as future").toBe(false);
+    root.remove();
+  });
+});
+
+// "500년을 감으로 긁는다" — the slider ran 0 to 500 with nothing written on it but the readout of
+// wherever the thumb happened to be, so reaching a century meant hunting.
+describe("the timeline says where the centuries are", () => {
+  it("marks every century across the run", async () => {
+    const root = document.createElement("div");
+    document.body.appendChild(root);
+    createApp(root, { ...DEFAULT_PARAMS, seed: 5 });
+    await new Promise((r) => setTimeout(r, 0));
+    const ticks = [...root.querySelectorAll(".timeline-tick")].map((t) => t.textContent);
+    expect(ticks).toEqual(["0", "100", "200", "300", "400", "500"]);
+    root.remove();
+  });
+});
