@@ -162,8 +162,15 @@ body.map-focus .timeline { margin: 0; }
 /* Folded, the chip stands where the key will appear, so it reads as the key's own place. Unfolded,
    it moves to the opposite corner: fading it in place was the first try and it still covered the
    bottom row of the key it had just opened, and the key's height changes with the view (eight rows
-   of terrain, eleven of realms), so there is no fixed offset that would clear it. */
-.map-frame:not(.legend-off) .legend-toggle { top: 14px; bottom: auto; }
+   of terrain, eleven of realms), so there is no fixed offset that would clear it.
+
+   ONLY where the key is actually on the map. Below 900px it is not — it stands under the map in
+   its own sheet — and there this move was the whole of the "there are two keys and no way to close
+   one" report from the first phone this page was ever opened on: the control had left the place it
+   was pressed, and a second object had appeared somewhere else. */
+@media (min-width: 901px) {
+  .map-frame:not(.legend-off) .legend-toggle { top: 14px; bottom: auto; }
+}
 .stage svg { display: block; width: 100%; height: auto; }
 /* The plan is 568x460, and like the world map it is sized by the vertical room the chrome leaves
    it rather than by a fixed number — 1008px was derived from the old 1040px page and stopped
@@ -424,7 +431,6 @@ svg.world .legend { pointer-events: none; }
   border: 1px solid #cbb784; border-radius: 6px; background: #f6efdc; padding: 8px 6px 8px 10px;
   height: 0; min-height: 100%; overflow: auto;
 }
-.city-list h2 { margin: 0 0 6px; font-size: 13px; font-variant: small-caps; letter-spacing: 0.08em; color: #6b5d42; font-weight: 600; }
 .city-list ul { list-style: none; margin: 0; padding: 0; }
 .city-list-item {
   display: flex; justify-content: space-between; gap: 8px; align-items: baseline; width: 100%;
@@ -434,9 +440,44 @@ svg.world .legend { pointer-events: none; }
 .city-list-item:hover { background: #e7d9b6; }
 .city-list-item.is-capital .city-list-name { font-weight: 600; }
 .city-list-realm { color: #6b5d42; font-size: 11.5px; white-space: nowrap; }
+/* A section that folds away: the town list, the chronicle, and (where the map cannot carry one)
+   the key. The head IS the title, so the way to close a section is where the way to open it was. */
+.fold { border: 0; }
+.fold-head {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  font: inherit; font-size: 13px; font-variant: small-caps; letter-spacing: 0.08em;
+  color: #6b5d42; font-weight: 600; text-align: left;
+  background: none; border: 0; border-radius: 4px; padding: 4px 6px; margin: 0 0 6px;
+  cursor: pointer;
+}
+.fold-head:hover:not(:disabled) { background: #e7d9b6; }
+.fold-title { flex: 1; }
+.fold-count { font-variant: tabular-nums; font-weight: 400; color: #8a7a5c; letter-spacing: 0; }
+.fold-mark::before { content: "\25be"; display: inline-block; transition: transform .12s; } /* ▾ */
+.fold:not(.is-open) > .fold-head .fold-mark::before { transform: rotate(-90deg); }
+.fold-body { display: none; }
+.fold.is-open > .fold-body { display: block; }
+/* A wide window shows these outright, and a head that cannot fold anything is a heading, not a
+   control: `disabled` (set in app.ts) takes it out of the tab order, and these strip the rest. */
+.fold-head:disabled { cursor: default; color: #6b5d42; }
+.fold-head:disabled .fold-mark, .fold-head:disabled .fold-count { display: none; }
+/* The key's own sheet: one map unit to one CSS pixel, so the key arrives at the size it was drawn
+   instead of at the size the map was scaled to (6px on a phone). Needs to beat `.stage svg`, which
+   stretches every drawing to the full width. */
+.stage .legend-sheet { display: block; width: auto; max-width: 100%; height: auto; pointer-events: none; }
+.legend-fold { display: none; }   /* the map carries its own key until it is too small to */
+
 @media (max-width: 900px) {
   .map-with-list { grid-template-columns: minmax(0, 1fr); }
-  /* stacked: the list no longer sits beside the map, so it has no height to follow */
-  .city-list { height: auto; min-height: 0; max-height: 240px; }
+  /* Stacked: the list no longer sits beside the map, so it has no height to follow — and no cap
+     either. A scrolling box inside a scrolling page is the worst thing a finger can meet, and the
+     length it was capping is what the fold is for. */
+  .city-list { height: auto; min-height: 0; max-height: none; overflow: visible; }
+  .legend-fold { display: block; margin-top: 8px; }
+  .legend-toggle { display: none; }  /* the fold's head is the key's control here */
 }
-@media (pointer: coarse) { .city-list-item { min-height: 36px; } }
+@media (pointer: coarse) {
+  .city-list-item { min-height: 36px; }
+  /* the heads are the only way into three panels; 44px is the target a finger is owed */
+  .fold-head { min-height: 44px; }
+}

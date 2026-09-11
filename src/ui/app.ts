@@ -22,7 +22,9 @@ import { provinceLayer, snapOwnersToProvinces } from "./provinceLayer";
 import { deconflictLabels } from "./deconflict";
 import { applyLabelScale, applyMarkerScale } from "./labelScale";
 import { layOutLabelsForExport } from "./exportLabels";
-import { type Lang, t } from "./i18n";
+import { type Lang, t, chronicleTitle } from "./i18n";
+import { makeFold, readFoldPref, writeFoldPref } from "./fold";
+import { legendSheet, placeLegend } from "./legendSheet";
 import { detectLang, saveLang } from "./lang";
 import { properName, polityLabeller } from "./properName";
 
@@ -212,6 +214,12 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
   // page that will not paint because a preference could not be read is a worse bug than a legend
   // in the wrong state.
   const LEGEND_KEY = "wm:legend";
+  // The panels under the map fold on a narrow window, and the same bargain applies: a reader who
+  // put the chronicle away did not mean "until the next world".
+  const CITIES_FOLD_KEY = "wm:fold:cities";
+  const CHRONICLE_FOLD_KEY = "wm:fold:chronicle";
+  /** drops the world screen's width watcher; see the listener leak note in showWorld */
+  let dropWidthWatch: (() => void) | null = null;
   function readLegendPref(): boolean {
     try { return localStorage.getItem(LEGEND_KEY) === "on"; } catch { return false; }
   }
@@ -341,18 +349,26 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     legendBtn.type = "button";
     legendBtn.className = "legend-toggle";
     legendBtn.textContent = t(lang, "legendToggle");
+    // One key, one preference, two skins. Where the map is big enough to carry a key the chip on
+    // its corner opens one; where it is not, the key comes off the map (see legendSheet) and this
+    // same state opens a folding section under it. Both run through `setLegend`, so the two never
+    // disagree about whether the key is out.
+    const sheet = legendSheet();
+    const legendFold = makeFold({
+      title: t(lang, "legendToggle"), open: legendOn, onToggle: (on) => setLegend(on),
+    });
+    legendFold.section.classList.add("legend-fold");
+    legendFold.body.appendChild(sheet);
     const syncLegend = (on: boolean) => {
       frame.classList.toggle("legend-off", !on);
       legendBtn.setAttribute("aria-expanded", String(on));
       legendBtn.title = t(lang, on ? "legendHide" : "legendShow");
+      legendFold.setOpen(on);
     };
+    const setLegend = (on: boolean) => { syncLegend(on); writeLegendPref(on); };
     syncLegend(legendOn);
-    legendBtn.addEventListener("click", () => {
-      const on = frame.classList.contains("legend-off");
-      syncLegend(on);
-      writeLegendPref(on);
-    });
-    frame.appendChild(legendBtn);
+    legendBtn.addEventListener("click", () => setLegend(frame.classList.contains("legend-off")));
+    frame.append(legendBtn, legendFold.section);
 
     addFocusToggle(frame);
 
@@ -360,11 +376,18 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     // somewhere there is nothing to tell them so. A list is the signal: it says "there are cities
     // here" by existing, it is reachable by keyboard for free, and it does not need anyone to hit
     // a dot. Capitals first, then by size, because that is the order a reader cares about.
-    const list = document.createElement("aside");
-    list.className = "city-list";
-    const listTitle = document.createElement("h2");
-    listTitle.textContent = t(lang, "cityList");
-    list.appendChild(listTitle);
+    //
+    // Under a narrow window it folds, because there the list is not beside the map but under it:
+    // on a phone the list and the chronicle came to 641px against a 225px map. Folded, the head
+    // still carries the count — "Cities 23" says towns are there, which is the one job the list
+    // was added to do.
+    const listFold = makeFold({
+      title: t(lang, "cityList"), count: generated.world.cities.length,
+      open: readFoldPref(CITIES_FOLD_KEY, false),
+      onToggle: (on) => writeFoldPref(CITIES_FOLD_KEY, on),
+    });
+    const list = listFold.section;
+    list.classList.add("city-list");
     const ul = document.createElement("ul");
     realmCells.clear();
     // The tiebreaker sorts by the name actually ON THE BUTTON, not the underlying Latin `c.name` —
@@ -392,7 +415,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
       li.appendChild(b);
       ul.appendChild(li);
     }
-    list.appendChild(ul);
+    listFold.body.appendChild(ul);
 
     const withList = document.createElement("div");
     withList.className = "map-with-list";
@@ -428,6 +451,39 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
       timeline?.setIndex(best);
     };
     const chronicle = renderChronicle(generated.world, history, lang, jumpToYear);
+    // The fold's head IS this panel's heading now, so the panel's own one would be the title twice.
+    // Only this copy is touched: the gazetteer builds its own chronicle and keeps its <h3>.
+    chronicle.querySelector("h3")?.remove();
+    const chronicleFold = makeFold({
+      title: chronicleTitle(lang, history.years), level: 3,
+      count: chronicle.querySelectorAll(".chronicle-event").length,
+      open: readFoldPref(CHRONICLE_FOLD_KEY, false),
+      onToggle: (on) => writeFoldPref(CHRONICLE_FOLD_KEY, on),
+    });
+    chronicleFold.section.classList.add("chronicle-fold");
+    chronicleFold.body.appendChild(chronicle);
+
+    // Wide windows show all three sections outright and their heads stand down to plain headings;
+    // narrow ones fold them and take the key off the map. Watched, not read once: a window is
+    // resized and a phone is rotated.
+    //
+    // ⚠ jsdom has no `matchMedia` at all. A missing one must read as the WIDE layout — that is the
+    // one every other test in app.test.ts measures.
+    const narrow = typeof matchMedia === "function" ? matchMedia("(max-width: 900px)") : null;
+    const isNarrow = () => narrow?.matches ?? false;
+    const applyWidth = () => {
+      const n = isNarrow();
+      listFold.setFoldable(n);
+      chronicleFold.setFoldable(n);
+      placeLegend(svg, sheet, n);
+    };
+    // ⚠ One listener, dropped when this screen goes. Hanging one off each frame leaked a listener
+    // on every regenerate and every trip to a city plate and back — the same trap the Escape
+    // handler above was moved out of.
+    dropWidthWatch?.();
+    narrow?.addEventListener("change", applyWidth);
+    dropWidthWatch = () => { narrow?.removeEventListener("change", applyWidth); dropWidthWatch = null; };
+
     const slot = svg.querySelector(".political-slot") as SVGGElement;
     const renderYear = (index: number): void => {
       currentYearIndex = index;
@@ -443,12 +499,16 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
       applyLabelScale(svg, z);
       applyMarkerScale(svg, z);
       deconflictLabels(svg, z); // hide colliding lower-priority labels, and those the zoom has not earned yet
+      // ⚠ After `fillSlot`, always: outside terrain the key is drawn INSIDE the slot that was just
+      // replaced, so every scrub hands back a new key and the one standing under the map is stale.
+      placeLegend(svg, sheet, isNarrow());
     };
 
     // ...in the reader's language. Without this the timeline took its own Korean default and an
     // English reader was shown "500년" on the scrubber.
     timeline = createTimeline(history, renderYear, (y) => t(lang, "year").replace("{y}", String(y)));
-    stage.append(timeline.element, chronicle);
+    stage.append(timeline.element, chronicleFold.section);
+    applyWidth();                       // before the first year, so the key starts where it belongs
     timeline.setIndex(currentYearIndex); // renders the current year in the current view
     // replaceState, not location.hash: re-rendering the same world is not a place to come back to,
     // and every view switch used to push one
@@ -482,6 +542,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     const marker = generated.world.cities.find((c) => c.id === cityId);
     if (!marker) return;
     openCityId = cityId;
+    dropWidthWatch?.();   // the world screen's sections are about to be thrown away
     const url = "#" + worldHash() + "&city=" + cityId;
     if (record === "push") window.history.pushState({ city: cityId }, "", url);
     else if (record === "replace") window.history.replaceState({ city: cityId }, "", url);

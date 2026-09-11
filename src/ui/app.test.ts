@@ -965,3 +965,73 @@ describe("the timeline says where the centuries are", () => {
     root.remove();
   });
 });
+
+// The phone was the first device this layout was ever opened on, and it showed two things that
+// look like a key (a 46x55 smudge on the map and the chip beside it), no way to fold the panels,
+// and 641px of town list and chronicle under a 225px map.
+//
+// jsdom has no `matchMedia` at all, so the app's own guard reports a wide window and every test
+// above this point measures the layout it always measured. These stub one in.
+describe("a window too narrow to carry the map's furniture", () => {
+  const stubWidth = (narrow: boolean) => {
+    (window as unknown as { matchMedia: unknown }).matchMedia = (media: string) => ({
+      media, matches: narrow, addEventListener() {}, removeEventListener() {},
+    });
+  };
+  afterEach(() => { delete (window as unknown as { matchMedia?: unknown }).matchMedia; });
+
+  it("stands the key under the map instead of shrinking it onto one", () => {
+    stubWidth(true);
+    const root = document.createElement("div");
+    createApp(root, small);
+    expect(root.querySelector("svg.world .legend"), "the key is still on the map").toBeNull();
+    expect(root.querySelector(".legend-sheet .legend")).not.toBeNull();
+  });
+
+  // ⚠ The trap: in every view but terrain the key is drawn inside `.political-slot`, and scrubbing
+  // a year replaces that slot wholesale. Without a second placement the key walks back onto the
+  // map the moment the reader touches the timeline.
+  it("keeps the key off the map after a year is scrubbed", () => {
+    stubWidth(true);
+    const root = document.createElement("div");
+    createApp(root, small);
+    (([...root.querySelectorAll(".view-toggle button")]
+      .find((b) => b.textContent === "Political")) as HTMLButtonElement).click();
+    expect(root.querySelector(".legend-sheet .nation-legend")).not.toBeNull();
+    const slider = root.querySelector(".timeline input[type=range]") as HTMLInputElement;
+    slider.value = slider.max;
+    slider.dispatchEvent(new Event("input"));
+    expect(root.querySelectorAll(".legend").length, "the year left two keys behind").toBe(1);
+    expect(root.querySelector("svg.world .legend"), "the key climbed back onto the map").toBeNull();
+    expect(root.querySelector(".legend-sheet .nation-legend")).not.toBeNull();
+  });
+
+  it("folds the town list and the chronicle, each under the title it already had", () => {
+    stubWidth(true);
+    const root = document.createElement("div");
+    createApp(root, small);
+    const heads = [...root.querySelectorAll(".fold-head")] as HTMLButtonElement[];
+    const titled = (re: RegExp) => heads.find((h) => re.test(h.textContent || ""));
+    expect(titled(/Cities/), "no folding town list").toBeTruthy();
+    expect(titled(/Chronicle/), "no folding chronicle").toBeTruthy();
+    for (const h of heads) expect(h.disabled, `${h.textContent} cannot be folded`).toBe(false);
+    // Folded, the head is all that is left of the section: it has to say what is inside — and the
+    // number has to be the towns actually in the list, not the `townCount` asked for (a 6-town
+    // world lands 14 of them once capitals are seated).
+    const rows = root.querySelectorAll(".city-list-item").length;
+    expect(rows).toBeGreaterThan(0);
+    expect(titled(/Cities/)!.querySelector(".fold-count")!.textContent).toBe(String(rows));
+  });
+
+  it("leaves a wide window exactly as it was: key on the map, panels open, heads standing down", () => {
+    stubWidth(false);
+    const root = document.createElement("div");
+    createApp(root, small);
+    expect(root.querySelector("svg.world .legend")).not.toBeNull();
+    expect(root.querySelector(".legend-sheet .legend")).toBeNull();
+    const cities = [...root.querySelectorAll(".fold-head")]
+      .find((h) => /Cities/.test(h.textContent || "")) as HTMLButtonElement;
+    expect(cities.disabled, "a control that does nothing is taking a tab stop").toBe(true);
+    expect(cities.closest(".fold")!.classList.contains("is-open")).toBe(true);
+  });
+});

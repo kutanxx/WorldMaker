@@ -58,3 +58,47 @@ describe("the map's furniture sits on something", () => {
     expect(block).toMatch(/border:/);
   });
 });
+
+// The first phone this page was ever opened on found two things that look like a key and no way to
+// fold either — plus 641px of town list and chronicle under a 225px map. These hold the three
+// stylesheet rules that answer it.
+describe("a narrow window folds the panels the map cannot carry", () => {
+  const css = () => read("src/theme.css");
+
+  // The key is drawn in MAP units, so on screen it is whatever the map is scaled to: x0.993 on a
+  // desktop, x0.321 on a 375px phone — 6px type. Below 900px it comes off the map into its own
+  // sheet at one unit to one pixel, and that sheet must beat `.stage svg { width: 100% }`, which
+  // would stretch a 112-unit key across the page.
+  it("gives the key's sheet its own size, against the rule that stretches every drawing", () => {
+    const rule = css().slice(css().indexOf(".stage .legend-sheet"));
+    expect(rule.slice(0, rule.indexOf("}"))).toContain("width: auto");
+  });
+
+  // The chip moved to the opposite corner when the key opened. Where the key is on the map that is
+  // deliberate (it covered the key's bottom row). Where the key is NOT on the map it is the bug:
+  // the control leaves the place it was pressed.
+  it("moves the key's chip only where the key is actually on the map", () => {
+    const i = css().indexOf(".map-frame:not(.legend-off) .legend-toggle");
+    expect(i, "the chip's corner-jump is gone entirely").toBeGreaterThan(-1);
+    const before = css().slice(0, i);
+    const query = before.slice(before.lastIndexOf("@media"));
+    expect(query.slice(0, query.indexOf("{")), "the jump is not held to wide windows").toContain("min-width: 901px");
+  });
+
+  it("hands the key's control to the fold's head on a narrow window", () => {
+    const i = css().indexOf("@media (max-width: 900px)");
+    const block = css().slice(i, css().indexOf("\n}", i));
+    expect(block).toContain(".legend-fold");
+    expect(block).toContain(".legend-toggle { display: none");
+    // a scrolling box inside a scrolling page is the worst thing a finger can meet
+    expect(block).toMatch(/\.city-list\s*\{[^}]*max-height:\s*none/);
+  });
+
+  it("gives the three heads a finger-sized target", () => {
+    const c = css();
+    const blocks = c.split("@media (pointer: coarse)").slice(1);
+    const head = blocks.find((b) => b.slice(0, b.indexOf("\n}")).includes(".fold-head"));
+    expect(head, ".fold-head has no coarse-pointer rule").toBeTruthy();
+    expect(head!.slice(0, head!.indexOf("\n}"))).toContain("min-height: 44px");
+  });
+});
