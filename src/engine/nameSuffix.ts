@@ -1,8 +1,8 @@
 import { toHangul } from "./hangul";
 import type { Government } from "./government";
 
-// Two complaints about the generated names, and one Korean fix for both, WITHOUT the generator
-// changing a single name: a realm reads like a town because a name and its capital came out of the
+// Two complaints about the generated names, and a fix for both WITHOUT the generator changing a
+// single name: a realm reads like a town because a name and its capital came out of the
 // same phonology with nothing to tell them apart, and a people reads like a place for the same
 // reason. Korean marks both with a suffix — 케우스두 왕국 (a kingdom, not a town), 드루스브라우인 (a
 // people, not a place) — so this module is the whole of that fix. It never touches `names.ts`.
@@ -45,4 +45,31 @@ export function realmLabelKo(name: string, form: Government): string {
  */
 export function peopleLabelKo(name: string): string {
   return `${toHangul(name)}인`;
+}
+
+/**
+ * A realm's name in English, with the word for what kind of state it is.
+ *
+ * ⚠ NOT for map labels. Measured on the live English map, the word takes a realm's label to **2.04x**
+ * its width (up to 2.47x for a free city), and the map spends its width on how many names fit. There
+ * the typography carries it instead — small caps and tracking, which measured 2.2 units NARROWER than
+ * the mixed case it replaces, and which is what a printed atlas uses for a country. This is for the
+ * places that have no typography to read and no legend beside them: the town list, where a reader was
+ * shown `Korkgor Grathggau` and given no way to tell which of the two invented words was the country,
+ * and the plate's own facts.
+ *
+ * Name first, like `realmLabelKo` and unlike "the Kingdom of X": a list is scanned down its first
+ * word, and the name is what a reader is scanning for.
+ */
+const FORM_WORD_EN: Record<Government, string> = {
+  kingdom: "Kingdom",
+  // Free City, not Republic — the same choice `FORM_WORD` makes and for the same reason: every
+  // reader-facing word for this on the site says free city, and a five-tile town that threw off a
+  // crown is not a republic in the modern sense.
+  republic: "Free City",
+  empire: "Empire",
+};
+
+export function realmLabelEn(name: string, form: Government): string {
+  return `${name} ${FORM_WORD_EN[form]}`;
 }

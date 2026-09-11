@@ -222,6 +222,13 @@ svg.world .compass,
 svg.world .map-frame,
 svg.world .legend { pointer-events: none; }
 .nation-label { font-family: 'Cinzel', serif; font-weight: 600; }
+/* A country in small caps, tracked, the way a printed atlas sets one — against a region in full
+   caps and a town in upper-and-lower, which is three registers for three kinds of place. It is what
+   English has instead of Korean's 왕국, and it is FREE: measured across seed 1's seven realms it
+   came out 2.2 units NARROWER than the mixed case it replaces (small caps are narrower than
+   Cinzel's lowercase by more than the tracking costs), where spelling the word out measured 2.04x.
+   ⚠ Latin only. Hangul takes nothing from small caps and would pay the tracking in width. */
+svg.world.lang-en .nation-label { font-variant: small-caps; letter-spacing: 0.10em; }
 /* The map's own label faces. Sizes are set per-tier on the elements themselves, since they have to
    survive SVG/PNG export, where no stylesheet comes along. */
 .city-label { font-family: 'EB Garamond', Georgia, serif; }

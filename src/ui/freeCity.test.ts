@@ -56,9 +56,14 @@ describe("a free city is on the map it is standing on", () => {
     const fills = root.querySelectorAll(".territory.free-city");
     expect(fills.length, "no free city has any ground painted").toBeGreaterThan(0);
 
+    // The banner on the map is the bare name (the map's own typography and its legend say what kind
+    // of place it is); the list spells the kind out, because that column has neither.
     const listed = [...root.querySelectorAll(".city-list-realm")].map((e) => e.textContent!.trim());
-    expect(listed.some((r) => banners.includes(r)),
+    const namesOne = (cell: string) => banners.some((b) => cell === b || cell.startsWith(b + " "));
+    expect(listed.some(namesOne),
       `the list names no free city; it says ${[...new Set(listed)].slice(0, 6).join(", ")}`).toBe(true);
+    expect(listed.filter(namesOne).every((c) => c.endsWith(" Free City")),
+      `a free city in the list is not called one: ${listed.filter(namesOne).join(", ")}`).toBe(true);
     root.remove();
   });
 });

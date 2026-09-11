@@ -1,6 +1,6 @@
 import { toHangul, properNoun } from "../engine/hangul";
 import type { GovernmentForm } from "../engine/government";
-import { realmLabelKo, peopleLabelKo } from "../engine/nameSuffix";
+import { realmLabelEn, realmLabelKo, peopleLabelKo } from "../engine/nameSuffix";
 import type { Lang } from "./i18n";
 
 /**
@@ -38,10 +38,18 @@ export function properName(lang: Lang, name: string): string {
  * and produce nonsense. That is why this function does not simply compose `properName` with a
  * suffix: it replaces the transliterating call for the one case that needs more than a name.
  */
-export function polityLabeller(lang: Lang, forms?: Map<number, GovernmentForm>): (id: number, name: string) => string {
+/**
+ * @param spellForm say what kind of state it is in words. Ignored in Korean, which always does —
+ * the word is the only device Korean has here, and 왕국 is two characters even on a map label.
+ * English has case: on the map the typography carries it (`svg.world.lang-en .nation-label` in
+ * theme.css), because the word measured **2.04x** the label there, and this is spent only where a
+ * reader has neither typography nor a legend to read it from — the town list, the plate's facts.
+ */
+export function polityLabeller(lang: Lang, forms?: Map<number, GovernmentForm>,
+                               spellForm = false): (id: number, name: string) => string {
   return (id, name) => {
-    if (lang !== "ko") return name;
     const form = forms?.get(id)?.form;
+    if (lang !== "ko") return spellForm && form ? realmLabelEn(name, form) : name;
     return form ? realmLabelKo(name, form) : toHangul(name);
   };
 }

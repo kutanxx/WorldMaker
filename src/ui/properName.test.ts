@@ -53,3 +53,24 @@ describe("peopleLabel", () => {
     expect(peopleLabel("en", "Druthvrau")).toBe("Druthvrau");
   });
 });
+
+// Two languages, two devices, for the same problem. Korean has no case, so it says the word — on
+// the map as well, where 왕국 is two characters. English has case, and the word measured 2.04x the
+// label on a map that already spends its width carefully, so on the map the typography carries it
+// (see theme.css) and the word is spent only where there is no typography to read: a list, a panel.
+describe("polityLabeller across the two languages", () => {
+  const forms = new Map([[0, { form: "kingdom" as const, since: 0 }]]);
+  it("leaves an English map label as the bare name", () => {
+    expect(polityLabeller("en", forms as never)(0, "Grathggau")).toBe("Grathggau");
+  });
+  it("spells the kind of state out where a list or a panel asks for it", () => {
+    expect(polityLabeller("en", forms as never, true)(0, "Grathggau")).toBe("Grathggau Kingdom");
+  });
+  it("says the word in Korean either way — it is the only device Korean has here", () => {
+    expect(polityLabeller("ko", forms as never)(0, "Ceusdu")).toContain("왕국");
+    expect(polityLabeller("ko", forms as never, true)(0, "Ceusdu")).toContain("왕국");
+  });
+  it("falls back to the bare name when the realm's form is not known", () => {
+    expect(polityLabeller("en", undefined, true)(0, "Grathggau")).toBe("Grathggau");
+  });
+});

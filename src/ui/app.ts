@@ -319,7 +319,10 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     // government suffix the map does, through the same seam. Built once outside the loop: every
     // city in the list shares one labeller, and a fresh closure per row bought nothing but a
     // Map.get(id) repeated once per row instead of once per year.
-    const labelOf = polityLabeller(lang, governmentForms);
+    // `spellForm`: this column is the one place a reader is shown two invented words side by side
+    // (`Korkgor  Grathggau`) with nothing to say which is the country — no legend, no typography,
+    // not even a column heading. The map does not ask for it; see polityLabeller.
+    const labelOf = polityLabeller(lang, governmentForms, true);
     for (const [cell, el] of realmCells) {
       const o = owner[cell];
       const realm = o >= 0 ? history.polities[o]?.name : undefined;

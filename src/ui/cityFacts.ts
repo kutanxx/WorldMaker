@@ -61,7 +61,9 @@ export function cityFacts(
   const owner = at ? at.owner[city.cell] : world.polityOf[city.cell];
   const pool = at ? at.polities : world.polities;
   const realmName = owner >= 0 ? pool.find((p) => p.id === owner)?.name : undefined;
-  const realm = realmName === undefined ? null : polityLabeller(lang, forms)(owner, realmName);
+  // spelled out: a panel has no legend beside it, and "Realm — Grathggau Kingdom" says which of the
+  // three kinds of state it is, which the bare name never could (see polityLabeller)
+  const realm = realmName === undefined ? null : polityLabeller(lang, forms, true)(owner, realmName);
   const [lo, hi] = POPULATION_BANDS[city.size] ?? POPULATION_BANDS[3];
 
   // the three nearest towns, so a reader can walk out of one plate and into the next

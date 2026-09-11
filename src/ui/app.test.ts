@@ -767,7 +767,13 @@ describe("the city list is in the same century as the map", () => {
         const city = world.cities.find((c) => c.id === id)!;
         const o = owner[city.cell];
         const expected = o >= 0 ? history.polities[o].name : "";
-        expect(realm, `year index ${yearIndex}, ${city.name}`).toBe(expected);
+        // The cell NAMES that realm and, in English, says what kind of state it is — the column has
+        // no legend and no typography to read that from (see polityLabeller). Asserting the exact
+        // string would only restate the labeller; what this test is for is WHICH realm is named.
+        // `=== name` or `name + " "`, not `startsWith`: one realm's name can be another's prefix.
+        const names = (cell: string) => cell === expected || cell.startsWith(expected + " ");
+        expect(names(realm), `year index ${yearIndex}, ${city.name}: "${realm}" is not ${expected || "(unclaimed)"}`).toBe(true);
+        if (expected) expect(realm, `${city.name}: no kind of state named`).toMatch(/ (Kingdom|Empire|Free City)$/);
         checked++;
       }
     }
@@ -781,7 +787,8 @@ describe("the city list is in the same century as the map", () => {
     const root = openAtYear(lastIndex);
     const standing = new Set<string>();
     for (const o of history.snapshots[lastIndex].owner) if (o >= 0) standing.add(history.polities[o].name);
-    const named = listed(root).map((r) => r.realm).filter(Boolean);
+    // the cell carries the kind of state after the name now; the realm is the part before it
+    const named = listed(root).map((r) => r.realm.replace(/ (Kingdom|Empire|Free City)$/, "")).filter(Boolean);
     expect(named.length).toBeGreaterThan(10);
     for (const n of named) expect(standing, `"${n}" no longer exists in 500 AY`).toContain(n);
   });

@@ -57,7 +57,10 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
   const root = svgEl("svg", {
     width: "100%",
     viewBox: `0 0 ${grid.width} ${grid.height}`,
-    class: `world view-${view}`,
+    // `lang-` so the stylesheet can give a realm's name the small caps and tracking a printed atlas
+    // gives a country — a device only Latin has. Hangul takes nothing from small caps and would pay
+    // the tracking in width for it, and Korean already says 왕국 on the label itself.
+    class: `world view-${view} lang-${lang}`,
     role: "img",
   }) as SVGSVGElement;
   // The map IS the page, and to a screen reader it was an untitled graphic: no role, no name, no
