@@ -146,3 +146,104 @@ describe("attachZoomPan", () => {
     zp.destroy();
   });
 });
+
+// A phone had no way to zoom this map but the `+` button, and that button (with its two
+// neighbours) covered 19% of a 321px-wide map. Two fingers are what a phone brings instead.
+describe("pinch", () => {
+  const down = (svg: SVGSVGElement, id: number, x: number, y: number) =>
+    svg.dispatchEvent(new PointerEvent("pointerdown", { button: 0, clientX: x, clientY: y, pointerId: id }));
+  const move = (svg: SVGSVGElement, id: number, x: number, y: number) =>
+    svg.dispatchEvent(new PointerEvent("pointermove", { clientX: x, clientY: y, pointerId: id }));
+  const up = (id: number, x: number, y: number) =>
+    window.dispatchEvent(new PointerEvent("pointerup", { clientX: x, clientY: y, pointerId: id }));
+
+  it("zooms in as two fingers spread", () => {
+    const { svg, container } = makeSvg();
+    const z = attachZoomPan(svg, container);
+    down(svg, 1, 40, 50); down(svg, 2, 60, 50);   // 20px apart
+    move(svg, 1, 30, 50); move(svg, 2, 70, 50);   // 40px apart
+    expect(z.scale()).toBeCloseTo(2, 1);
+    z.destroy();
+  });
+
+  it("zooms out as they close", () => {
+    const { svg, container } = makeSvg();
+    const z = attachZoomPan(svg, container);
+    svg.dispatchEvent(new WheelEvent("wheel", { deltaY: -100, clientX: 50, clientY: 50, cancelable: true }));
+    const before = z.scale();
+    expect(before).toBeGreaterThan(1);
+    down(svg, 1, 20, 50); down(svg, 2, 80, 50);   // 60 apart
+    move(svg, 1, 35, 50); move(svg, 2, 65, 50);   // 30 apart -> half
+    expect(z.scale()).toBeLessThan(before);
+    z.destroy();
+  });
+
+  // The gesture holds what is between the fingers: pinching on a corner must not haul the map
+  // across to the middle.
+  it("keeps the point between the fingers where it is", () => {
+    const { svg, container } = makeSvg();
+    const z = attachZoomPan(svg, container);
+    down(svg, 1, 20, 20); down(svg, 2, 30, 30);
+    move(svg, 1, 15, 15); move(svg, 2, 35, 35);
+    const [x, y, w, h] = vb(svg);
+    // the midpoint (25,25) in client space is (25,25) in user space at base; it should still be
+    // inside the box, near where it was
+    expect(x).toBeLessThanOrEqual(25);
+    expect(x + w).toBeGreaterThanOrEqual(25);
+    expect(y).toBeLessThanOrEqual(25);
+    expect(y + h).toBeGreaterThanOrEqual(25);
+    z.destroy();
+  });
+
+  // A pinch is not a tap. The world map turns a click on a marker into a drilldown, and a pinch
+  // that ends on one must not open a city.
+  it("does not let the gesture become a click", () => {
+    const { svg, container } = makeSvg();
+    const z = attachZoomPan(svg, container);
+    let clicks = 0;
+    svg.addEventListener("click", () => { clicks++; });
+    down(svg, 1, 40, 50); down(svg, 2, 60, 50);
+    move(svg, 1, 30, 50); move(svg, 2, 70, 50);
+    up(1, 30, 50); up(2, 70, 50);
+    svg.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    expect(clicks).toBe(0);
+    z.destroy();
+  });
+
+  // One finger is still a pan, and lifting one finger of a pinch must not leave the map being
+  // dragged by the other.
+  it("lets go cleanly when a finger lifts", () => {
+    const { svg, container } = makeSvg();
+    const z = attachZoomPan(svg, container);
+    down(svg, 1, 40, 50); down(svg, 2, 60, 50);
+    move(svg, 1, 30, 50); move(svg, 2, 70, 50);
+    const held = z.scale();
+    up(2, 70, 50);
+    move(svg, 1, 10, 50);        // the remaining finger must not keep zooming
+    expect(z.scale()).toBeCloseTo(held, 5);
+    z.destroy();
+  });
+
+  it("clamps the way every other zoom does", () => {
+    const { svg, container } = makeSvg();
+    const z = attachZoomPan(svg, container);
+    down(svg, 1, 49, 50); down(svg, 2, 51, 50);  // 2px apart
+    move(svg, 1, 0, 50); move(svg, 2, 100, 50);  // 100px apart = x50
+    expect(z.scale()).toBeLessThanOrEqual(12);   // MAX_SCALE, whatever it is, must hold
+    expect(Number.isFinite(z.scale())).toBe(true);
+    z.destroy();
+  });
+});
+
+// The stylesheet hides two of these three on a narrow window; it can only do that if they are
+// still named what it asks for.
+describe("the zoom controls are addressable", () => {
+  it("names each button", () => {
+    const { svg, container } = makeSvg();
+    const z = attachZoomPan(svg, container);
+    for (const cls of ["zoom-in", "zoom-out", "zoom-reset"]) {
+      expect(container.querySelector(`.map-zoom-controls .${cls}`), `no .${cls}`).not.toBeNull();
+    }
+    z.destroy();
+  });
+});

@@ -161,3 +161,16 @@ describe("a narrow window folds the toolbar too", () => {
     expect(narrowBlock()).toContain(".controls.plate .world-only { display: none");
   });
 });
+
+// With pinch working, `+` and `−` are a mouse's way of doing what two fingers already do — and the
+// three of them together covered 19% of a 321px-wide map. The reset stays: a pinch can leave you
+// somewhere you cannot pinch your way back from.
+describe("a narrow map keeps the zoom out of the drawing", () => {
+  it("hides the buttons two fingers replace, and only those", () => {
+    const css = read("src/theme.css");
+    const i = css.indexOf("@media (max-width: 900px)");
+    const block = css.slice(i, css.indexOf("\n}", i));
+    expect(block).toContain(".map-zoom-controls .zoom-in, .map-zoom-controls .zoom-out { display: none");
+    expect(block, "the reset went with them").not.toContain(".zoom-reset { display: none");
+  });
+});

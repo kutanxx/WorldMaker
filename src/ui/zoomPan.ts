@@ -75,8 +75,45 @@ export function attachZoomPan(
     window.removeEventListener("pointerup", endDrag);
     window.removeEventListener("pointercancel", endDrag);
   };
+  // Two fingers. A phone had no way into this map but the `+` button, and that button with its
+  // two neighbours covered 19% of a 321px-wide map — so the gesture a phone already makes has to
+  // do the work instead. Tracked on the svg rather than on `window`: a pinch begins and ends on
+  // the drawing, and the drag's window listeners are for a gesture that can leave it.
+  //
+  // ⚠ `touch-action` stays `pan-y` at base scale (see syncTouchAction): the page must still scroll
+  // when a finger drags the map, because on a phone the map is 225px of an 812px page. A pinch is
+  // not a behaviour `pan-y` permits the browser to take, so both pointers reach us.
+  const active = new Map<number, { x: number; y: number }>();
+  let pinch: { dist: number; scale: number; ux: number; uy: number } | null = null;
+  const spread = (): number => {
+    const [a, b] = [...active.values()];
+    return Math.hypot(a.x - b.x, a.y - b.y);
+  };
+  const startPinch = () => {
+    const [a, b] = [...active.values()];
+    const { ux, uy } = userAt((a.x + b.x) / 2, (a.y + b.y) / 2);
+    pinch = { dist: Math.max(spread(), 1), scale: base.w / cur.w, ux, uy };
+    endDrag();        // a pinch is not a pan; drop the one-finger gesture it grew out of
+    wasDrag = true;   // ...and it must not land as a click on a city marker either
+  };
+  const onSvgMove = (e: PointerEvent) => {
+    const p = active.get(e.pointerId);
+    if (!p) return;
+    p.x = e.clientX; p.y = e.clientY;
+    if (!pinch || active.size < 2) return;
+    e.preventDefault();
+    setScale(pinch.scale * (spread() / pinch.dist), pinch.ux, pinch.uy);
+  };
+  const onUp = (e: PointerEvent) => {
+    active.delete(e.pointerId);
+    // One finger left of a pinch must not carry on as a drag: the map would leap under it.
+    if (active.size < 2) pinch = null;
+  };
   const onDown = (e: PointerEvent) => {
     if (e.button !== 0) return;
+    active.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (active.size === 2) { startPinch(); return; }
+    if (active.size > 2) return;
     dragging = true; wasDrag = false; startX = lastX = e.clientX; startY = lastY = e.clientY;
     svg.style.cursor = "grabbing";
     window.addEventListener("pointermove", onWindowMove);
@@ -88,6 +125,9 @@ export function attachZoomPan(
 
   svg.addEventListener("wheel", onWheel, { passive: false });
   svg.addEventListener("pointerdown", onDown);
+  svg.addEventListener("pointermove", onSvgMove);
+  window.addEventListener("pointerup", onUp);
+  window.addEventListener("pointercancel", onUp);
   svg.addEventListener("click", onClickCapture, true);
   svg.style.cursor = "grab";
 
@@ -110,10 +150,20 @@ export function attachZoomPan(
 
   const ctrls = document.createElement("div");
   ctrls.className = "map-zoom-controls";
-  const mkBtn = (label: string, fn: () => void) => { const b = document.createElement("button"); b.type = "button"; b.textContent = label; b.addEventListener("click", fn); return b; };
+  // Named, because a narrow window hides two of the three: with pinch working, `+` and `−` are a
+  // desktop's way of doing what two fingers already do, and the three of them covered 19% of the
+  // map on a phone. The reset stays — a pinch can leave you somewhere you cannot pinch back from.
+  const mkBtn = (cls: string, label: string, fn: () => void) => {
+    const b = document.createElement("button");
+    b.type = "button"; b.className = cls; b.textContent = label;
+    b.addEventListener("click", fn);
+    return b;
+  };
   const zoomCentre = (factor: number) => setScale((base.w / cur.w) * factor, cur.x + cur.w / 2, cur.y + cur.h / 2);
   const reset = () => { cur = { ...base }; apply(); };
-  ctrls.append(mkBtn("+", () => zoomCentre(1.4)), mkBtn("−", () => zoomCentre(1 / 1.4)), mkBtn("⤡", reset));
+  ctrls.append(mkBtn("zoom-in", "+", () => zoomCentre(1.4)),
+               mkBtn("zoom-out", "−", () => zoomCentre(1 / 1.4)),
+               mkBtn("zoom-reset", "⤡", reset));
   container.appendChild(ctrls);
 
   return {
@@ -122,6 +172,10 @@ export function attachZoomPan(
     scale() { return base.w / cur.w; },
     destroy() {
       endDrag(); // tear down any in-progress drag's window listeners
+      active.clear(); pinch = null;
+      svg.removeEventListener("pointermove", onSvgMove);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onUp);
       svg.removeEventListener("wheel", onWheel);
       svg.removeEventListener("pointerdown", onDown);
       svg.removeEventListener("click", onClickCapture, true);
