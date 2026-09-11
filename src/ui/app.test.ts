@@ -1051,6 +1051,29 @@ describe("a window too narrow to carry the map's furniture", () => {
     expect(root.querySelector(".legend-sheet .legend") === null, "a wide plate should not need a sheet").toBe(true);
   });
 
+  // ⚠ `.map-frame` is the anchor for everything that FLOATS over the map: the zoom controls sit at
+  // its bottom-right, the focus button at its top-right, the key's chip at its bottom-left. Anything
+  // put INSIDE it grows the box those are measured from. The key's fold went in there first, and on
+  // a live 375px phone it pushed the zoom controls 104px below the map, onto the key itself.
+  it("keeps the key's fold outside the frame the map's floating controls hang off", () => {
+    stubWidth(true);
+    const root = document.createElement("div");
+    createApp(root, small);
+    expect(root.querySelector(".legend-fold") !== null, "no key fold at all").toBe(true);
+    expect(root.querySelector(".map-frame .legend-fold") === null,
+           "the fold is inside the frame; it will push the zoom controls off the map").toBe(true);
+  });
+
+  it("keeps the plate's key fold outside its frame too", () => {
+    stubWidth(true);
+    const root = document.createElement("div");
+    const app = createApp(root, small);
+    app.openCity(0);
+    expect(root.querySelector(".legend-fold") !== null, "no key fold on the plate").toBe(true);
+    expect(root.querySelector(".map-frame .legend-fold") === null,
+           "the plate's fold is inside its frame; the zoom controls will follow it down").toBe(true);
+  });
+
   it("leaves a wide window exactly as it was: key on the map, panels open, heads standing down", () => {
     stubWidth(false);
     const root = document.createElement("div");

@@ -471,9 +471,18 @@ svg.world .legend { pointer-events: none; }
   .map-with-list { grid-template-columns: minmax(0, 1fr); }
   /* Stacked: the list no longer sits beside the map, so it has no height to follow — and no cap
      either. A scrolling box inside a scrolling page is the worst thing a finger can meet, and the
-     length it was capping is what the fold is for. */
-  .city-list { height: auto; min-height: 0; max-height: none; overflow: visible; }
-  .legend-fold { display: block; margin-top: 8px; }
+     length it was capping is what the fold is for.
+     It also stops being a PANEL. Beside the map it was a parchment box with a 10px inset; under the
+     map it is one of three sections in a stack, and that inset started its head 10px right of the
+     other two and ran it 16px short of them — measured on the live page. The three read as one
+     stack now: same edges, a hairline between them, no box. */
+  .city-list {
+    height: auto; min-height: 0; max-height: none; overflow: visible;
+    padding: 0; background: none; border: 0; border-radius: 0;
+  }
+  .fold { border-top: 1px solid #d8c9a3; padding-top: 4px; }
+  .fold + .fold, .legend-fold { margin-top: 0; }
+  .legend-fold { display: block; }
   .legend-toggle { display: none; }  /* the fold's head is the key's control here */
   /* The plate's key has left it too, so the 108-unit strip it lived in is down to the compass's
      own width (COMPASS_STRIP in svgCityRenderer.ts): the plate is 460 + 34 = 494 units across

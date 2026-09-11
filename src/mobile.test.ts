@@ -125,3 +125,17 @@ describe("the plate's cap agrees with the plate's geometry", () => {
     expect(css.slice(0, i), `a wide plate is ${widePlate} units wide`).toContain(`${widePlate} / ${bounds}`);
   });
 });
+
+// Three sections in a stack have to read as one stack. The town list arrived from being a PANEL
+// beside the map — parchment box, 10px inset — and kept it when it stacked, so on the live page its
+// head started at x=37 against the other two at x=27 and ran 305px against their 321px.
+describe("the sections under a narrow map line up", () => {
+  it("strips the town list's panel where it is no longer a panel", () => {
+    const css = read("src/theme.css");
+    const i = css.indexOf("@media (max-width: 900px)");
+    const block = css.slice(i, css.indexOf("\n}", i));
+    const rule = block.slice(block.indexOf(".city-list {"), block.indexOf("}", block.indexOf(".city-list {")));
+    expect(rule, "the list keeps an inset the other two sections do not have").toMatch(/padding:\s*0/);
+    expect(rule, "the list keeps a box the other two sections do not have").toMatch(/background:\s*none/);
+  });
+});

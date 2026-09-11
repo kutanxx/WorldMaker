@@ -379,7 +379,12 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     const setLegend = (on: boolean) => { syncLegend(on); writeLegendPref(on); };
     syncLegend(legendOn);
     legendBtn.addEventListener("click", () => setLegend(frame.classList.contains("legend-off")));
-    frame.append(legendBtn, legendFold.section);
+    frame.appendChild(legendBtn);
+    // ⚠ The fold goes BESIDE the frame, never inside it. `.map-frame` is what the zoom controls,
+    // the focus button and the chip are absolutely positioned against, so anything added inside it
+    // grows the box they are measured from: with the fold in there, a live phone put the zoom
+    // controls 104px BELOW the map, floating over the key instead of over the drawing.
+    // (A wide window hides `.legend-fold`, and a display:none grid child takes no column.)
 
     addFocusToggle(frame);
 
@@ -430,7 +435,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
 
     const withList = document.createElement("div");
     withList.className = "map-with-list";
-    withList.append(frame, list);
+    withList.append(frame, legendFold.section, list);
     stage.appendChild(withList);
     cityZoom?.destroy(); cityZoom = null;
     worldZoom?.destroy();
@@ -655,7 +660,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     near.appendChild(nearList);
     panel.appendChild(near);
 
-    stage.append(back, panel, frame);
+    stage.append(back, panel, frame, keyFold.section);   // beside the frame, never inside it
     worldZoom?.destroy(); worldZoom = null;
     cityZoom?.destroy();
     // the ward names hold their size here for the same reason the world's names do
