@@ -114,6 +114,15 @@ a.home:hover { background: #e7cf9c; }
 /* The map's key, folded away by default. Hiding it on screen cannot reach the export: that builds
    its own SVG and carries no stylesheet, so a downloaded map always has its key. */
 .map-frame.legend-off svg .legend { display: none; }
+/* One control standing for the rest of the toolbar on a narrow window. Wide windows have room for
+   all twelve and never show this. */
+.more-toggle {
+  display: none;
+  padding: 5px 10px; font: inherit; font-size: 14px; line-height: 1.4;
+  background: #f3ead2; border: 1px solid #b7a071; border-radius: 4px; color: #3c2f1c; cursor: pointer;
+}
+.more-toggle:hover { background: #e7d9b6; }
+.controls.more-open .more-toggle { background: #e7d9b6; }
 .legend-toggle {
   position: absolute; left: 14px; bottom: 14px; z-index: 5;
   padding: 4px 10px; font-size: 12px; letter-spacing: .04em; line-height: 1.4;
@@ -484,6 +493,12 @@ svg.world .legend { pointer-events: none; }
   .fold + .fold, .legend-fold { margin-top: 0; }
   .legend-fold { display: block; }
   .legend-toggle { display: none; }  /* the fold's head is the key's control here */
+  /* The toolbar folds the way the panels do. Measured before this: title + toolbar 236px of an
+     812px screen, over a 225px map — four rows, one of which held the language toggle alone. */
+  .more-toggle { display: inline-flex; }
+  .controls:not(.more-open) .secondary { display: none; }
+  /* and a plate is not the world map: these two act on a map that is not on screen */
+  .controls.plate .world-only { display: none; }
   /* The plate's key has left it too, so the 108-unit strip it lived in is down to the compass's
      own width (COMPASS_STRIP in svgCityRenderer.ts): the plate is 460 + 34 = 494 units across
      here, not 568, and the cap that keeps a whole plan on screen has to say so or it lets the

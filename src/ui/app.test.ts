@@ -1097,6 +1097,58 @@ describe("a window too narrow to carry the map's furniture", () => {
     expect(order).toEqual(["map-frame", "city-list", "timeline", "chronicle-fold"]);
   });
 
+  // Measured on a live phone: the title and toolbar came to 236px of an 812px screen — 29%, on a
+  // map 225px tall. The controls outweighed the thing they control. The toolbar gets the treatment
+  // the panels got: what a phone actually uses stays out, the rest folds behind one control.
+  it("keeps only the phone's own actions out, and folds the rest behind one control", () => {
+    stubWidth(true);
+    const root = document.createElement("div");
+    createApp(root, small);
+    const controls = root.querySelector(".controls")!;
+    const more = controls.querySelector(".more-toggle") as HTMLButtonElement;
+    expect(more, "nothing to unfold the rest of the toolbar with").not.toBeNull();
+    // the three that stay: home, a new world, and which map you are looking at
+    for (const stays of [".home", ".random-seed", ".view-toggle"]) {
+      expect(controls.querySelector(`${stays}.secondary`) === null, `${stays} was folded away`).toBe(true);
+    }
+    // and the ones a phone can do least with
+    for (const folds of [".seed-group", ".export-group", ".gazetteer", ".lang-toggle"]) {
+      expect(controls.querySelector(`${folds}.secondary`) !== null, `${folds} is not foldable`).toBe(true);
+    }
+  });
+
+  it("unfolds and refolds the rest of the toolbar", () => {
+    stubWidth(true);
+    const root = document.createElement("div");
+    createApp(root, small);
+    const controls = root.querySelector(".controls")!;
+    const more = controls.querySelector(".more-toggle") as HTMLButtonElement;
+    expect(controls.classList.contains("more-open")).toBe(false);
+    expect(more.getAttribute("aria-expanded")).toBe("false");
+    more.click();
+    expect(controls.classList.contains("more-open")).toBe(true);
+    expect(more.getAttribute("aria-expanded")).toBe("true");
+    more.click();
+    expect(controls.classList.contains("more-open")).toBe(false);
+  });
+
+  // A plate is not the world map: the view toggles switch a map that is not on screen, and the seed
+  // box builds a world you would be leaving the plate to see.
+  it("marks the world-only controls, and says which screen is showing", () => {
+    stubWidth(true);
+    const root = document.createElement("div");
+    const app = createApp(root, small);
+    const controls = root.querySelector(".controls")!;
+    expect(controls.classList.contains("plate"), "the world map is flagged as a plate").toBe(false);
+    app.openCity(0);
+    expect(controls.classList.contains("plate"), "the plate is not flagged").toBe(true);
+    for (const worldOnly of [".view-toggle", ".seed-group"]) {
+      expect(controls.querySelector(`${worldOnly}.world-only`) !== null, `${worldOnly} is not marked world-only`).toBe(true);
+    }
+    app.showWorld();
+    expect(controls.classList.contains("plate")).toBe(false);
+  });
+
   it("leaves a wide window exactly as it was: key on the map, panels open, heads standing down", () => {
     stubWidth(false);
     const root = document.createElement("div");

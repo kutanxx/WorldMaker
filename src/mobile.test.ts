@@ -139,3 +139,25 @@ describe("the sections under a narrow map line up", () => {
     expect(rule, "the list keeps a box the other two sections do not have").toMatch(/background:\s*none/);
   });
 });
+
+// The toolbar was the biggest thing on the phone's first screen: title + controls 236px of 812,
+// over a map 225px tall, in four rows — one of them holding the language toggle by itself.
+describe("a narrow window folds the toolbar too", () => {
+  const narrowBlock = () => {
+    const css = read("src/theme.css");
+    const i = css.indexOf("@media (max-width: 900px)");
+    return css.slice(i, css.indexOf("\n}", i));
+  };
+  it("shows the one control that stands for the rest, and only there", () => {
+    const css = read("src/theme.css");
+    const own = css.slice(css.indexOf(".more-toggle {"), css.indexOf("}", css.indexOf(".more-toggle {")));
+    expect(own, "the control is visible on wide windows too").toMatch(/display:\s*none/);
+    expect(narrowBlock()).toContain(".more-toggle { display: inline-flex");
+  });
+  it("folds what a phone can do least with, until it is asked", () => {
+    expect(narrowBlock()).toContain(".controls:not(.more-open) .secondary { display: none");
+  });
+  it("drops the world map's own controls on a city plate", () => {
+    expect(narrowBlock()).toContain(".controls.plate .world-only { display: none");
+  });
+});

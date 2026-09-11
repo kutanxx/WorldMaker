@@ -149,11 +149,42 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
   // Ordered by what a reader is doing, in three zones the CSS separates by space rather than by
   // size: make a world, look at it, take it away. The language toggle and the home link are
   // furniture and sit at the two ends.
-  controls.append(homeBtn, seedGroup, randomBtn, viewToggle, exportGroup, gazBtn, langBtn);
+  /**
+   * What a phone keeps out, and what folds away behind one control.
+   *
+   * Measured on a live 375x812 phone: the title and the toolbar came to 236px — 29% of the screen,
+   * above a map 225px tall. The controls outweighed the thing they control. So the toolbar gets the
+   * treatment the panels under the map got. What stays out is what a phone actually does here: go
+   * home, roll a new world, and choose which map you are looking at. What folds is what a phone can
+   * do least with — a numeric seed box that summons a number pad, three file downloads and a
+   * markdown one, and a language toggle you set once.
+   *
+   * `world-only` is a second axis, not a smaller one: on a city plate the view toggles switch a map
+   * that is not on screen and the seed box builds a world you would be leaving the plate to see.
+   * Both stay on a wide window, where there is room and they read as a way back.
+   */
+  seedGroup.classList.add("secondary", "world-only");
+  viewToggle.classList.add("world-only");
+  exportGroup.classList.add("secondary");
+  gazBtn.classList.add("secondary");
+  langBtn.classList.add("secondary");
+  const moreBtn = document.createElement("button");
+  moreBtn.type = "button";
+  moreBtn.className = "more-toggle";
+  const syncMore = (on: boolean) => {
+    controls.classList.toggle("more-open", on);
+    moreBtn.setAttribute("aria-expanded", String(on));
+    moreBtn.title = t(lang, on ? "moreHide" : "moreShow");
+  };
+  moreBtn.addEventListener("click", () => syncMore(!controls.classList.contains("more-open")));
+  controls.append(homeBtn, seedGroup, randomBtn, viewToggle, exportGroup, gazBtn, langBtn, moreBtn);
+  syncMore(false);
   root.appendChild(advanced);
 
   // set every UI string from the current language (called on init and on language toggle)
   function applyLang(): void {
+    moreBtn.textContent = t(lang, "moreToggle");
+    moreBtn.title = t(lang, controls.classList.contains("more-open") ? "moreHide" : "moreShow");
     // the document's own language, which is what a screen reader and a translation tool go by:
     // map.html declares lang="ko" and it used to stay that way whatever the toggle said
     document.documentElement.lang = lang;
@@ -321,6 +352,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
 
   function showWorld(): void {
     openCityId = null;
+    controls.classList.remove("plate");
     timeline?.destroy();
     stage.innerHTML = "";
     terrainBtn.classList.toggle("active", currentView === "terrain");
@@ -568,6 +600,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     const marker = generated.world.cities.find((c) => c.id === cityId);
     if (!marker) return;
     openCityId = cityId;
+    controls.classList.add("plate");
     dropWidthWatch?.();   // the world screen's sections are about to be thrown away
     const url = "#" + worldHash() + "&city=" + cityId;
     if (record === "push") window.history.pushState({ city: cityId }, "", url);
