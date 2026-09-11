@@ -63,7 +63,7 @@ export function renderChooser(root: HTMLElement, storage?: StorageLike | null, n
     </div>
     <div class="landing-preview" hidden></div>
     <div class="landing">
-      <a class="choice-card" href="map.html">
+      <a class="choice-card primary" href="map.html">
         <div class="choice-icon">🗺</div>
         <div class="choice-title">${esc(s("landingCardTitle"))}</div>
         <p class="choice-desc">${esc(s("landingCardDesc"))}</p>

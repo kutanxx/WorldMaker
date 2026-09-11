@@ -217,3 +217,13 @@ describe("the plate's facts read as facts", () => {
     expect(between / within, `${between}px between facts against ${within}px within one`).toBeGreaterThanOrEqual(5);
   });
 });
+
+// Measured on a phone: every block on the landing started at x=16 except the name row, which ran
+// 0..375 — the one element on the page with no gutter.
+describe("the landing's rows share one left edge", () => {
+  it("gives the name row the gutter every other block has", () => {
+    const css = read("src/theme.css");
+    const rule = css.slice(css.indexOf(".landing-name {"), css.indexOf("}", css.indexOf(".landing-name {")));
+    expect(rule, "the name row is still full-bleed on a narrow screen").toMatch(/padding:\s*0 16px/);
+  });
+});

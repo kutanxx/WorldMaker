@@ -333,13 +333,33 @@ svg.world.lang-en .nation-label { font-variant: small-caps; letter-spacing: 0.10
   padding: 14px 16px 13px; color: #2a2118; box-shadow: 0 1px 4px rgba(60,47,28,.15);
   transition: transform .12s, background .12s, box-shadow .12s;
 }
+/* The one primary on this page, the same ink ㉕ gave the die in the map's toolbar (#7a5a2f on
+   #f6efdd, contrast 5.50, no new colour). It is not the biggest thing here — today's world is, at
+   620x435 against this card's 414x156 — so the hierarchy was inverted: the largest, first object on
+   the page opened ONE fixed world while the action that always yields a world you have not seen sat
+   under it. Size belongs to the map, which is what the site is for; the FILL settles which action
+   is the main one. */
+.choice-card.primary { background: #7a5a2f; border-color: #5f4522; border-top-color: #d8b25a; color: #f6efdd; }
+.choice-card.primary .choice-title { color: #f6efdd; }
+/* #e6d9bb was the first try and measured 4.51 on this fill — over AA by 0.01, which is not a margin.
+   #efe7d2 is already in the palette (the free-city banner) and measures 5.11, still a step under the
+   title's 5.50 so the card keeps its own hierarchy. This project has been here before: #8a7a60 rode
+   at 3.64 until it was measured. */
+.choice-card.primary .choice-desc { color: #efe7d2; }
+.choice-card.primary:hover { background: #6b4e28; box-shadow: 0 4px 14px rgba(60,47,28,.30); transform: translateY(-3px); }
 .choice-card:hover { background: #efe6cf; box-shadow: 0 4px 14px rgba(60,47,28,.24); transform: translateY(-3px); }
+/* ...and the other two ways in give up the fill they shared with it, keeping their outline. Three
+   controls in one coat is what ㉕ measured in the toolbar; this is the same drift on the front page. */
+.name-map, .name-daily { background: none; }
+.name-map:hover, .name-daily:hover { background: #efe6cf; }
 .choice-icon { font-size: 40px; line-height: 1; margin-bottom: 10px; }
 .choice-title { font-family: 'Cinzel', serif; font-weight: 600; font-size: 18px; margin: 0 0 4px; color: #3c2f1c; letter-spacing: .03em; }
 .choice-desc { font-size: 14px; line-height: 1.55; margin: 0; color: #4a3f2c; }
 
 /* landing: start-from-a-name row */
-.landing-name { display: flex; gap: 8px; justify-content: center; margin: 18px auto 0; max-width: 560px; }
+/* ⚠ The padding is not decoration: without it this row was the ONE block on the page with no
+   gutter — measured on a phone, every other block started at x=16 and this one ran 0..375. */
+.landing-name { display: flex; gap: 8px; justify-content: center; margin: 18px auto 0; max-width: 560px; padding: 0 16px; }
 .landing-name .name-seed { flex: 1; padding: 7px 12px; border: 1px solid #c9bb96; border-radius: 6px; background: #f7f1e1; font-size: 14px; }
 /* Today's world, drawn on the front page. The front page of a map generator showed no map; this
    one is not decoration but the very world the daily button opens, so it is a link and it is
@@ -352,7 +372,11 @@ svg.world.lang-en .nation-label { font-variant: small-caps; letter-spacing: 0.10
    in a band of cream. 620px wide is a 1000x700 map at 434 tall, which leaves the card and both
    buttons above the fold. */
 .landing-preview { max-width: 620px; margin: 14px auto 0; padding: 0 16px; }
+/* `color: inherit` because this is an <a>: it was carrying the browser's default link blue
+   (measured rgb(0,0,238)). Nothing shows it today — the link holds only an SVG — but the moment a
+   word lands inside it would arrive in a colour this atlas does not own. */
 .landing-preview-link {
+  color: inherit;
   display: block; border: 1px solid #cbb784; border-radius: 6px; overflow: hidden;
   background: #f6efdd; box-shadow: 0 1px 4px rgba(60,47,28,.15);
   animation: wm-preview-in .5s ease-out both;

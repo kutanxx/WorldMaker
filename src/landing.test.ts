@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
 import { redirectTarget, renderChooser, previewParams, previewTitle, fillPreview } from "./landing";
 import { dailyTarget } from "./ui/daily";
 import { initialSeedName } from "./ui/urlState";
@@ -217,5 +218,75 @@ describe("the landing shows today's world, and shows the one it links to", () =>
     const cap = root.querySelector(".landing-preview-cap")!;
     expect(cap.textContent).toMatch(/[가-힣]/);
     expect(cap.textContent).not.toMatch(/[A-Za-z]/);
+  });
+});
+
+// ㉕ found the map's toolbar wearing one coat: eight controls all on #f3ead2 with a #b7a071 border
+// at weight 400, so nothing said which one to press. The landing had the same drift, and worse — the
+// hierarchy was INVERTED. Measured at 1440x900: the biggest, first thing on the page (620x435) is a
+// link to ONE fixed world, while the action that always yields a world you have not seen is a card
+// below it, and today's world had TWO ways in (the picture and the button) against that card's one.
+describe("the landing says which way in is the main one", () => {
+  const chooser = () => {
+    const root = document.createElement("div");
+    renderChooser(root, { getItem: () => null, setItem: () => {} } as unknown as Storage, "ko");
+    return root;
+  };
+
+  it("has exactly one primary way in, and it is the one that always makes a new world", () => {
+    const root = chooser();
+    const primary = [...root.querySelectorAll(".primary")];
+    expect(primary.length, `primary: ${primary.map((p) => p.className).join(", ")}`).toBe(1);
+    expect(primary[0].classList.contains("choice-card"),
+      "the primary is not the card that makes a world").toBe(true);
+  });
+
+  // The other two are still ways in, so they keep their outline — they just stop wearing the fill
+  // that now means "this is the one".
+  it("leaves the other two ways in as ways in, not as rivals", () => {
+    const root = chooser();
+    for (const cls of [".name-map", ".name-daily"]) {
+      const el = root.querySelector(cls);
+      expect(el, `${cls} is gone`).not.toBeNull();
+      expect(el!.classList.contains("primary"), `${cls} is dressed as the primary too`).toBe(false);
+    }
+  });
+});
+
+// The card's fill is dark, so everything written on it has to be re-measured — this project once
+// shipped #8a7a60 at 3.64 against parchment and only found out by measuring. Computed here rather
+// than eyeballed, so a later colour tweak cannot quietly drop under AA.
+describe("what is written on the primary card stays legible", () => {
+  const css = () => readFileSync("src/theme.css", "utf8");
+  const hex = (h: string) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+  const lum = (rgb: number[]) => {
+    const [r, g, b] = rgb.map((v) => { const c = v / 255; return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); });
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  };
+  const ratio = (a: string, b: string) => {
+    const [x, y] = [lum(hex(a)), lum(hex(b))].sort((p, q) => q - p);
+    return (x + 0.05) / (y + 0.05);
+  };
+  const colourOf = (rule: string, prop = "color") => {
+    const block = css().slice(css().indexOf(rule), css().indexOf("}", css().indexOf(rule)));
+    // no `\s` here on purpose: inside a template literal it collapses to a plain "s" and the
+    // pattern silently stops matching — which is exactly how this test first failed.
+    const at = block.toLowerCase().indexOf(prop + ":");
+    return /#[0-9a-f]{6}/i.exec(block.slice(at))![0];
+  };
+
+  it("keeps the card's title and its description over AA on the card's own fill", () => {
+    const fill = colourOf(".choice-card.primary {", "background");
+    for (const rule of [".choice-card.primary .choice-title", ".choice-card.primary .choice-desc"]) {
+      const r = ratio(colourOf(rule), fill);
+      expect(r, `${rule} measures ${r.toFixed(2)} on ${fill}`).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+
+  // ...and the description stays a step under the title, or the card has no hierarchy of its own.
+  it("keeps the description quieter than the title", () => {
+    const fill = colourOf(".choice-card.primary {", "background");
+    expect(ratio(colourOf(".choice-card.primary .choice-desc"), fill))
+      .toBeLessThan(ratio(colourOf(".choice-card.primary .choice-title"), fill));
   });
 });
