@@ -247,3 +247,43 @@ describe("the zoom controls are addressable", () => {
     z.destroy();
   });
 });
+
+// A narrow window hides `+` and `−` because two fingers do that job — but nothing here can prove a
+// given phone delivers two pointers through `touch-action: pan-y`. It does not have to be proved:
+// when the browser TAKES a gesture it tells us, by cancelling the pointers. If that ever happens
+// with two fingers down, pinch is not available on this device and the buttons come back.
+describe("the buttons come back if the browser takes the gesture", () => {
+  const down = (svg: SVGSVGElement, id: number, x: number, y: number) =>
+    svg.dispatchEvent(new PointerEvent("pointerdown", { button: 0, clientX: x, clientY: y, pointerId: id }));
+
+  it("says nothing while a pinch is working", () => {
+    const { svg, container } = makeSvg();
+    const z = attachZoomPan(svg, container);
+    down(svg, 1, 40, 50); down(svg, 2, 60, 50);
+    svg.dispatchEvent(new PointerEvent("pointermove", { clientX: 30, clientY: 50, pointerId: 1 }));
+    window.dispatchEvent(new PointerEvent("pointerup", { clientX: 30, clientY: 50, pointerId: 1 }));
+    window.dispatchEvent(new PointerEvent("pointerup", { clientX: 60, clientY: 50, pointerId: 2 }));
+    expect(container.querySelector(".map-zoom-controls.pinch-unavailable")).toBeNull();
+    z.destroy();
+  });
+
+  it("brings them back when a two-finger gesture is cancelled out from under it", () => {
+    const { svg, container } = makeSvg();
+    const z = attachZoomPan(svg, container);
+    down(svg, 1, 40, 50); down(svg, 2, 60, 50);
+    window.dispatchEvent(new PointerEvent("pointercancel", { clientX: 40, clientY: 50, pointerId: 1 }));
+    expect(container.querySelector(".map-zoom-controls.pinch-unavailable")).not.toBeNull();
+    z.destroy();
+  });
+
+  // A one-finger gesture being taken for a scroll is the NORMAL case under `pan-y` — it says
+  // nothing about whether two fingers would have got through.
+  it("ignores a one-finger gesture being taken for a scroll", () => {
+    const { svg, container } = makeSvg();
+    const z = attachZoomPan(svg, container);
+    down(svg, 1, 40, 50);
+    window.dispatchEvent(new PointerEvent("pointercancel", { clientX: 40, clientY: 50, pointerId: 1 }));
+    expect(container.querySelector(".map-zoom-controls.pinch-unavailable")).toBeNull();
+    z.destroy();
+  });
+});

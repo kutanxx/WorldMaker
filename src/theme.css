@@ -502,6 +502,10 @@ svg.world .legend { pointer-events: none; }
   /* Two fingers do this now (see zoomPan), and the three buttons covered 19% of a 321px map. The
      reset stays: a pinch can leave you somewhere you cannot pinch your way back from. */
   .map-zoom-controls .zoom-in, .map-zoom-controls .zoom-out { display: none; }
+  /* ...unless this browser took a two-finger gesture away from us, in which case pinch is not
+     available here and these are the only way to zoom (set in zoomPan on a two-pointer cancel). */
+  .map-zoom-controls.pinch-unavailable .zoom-in,
+  .map-zoom-controls.pinch-unavailable .zoom-out { display: block; }
   /* The plate's key has left it too, so the 108-unit strip it lived in is down to the compass's
      own width (COMPASS_STRIP in svgCityRenderer.ts): the plate is 460 + 34 = 494 units across
      here, not 568, and the cap that keeps a whole plan on screen has to say so or it lets the

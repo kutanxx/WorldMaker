@@ -83,6 +83,10 @@ export function attachZoomPan(
   // ⚠ `touch-action` stays `pan-y` at base scale (see syncTouchAction): the page must still scroll
   // when a finger drags the map, because on a phone the map is 225px of an 812px page. A pinch is
   // not a behaviour `pan-y` permits the browser to take, so both pointers reach us.
+  // built here rather than beside its buttons: `onUp` has to be able to reach it (see the cancel
+  // note there), and the buttons below need `setScale`, which needs the state above.
+  const ctrls = document.createElement("div");
+  ctrls.className = "map-zoom-controls";
   const active = new Map<number, { x: number; y: number }>();
   let pinch: { dist: number; scale: number; ux: number; uy: number } | null = null;
   const spread = (): number => {
@@ -105,6 +109,12 @@ export function attachZoomPan(
     setScale(pinch.scale * (spread() / pinch.dist), pinch.ux, pinch.uy);
   };
   const onUp = (e: PointerEvent) => {
+    // ⚠ The one thing no test on this machine can settle: whether a given phone delivers two
+    // pointers through `touch-action: pan-y`. It does not have to be settled — when the browser
+    // TAKES a gesture it says so, by cancelling the pointers. If that happens with two fingers
+    // down, pinch is not available here and the buttons a narrow window hid come back.
+    // (A ONE-finger cancel is the normal `pan-y` scroll and says nothing about two.)
+    if (e.type === "pointercancel" && active.size >= 2) ctrls.classList.add("pinch-unavailable");
     active.delete(e.pointerId);
     // One finger left of a pinch must not carry on as a drag: the map would leap under it.
     if (active.size < 2) pinch = null;
@@ -148,8 +158,7 @@ export function attachZoomPan(
   }
   apply(); // normalizes the attribute and sets the initial touch-action either way
 
-  const ctrls = document.createElement("div");
-  ctrls.className = "map-zoom-controls";
+
   // Named, because a narrow window hides two of the three: with pinch working, `+` and `−` are a
   // desktop's way of doing what two fingers already do, and the three of them covered 19% of the
   // map on a phone. The reset stays — a pinch can leave you somewhere you cannot pinch back from.

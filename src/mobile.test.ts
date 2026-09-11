@@ -174,3 +174,18 @@ describe("a narrow map keeps the zoom out of the drawing", () => {
     expect(block, "the reset went with them").not.toContain(".zoom-reset { display: none");
   });
 });
+
+// Nothing on a developer machine can prove a phone delivers two pointers through `touch-action:
+// pan-y`, so the stylesheet does not assume it: zoomPan marks the controls when the browser takes
+// a two-finger gesture away, and the buttons two fingers replaced come back.
+describe("hiding the zoom buttons is not a dead end", () => {
+  it("brings them back when pinch turns out to be unavailable", () => {
+    const css = read("src/theme.css");
+    const i = css.indexOf("@media (max-width: 900px)");
+    const block = css.slice(i, css.indexOf("\n}", i));
+    expect(block).toContain(".map-zoom-controls.pinch-unavailable .zoom-in");
+    expect(block).toContain(".map-zoom-controls.pinch-unavailable .zoom-out");
+    // and the class has to be one zoomPan actually sets
+    expect(read("src/ui/zoomPan.ts")).toContain('classList.add("pinch-unavailable")');
+  });
+});
