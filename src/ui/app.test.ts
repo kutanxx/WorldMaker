@@ -1074,6 +1074,29 @@ describe("a window too narrow to carry the map's furniture", () => {
            "the plate's fold is inside its frame; the zoom controls will follow it down").toBe(true);
   });
 
+  // The scrubber moves the map, so on a narrow screen it belongs under the map — not stranded
+  // between the town list and the chronicle, which is where stacking the sections had left it.
+  it("puts the scrubber under the map, above the folding sections", () => {
+    stubWidth(true);
+    const root = document.createElement("div");
+    createApp(root, small);
+    // ⚠ `.map-frame` is ALSO an SVG <g> the renderer draws, so ask for the HTML boxes by tag.
+    const order = [...root.querySelectorAll("div.map-frame, div.timeline, section.legend-fold, section.city-list, section.chronicle-fold")]
+      .map((el) => (el.getAttribute("class") ?? "").split(" ")
+        .find((c) => /^(map-frame|timeline|legend-fold|city-list|chronicle-fold)$/.test(c)));
+    expect(order).toEqual(["map-frame", "timeline", "legend-fold", "city-list", "chronicle-fold"]);
+  });
+
+  it("leaves the scrubber where it was on a wide window", () => {
+    stubWidth(false);
+    const root = document.createElement("div");
+    createApp(root, small);
+    const order = [...root.querySelectorAll("div.map-frame, div.timeline, section.city-list, section.chronicle-fold")]
+      .map((el) => (el.getAttribute("class") ?? "").split(" ")
+        .find((c) => /^(map-frame|timeline|city-list|chronicle-fold)$/.test(c)));
+    expect(order).toEqual(["map-frame", "city-list", "timeline", "chronicle-fold"]);
+  });
+
   it("leaves a wide window exactly as it was: key on the map, panels open, heads standing down", () => {
     stubWidth(false);
     const root = document.createElement("div");

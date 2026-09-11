@@ -492,6 +492,16 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
       listFold.setFoldable(n);
       chronicleFold.setFoldable(n);
       placeLegend(svg, sheet, n);
+      // The scrubber moves the MAP, so under a narrow window it goes directly under the drawing.
+      // Stacking the sections had left it between the town list and the chronicle — the one control
+      // the map cannot be read without, stranded in the middle of three things that annotate it.
+      // Moved rather than re-laid-out: at a wide width it is a full-stage row under everything, and
+      // CSS cannot put it in two different parents.
+      const strip = timeline?.element;
+      if (strip) {
+        if (n) withList.insertBefore(strip, legendFold.section);
+        else stage.insertBefore(strip, chronicleFold.section);
+      }
     };
     // ⚠ One listener, dropped when this screen goes. Hanging one off each frame leaked a listener
     // on every regenerate and every trip to a city plate and back — the same trap the Escape
