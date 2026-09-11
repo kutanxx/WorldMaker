@@ -189,3 +189,31 @@ describe("hiding the zoom buttons is not a dead end", () => {
     expect(read("src/ui/zoomPan.ts")).toContain('classList.add("pinch-unavailable")');
   });
 });
+
+// The plate's fact strip read as one grey ribbon. Measured live: the gap that JOINS a label to its
+// answer is 7px and the gap that SEPARATES two facts is 22px — at 13px type that is 1.7 characters
+// of difference, and on a phone the strip wraps with a ragged second column (27 / 176 / 219), so it
+// reads as a sentence rather than a table.
+describe("the plate's facts read as facts", () => {
+  const css = () => read("src/theme.css");
+  it("lays them out as an aligned two-column list on a narrow window", () => {
+    const i = css().indexOf("@media (max-width: 900px)");
+    const block = css().slice(i, css().indexOf("\n}", i));
+    expect(block).toMatch(/\.city-facts\s*\{[^}]*display:\s*grid/);
+    // `display: contents` is what puts each fact's label and answer into the SAME grid, which is
+    // the whole point: without it the columns cannot line up across rows.
+    expect(block).toMatch(/\.city-fact\s*\{[^}]*display:\s*contents/);
+  });
+
+  // The ratio is the fix on a wide window: the strip is one row there, and what tells two facts
+  // apart is the difference between 7px and 22px.
+  it("separates two facts by much more than it joins a label to its answer", () => {
+    const c = css();
+    const strip = c.slice(c.indexOf(".city-facts {"), c.indexOf("}", c.indexOf(".city-facts {")));
+    const between = Number(/gap:\s*\d+px\s+(\d+)px/.exec(strip)?.[1]);
+    const pair = c.slice(c.indexOf(".city-fact {"), c.indexOf("}", c.indexOf(".city-fact {")));
+    const within = Number(/gap:\s*(\d+)px/.exec(pair)?.[1]);
+    expect(Number.isFinite(between) && Number.isFinite(within), "the two gaps are not both declared").toBe(true);
+    expect(between / within, `${between}px between facts against ${within}px within one`).toBeGreaterThanOrEqual(5);
+  });
+});

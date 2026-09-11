@@ -401,11 +401,18 @@ svg.world .legend { pointer-events: none; }
 
 /* What a plate can say about its town, and the way off it. The plan used to carry its name and
    nothing else, and the only exit was back to the world map to hunt for another four-pixel dot. */
+/* ⚠ What tells two facts apart here is nothing but the difference between two gaps. Measured on
+   the live page it was 7px within a pair against 22px between them — at 13px type, 1.7 characters —
+   and five facts read as one grey ribbon. The ratio does the work now (4 against 26, so 6.5x), and
+   it costs no width: three pixels came off each pair to pay for four between them, net +1px.
+   ⚠ NOT solved with hairline rules between the facts, which was the first plan: the strip wraps on
+   ordinary window widths and a rule then hangs off the left edge of the wrapped row. There is no
+   stable width to gate that on either — where it wraps moves with the town's data and the language. */
 .city-facts {
-  max-width: 1008px; margin: 6px auto 0; display: flex; flex-wrap: wrap; gap: 6px 22px;
+  max-width: 1008px; margin: 6px auto 0; display: flex; flex-wrap: wrap; gap: 6px 26px;
   font-size: 13px; color: #42341f;
 }
-.city-fact { display: flex; align-items: baseline; gap: 7px; }
+.city-fact { display: flex; align-items: baseline; gap: 4px; }
 /* #8a7a60 read at 3.64:1 on the parchment — under the 4.5 AA asks of text this size, and these are
    the smallest words on the page. #6b5d42 is already in the palette (the advanced dials use it) and
    measures 5.60, so the muted register is kept without the legibility cost. */
@@ -511,6 +518,13 @@ svg.world .legend { pointer-events: none; }
      here, not 568, and the cap that keeps a whole plan on screen has to say so or it lets the
      plate run 15% past the fold. mobile.test.ts holds these two numbers together. */
   .stage svg.city { max-width: min(100%, calc((100vh - 230px) * 494 / 460)); }
+  /* A narrow strip wraps, and wrapped it had a ragged second column — 27 / 176 / 219 — so the eye
+     had no column to follow and the whole thing read as one sentence. One fact per row, labels in
+     a column and answers in a column: a gazetteer entry. `display: contents` is what makes that
+     possible without touching the markup — it drops each fact's box so its label and its answer
+     become items of the SAME grid, which is the only way the columns line up ACROSS facts. */
+  .city-facts { display: grid; grid-template-columns: max-content 1fr; gap: 6px 12px; }
+  .city-fact { display: contents; }
 }
 @media (pointer: coarse) {
   .city-list-item { min-height: 36px; }
