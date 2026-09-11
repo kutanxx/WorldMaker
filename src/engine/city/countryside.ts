@@ -196,12 +196,23 @@ export function generateCountryside(rng: Rng, opts: CountrysideOpts): Countrysid
 
   // ring 2: great fields — 2-3 sectors anchored to road spines, furlong blocks of strips
   const fields: FieldPatch[] = [];
-  const sectors = roads.length >= 2 ? Math.min(3, roads.length) : roads.length;
+  // ⚠ The fields hang off the gate roads, so a town handed NO gate road used to get no fields at
+  // all — and no villages either, since those need a road too. One desert bridge town in twelve
+  // seeds came out that way (Valeum, seed 3): an oasis on a river with nothing growing on it, which
+  // is the one place a desert town certainly would farm. The gate roads going missing is a fault
+  // further up, in the plate; what this guards is that the countryside does not vanish with them.
+  // A single spine from the town's middle outward is enough for the placement below to hang plots
+  // on, and every plot it proposes is still rejected if it lands in the water or on the town.
+  const spines: Polyline[] = roads.length ? roads : [(() => {
+    const c = centroid(boundary);
+    return [c, [c[0], c[1] - Math.max(bounds.w, bounds.h) * 0.45]] as Polyline;
+  })()];
+  const sectors = spines.length >= 2 ? Math.min(3, spines.length) : spines.length;
   // three-field rotation: one whole sector lies fallow this year (grazed), the rest cropped.
   // Deserts irrigate rather than rotate, so nothing there lies fallow.
   const fallowSector = sectors >= 2 && !prof.dry ? Math.floor(rng() * sectors) : -1;
   for (let sIdx = 0; sIdx < sectors; sIdx++) {
-    const road = roads[sIdx % roads.length];
+    const road = spines[sIdx % spines.length];
     for (let tries = 0; tries < 200 && fields.length < Math.ceil((prof.fields * (sIdx + 1)) / Math.max(1, sectors)); tries++) {
       const t = 0.25 + rng() * 0.65;                    // along the road, clear of the gate
       const i = Math.min(road.length - 2, Math.floor(t * (road.length - 1)));

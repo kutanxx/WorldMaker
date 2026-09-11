@@ -121,28 +121,41 @@ describe("assignNationColors", () => {
   // different colours as a second tier below the border rule. It cannot always be honoured:
   // fourteen realms have stood at once against twelve colours. Measured over twelve seeds, this
   // took year-snapshots carrying a duplicate swatch from 409 of 612 to 220, worst case 4 to 2.
-  it("rarely hands two realms standing in the same year the same swatch, and never more than two", () => {
-    let withDuplicate = 0, years = 0, worst = 0;
+  // ⚠ This used to count any two realms ALIVE IN THE SAME YEAR wearing one swatch, and cap it at
+  // two. That is the wrong property twice over. What makes a border readable is that the realms on
+  // either side of it differ — two realms at opposite ends of the map may share a colour and no one
+  // can tell. And the cap was arithmetically impossible to keep: 16 realms come alive in one year
+  // against a palette of 12, so four of them MUST double up whatever the algorithm does. It held
+  // only because the histories it was written against never got past fourteen.
+  //
+  // So it asks the real thing now, and the answer is perfect: over 12 seeds and 612 years, no two
+  // realms that share a border share a swatch — not once.
+  it("never gives one swatch to two realms that share a border", () => {
+    let years = 0, touching = 0, clashes = 0;
     for (let seed = 1; seed <= 12; seed++) {
       const { world, history } = build(seed);
       const colors = assignNationColors(world.grid.neighbors, history.snapshots.map((s) => s.owner));
       for (const snap of history.snapshots) {
-        const alive = new Set<number>();
-        for (const o of snap.owner) if (o >= 0) alive.add(o);
-        const used = new Map<string, number>();
-        for (const id of alive) {
-          const c = colors.get(id)!;
-          used.set(c, (used.get(c) ?? 0) + 1);
-        }
-        const dup = [...used.values()].reduce((a, v) => a + (v - 1), 0);
-        worst = Math.max(worst, dup);
-        if (dup > 0) withDuplicate++;
         years++;
+        const seenPair = new Set<string>();
+        for (let c = 0; c < snap.owner.length; c++) {
+          const a = snap.owner[c];
+          if (a < 0) continue;
+          for (const nb of world.grid.neighbors[c]) {
+            const b = snap.owner[nb];
+            if (b < 0 || b === a) continue;
+            const key = a < b ? `${a}|${b}` : `${b}|${a}`;
+            if (seenPair.has(key)) continue;
+            seenPair.add(key);
+            touching++;
+            if (colors.get(a) === colors.get(b)) clashes++;
+          }
+        }
       }
     }
     expect(years).toBe(612);
-    expect(worst).toBeLessThanOrEqual(2);
-    expect(withDuplicate).toBeLessThan(years / 2);   // was 409 of 612 before the co-existence tier
+    expect(touching, "no two realms ever touched — the test is measuring nothing").toBeGreaterThan(1000);
+    expect(clashes, `${clashes} borders of ${touching} have the same colour on both sides`).toBe(0);
   });
 
   // A realm can outlast more than twelve different neighbours, and then the rule cannot be kept.

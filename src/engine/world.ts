@@ -96,11 +96,45 @@ export function generateWorld(params: WorldParams, nameOverride?: string): Gener
   for (let i = 0; i < grid.count; i++) {
     if (polityOf[i] >= 0 && i !== polities[polityOf[i]].capital) claimedLand.push(i);
   }
+  /**
+   * Towns stand on water. A uniform draw over the claimed land was indistinguishable from throwing
+   * darts, and the measurement said exactly that: the pool is 26.8% coastal and the towns came out
+   * 27% coastal. 67% of them sat on neither a coast nor a river, and three seeds in twelve had no
+   * river town at all — on a map whose towns exist because of drinking, carrying and defending.
+   *
+   * So the draw is weighted rather than filtered: a cell that touches water carries more of the
+   * weight. Filtering instead would put EVERY town on water, which is a different kind of lie — a
+   * map with no mining camp, no crossroads and no hill fort.
+   *
+   * ★ A river is worth more than a coast, and the measuring is what said so. Coastal cells outnumber
+   * river cells about three to one in the pool, so equal weights let the coast take nearly all of it
+   * and ONE SEED IN TWELVE still came out with no river town at all. Inland, a river is the only
+   * water there is. At 3 and 8, measured over 12 seeds x 20 towns: coast 39%, river 22%, both 8%,
+   * inland 31% — and no seed without a river town.
+   *
+   * ⚠ Exactly ONE rng draw per town, the same count `randInt` cost, because everything downstream —
+   * the history, the dynasties, the chronicle — is drawn from this same stream and would shift by a
+   * whole world if the count moved. That is also why this is not rejection sampling: a retry draws
+   * again. `names.ts` states the same rule for its own reason.
+   * ⚠ A cell appears once in the pool however heavily it is weighted, so two towns can never land on
+   * the same cell.
+   */
+  const COAST_PULL = 3, RIVER_PULL = 8;
+  const pullOf = (cell: number) => Math.max(isCoastal(cell) ? COAST_PULL : 1, riverCells.has(cell) ? RIVER_PULL : 1);
+  const weight = claimedLand.map(pullOf);
+  let weightLeft = weight.reduce((a, b) => a + b, 0);
   for (let t = 0; t < params.townCount && claimedLand.length > 0; t++) {
-    const idx = randInt(rng, 0, claimedLand.length - 1);
+    // one draw, walked into the weights: the same single rng() a uniform index cost
+    let r = rng() * weightLeft;
+    let idx = 0;
+    while (idx < claimedLand.length - 1 && r >= weight[idx]) { r -= weight[idx]; idx++; }
     const cell = claimedLand[idx];
-    claimedLand[idx] = claimedLand[claimedLand.length - 1];
+    weightLeft -= weight[idx];
+    const last = claimedLand.length - 1;
+    claimedLand[idx] = claimedLand[last];
+    weight[idx] = weight[last];
     claimedLand.pop();
+    weight.pop();
     cities.push({
       id: cityId++,
       cell,

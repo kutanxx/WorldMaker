@@ -884,20 +884,37 @@ describe("a coastal plate faces the way the world faces", () => {
     expect(worstDeg, `worst: ${worstName}`).toBeLessThan(25);
   });
 
-  it("keeps the harbour on the water side, which is now the world's water side", () => {
+  // ⚠ This used to measure the harbour's BEARING from the middle of the plate against the world's
+  // sea bearing, and that says nothing when the sea has taken a bite out of one side: every ward is
+  // then on the LAND side of it, so the ward nearest the water can sit a long way round the compass
+  // and still be the right ward. It passed for months and was hiding docks 111 and 144 units from
+  // the water on a 460-unit plate — the real question is not which way the harbour lies but whether
+  // it can reach the sea.
+  //
+  // A distribution, not a maximum: some towns have only three wards left after the civic landmarks
+  // take the innermost, and none of the three reaches the water. Those keep a landlocked harbour,
+  // which is a real defect and is written down as its own item rather than blessed here.
+  it("puts the docks on the water, for all but the towns that have no ward on it", () => {
+    const ds: number[] = [];
     for (let seed = 1; seed <= 8; seed++) {
       const world = generateWorld({ ...DEFAULT_PARAMS, seed }).world;
       for (const c of world.cities) {
         const l = generateCityLayout(cityContext(c), seed);
-        const harbour = l.wards.find((w) => w.type === "harbor");
-        if (!harbour || c.seaBearing === undefined) continue;
-        const hc = centroid(harbour.polygon);
-        const toHarbour = Math.atan2(hc[1] - l.bounds.h / 2, hc[0] - l.bounds.w / 2);
-        let d = Math.abs(toHarbour - c.seaBearing) % (Math.PI * 2);
-        if (d > Math.PI) d = Math.PI * 2 - d;
-        expect((d * 180) / Math.PI, `${c.name} (seed ${seed}) docks away from the sea`).toBeLessThan(75);
+        const h = l.wards.find((w) => w.type === "harbor");
+        if (!h || !l.water.bodies.length) continue;
+        const hc = centroid(h.polygon);
+        let d = Infinity;
+        for (const b of l.water.bodies) {
+          for (let i = 0; i < b.length; i++) d = Math.min(d, pointSegDist(hc, b[i], b[(i + 1) % b.length]));
+        }
+        ds.push(d);
       }
     }
+    ds.sort((a, b) => a - b);
+    expect(ds.length, "no harbour in eight seeds").toBeGreaterThan(20);
+    const median = ds[Math.floor(ds.length / 2)], p90 = ds[Math.floor(ds.length * 0.9)];
+    expect(median, `median dock stands ${median.toFixed(0)} units from the water`).toBeLessThan(35);
+    expect(p90, `p90 dock stands ${p90.toFixed(0)} units from the water`).toBeLessThan(70);
   });
 });
 

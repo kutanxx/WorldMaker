@@ -255,14 +255,25 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
     const mx = sx / cnt, my = sy / cnt;
     castleAnchor = [center[0] + (mx - center[0]) * 0.7, center[1] + (my - center[1]) * 0.7];
   }
-  // sea direction for harbor placement: the mean of the sea body's vertices points toward
-  // the coast, so the ward nearest it is the seaward one (docks belong on the water side).
+  // Sea direction for harbor placement: the ward nearest this point is the seaward one, because
+  // docks belong on the water side.
+  //
+  // ⚠ The AREA centroid, not the mean of the sea body's vertices. The shoreline is sampled with a
+  // couple of hundred points and the open-water edge with about four, so a vertex mean is dragged
+  // onto the beach and then slides along it — which put the harbour on the wrong side of the town
+  // entirely: measured 120 degrees from the sea on Aerael (seed 2) and 132 on Kukhauth (seed 6).
+  // `city.test.ts` had already written this down in its own comment and used the area centroid to
+  // MEASURE the sea's side, while the code that PLACES the harbour kept the vertex mean. The bug
+  // only surfaced when towns started standing on water more often and the sample of harbour towns
+  // grew; two of ninety were wrong before anyone looked.
   let seaAnchor: Point | undefined;
   if (ctx.coastal && water.kind === "sea" && water.bodies.length) {
-    const sea = water.bodies[0];
-    let sx = 0, sy = 0;
-    for (const p of sea) { sx += p[0]; sy += p[1]; }
-    seaAnchor = [sx / sea.length, sy / sea.length];
+    let ax = 0, ay = 0, aw = 0;
+    for (const b of water.bodies) {
+      const c = centroid(b), w = area(b);
+      ax += c[0] * w; ay += c[1] * w; aw += w;
+    }
+    if (aw > 0) seaAnchor = [ax / aw, ay / aw];
   }
   // the lord's castle sits AT the town wall (research: urban castle) unless a mountain
   // anchor already claims the high ground. Bias the wall pick away from the sea side.

@@ -145,9 +145,13 @@ describe("simulateHistory skeleton", () => {
       if (e.type === "newCity") { cities++; expect(e.name).toBeTruthy(); }
       if (e.type === "civilwar") { wars++; expect(e.intoIds!.length).toBeGreaterThanOrEqual(1); }
     }
-    expect(ports).toBe(3);    // seed 1: three free ports
-    expect(cities).toBe(20);  // twenty cities founded
-    expect(wars).toBe(3);     // three civil wars
+    // ⚠ These used to pin seed 1's exact tally (3 / 20 / 3). That pins the SIMULATION, not the
+    // thing this test is named for — whether an event carries the name a sentence cannot rebuild
+    // from an id — and it broke the moment the towns moved, for no reason this test cares about.
+    // What it needs is that each kind actually occurred, so the assertions in the loop ran.
+    expect(ports, "no free port in seed 1 — the loop above asserted nothing").toBeGreaterThan(0);
+    expect(cities, "no town founded in seed 1").toBeGreaterThan(5);
+    expect(wars, "no civil war in seed 1").toBeGreaterThan(0);
   });
 });
 
@@ -246,9 +250,21 @@ describe("simulateHistory golden anchor (behaviour lock)", () => {
     // 자샤인 where it used to read 자사인. `polities` folds `p.name`, the un-transliterated Latin
     // string, so it does not see the correction; that is the split that proves only the telling of
     // an already-correct world moved.
-    1: { snaps: 51, pols: 18, evs: 50, econ: 3, allSnap:  245822489, events: 2053291310, polities: 2494072566 },
-    2: { snaps: 51, pols: 19, evs: 49, econ: 3, allSnap: 4064983612, events: 1894625198, polities: 3237195845 },
-    3: { snaps: 51, pols: 17, evs: 43, econ: 3, allSnap: 4006220817, events: 3579332151, polities: 2334058053 },
+    // 2026-09-12 — THE SECOND ONE WHERE THE WORLD CHANGED, and the same licence as 2026-09-06
+    // applies: every field here moved, deliberately, because the TOWNS were meant to move.
+    // Measured before: the claimed land is 26.8% coastal and the towns came out 27% coastal —
+    // statistically a dart throw — with 67% of them on neither a coast nor a river and three seeds
+    // in twelve having no river town at all. Towns exist because of water. The draw is weighted now
+    // (see world.ts), and comes out coast 39% / river 22% / both 8% / inland 31%.
+    // ★ The land itself did NOT move, and that is the check that says this is the change it meant
+    // to be: world.test.ts's `polityOf` anchor reproduced byte-identical, so terrain, biomes,
+    // cultures, rivers and the realms' own ground are untouched. Only `cityCells` moved there — and
+    // then everything here, because the history simulates over the towns.
+    // The price, agreed before the change as it was in 2026-09-06: a shared seed link made before
+    // this draws the same coastline with its towns in different places.
+    1: { snaps: 51, pols: 19, evs: 48, econ: 3, allSnap: 3435865889, events:  510189622, polities:   81545155 },
+    2: { snaps: 51, pols: 16, evs: 43, econ: 3, allSnap:   47594362, events: 3427689247, polities:  861269822 },
+    3: { snaps: 51, pols: 17, evs: 44, econ: 3, allSnap: 3453699594, events:   56895769, polities: 1370081646 },
   };
   for (const seed of [1, 2, 3]) {
     it(`reproduces the pinned hashes for seed ${seed}`, () => {

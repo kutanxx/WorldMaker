@@ -264,9 +264,14 @@ describe("exported chronicle is byte-stable across the shared-assembler move", (
   //      a realm's name). Confirmed empirically: the full suite ran green with the wiring in place, on
   //      the first pass, with no pin in this file or `history.test.ts` touched.
   const pins: Record<number, { en: number; ko: number; lines: number }> = {
-    1: { en: 4144700973, ko: 1536594626, lines: 123 },
-    2: { en: 2256232225, ko: 2181530387, lines: 130 },
-    3: { en: 3521961453, ko: 1233108995, lines: 105 },
+    // 2026-09-12: re-pinned because the TOWNS moved, and the chronicle names towns. The land did
+    // not move — world.test.ts's `polityOf` anchor reproduced byte-identical — so this is the same
+    // licence the 2026-09-06 re-pin in history.test.ts claims: the world was meant to change here
+    // and nowhere else. Towns used to be thrown at the claimed land uniformly (the pool is 26.8%
+    // coastal and they came out 27% coastal) and are drawn toward water now. See world.ts.
+    1: { en: 3757333055, ko:  339626473, lines: 120 },
+    2: { en: 4274064693, ko: 2405378887, lines: 109 },
+    3: { en: 2048031766, ko: 1094646887, lines: 106 },
   };
   for (const seed of [1, 2, 3]) {
     it(`reproduces the pinned chronicle for seed ${seed}`, () => {

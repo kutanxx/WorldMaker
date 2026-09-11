@@ -76,12 +76,22 @@ export function assignZones(
   let harborWard: ZonedWard | null = null;
   if (opts.coastal) {
     if (opts.seaAnchor) {
-      let bi = -1, bd = Infinity;
+      // ⚠ Nearest to the sea is not the same as ON the sea, and the difference was docks inland:
+      // measured over 8 seeds, harbour wards sat a median stone's throw but up to 144 units from
+      // the water on a 460-unit plate (Kukhauth seed 6; Aerael seed 2 at 111). The angle test that
+      // was supposed to catch this measured the harbour's BEARING from the middle of the plate,
+      // which says nothing when the sea has taken a bite out of one side and every ward is on the
+      // land side of it.
+      // So: of the wards left, prefer one that actually MEETS the water — the same `wet` the castle
+      // uses to keep OFF it — and fall back to nearest-to-the-sea only when no ward reaches it.
+      let bi = -1, bd = Infinity, wetI = -1, wetD = Infinity;
       for (let j = idx; j < out.length; j++) {
         const d = Math.hypot(out[j].site[0] - opts.seaAnchor[0], out[j].site[1] - opts.seaAnchor[1]);
         if (d < bd) { bd = d; bi = j; }
+        if (opts.wet?.(out[j].polygon) && d < wetD) { wetD = d; wetI = j; }
       }
-      harborWard = bi >= 0 ? out[bi] : out[out.length - 1];
+      const pick = wetI >= 0 ? wetI : bi;
+      harborWard = pick >= 0 ? out[pick] : out[out.length - 1];
     } else {
       harborWard = out[out.length - 1];
     }

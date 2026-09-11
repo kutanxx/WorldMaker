@@ -11,7 +11,11 @@ describe("biome integration", () => {
     let ch = 2166136261 >>> 0;
     for (const c of world.cities) { ch ^= c.cell; ch = Math.imul(ch, 16777619) >>> 0; }
     expect(h >>> 0).toBe(1026682088);
-    expect(ch >>> 0).toBe(2824879792);
+    // 2026-09-12: re-pinned alone, and the line above it is why that is allowed — `polityOf` did
+    // NOT move, so the land, its realms and every stream that draws them are untouched. The towns
+    // moved on purpose: they used to be thrown at the claimed land uniformly (the pool is 26.8%
+    // coastal, the towns came out 27%) and now the draw is weighted toward water. See world.ts.
+    expect(ch >>> 0).toBe(2393297540);
     expect(world.cities.length).toBe(28);
   });
   it("exposes a biome per cell and per city", () => {
