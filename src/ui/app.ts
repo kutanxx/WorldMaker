@@ -2,7 +2,7 @@ import type { WorldParams, GeneratedWorld } from "../types/world";
 import { DEFAULT_PARAMS } from "../types/world";
 import { generateWorld } from "../engine/world";
 import { renderWorld, politicalOpts, type MapView } from "./svgWorldRenderer";
-import { renderCity } from "./svgCityRenderer";
+import { renderCity, CITY_LEGEND_ROW } from "./svgCityRenderer";
 import { generateCityLayout, cityContext } from "../engine/city";
 import { cityFacts } from "./cityFacts";
 import { KM_PER_UNIT } from "./scaleBar";
@@ -25,6 +25,7 @@ import { layOutLabelsForExport } from "./exportLabels";
 import { type Lang, t, chronicleTitle } from "./i18n";
 import { makeFold, readFoldPref, writeFoldPref } from "./fold";
 import { legendSheet, placeLegend } from "./legendSheet";
+import { LEGEND_ROW } from "./renderer";
 import { detectLang, saveLang } from "./lang";
 import { properName, polityLabeller } from "./properName";
 
@@ -218,6 +219,16 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
   // put the chronicle away did not mean "until the next world".
   const CITIES_FOLD_KEY = "wm:fold:cities";
   const CHRONICLE_FOLD_KEY = "wm:fold:chronicle";
+  const CITY_KEY_FOLD_KEY = "wm:fold:cityKey";
+  /**
+   * Where the map stops being able to carry its own furniture. The same line the town list already
+   * stacks on, so there is ONE width at which this page changes shape rather than two.
+   * ⚠ jsdom has no `matchMedia` at all, and a missing one must read as the WIDE layout — that is
+   * what every other test in app.test.ts measures.
+   */
+  const NARROW = "(max-width: 900px)";
+  const isNarrowWindow = (): boolean =>
+    typeof matchMedia === "function" && matchMedia(NARROW).matches;
   /** drops the world screen's width watcher; see the listener leak note in showWorld */
   let dropWidthWatch: (() => void) | null = null;
   function readLegendPref(): boolean {
@@ -469,8 +480,8 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     //
     // ⚠ jsdom has no `matchMedia` at all. A missing one must read as the WIDE layout — that is the
     // one every other test in app.test.ts measures.
-    const narrow = typeof matchMedia === "function" ? matchMedia("(max-width: 900px)") : null;
-    const isNarrow = () => narrow?.matches ?? false;
+    const narrow = typeof matchMedia === "function" ? matchMedia(NARROW) : null;
+    const isNarrow = isNarrowWindow;
     const applyWidth = () => {
       const n = isNarrow();
       listFold.setFoldable(n);
@@ -556,12 +567,46 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
       if ((window.history.state as { city?: number } | null)?.city !== undefined) window.history.back();
       else showWorld();
     });
+    // The plate has the world map's disease and one difference: its key is not ON the drawing, it
+    // has a 108-unit strip of its own. So it is not a matter of room but of size — 568 units drawn
+    // 321px wide is x0.565, and the district key measured 7.0px type and a 4.5px swatch on a real
+    // phone, for quarters that are told apart by colour alone and carry no labels. The key comes
+    // off the plate the way the world map's does, and the strip then shrinks to the compass that
+    // is all that is left in it, which hands the town back 15% of its width.
+    //
+    // ⚠ The strip's width is baked into the plate's viewBox, so unlike the world map this cannot be
+    // fixed by moving a node: crossing the breakpoint re-renders the plate. That is cheap and safe
+    // (the layout is deterministic and is not regenerated) and it is why `openCity` is re-entered
+    // rather than patched in place.
+    const plateNarrow = isNarrowWindow();
     const layout = generateCityLayout(cityContext(marker), params.seed);
-    const citySvg = renderCity(layout, lang);
+    const citySvg = renderCity(layout, lang, { keyOutside: plateNarrow });
     const frame = document.createElement("div");
     frame.className = "map-frame";
     frame.appendChild(citySvg);
     addFocusToggle(frame);
+
+    // The plate's key opens by default, where the world map's stays folded: a terrain key annotates
+    // a map whose places are also named, but a plate's quarters have nothing but their colour.
+    const keySheet = legendSheet();
+    const keyFold = makeFold({
+      title: t(lang, "legendDistricts"), open: readFoldPref(CITY_KEY_FOLD_KEY, true),
+      onToggle: (on) => writeFoldPref(CITY_KEY_FOLD_KEY, on),
+    });
+    keyFold.section.classList.add("legend-fold");
+    keyFold.body.appendChild(keySheet);
+    frame.appendChild(keyFold.section);
+    // ㉗'s one size, arrived at from the other direction: the plate's key is drawn in 11-unit rows
+    // because the plate is drawn big. Standing it at 1:1 would put an 11px row beside the world
+    // map's 17px one on the same phone.
+    placeLegend(citySvg, keySheet, plateNarrow, LEGEND_ROW / CITY_LEGEND_ROW);
+
+    // ⚠ One watcher, dropped on the way out — see the leak note in showWorld.
+    dropWidthWatch?.();
+    const narrowNow = typeof matchMedia === "function" ? matchMedia(NARROW) : null;
+    const replate = () => { if (openCityId === cityId) openCity(cityId, "none"); };
+    narrowNow?.addEventListener("change", replate);
+    dropWidthWatch = () => { narrowNow?.removeEventListener("change", replate); dropWidthWatch = null; };
 
     // A plate carried its name and nothing else, and there was no way off it but back to the world
     // map to hunt for another dot. The facts are the ones the world can actually answer for — the

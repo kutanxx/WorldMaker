@@ -116,3 +116,26 @@ describe("placeLegend", () => {
     expect(sheet.children.length).toBe(0);
   });
 });
+
+// ㉗'s rule is one key size across the whole site, and the two keys are drawn in different units to
+// get there: the world map's row is 17 because it is drawn at about x1, the plate's is 11 because
+// the plate is drawn at x1.554. Standing a key in a sheet at 1:1 therefore gives the right size for
+// one of them and a 64%-sized key for the other — so the sheet takes the scale its key was drawn
+// for. The viewBox does NOT change: it is the key's own coordinates either way.
+describe("placeLegend at the size the key was drawn for", () => {
+  it("renders the key larger than 1:1 when its units are smaller", () => {
+    const { map } = fakeMap({ x: 9, y: 12, w: 92, h: 158 });
+    const sheet = legendSheet();
+    placeLegend(map, sheet, true, 17 / 11);
+    expect(sheet.getAttribute("viewBox")).toBe("9 12 92 158");
+    expect(Number(sheet.getAttribute("width"))).toBeCloseTo(92 * 17 / 11, 3);
+    expect(Number(sheet.getAttribute("height"))).toBeCloseTo(158 * 17 / 11, 3);
+  });
+
+  it("is 1:1 when nothing says otherwise", () => {
+    const { map } = fakeMap({ x: 9, y: 520, w: 112, h: 171 });
+    const sheet = legendSheet();
+    placeLegend(map, sheet, true);
+    expect(sheet.getAttribute("width")).toBe("112");
+  });
+});

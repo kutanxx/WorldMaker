@@ -2,6 +2,7 @@
 import { describe, it, expect, afterEach, beforeEach } from "vitest";
 import { DEFAULT_PARAMS } from "../types/world";
 import { createApp } from "./app";
+import { KEY_STRIP, COMPASS_STRIP } from "./svgCityRenderer";
 import { hashStringToSeed } from "../engine/rng";
 import { initialCity, decodeParams } from "./urlState";
 import { generateWorld } from "../engine/world";
@@ -1021,6 +1022,33 @@ describe("a window too narrow to carry the map's furniture", () => {
     const rows = root.querySelectorAll(".city-list-item").length;
     expect(rows).toBeGreaterThan(0);
     expect(titled(/Cities/)!.querySelector(".fold-count")!.textContent).toBe(String(rows));
+  });
+
+  // The plate has the same disease: 568 units drawn 321px wide is x0.565, and the district key
+  // measured 7.0px type with a 4.5px swatch on a real 375px screen. Its key is not ON the drawing
+  // though — it has a 108-unit strip of its own — so taking it away leaves a near-empty column,
+  // and the strip shrinks to the compass that is all that is left in it.
+  it("takes the district key off a plate too, and gives the town the strip back", () => {
+    stubWidth(true);
+    const root = document.createElement("div");
+    const app = createApp(root, small);
+    app.openCity(0);
+    const plate = root.querySelector("svg.city") as SVGSVGElement;
+    expect(plate.querySelector(".legend") === null, "the key is still on the plate").toBe(true);
+    expect(root.querySelector(".legend-sheet .legend") !== null, "no key standing under the plate").toBe(true);
+    const width = Number(plate.getAttribute("viewBox")!.split(" ")[2]);
+    expect(width).toBe(460 + COMPASS_STRIP);
+  });
+
+  it("leaves a wide plate alone: key in its strip, full width", () => {
+    stubWidth(false);
+    const root = document.createElement("div");
+    const app = createApp(root, small);
+    app.openCity(0);
+    const plate = root.querySelector("svg.city") as SVGSVGElement;
+    expect(plate.querySelector(".legend") !== null, "the wide plate lost its key").toBe(true);
+    expect(Number(plate.getAttribute("viewBox")!.split(" ")[2])).toBe(460 + KEY_STRIP);
+    expect(root.querySelector(".legend-sheet .legend") === null, "a wide plate should not need a sheet").toBe(true);
   });
 
   it("leaves a wide window exactly as it was: key on the map, panels open, heads standing down", () => {

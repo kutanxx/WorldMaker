@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from "vitest";
 import { generateCityLayout, cityContext } from "../engine/city";
-import { renderCity } from "./svgCityRenderer";
+import { renderCity, KEY_STRIP, COMPASS_STRIP } from "./svgCityRenderer";
 import { GRASSLAND, WETLAND, TAIGA, ALPINE, DESERT } from "../engine/biome";
 import { pointInPolygon } from "../engine/geometry";
 import type { Polygon } from "../engine/geometry";
@@ -638,5 +638,48 @@ describe("the plate draws the country's own vocabulary", () => {
       expect(s.querySelector(".serai-range")).not.toBeNull();
     }
     expect(svg.querySelectorAll(".farmstead").length).toBe(0);
+  });
+});
+
+// A plate is 568x460 and a phone draws it 321px wide — x0.565, against the x1.554 the key was
+// tuned to. Live on a 375px screen the district key measured 7.0px type, a 6.2px row and a 4.5px
+// swatch: the colour-coded quarters had a key nobody could read. The key comes off the plate the
+// way the world map's does (see legendSheet), and then the 108-unit strip it was living in is
+// mostly empty — so the strip shrinks to what the compass beneath it actually needs, and the town
+// gets the width back.
+describe("a plate whose key has gone to stand under it", () => {
+  const layout = () => generateCityLayout(cityContext(marker), 7);
+
+  it("keeps the full key strip by default, so the export is untouched", () => {
+    const svg = renderCity(layout());
+    expect(svg.getAttribute("viewBox")).toBe(`0 0 ${460 + KEY_STRIP} 460`);
+  });
+
+  it("shrinks the strip to the compass when the key is standing elsewhere", () => {
+    const svg = renderCity(layout(), "en", { keyOutside: true });
+    expect(svg.getAttribute("viewBox")).toBe(`0 0 ${460 + COMPASS_STRIP} 460`);
+    expect(COMPASS_STRIP).toBeLessThan(KEY_STRIP);
+  });
+
+  // The strip's whole remaining job. A compass half outside the plate would be worse than the
+  // blank column this shrink exists to remove.
+  it("leaves the compass inside the strip it kept", () => {
+    const svg = renderCity(layout(), "en", { keyOutside: true });
+    const dial = svg.querySelector(".compass circle");
+    expect(dial, "the compass rose is not a circle any more; find its new geometry").not.toBeNull();
+    const cx = Number(dial!.getAttribute("cx")), r = Number(dial!.getAttribute("r"));
+    expect(cx - r).toBeGreaterThanOrEqual(460);          // clear of the town
+    expect(cx + r).toBeLessThanOrEqual(460 + COMPASS_STRIP); // and inside the plate
+  });
+
+  // It still has to be DRAWN — moving it is what legendSheet does, and it cannot move what the
+  // renderer did not make. (Off the right edge of the shrunken box until it is moved, which is
+  // exactly why it must be moved rather than merely re-placed.)
+  it("still draws the key, with the cartouche that gives it its size", () => {
+    const svg = renderCity(layout(), "en", { keyOutside: true });
+    const key = svg.querySelector(".legend");
+    expect(key).not.toBeNull();
+    expect(key!.querySelector(".legend-panel rect")).not.toBeNull();
+    expect(key!.querySelectorAll("rect.legend-item").length).toBeGreaterThan(2);
   });
 });

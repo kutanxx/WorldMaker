@@ -112,13 +112,39 @@ function avg(poly: Polygon): [number, number] {
   return [x / poly.length, y / poly.length];
 }
 
-export function renderCity(layout: CityLayout, lang: Lang = "en"): SVGSVGElement {
+/** the right-hand strip that holds the district key, OUTSIDE the map so it never covers the city */
+export const KEY_STRIP = 108;
+/**
+ * What the strip shrinks to once the key is standing somewhere else. The compass lives at the
+ * bottom of that strip and is the only thing left in it, so the width is the compass's own: r=13
+ * plus the room its "N" needs. A phone draws the plate at x0.565, and the 108-unit strip was 19%
+ * of its width carrying, by then, one rose.
+ */
+export const COMPASS_STRIP = 34;
+/**
+ * The plate's key is drawn smaller than the world map's because the plate is drawn BIGGER: at the
+ * desktop's x1.554 an 11-unit row lands on 17.1px, which is where ㉗ put every key on this site.
+ * Exported so the sheet that stands the key under a narrow plate can bring it back to that size
+ * instead of to 11px — one product, one size, however the drawing around it is scaled.
+ */
+export const CITY_LEGEND_ROW = 11;
+
+export interface CityRenderOpts {
+  /**
+   * The key is being taken off this plate (see legendSheet) because the plate is drawn too small
+   * to carry a readable one. It is still DRAWN — there is nothing to move otherwise — but it is
+   * drawn past the right edge of the shrunken box, and the strip keeps only the compass's width.
+   */
+  keyOutside?: boolean;
+}
+
+export function renderCity(layout: CityLayout, lang: Lang = "en", opts: CityRenderOpts = {}): SVGSVGElement {
   const fn = (k: FeatureKey) => featureName(lang, k);
   // A town's name is one invented word, so it is transliterated rather than rebuilt: it has no
   // common noun in it to translate.
   const townName = properName(lang, layout.name);
   const { w, h } = layout.bounds;
-  const LEGW = 108; // right-hand strip that holds the district key, OUTSIDE the map so it never covers the city
+  const LEGW = opts.keyOutside ? COMPASS_STRIP : KEY_STRIP;
   const root = svgEl("svg", { width: "100%", viewBox: `0 0 ${w + LEGW} ${h}`, class: "city", role: "img" }) as SVGSVGElement;
   // the plate announces itself as one thing rather than an untitled graphic (and both elements
   // travel into the exported file, which carries no stylesheet but does carry the document)
@@ -610,9 +636,9 @@ export function renderCity(layout: CityLayout, lang: Lang = "en"): SVGSVGElement
   // the strip starts at the top of the plate, so there is no room above it: the heading takes its
   // place at the top of the panel and the rows start below it
   const x0 = w + 12, y0 = 20 + CITY_TITLE_H; // in the right-hand strip, clear of the map
-  legend.appendChild(legendPanel(x0 - 4, y0 - 8 - CITY_TITLE_H, 92, items.length * 11 + 12 + CITY_TITLE_H, t(lang, "legendDistricts"), 7.5));
+  legend.appendChild(legendPanel(x0 - 4, y0 - 8 - CITY_TITLE_H, 92, items.length * CITY_LEGEND_ROW + 12 + CITY_TITLE_H, t(lang, "legendDistricts"), 7.5));
   items.forEach(([color, label], i) => {
-    const y = y0 + i * 11;
+    const y = y0 + i * CITY_LEGEND_ROW;
     legend.appendChild(svgEl("rect", { class: "legend-item", x: x0, y: y - 6, width: 8, height: 8, fill: color, stroke: INK, "stroke-width": 0.6 }));
     const txt = svgEl("text", { x: x0 + 14, y, "font-size": 9, fill: "#42341f", "letter-spacing": 0.3 });
     txt.textContent = label;

@@ -475,6 +475,11 @@ svg.world .legend { pointer-events: none; }
   .city-list { height: auto; min-height: 0; max-height: none; overflow: visible; }
   .legend-fold { display: block; margin-top: 8px; }
   .legend-toggle { display: none; }  /* the fold's head is the key's control here */
+  /* The plate's key has left it too, so the 108-unit strip it lived in is down to the compass's
+     own width (COMPASS_STRIP in svgCityRenderer.ts): the plate is 460 + 34 = 494 units across
+     here, not 568, and the cap that keeps a whole plan on screen has to say so or it lets the
+     plate run 15% past the fold. mobile.test.ts holds these two numbers together. */
+  .stage svg.city { max-width: min(100%, calc((100vh - 230px) * 494 / 460)); }
 }
 @media (pointer: coarse) {
   .city-list-item { min-height: 36px; }

@@ -34,7 +34,7 @@ export function legendSheet(): SVGSVGElement {
  * the other case: its key is drawn once on the map root and nothing redraws it, so finding no key
  * on the map must not be read as "empty the sheet".
  */
-export function placeLegend(map: SVGSVGElement, sheet: SVGSVGElement, outside: boolean): void {
+export function placeLegend(map: SVGSVGElement, sheet: SVGSVGElement, outside: boolean, scale = 1): void {
   const fresh = map.querySelector(".legend");
   const held = sheet.firstElementChild;
   if (outside) {
@@ -42,7 +42,7 @@ export function placeLegend(map: SVGSVGElement, sheet: SVGSVGElement, outside: b
     if (held) held.remove();       // a redraw made a new one; the old one is stale
     home.set(fresh, { parent: fresh.parentNode as Node, next: fresh.nextSibling });
     sheet.appendChild(fresh);
-    fitToKey(sheet, fresh);
+    fitToKey(sheet, fresh, scale);
     return;
   }
   if (!held) return;
@@ -61,13 +61,19 @@ export function placeLegend(map: SVGSVGElement, sheet: SVGSVGElement, outside: b
  * The sheet takes the size of the cartouche the key is already sitting in — `legendPanel`'s outer
  * rect, the first rect under `.legend-panel`. That rect is the number the layer chose; `getBBox`
  * would be a guess about fonts, and jsdom does not implement it, so the tests could not hold this.
+ *
+ * `scale` is the drawing the key came from being handed back: the world map's key is drawn in
+ * 17-unit rows because the map is drawn at about x1, the plate's in 11-unit rows because the plate
+ * is drawn at x1.554 — both land on ㉗'s 17px row on a desktop. 1:1 would therefore be right for
+ * one and 64% for the other, so the caller says which scale its key was drawn for. The viewBox is
+ * untouched: those are the key's own coordinates either way.
  */
-function fitToKey(sheet: SVGSVGElement, legend: Element): void {
+function fitToKey(sheet: SVGSVGElement, legend: Element, scale: number): void {
   const rect = legend.querySelector(".legend-panel rect");
   if (!rect) return;
   const n = (a: string) => Number(rect.getAttribute(a) ?? 0);
   const [x, y, w, h] = [n("x"), n("y"), n("width"), n("height")];
   sheet.setAttribute("viewBox", `${x} ${y} ${w} ${h}`);
-  sheet.setAttribute("width", String(w));
-  sheet.setAttribute("height", String(h));
+  sheet.setAttribute("width", String(w * scale));
+  sheet.setAttribute("height", String(h * scale));
 }
