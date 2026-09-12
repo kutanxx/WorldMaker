@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from "vitest";
-import { applyLabelScale, applyMarkerScale } from "./labelScale";
+import { applyLabelScale, applyMarkerScale, floorLabelSize } from "./labelScale";
 
 const NS = "http://www.w3.org/2000/svg";
 function build() {
@@ -268,5 +268,66 @@ describe("the culture view's names", () => {
     // and lands in the same band as the region names it sits beside, rather than towering over them
     const regionOnScreen = Number(region.getAttribute("font-size")) * 8;
     expect(at8 * 8).toBeLessThan(regionOnScreen * 1.5);
+  });
+});
+
+// The city plate is drawn to fit whatever room it has, and its names are drawn in map units, so a
+// small window shrinks the lettering with the drawing. Measured on a 390x844 phone: the plate came
+// out 336px across for 494 units, which put a 7-unit ward name at 4.8px on screen — while the SAME
+// word in the key under it was 18px, three times over. A legend is not the thing you are looking at.
+describe("floorLabelSize", () => {
+  const NSVG = "http://www.w3.org/2000/svg";
+  const plate = (units = 494) => {
+    const svg = document.createElementNS(NSVG, "svg") as SVGSVGElement;
+    svg.setAttribute("viewBox", "0 0 " + units + " " + units);
+    const t = document.createElementNS(NSVG, "text");
+    t.setAttribute("class", "ward-label");
+    t.setAttribute("font-size", "7");
+    t.setAttribute("stroke-width", "2.2");
+    svg.appendChild(t);
+    return { svg, t };
+  };
+  const px = (t: Element, drawnPx: number, units = 494) =>
+    Number(t.getAttribute("font-size")) * (drawnPx / units);
+
+  it("lifts a name that is drawn too small to be read", () => {
+    const { svg, t } = plate();
+    floorLabelSize(svg, ".ward-label", 9, 336);
+    expect(px(t, 336), "the name is still under the floor on a phone").toBeCloseTo(9, 2);
+  });
+
+  it("leaves a drawing that is already big enough alone", () => {
+    const { svg, t } = plate();
+    floorLabelSize(svg, ".ward-label", 9, 720);   // a desktop plate: 7 units is 10.2px already
+    expect(Number(t.getAttribute("font-size")), "a desktop plate was rewritten for nothing").toBe(7);
+  });
+
+  // The halo is what keeps a name off the roofs under it; left behind, it thins to a hairline at
+  // exactly the size where the name finally matters.
+  it("keeps the halo in proportion to the letters it grew", () => {
+    const { svg, t } = plate();
+    floorLabelSize(svg, ".ward-label", 9, 336);
+    expect(Number(t.getAttribute("stroke-width")) / Number(t.getAttribute("font-size")))
+      .toBeCloseTo(2.2 / 7, 3);
+  });
+
+  // jsdom, and every render that has not been mounted yet, measures nothing. A floor computed from
+  // a width of zero is an infinity written into the drawing.
+  it("does nothing at all when the drawing has not been laid out", () => {
+    const { svg, t } = plate();
+    floorLabelSize(svg, ".ward-label", 9, 0);
+    expect(Number(t.getAttribute("font-size"))).toBe(7);
+  });
+
+  // The floor is the size at rest; a reader who leans in must never end up below it again.
+  it("survives the zoom, which works from the floored size", () => {
+    const { svg, t } = plate();
+    floorLabelSize(svg, ".ward-label", 9, 336);
+    for (const scale of [1, 2, 4, 8]) {
+      applyLabelScale(svg, scale);
+      // sizes are written with two decimals, as everything in this module is, so the floor is
+      // held to within that rounding and not to the last bit
+      expect(px(t, 336) * scale, "zoomed to " + scale).toBeGreaterThanOrEqual(9 - 0.02);
+    }
   });
 });

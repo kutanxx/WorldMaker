@@ -20,7 +20,7 @@ import { politicalLayer } from "./politicalLayer";
 import { cultureLayer } from "./cultureLayer";
 import { provinceLayer, snapOwnersToProvinces } from "./provinceLayer";
 import { deconflictLabels } from "./deconflict";
-import { applyLabelScale, applyMarkerScale } from "./labelScale";
+import { applyLabelScale, applyMarkerScale, floorLabelSize } from "./labelScale";
 import { layOutLabelsForExport } from "./exportLabels";
 import { type Lang, t } from "./i18n";
 import { makeFold, readFoldPref, writeFoldPref } from "./fold";
@@ -250,6 +250,11 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
   // The panels under the map fold on a narrow window, and the same bargain applies: a reader who
   // put the chronicle away did not mean "until the next world".
   const CITIES_FOLD_KEY = "wm:fold:cities";
+  // Below this a ward's name is not small, it is a smudge: 4.8px was what a phone measured. What it
+  // costs is names — over 28 towns on a 336px plate, 4.6% of them were culled as overlapping at
+  // 4.8px against 24.5% at 9px — and what it buys is that the ones left can be read. The survivors
+  // are the landmarks (they outrank plain quarters in the cull), and the rest arrive on a pinch.
+  const PLATE_NAME_MIN_PX = 9;
   const CITY_KEY_FOLD_KEY = "wm:fold:cityKey";
   /**
    * Where the map stops being able to carry its own furniture. The same line the town list already
@@ -356,6 +361,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
   function showWorld(): void {
     openCityId = null;
     controls.classList.remove("plate");
+    stage.classList.remove("plate");
     timeline?.destroy();
     stage.innerHTML = "";
     terrainBtn.classList.toggle("active", currentView === "terrain");
@@ -608,6 +614,10 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     if (!marker) return;
     openCityId = cityId;
     controls.classList.add("plate");
+    // The card says which screen it is holding, because on a narrow window the stylesheet has to
+    // reorder it: measured on a 390x844 phone, 319px of chrome stood above a drawing 313px tall,
+    // and the fact strip is 134px of that. Under the drawing it is a caption, which is what it is.
+    stage.classList.add("plate");
     dropWidthWatch?.();   // the world screen's sections are about to be thrown away
     const url = "#" + worldHash() + "&city=" + cityId;
     if (record === "push") window.history.pushState({ city: cityId }, "", url);
@@ -719,6 +729,14 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     let cityRelayout = 0, cityScale = 1;
     // the plan's own names have to be laid out too — it is in the document by now, so they can
     // be measured
+    //
+    // ★ Before they are laid out, they are sized for the window this plate actually got. The plate
+    // takes whatever room is left, and its names are drawn in map units, so a small window shrinks
+    // the lettering with the drawing: measured on a 390x844 phone, 336px across for 494 units put a
+    // 7-unit ward name at 4.8px on screen — against 18px for the SAME word in the key standing
+    // under it. Floored first, culled after, so `deconflictLabels` measures the names as they will
+    // be read. A desktop plate is already past the floor (10.2px at 720px), so it is untouched.
+    floorLabelSize(citySvg, ".ward-label", PLATE_NAME_MIN_PX);
     deconflictLabels(citySvg);
     cityZoom = attachZoomPan(citySvg, frame, {
       onScale: (scale) => {

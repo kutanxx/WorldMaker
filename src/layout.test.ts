@@ -22,6 +22,31 @@ describe("the page has one measure", () => {
     }
   });
 
+  // The plate's fact strip was the last element still measured against the 1040px page this file
+  // replaced — the very number the stylesheet's own comment calls dead. At 1440x900 it ran
+  // 209→1217 inside a card running 137→1288: a third vertical edge on a page that keeps two. And
+  // the dead cap costs a line — measured live on one town, the strip is 48px tall at 1008 and 23px
+  // at the card's own 1151, so a page-wide strip is also a shorter one.
+  it("measures the plate's fact strip by the card it sits in", () => {
+    const c = css();
+    const i = c.indexOf(".city-facts {");
+    expect(i, "the fact strip has no rule").toBeGreaterThan(-1);
+    expect(c.slice(i, c.indexOf("}", i)), "the strip still carries a width the page never gave it")
+      .not.toMatch(/max-width:\s*\d/);
+  });
+
+  // The plate is centred in the card, and its key was not: measured at 1440x900, the drawing ran
+  // 353→1072 inside a band running 137→1288, and the key — a 130px column — stood at the far left
+  // of that band, 216px from the edge of the thing it explains. Under the WORLD map the key sits in
+  // a 210px side column about its own width, so this is the plate's case alone.
+  it("stands the plate's key under the drawing it belongs to", () => {
+    const c = css();
+    const i = c.indexOf(".stage.plate .legend-sheet");
+    expect(i, "the plate's key is placed by whatever the world map's key does").toBeGreaterThan(-1);
+    expect(c.slice(i, c.indexOf("}", i)), "the key still hugs the left edge of a band it does not fill")
+      .toMatch(/margin-inline:\s*auto/);
+  });
+
   // `min-height: 100%` measures the CONTENT box: the list hung 16px — its own 8px padding, twice —
   // below the map it is meant to end level with.
   it("keeps the town list inside the row it is given", () => {

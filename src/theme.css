@@ -416,7 +416,9 @@ svg.world.lang-en .nation-label { font-variant: small-caps; letter-spacing: 0.10
   .marker-hit { r: var(--hit-coarse, 20px); }
   #landing button { min-height: 44px; padding: 8px 12px; font-size: 14px; touch-action: manipulation; }
   a.home { min-height: 44px; padding: 8px 12px; font-size: 14px; touch-action: manipulation; }
-  .map-zoom-controls button { min-width: 48px; }
+  /* 48 wide and 30 tall was what a phone measured: the width had been paid for and the height had
+     not, on the one zoom control a finger is left with once pinch replaced the other two. */
+  .map-zoom-controls button { min-width: 48px; min-height: 44px; }
 }
 
 /* World settings: the dials the engine has always read from the URL, folded away until asked for.
@@ -442,8 +444,14 @@ svg.world.lang-en .nation-label { font-variant: small-caps; letter-spacing: 0.10
    ⚠ NOT solved with hairline rules between the facts, which was the first plan: the strip wraps on
    ordinary window widths and a rule then hangs off the left edge of the wrapped row. There is no
    stable width to gate that on either — where it wraps moves with the town's data and the language. */
+/* ⚠ No width of its own. It carried `max-width: 1008px` — the same dead number the plate's own
+   cap was cured of below, derived from a 1040px page that no longer exists — and being the one
+   element on the screen still measured against it, it drew a THIRD vertical edge down a page that
+   keeps two (209→1217 inside a card running 137→1288, at 1440x900). The cap also cost a line:
+   measured on one town, 48px tall at 1008 against 23px at the card's own width. The card is the
+   measure (see `--page` on #app), so the strip simply fills it. */
 .city-facts {
-  max-width: 1008px; margin: 6px auto 0; display: flex; flex-wrap: wrap; gap: 6px 26px;
+  margin: 6px 0 0; display: flex; flex-wrap: wrap; gap: 6px 26px;
   font-size: 13px; color: #42341f;
 }
 .city-fact { display: flex; align-items: baseline; gap: 4px; }
@@ -567,6 +575,11 @@ svg.world.lang-en .nation-label { font-variant: small-caps; letter-spacing: 0.10
    instead of at the size the map was scaled to (6px on a phone). Needs to beat `.stage svg`, which
    stretches every drawing to the full width. */
 .stage .legend-sheet { display: block; width: auto; max-width: 100%; height: auto; pointer-events: none; }
+/* ★ The plate is centred in the card and its key was not. Measured at 1440x900: the drawing ran
+   353→1072 in a band running 137→1288, while the key — a 130px column — stood at the far left of
+   that band, 216px from the edge of the thing it explains, with 89% of the band empty beside it.
+   The world map's key is not this case: it sits in a 210px side column about its own width. */
+.stage.plate .legend-sheet { margin-inline: auto; }
 /* ★ Off the map, the key is not a cartouche. The double rule, the corner dots and the Cinzel
    heading are the MAP's furniture — on the page the panel is already drawn and the fold's head has
    already said what this is, so the frame would be a frame inside a frame and the heading a heading
@@ -615,6 +628,15 @@ svg.world.lang-en .nation-label { font-variant: small-caps; letter-spacing: 0.10
      here, not 568, and the cap that keeps a whole plan on screen has to say so or it lets the
      plate run 15% past the fold. mobile.test.ts holds these two numbers together. */
   .stage svg.city { max-width: min(100%, calc((100vh - 230px) * 494 / 460)); }
+  /* ★ The drawing comes before what is said about it. Measured on a 390x844 phone: 319px of chrome
+     stood above a plate 313px tall — toolbar, way back, and a 134px five-row fact strip — so the
+     controls outweighed the thing they control, the same arithmetic that folded the toolbar. The
+     strip is a caption (the chronicle became one for this reason), and a caption goes under its
+     picture; the key keeps its place under the caption. Only the plate's card becomes a column:
+     the world map's holds a grid and a scrubber that are laid out as blocks. */
+  .stage.plate { display: flex; flex-direction: column; }
+  .stage.plate > .city-facts { order: 1; }
+  .stage.plate > .legend-fold { order: 2; }
   /* A narrow strip wraps, and wrapped it had a ragged second column — 27 / 176 / 219 — so the eye
      had no column to follow and the whole thing read as one sentence. One fact per row, labels in
      a column and answers in a column: a gazetteer entry. `display: contents` is what makes that
@@ -627,4 +649,11 @@ svg.world.lang-en .nation-label { font-variant: small-caps; letter-spacing: 0.10
   .city-list-item { min-height: 36px; }
   /* the heads are the only way into three panels; 44px is the target a finger is owed */
   .fold-head { min-height: 44px; }
+  /* ★ A plate is not a map. The world map's controls sit in its bottom-right corner because no
+     corner of a MAP is reliably empty — the land is different every time — but a plate has fixed
+     furniture and both of its bottom corners are already spoken for: the compass at the right, the
+     scale bar at the left. Measured at 390x844, the reset ran 295..343 against a compass drawn at
+     343..360, touching it exactly. The plate's top-left is the corner it keeps: the name is centred
+     and the focus button owns the top-right. */
+  .stage.plate .map-zoom-controls { top: 14px; bottom: auto; left: 14px; right: auto; }
 }

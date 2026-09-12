@@ -60,6 +60,51 @@ export function applyLabelScale(svg: SVGSVGElement, scale: number): void {
   }
 }
 
+/**
+ * The smallest a name may be ON SCREEN, whatever the drawing is scaled to.
+ *
+ * `applyLabelScale` above holds a name still while the reader ZOOMS; this holds it against the size
+ * the drawing was FITTED at, which is the other way a name gets too small and the one nobody was
+ * watching. The city plate is 494 units wide and takes whatever room the window leaves it: measured
+ * on a 390x844 phone it came out 336px across, which draws a 7-unit ward name at 4.8px — while the
+ * same word in the key standing under the plate measured 18px, three times over. A key is not the
+ * thing the reader is looking at.
+ *
+ * Names that grow take more room and some of them lose it: over 28 towns on one phone-sized plate,
+ * `deconflictLabels` hid 4.6% of the ward names at 4.8px and 24.5% of them at 9px (worst: 3 names
+ * in one town). That is the trade this makes on purpose — a name nobody can read was never
+ * occupying that room usefully, the ones kept are the landmarks (they outrank plain quarters), and
+ * the rest come back as the reader pinches in. A desktop plate is drawn past the floor already
+ * (10.2px at 720px wide), so nothing there changes.
+ *
+ * ⚠ Call it at REST, before any zoom: it works from the size in the attribute, and once zoom has
+ * cached that size in `data-fs` the zoom is the one writing the attribute.
+ */
+export function floorLabelSize(
+  svg: SVGSVGElement,
+  selector: string,
+  minPx: number,
+  drawnPx: number = svg.getBoundingClientRect().width,
+): void {
+  const vb = (svg.dataset.baseViewbox || svg.getAttribute("viewBox") || "").split(/[\s,]+/).map(Number);
+  const units = vb.length === 4 ? vb[2] : 0;
+  // jsdom measures nothing, and neither does a drawing that is not in the document yet: a floor
+  // divided by a width of zero is an infinity written into the map.
+  if (!(drawnPx > 0) || !(units > 0)) return;
+  const pxPerUnit = drawnPx / units;
+  for (const el of svg.querySelectorAll<SVGGraphicsElement>(selector)) {
+    const base = Number(el.dataset.fs ?? el.getAttribute("font-size"));
+    if (!(base > 0)) continue;
+    const k = minPx / (base * pxPerUnit);
+    if (k <= 1) continue;                 // already big enough; leave the drawing as it was drawn
+    el.setAttribute("font-size", (base * k).toFixed(2));
+    // the halo goes with the letters, or it thins to a hairline at exactly the size where the name
+    // has finally become worth reading
+    const halo = Number(el.getAttribute("stroke-width"));
+    if (halo > 0) el.setAttribute("stroke-width", (halo * k).toFixed(2));
+  }
+}
+
 // A settlement's mark has to hold its size for the same reason its name does. Left alone, a town's
 // dot grows with the zoom while the word beside it does not, and by 8x the map is a field of blobs
 // with small labels next to them. Circles carry their own centre; the capital star and the free-port

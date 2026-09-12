@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 
 const read = (p: string) => readFileSync(p, "utf8");
+const BLOCK_END = String.fromCharCode(10) + "}";   // where a top-level media block ends
 
 // Phones without this meta lay the page out at ~980px and scale it down — every
 // control shrinks to ~38% (measured: a 32px advance button ≈ 12pt on a 375pt phone).
@@ -251,6 +252,62 @@ describe("the plate's facts read as facts", () => {
     const within = Number(/gap:\s*(\d+)px/.exec(pair)?.[1]);
     expect(Number.isFinite(between) && Number.isFinite(within), "the two gaps are not both declared").toBe(true);
     expect(between / within, `${between}px between facts against ${within}px within one`).toBeGreaterThanOrEqual(5);
+  });
+});
+
+// Measured on a 390x844 phone, on the plate: 319px of chrome above a drawing 313px tall. The
+// toolbar had already been folded for this arithmetic (㉞); what is left in front of the drawing is
+// a 134px fact strip, five rows deep, read before the reader has seen the town. The strip is a
+// caption — the chronicle became one for the same reason (㊿) — so on a narrow window the drawing
+// comes first and the strip follows it, with the key under both.
+describe("a phone sees the plate before it reads about it", () => {
+  const orderOf = (block: string, sel: string) => {
+    const i = block.indexOf(sel + " {");
+    if (i < 0) return NaN;
+    return Number(/order:\s*(-?\d+)/.exec(block.slice(i, block.indexOf("}", i)))?.[1]);
+  };
+  it("puts the fact strip under the drawing and the key under both", () => {
+    const css = read("src/theme.css");
+    const i = css.indexOf("@media (max-width: 900px)");
+    const block = css.slice(i, css.indexOf("\n}", i));
+    // ordering needs a flex box, and only the plate's card may become one: the world map's card
+    // holds a grid and a scrubber that are laid out as blocks
+    expect(block, "the plate's card is not a column, so nothing can be ordered in it")
+      .toMatch(/\.stage\.plate\s*\{[^}]*display:\s*flex/);
+    const facts = orderOf(block, ".stage.plate > .city-facts");
+    const key = orderOf(block, ".stage.plate > .legend-fold");
+    expect(facts, "the fact strip keeps its place in front of the drawing").toBeGreaterThan(0);
+    expect(key, "the key does not stay under the strip it used to sit below").toBeGreaterThan(facts);
+  });
+});
+
+// The world map's zoom controls sit in the map's bottom-right corner on a mount, because no corner
+// of a MAP is reliably empty. A plate is not a map: it has fixed furniture, and both of its bottom
+// corners are taken — the compass at the right, the scale bar at the left. Measured at 390x844: the
+// one button a finger is left with (the reset; pinch replaced the other two) ran 295..343 against a
+// compass at 343..360, touching it exactly, and stood 30px tall where a finger is owed 44.
+describe("the plate's own furniture keeps its corners", () => {
+  // the same selector appears at rest and again under a media query, so find the one that is
+  // actually inside a coarse block rather than the first one in the file
+  const coarseRuleFor = (css: string, sel: string) => {
+    for (let i = css.indexOf(sel); i > -1; i = css.indexOf(sel, i + 1)) {
+      const at = css.lastIndexOf("@media", i);
+      if (at < 0) continue;
+      const query = css.slice(at, css.indexOf("{", at));
+      const stillOpen = !css.slice(at, i).includes(BLOCK_END);
+      if (stillOpen && query.includes("pointer: coarse")) return css.slice(i, css.indexOf("}", i));
+    }
+    return "";
+  };
+  it("moves the plate's button out of the compass corner, on touch screens only", () => {
+    const rule = coarseRuleFor(read("src/theme.css"), ".stage.plate .map-zoom-controls");
+    expect(rule, "the plate's controls do not move for a finger at all")
+      .not.toBe("");
+    expect(rule, "the button stays in the corner the compass is drawn in").toMatch(/bottom:\s*auto/);
+  });
+  it("gives that button the target a finger is owed", () => {
+    const rule = coarseRuleFor(read("src/theme.css"), ".map-zoom-controls button");
+    expect(rule, "30px tall is what it measured").toMatch(/min-height:\s*44px/);
   });
 });
 

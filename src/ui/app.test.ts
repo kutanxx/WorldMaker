@@ -524,6 +524,48 @@ describe("a plate tells you where you are and where you can go", () => {
     root.remove();
   });
 
+  // Measured on a 390x844 phone: the chrome ABOVE the drawing came to 319px against a drawing
+  // 313px tall — the toolbar, the way back, and a 134px fact strip, all of it in front of the thing
+  // the reader opened. ㉞ folded the toolbar for exactly this arithmetic on the world map. The
+  // strip is a caption, like the chronicle's (㊿), and belongs under the drawing on a narrow
+  // window — which the stylesheet can only arrange if the card says which screen it is showing.
+  it("marks the card as a plate, and stops when the plate does", () => {
+    const root = document.createElement("div");
+    const app = createApp(root, small);
+    const stage = root.querySelector(".stage") as HTMLElement;
+    expect(stage.classList.contains("plate"), "the world map is wearing the plate's class").toBe(false);
+    app.openCity(0);
+    expect(stage.classList.contains("plate"), "the card does not say it is showing a plate").toBe(true);
+    app.showWorld();
+    expect(stage.classList.contains("plate"), "the class outlived the plate").toBe(false);
+  });
+
+  // The plate is fitted to the room the window leaves it, and its names are drawn in map units, so
+  // a phone shrinks the lettering with the drawing: measured at 390x844, a 336px plate put a 7-unit
+  // ward name at 4.8px while the same word in the key under it measured 18px. jsdom measures
+  // nothing, so the plate is told how wide it came out.
+  it("draws the plate's names big enough to read when the plate is drawn small", () => {
+    const root = document.createElement("div");
+    document.body.appendChild(root);
+    const rect = Element.prototype.getBoundingClientRect;
+    Element.prototype.getBoundingClientRect = function () {
+      return { width: 336, height: 313, top: 0, left: 0, right: 336, bottom: 313, x: 0, y: 0, toJSON: () => ({}) } as DOMRect;
+    };
+    try {
+      const app = createApp(root, small);
+      app.openCity(0);
+      const label = root.querySelector(".ward-label") as SVGTextElement;
+      expect(label, "the plate has no names at all").not.toBeNull();
+      const svg = root.querySelector("svg.city") as SVGSVGElement;
+      const units = Number((svg.getAttribute("viewBox") || "").split(/[\s,]+/)[2]);
+      const onScreen = Number(label.getAttribute("font-size")) * (336 / units);
+      expect(onScreen, "a name on a phone-sized plate is still a smudge").toBeGreaterThanOrEqual(8.9);
+    } finally {
+      Element.prototype.getBoundingClientRect = rect;
+      root.remove();
+    }
+  });
+
   it("walks from one town to the town next door", async () => {
     const root = document.createElement("div");
     document.body.appendChild(root);
