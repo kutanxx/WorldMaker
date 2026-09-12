@@ -160,16 +160,18 @@ body.map-focus .map-frame {
 }
 body.map-focus .timeline { margin: 0; }
 .stage svg { display: block; width: 100%; height: auto; }
-/* The plan is 568x460, and like the world map it is sized by the vertical room the chrome leaves
-   it rather than by a fixed number — 1008px was derived from the old 1040px page and stopped
-   following it, so the plate was both cut off at the fold AND the one surface still measured
-   against a page width that no longer exists. Whole-plan-at-once matters here: the town is what
-   you orient by before leaning in, and there is zoom for the leaning. */
+/* The plan is 494x460 — 460 of town and a 34-unit strip for the compass — and like the world map
+   it is sized by the vertical room the chrome leaves it rather than by a fixed number: 1008px was
+   derived from the old 1040px page and stopped following it, so the plate was both cut off at the
+   fold AND the one surface still measured against a page width that no longer exists.
+   Whole-plan-at-once matters here: the town is what you orient by before leaning in, and there is
+   zoom for the leaning. ★ The key is no longer part of the plan — it stands under it at 1:1, so
+   the strip is the compass alone and the town has 15% more width than it had beside a key. */
 .stage svg.city {
-  max-width: min(100%, calc((100vh - 230px) * 568 / 460));
+  max-width: min(100%, calc((100vh - 230px) * 494 / 460));
   margin: 0 auto;
 }
-body.map-focus .stage svg.city { max-width: min(100%, calc((100vh - 40px) * 568 / 460)); }
+body.map-focus .stage svg.city { max-width: min(100%, calc((100vh - 40px) * 494 / 460)); }
 .timeline {
   display: flex; gap: 10px; padding: 10px 12px; align-items: center;
   background: #efe6cf; border: 1px solid #cbb784; border-radius: 6px; margin-top: 12px;

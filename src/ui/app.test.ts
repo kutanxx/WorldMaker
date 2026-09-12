@@ -2,7 +2,7 @@
 import { describe, it, expect, afterEach, beforeEach } from "vitest";
 import { DEFAULT_PARAMS } from "../types/world";
 import { createApp } from "./app";
-import { KEY_STRIP, COMPASS_STRIP } from "./svgCityRenderer";
+import { COMPASS_STRIP } from "./svgCityRenderer";
 import { hashStringToSeed } from "../engine/rng";
 import { initialCity, decodeParams } from "./urlState";
 import { generateWorld } from "../engine/world";
@@ -1067,15 +1067,20 @@ describe("a window too narrow to carry the map's furniture", () => {
     expect(width).toBe(460 + COMPASS_STRIP);
   });
 
-  it("leaves a wide plate alone: key in its strip, full width", () => {
+  // ⚠ This used to assert the opposite: a wide plate kept its key in a 108-unit strip of its own.
+  // It comes off at every width now, for the reason the world map's key did — the key was inside
+  // the SVG, and the SVG is what the zoom moves: two presses of `+` put the plate's key at (1234,
+  // -60), off the top of a frame that starts at 231, at twice its size. The strip shrinks to the
+  // compass either way, so there is one plate geometry now instead of two.
+  it("takes the key off a wide plate too, leaving the strip to the compass", () => {
     stubWidth(false);
     const root = document.createElement("div");
     const app = createApp(root, small);
     app.openCity(0);
     const plate = root.querySelector("svg.city") as SVGSVGElement;
-    expect(plate.querySelector(".legend") !== null, "the wide plate lost its key").toBe(true);
-    expect(Number(plate.getAttribute("viewBox")!.split(" ")[2])).toBe(460 + KEY_STRIP);
-    expect(root.querySelector(".legend-sheet .legend") === null, "a wide plate should not need a sheet").toBe(true);
+    expect(plate.querySelector(".legend") === null, "the key is still in the drawing the zoom moves").toBe(true);
+    expect(Number(plate.getAttribute("viewBox")!.split(" ")[2])).toBe(460 + COMPASS_STRIP);
+    expect(root.querySelector(".legend-sheet .legend") !== null, "no key standing under the plate").toBe(true);
   });
 
   // ⚠ `.map-frame` is the anchor for everything that FLOATS over the map: the zoom controls sit at

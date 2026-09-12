@@ -111,21 +111,24 @@ describe("a narrow window folds the panels the map cannot carry", () => {
 // in one place without the other lets the plan run past the fold (or wastes the room).
 describe("the plate's cap agrees with the plate's geometry", () => {
   const num = (src: string, name: string) => {
-    const m = new RegExp(`export const ${name} = (\\d+)`).exec(src);
+    const m = new RegExp("export const " + name + " = ([0-9]+)").exec(src);
     expect(m, `${name} is gone from svgCityRenderer.ts`).not.toBeNull();
     return Number(m![1]);
   };
-  it("caps a narrow plate at the width it actually has once the key has left it", () => {
+  // ⚠ There used to be two caps, because there used to be two plates: a wide one with the key in a
+  // 108-unit strip beside the town, and a narrow one whose key had left. The key now leaves at
+  // every width — it is furniture, and furniture inside an SVG is carried off by the zoom — so
+  // there is one plate, 34 units of compass beside the town, and the two caps must agree on it.
+  it("caps the plate at the width it actually has, the key having left it", () => {
     const src = read("src/ui/svgCityRenderer.ts");
     const bounds = 460; // layout.bounds.w, one constant for every town (engine/city.ts)
-    const narrowPlate = bounds + num(src, "COMPASS_STRIP");
-    const widePlate = bounds + num(src, "KEY_STRIP");
+    const plate = bounds + num(src, "COMPASS_STRIP");
+    const withKey = bounds + num(src, "KEY_STRIP");
     const css = read("src/theme.css");
     const i = css.indexOf("@media (max-width: 900px)");
-    const block = css.slice(i, css.indexOf("\n}", i));
-    expect(block, `a narrow plate is ${narrowPlate} units wide`).toContain(`${narrowPlate} / ${bounds}`);
-    // and the wide cap is still the whole plate, strip and all
-    expect(css.slice(0, i), `a wide plate is ${widePlate} units wide`).toContain(`${widePlate} / ${bounds}`);
+    expect(css.slice(i, css.indexOf("\n}", i)), `the plate is ${plate} units wide`).toContain(`${plate} / ${bounds}`);
+    expect(css.slice(0, i), `the plate is ${plate} units wide here too`).toContain(`${plate} / ${bounds}`);
+    expect(css, "a cap still measures the plate with the key's strip in it").not.toContain(`${withKey} / ${bounds}`);
   });
 });
 

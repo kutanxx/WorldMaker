@@ -621,20 +621,22 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
       if ((window.history.state as { city?: number } | null)?.city !== undefined) window.history.back();
       else showWorld();
     });
-    // The plate has the world map's disease and one difference: its key is not ON the drawing, it
-    // has a 108-unit strip of its own. So it is not a matter of room but of size — 568 units drawn
-    // 321px wide is x0.565, and the district key measured 7.0px type and a 4.5px swatch on a real
-    // phone, for quarters that are told apart by colour alone and carry no labels. The key comes
-    // off the plate the way the world map's does, and the strip then shrinks to the compass that
-    // is all that is left in it, which hands the town back 15% of its width.
+    // The plate's key never stood ON the drawing — it has a 108-unit strip of its own — so the
+    // trouble here was size, not room: 568 units drawn 321px wide is x0.565, and the district key
+    // measured 7.0px type and a 4.5px swatch on a real phone, for quarters that are told apart by
+    // colour alone and carry no labels. Taken off the plate it stands under it at 1:1, and the
+    // strip shrinks to the compass that is all that is left in it, which hands the town back 15%
+    // of its width.
+    //
+    // ★ It now comes off at EVERY width, for the reason the world map's key did (㊽): the key was
+    // inside the SVG, and the SVG is what the zoom moves — measured at 1440x900, two presses of `+`
+    // put the plate's key at (1234,-60) off the top of a frame that starts at 231, at twice its
+    // size. Whatever is in the drawing belongs to the drawing and travels with it.
     //
     // ⚠ The strip's width is baked into the plate's viewBox, so unlike the world map this cannot be
-    // fixed by moving a node: crossing the breakpoint re-renders the plate. That is cheap and safe
-    // (the layout is deterministic and is not regenerated) and it is why `openCity` is re-entered
-    // rather than patched in place.
-    const plateNarrow = isNarrowWindow();
+    // fixed by moving a node: the plate is rendered without the strip from the start.
     const layout = generateCityLayout(cityContext(marker), params.seed);
-    const citySvg = renderCity(layout, lang, { keyOutside: plateNarrow });
+    const citySvg = renderCity(layout, lang, { keyOutside: true });
     const frame = document.createElement("div");
     frame.className = "map-frame";
     frame.appendChild(citySvg);
@@ -653,7 +655,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     // ㉗'s one size, arrived at from the other direction: the plate's key is drawn in 11-unit rows
     // because the plate is drawn big. Standing it at 1:1 would put an 11px row beside the world
     // map's 17px one on the same phone.
-    placeLegend(citySvg, keySheet, plateNarrow, LEGEND_ROW / CITY_LEGEND_ROW);
+    placeLegend(citySvg, keySheet, true, LEGEND_ROW / CITY_LEGEND_ROW);
 
     // ⚠ One watcher, dropped on the way out — see the leak note in showWorld.
     dropWidthWatch?.();
