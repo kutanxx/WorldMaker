@@ -389,39 +389,35 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     // It folds, and the choice is remembered — a reader who put it away did not mean "until the
     // next world". Only the SCREEN is affected: an exported map builds its own SVG and no
     // stylesheet travels with it, so a downloaded map always carries its key.
+    //
+    // ★ And it stands BESIDE the map, at every width, with no chip on the drawing at all. A key on
+    // the map covers the map: measured over 12 seeds, the key and its chip stood on a town in 11 of
+    // 336 towns, one of them a capital, and SIX of the twelve worlds had at least one town under
+    // the key — against nought for the zoom controls and nought for the focus button, which are
+    // small and live in the corners the land does not reach. There is no corner that is reliably
+    // empty, because the land is different every time. The column beside the map is 210px that the
+    // page has already spent, so the key costs the drawing nothing there; under the map it would
+    // cost height, which is the one thing the map is short of (the whole reason focus mode exists).
     const legendOn = readLegendPref();
     frame.classList.toggle("legend-off", !legendOn);
-    const legendBtn = document.createElement("button");
-    legendBtn.type = "button";
-    legendBtn.className = "legend-toggle";
-    legendBtn.textContent = t(lang, "legendToggle");
-    // One key, one preference, two skins. Where the map is big enough to carry a key the chip on
-    // its corner opens one; where it is not, the key comes off the map (see legendSheet) and this
-    // same state opens a folding section under it. Both run through `setLegend`, so the two never
-    // disagree about whether the key is out.
     const sheet = legendSheet();
     const legendFold = makeFold({
       title: t(lang, "legendToggle"), open: legendOn, onToggle: (on) => setLegend(on),
     });
     legendFold.section.classList.add("legend-fold");
     legendFold.body.appendChild(sheet);
+    // `legend-off` is the one state, and the fold's head is the one control. They are kept in step
+    // here so the remembered preference and the fold cannot disagree about whether the key is out.
     const syncLegend = (on: boolean) => {
       frame.classList.toggle("legend-off", !on);
-      legendBtn.setAttribute("aria-expanded", String(on));
-      legendBtn.title = t(lang, on ? "legendHide" : "legendShow");
       legendFold.setOpen(on);
     };
     const setLegend = (on: boolean) => { syncLegend(on); writeLegendPref(on); };
     syncLegend(legendOn);
-    legendBtn.addEventListener("click", () => setLegend(frame.classList.contains("legend-off")));
-    frame.appendChild(legendBtn);
-    // ⚠ The fold goes BESIDE the frame, never inside it. `.map-frame` is what the zoom controls,
-    // the focus button and the chip are absolutely positioned against, so anything added inside it
-    // grows the box they are measured from: with the fold in there, a live phone put the zoom
-    // controls 104px BELOW the map, floating over the key instead of over the drawing.
-    // (A wide window hides `.legend-fold`, and a display:none grid child takes no column.)
-    // The KEY SHEET is the exception and it is allowed for the opposite reason: it is absolutely
-    // positioned, so it takes no room in the flow and grows nothing. See `applyWidth`.
+    // ⚠ The fold goes BESIDE the frame, never inside it. `.map-frame` is what the zoom controls
+    // and the focus button are absolutely positioned against, so anything added inside it grows the
+    // box they are measured from: with the fold in there, a live phone put the zoom controls 104px
+    // BELOW the map, floating over the key instead of over the drawing.
 
     addFocusToggle(frame);
 
@@ -528,15 +524,12 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
       const n = isNarrow();
       listFold.setFoldable(n);
       chronicleFold.setFoldable(n);
-      // ★ The key comes off the drawing at EVERY width, and only its host changes: under a narrow
-      // window it stands below the map in the fold, on a wide one it floats on the map's corner
-      // beside the chip that opens it. It used to be drawn inside the SVG on wide windows, and the
-      // SVG is what the zoom moves — measured at 1440x900, two presses of `+` left the key 294px
-      // off the left edge of the frame at twice its size, with no way back but zooming out. A key
-      // is furniture, not terrain: it belongs to the viewport, which is the practice every web map
-      // follows. Off the drawing it also stops shrinking with the map (it was drawn at x0.93 here).
+      // ★ The key comes off the drawing at every width and stands in the fold beside the map. It
+      // used to be drawn inside the SVG on wide windows, and the SVG is what the zoom moves —
+      // measured at 1440x900, two presses of `+` left the key 294px off the left edge of the frame
+      // at twice its size, with no way back but zooming out. Off the drawing it also stops
+      // shrinking with the map (it was drawn at x0.93 there, and at x0.32 on a phone).
       placeLegend(svg, sheet, true);
-      (n ? legendFold.body : frame).appendChild(sheet);
       // The scrubber moves the MAP, so under a narrow window it goes directly under the drawing.
       // Stacking the sections had left it between the town list and the chronicle — the one control
       // the map cannot be read without, stranded in the middle of three things that annotate it.

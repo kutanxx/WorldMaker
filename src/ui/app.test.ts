@@ -269,7 +269,7 @@ describe("export follows the screen", () => {
     expect(onScreen.querySelectorAll(".province-fill").length, "no provinces on screen").toBeGreaterThan(5);
     // the key stands on the map beside its chip, in its own sheet — off the drawing, which is what
     // the zoom moves
-    expect(root.querySelector(".map-frame .legend-sheet .province-legend"), "no key on screen").not.toBeNull();
+    expect(root.querySelector(".legend-fold .legend-sheet .province-legend"), "no key on screen").not.toBeNull();
 
     const svgBtn = [...root.querySelectorAll("button")].find((b) => b.textContent === "SVG")!;
     const file = await captureDownload(() => svgBtn.click());
@@ -808,17 +808,20 @@ describe("the map's legend folds away", () => {
   const legendVisible = (root: HTMLElement) => !root.querySelector(".map-frame")!.classList.contains("legend-off");
 
   beforeEach(() => { try { localStorage.removeItem("wm:legend"); } catch { /* private mode */ } });
+  const legendHead = (root: HTMLElement) => root.querySelector(".legend-fold .fold-head") as HTMLButtonElement;
+
+  beforeEach(() => { try { localStorage.removeItem("wm:legend"); } catch { /* private mode */ } });
 
   it("starts folded, with a control to unfold it", () => {
     const root = open();
-    expect(root.querySelector(".legend-toggle")).not.toBeNull();
+    expect(legendHead(root)).not.toBeNull();
     expect(legendVisible(root)).toBe(false);
-    expect(root.querySelector(".map-frame .legend-sheet .legend"), "the key is drawn, only hidden").not.toBeNull();
+    expect(root.querySelector(".legend-fold .legend-sheet .legend"), "the key is drawn, only folded").not.toBeNull();
   });
 
   it("unfolds and folds again on the control", () => {
     const root = open();
-    const btn = root.querySelector(".legend-toggle") as HTMLButtonElement;
+    const btn = legendHead(root);
     btn.click();
     expect(legendVisible(root)).toBe(true);
     btn.click();
@@ -827,31 +830,29 @@ describe("the map's legend folds away", () => {
 
   it("remembers that it was unfolded, into the next world", () => {
     const first = open();
-    (first.querySelector(".legend-toggle") as HTMLButtonElement).click();
+    legendHead(first).click();
     expect(localStorage.getItem("wm:legend")).toBe("on");
     expect(legendVisible(open())).toBe(true);
   });
 
-  // ⚠ The chip used to jump to the opposite corner of the map when the key opened, because the key
-  // was drawn inside the drawing at the bottom-left and would have been covered by it. The control
-  // left the place it was pressed — and the SVG that held the key is the one the zoom moves:
-  // measured at 1440x900, two presses of `+` put the key 294px off the left edge of the frame at
-  // twice its size. A key is furniture. It belongs to the frame, not to the terrain.
-  it("opens where its control is, off the drawing the zoom moves", () => {
+  // ⚠ Two things were wrong with the key on the map, and the second is why it is off the map now.
+  // It was drawn INSIDE the SVG, which is what the zoom moves: at 1440x900, two presses of `+` put
+  // it 294px off the left edge of the frame at twice its size. And a key on the map covers the map
+  // — measured over 12 seeds it stood on a town in 11 of 336 towns, one a capital, and in SIX of
+  // the twelve worlds. No corner is reliably empty, because the land is different every time.
+  it("stands beside the map, never in the drawing the zoom moves", () => {
     const root = open();
-    const btn = root.querySelector(".legend-toggle") as HTMLButtonElement;
-    btn.click();
-    expect(root.querySelector(".map-frame .legend-sheet .legend"), "the key is not beside its chip").not.toBeNull();
+    legendHead(root).click();
+    expect(root.querySelector(".legend-fold .legend-sheet .legend"), "the key is not beside the map").not.toBeNull();
     expect(root.querySelector("svg.world .legend"), "the key is in the drawing the zoom moves").toBeNull();
-    // ...and the chip is the frame's own child, in one place, whichever way the key is folded
-    expect(root.querySelector(".map-frame > .legend-toggle")).not.toBeNull();
-    btn.click();
-    expect(root.querySelector(".map-frame > .legend-toggle")).not.toBeNull();
+    expect(root.querySelector(".map-frame .legend-sheet"), "the key is floating on the map again").toBeNull();
+    // ...and nothing of the key's is on the drawing, folded or unfolded
+    expect(root.querySelector(".map-frame .legend-toggle"), "a chip is back on the map").toBeNull();
   });
 
   it("says which way it will go", () => {
     const root = open();
-    const btn = root.querySelector(".legend-toggle") as HTMLButtonElement;
+    const btn = legendHead(root);
     expect(btn.getAttribute("aria-expanded")).toBe("false");
     btn.click();
     expect(btn.getAttribute("aria-expanded")).toBe("true");
@@ -1175,14 +1176,14 @@ describe("a window too narrow to carry the map's furniture", () => {
     expect(controls.classList.contains("plate")).toBe(false);
   });
 
-  it("leaves a wide window exactly as it was: key on the map, panels open, heads standing down", () => {
+  it("leaves a wide window exactly as it was: key beside the map, panels open, heads standing down", () => {
     stubWidth(false);
     const root = document.createElement("div");
     createApp(root, small);
-    // "on the map" means on the map's corner, beside the chip: in the frame, off the drawing
-    expect(root.querySelector(".map-frame .legend-sheet .legend")).not.toBeNull();
+    // the key stands in the column beside the map at every width — only the town list and the
+    // chronicle change their manners with the window
+    expect(root.querySelector(".legend-fold .legend-sheet .legend")).not.toBeNull();
     expect(root.querySelector("svg.world .legend"), "the key is back in the drawing the zoom moves").toBeNull();
-    expect(root.querySelector(".legend-fold .legend-sheet"), "the key stands under the map on a wide window").toBeNull();
     const cities = [...root.querySelectorAll(".fold-head")]
       .find((h) => /Cities/.test(h.textContent || "")) as HTMLButtonElement;
     expect(cities.disabled, "a control that does nothing is taking a tab stop").toBe(true);

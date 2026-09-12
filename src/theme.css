@@ -123,14 +123,6 @@ a.home:hover { background: #e7cf9c; }
 }
 .more-toggle:hover { background: #e7d9b6; }
 .controls.more-open .more-toggle { background: #e7d9b6; }
-.legend-toggle {
-  position: absolute; left: 14px; bottom: 14px; z-index: 5;
-  padding: 4px 10px; font-size: 12px; letter-spacing: .04em; line-height: 1.4;
-  background: rgba(244, 236, 216, 0.88); color: #3c2f1c;
-  border: 1px solid rgba(183, 160, 113, 0.7); border-radius: 6px; cursor: pointer;
-  box-shadow: 0 1px 3px rgba(42, 33, 24, 0.18);
-}
-.legend-toggle:hover { background: #e7d9b6; }
 /* Focus mode: the window belongs to the map. Everything the map was competing with for vertical
    room — the title, the toolbar, the town list, the chronicle, the dials — is gone, and the height
    budget drops to just the scrubber's own strip. At 1920x945 that takes the map from 993x695 to
@@ -167,19 +159,6 @@ body.map-focus .map-frame {
   width: min(100%, calc((100vh - 90px) * 10 / 7)); margin-inline: auto;
 }
 body.map-focus .timeline { margin: 0; }
-/* ★ The chip does not move. It used to jump to the opposite corner when the key opened, because
-   the key was drawn INSIDE the map at the bottom-left and would have covered it — and because the
-   key's height changes with the view (eight rows of terrain, eleven of realms), there was no fixed
-   offset that could clear it in place. Both objections belonged to the key being in the drawing.
-   It is now an HTML sheet pinned above the chip, so it grows UPWARD from the control that opened
-   it, whatever height the view gives it, and the control stays under the finger that pressed it.
-   That the control must not leave the place it was pressed is not a new rule here: it is the whole
-   of the "there are two keys and no way to close one" report from the first phone this page was
-   ever opened on. */
-.map-frame .legend-sheet {
-  position: absolute; left: 14px; bottom: 49px; z-index: 4;  /* 14 + the chip's 27 + an 8px gap */
-}
-.map-frame.legend-off .legend-sheet { display: none; }
 .stage svg { display: block; width: 100%; height: auto; }
 /* The plan is 568x460, and like the world map it is sized by the vertical room the chrome leaves
    it rather than by a fixed number — 1008px was derived from the old 1040px page and stopped
@@ -470,10 +449,21 @@ svg.world.lang-en .nation-label { font-variant: small-caps; letter-spacing: 0.10
    the map and the scrubber under it on screen together at any window size — the map grows into a
    tall window and shrinks out of a short one instead of pushing the timeline under the fold. */
 .map-with-list {
-  display: grid; grid-template-columns: minmax(0, 1fr) 210px; gap: 12px; align-items: stretch;
+  display: grid; grid-template-columns: minmax(0, 1fr) 210px; grid-template-rows: auto minmax(0, 1fr);
+  gap: 12px; align-items: stretch;
   /* the floor keeps a very short window from computing a nonsense cap */
   max-width: max(620px, calc((100vh - 250px) * 10 / 7 + 222px)); margin-inline: auto; width: 100%;
 }
+/* ★ The column beside the map holds the key ABOVE the town list. The key used to stand on the map
+   itself, and a key on the map covers the map: measured over 12 seeds, the key and its chip stood
+   on a town in 11 of 336 towns (one a capital) and in SIX of the twelve worlds — against nought for
+   the zoom controls and nought for the focus button, which are small and sit in corners the land
+   does not reach. No corner is reliably empty, because the land is different every time. This
+   column is 210px the page has already spent, so the key costs the drawing nothing here; under the
+   map it would cost height, which is the one thing the map is short of. */
+.map-with-list > .map-frame { grid-column: 1; grid-row: 1 / span 2; }
+.map-with-list > .legend-fold { grid-column: 2; grid-row: 1; }
+.map-with-list > .city-list { grid-column: 2; grid-row: 2; }
 .city-list {
   border: 1px solid #cbb784; border-radius: 6px; background: #f6efdc; padding: 8px 6px 8px 10px;
   height: 0; min-height: 100%; overflow: auto;
@@ -512,10 +502,14 @@ svg.world.lang-en .nation-label { font-variant: small-caps; letter-spacing: 0.10
    instead of at the size the map was scaled to (6px on a phone). Needs to beat `.stage svg`, which
    stretches every drawing to the full width. */
 .stage .legend-sheet { display: block; width: auto; max-width: 100%; height: auto; pointer-events: none; }
-.legend-fold { display: none; }   /* the map carries its own key until it is too small to */
+.legend-fold { min-width: 0; }   /* the key stands beside the map at every width — see .map-with-list */
 
 @media (max-width: 900px) {
-  .map-with-list { grid-template-columns: minmax(0, 1fr); }
+  .map-with-list { grid-template-columns: minmax(0, 1fr); grid-template-rows: none; }
+  /* stacked, so the column placements above must let go */
+  .map-with-list > .city-list, .map-with-list > .map-frame, .map-with-list > .legend-fold {
+    grid-column: auto; grid-row: auto;
+  }
   /* Stacked: the list no longer sits beside the map, so it has no height to follow — and no cap
      either. A scrolling box inside a scrolling page is the worst thing a finger can meet, and the
      length it was capping is what the fold is for.
@@ -529,8 +523,6 @@ svg.world.lang-en .nation-label { font-variant: small-caps; letter-spacing: 0.10
   }
   .fold { border-top: 1px solid #d8c9a3; padding-top: 4px; }
   .fold + .fold, .legend-fold { margin-top: 0; }
-  .legend-fold { display: block; }
-  .legend-toggle { display: none; }  /* the fold's head is the key's control here */
   /* The toolbar folds the way the panels do. Measured before this: title + toolbar 236px of an
      812px screen, over a 225px map — four rows, one of which held the language toggle alone. */
   .more-toggle { display: inline-flex; }

@@ -73,27 +73,29 @@ describe("a narrow window folds the panels the map cannot carry", () => {
     const rule = css().slice(css().indexOf(".stage .legend-sheet"));
     expect(rule.slice(0, rule.indexOf("}"))).toContain("width: auto");
   });
-
-  // ⚠ This test used to REQUIRE the jump (held to wide windows, where the key was on the map). The
-  // premise is gone: the key is no longer drawn inside the map at any width — it is an HTML sheet
-  // pinned above the chip, so it grows upward from the control that opened it whatever height the
-  // view gives it. With nothing left to cover, there is no exception: the control never leaves the
-  // place it was pressed, on a phone or on a desktop.
-  it("never moves the key's chip when the key opens", () => {
-    expect(css(), "the chip is moved again when the key opens").not.toContain(".map-frame:not(.legend-off) .legend-toggle");
-    const rule = css().slice(css().indexOf(".map-frame .legend-sheet"));
-    expect(rule.slice(0, rule.indexOf("}")), "the key on the map is in the flow, so it grows the frame")
-      .toContain("position: absolute");
+  // ⚠ This test has been turned twice, and each turn was the same lesson arriving later. It first
+  // REQUIRED the chip to jump to the far corner when the key opened (held to wide windows, where
+  // the key was on the map). Then it required that nothing move the chip at all. Now there is no
+  // chip: a key on the map covers the map, and measured over 12 seeds it stood on a town in 11 of
+  // 336 towns and in SIX of the twelve worlds. The key stands in the column beside the map, at
+  // every width, and its fold's head is the only control.
+  it("keeps the key off the map, at every width", () => {
+    expect(css(), "the map carries a chip again").not.toContain(".legend-toggle");
+    expect(css(), "the key is floated back onto the drawing").not.toContain(".map-frame .legend-sheet");
+    expect(css(), "the key has no place in the column beside the map")
+      .toContain(".map-with-list > .legend-fold");
   });
 
-  it("hands the key's control to the fold's head on a narrow window", () => {
+  it("stacks the key with the other sections on a narrow window", () => {
     const i = css().indexOf("@media (max-width: 900px)");
     const block = css().slice(i, css().indexOf("\n}", i));
     expect(block).toContain(".legend-fold");
-    expect(block).toContain(".legend-toggle { display: none");
+    // the column placements are for the wide layout only; stacked, they must let go
+    expect(block).toMatch(/grid-column:\s*auto/);
     // a scrolling box inside a scrolling page is the worst thing a finger can meet
     expect(block).toMatch(/\.city-list\s*\{[^}]*max-height:\s*none/);
   });
+
 
   it("gives the three heads a finger-sized target", () => {
     const c = css();
