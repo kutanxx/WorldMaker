@@ -74,15 +74,16 @@ describe("a narrow window folds the panels the map cannot carry", () => {
     expect(rule.slice(0, rule.indexOf("}"))).toContain("width: auto");
   });
 
-  // The chip moved to the opposite corner when the key opened. Where the key is on the map that is
-  // deliberate (it covered the key's bottom row). Where the key is NOT on the map it is the bug:
-  // the control leaves the place it was pressed.
-  it("moves the key's chip only where the key is actually on the map", () => {
-    const i = css().indexOf(".map-frame:not(.legend-off) .legend-toggle");
-    expect(i, "the chip's corner-jump is gone entirely").toBeGreaterThan(-1);
-    const before = css().slice(0, i);
-    const query = before.slice(before.lastIndexOf("@media"));
-    expect(query.slice(0, query.indexOf("{")), "the jump is not held to wide windows").toContain("min-width: 901px");
+  // ⚠ This test used to REQUIRE the jump (held to wide windows, where the key was on the map). The
+  // premise is gone: the key is no longer drawn inside the map at any width — it is an HTML sheet
+  // pinned above the chip, so it grows upward from the control that opened it whatever height the
+  // view gives it. With nothing left to cover, there is no exception: the control never leaves the
+  // place it was pressed, on a phone or on a desktop.
+  it("never moves the key's chip when the key opens", () => {
+    expect(css(), "the chip is moved again when the key opens").not.toContain(".map-frame:not(.legend-off) .legend-toggle");
+    const rule = css().slice(css().indexOf(".map-frame .legend-sheet"));
+    expect(rule.slice(0, rule.indexOf("}")), "the key on the map is in the flow, so it grows the frame")
+      .toContain("position: absolute");
   });
 
   it("hands the key's control to the fold's head on a narrow window", () => {

@@ -167,19 +167,19 @@ body.map-focus .map-frame {
   width: min(100%, calc((100vh - 90px) * 10 / 7)); margin-inline: auto;
 }
 body.map-focus .timeline { margin: 0; }
-
-/* Folded, the chip stands where the key will appear, so it reads as the key's own place. Unfolded,
-   it moves to the opposite corner: fading it in place was the first try and it still covered the
-   bottom row of the key it had just opened, and the key's height changes with the view (eight rows
-   of terrain, eleven of realms), so there is no fixed offset that would clear it.
-
-   ONLY where the key is actually on the map. Below 900px it is not — it stands under the map in
-   its own sheet — and there this move was the whole of the "there are two keys and no way to close
-   one" report from the first phone this page was ever opened on: the control had left the place it
-   was pressed, and a second object had appeared somewhere else. */
-@media (min-width: 901px) {
-  .map-frame:not(.legend-off) .legend-toggle { top: 14px; bottom: auto; }
+/* ★ The chip does not move. It used to jump to the opposite corner when the key opened, because
+   the key was drawn INSIDE the map at the bottom-left and would have covered it — and because the
+   key's height changes with the view (eight rows of terrain, eleven of realms), there was no fixed
+   offset that could clear it in place. Both objections belonged to the key being in the drawing.
+   It is now an HTML sheet pinned above the chip, so it grows UPWARD from the control that opened
+   it, whatever height the view gives it, and the control stays under the finger that pressed it.
+   That the control must not leave the place it was pressed is not a new rule here: it is the whole
+   of the "there are two keys and no way to close one" report from the first phone this page was
+   ever opened on. */
+.map-frame .legend-sheet {
+  position: absolute; left: 14px; bottom: 49px; z-index: 4;  /* 14 + the chip's 27 + an 8px gap */
 }
+.map-frame.legend-off .legend-sheet { display: none; }
 .stage svg { display: block; width: 100%; height: auto; }
 /* The plan is 568x460, and like the world map it is sized by the vertical room the chrome leaves
    it rather than by a fixed number — 1008px was derived from the old 1040px page and stopped

@@ -420,6 +420,8 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     // grows the box they are measured from: with the fold in there, a live phone put the zoom
     // controls 104px BELOW the map, floating over the key instead of over the drawing.
     // (A wide window hides `.legend-fold`, and a display:none grid child takes no column.)
+    // The KEY SHEET is the exception and it is allowed for the opposite reason: it is absolutely
+    // positioned, so it takes no room in the flow and grows nothing. See `applyWidth`.
 
     addFocusToggle(frame);
 
@@ -526,7 +528,15 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
       const n = isNarrow();
       listFold.setFoldable(n);
       chronicleFold.setFoldable(n);
-      placeLegend(svg, sheet, n);
+      // ★ The key comes off the drawing at EVERY width, and only its host changes: under a narrow
+      // window it stands below the map in the fold, on a wide one it floats on the map's corner
+      // beside the chip that opens it. It used to be drawn inside the SVG on wide windows, and the
+      // SVG is what the zoom moves — measured at 1440x900, two presses of `+` left the key 294px
+      // off the left edge of the frame at twice its size, with no way back but zooming out. A key
+      // is furniture, not terrain: it belongs to the viewport, which is the practice every web map
+      // follows. Off the drawing it also stops shrinking with the map (it was drawn at x0.93 here).
+      placeLegend(svg, sheet, true);
+      (n ? legendFold.body : frame).appendChild(sheet);
       // The scrubber moves the MAP, so under a narrow window it goes directly under the drawing.
       // Stacking the sections had left it between the town list and the chronicle — the one control
       // the map cannot be read without, stranded in the middle of three things that annotate it.
@@ -562,7 +572,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
       deconflictLabels(svg, z); // hide colliding lower-priority labels, and those the zoom has not earned yet
       // ⚠ After `fillSlot`, always: outside terrain the key is drawn INSIDE the slot that was just
       // replaced, so every scrub hands back a new key and the one standing under the map is stale.
-      placeLegend(svg, sheet, isNarrow());
+      placeLegend(svg, sheet, true);
     };
 
     // ...in the reader's language. Without this the timeline took its own Korean default and an
