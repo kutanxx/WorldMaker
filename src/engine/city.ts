@@ -129,7 +129,7 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
   const pick = mulberry32(deriveSeed(worldSeed, ctx.id + 4200))();
   const archetype = selectArchetype({ coastal: ctx.coastal, elevation: ctx.elevation, size: ctx.size, biome: ctx.biome, pick, river: ctx.river });
 
-  const water = buildWater(rng, archetype.water, bounds, ctx.seaBearing);
+  const water = buildWater(rng, archetype.water, bounds, ctx.seaBearing, radius);
   if (archetype.oasis) {
     const or = radius * 0.12;
     const oasisPoly: Polygon = [];

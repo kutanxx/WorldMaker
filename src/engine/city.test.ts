@@ -940,6 +940,28 @@ describe("a coastal plate faces the way the world faces", () => {
     expect(median, `median dock stands ${median.toFixed(1)} units from the water`).toBeLessThan(8);
     expect(p90, `p90 dock stands ${p90.toFixed(0)} units from the water`).toBeLessThan(30);
   });
+
+  // ⚠ A district named Harbour is not a harbour. `makeHarbor` probes 36 units outward from each
+  // wall edge to find the sea, and 18 of 139 port towns over 12 seeds had their wall 26–48 units
+  // back from the water — so their plates carried the harbour DISTRICT and its label with no quay,
+  // no breakwater, no piers and no boats, under a header calling the place a port town. The cause
+  // was upstream of the docks: `buildWater` drew the waterline from its own rng and knew nothing
+  // about how big the town was, so on a small plate it laid the sea down beyond the fields.
+  it("draws the docks of every town whose plate calls it a port", () => {
+    const dockless: string[] = [];
+    let ports = 0;
+    for (let seed = 1; seed <= 8; seed++) {
+      const world = generateWorld({ ...DEFAULT_PARAMS, seed }).world;
+      for (const c of world.cities) {
+        const l = generateCityLayout(cityContext(c), seed);
+        if (!l.wards.some((w) => w.type === "harbor") || l.water.kind !== "sea" || !l.water.bodies.length) continue;
+        ports++;
+        if (!l.harbor) dockless.push(`${c.name} (seed ${seed})`);
+      }
+    }
+    expect(ports, "no port town in eight seeds").toBeGreaterThan(20);
+    expect(dockless).toEqual([]);
+  });
 });
 
 // Two things an outside review found in the districts. In one town the water covered the Guildhall

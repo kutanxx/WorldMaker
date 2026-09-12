@@ -26,6 +26,11 @@ function ribbon(center: Polyline, halfWidth: number): Polygon {
   return left.concat(right.reverse());
 }
 
+// how much beach a port town is allowed between its wall and the water. Measured: the towns whose
+// docks DO get drawn stand a median 3.7 and at most 31 units from the water, and makeHarbor probes
+// 36 outward, so a strand inside that band keeps every port town on its own waterfront.
+const STRAND = 16;
+
 /**
  * @param seaBearing which way the open water lies, in the world's own frame (atan2, +x east,
  * +y south — the plate's north is the world's north). The sea used to be `randInt(rng, 0, 3)`:
@@ -33,8 +38,15 @@ function ribbon(center: Polyline, halfWidth: number): Polygon {
  * in. An outside review found a town on the EAST coast of its continent drawing the sea to the
  * WEST, harbour and all, and every coastal plate it opened had the water on the left. Omitted (a
  * test fixture, a world that cannot say), it falls back to the drawn side.
+ * @param townReach how far the town's wall stands from the plate centre. The waterline is drawn
+ * from the town's own rng (`depth`) and knew nothing about how big the town is, so on a small plate
+ * the sea could be laid down beyond the fields: measured over 12 seeds, 18 of 139 towns that the
+ * world calls PORTS had their wall 26–48 units from the water, and `makeHarbor`'s 36-unit probe
+ * could not find a seaward edge — so those plates carried a district named Harbour with no quay,
+ * no breakwater and no boats, under a header calling the place a port town. The waterline is now
+ * pulled in to within a strand of the wall. Omitted, the shore sits wherever it was drawn.
  */
-export function buildWater(rng: Rng, kind: WaterKind, bounds: { w: number; h: number }, seaBearing?: number): Water {
+export function buildWater(rng: Rng, kind: WaterKind, bounds: { w: number; h: number }, seaBearing?: number, townReach?: number): Water {
   const { w, h } = bounds;
   if (kind === "none") return { kind, bodies: [], bridges: [] };
 
@@ -42,6 +54,9 @@ export function buildWater(rng: Rng, kind: WaterKind, bounds: { w: number; h: nu
     const side = randInt(rng, 0, 3); // 0 right, 1 bottom, 2 left, 3 top
     const noise = createNoise2D(rng);
     const depth = (0.24 + rng() * 0.1) * (side % 2 === 0 ? w : h);
+    // a port town stands ON its water: the shore comes no further out than a strand beyond the
+    // wall, however deep the draw was. The draw itself is untouched, so the rng stream does not move.
+    const cap = townReach === undefined ? Infinity : townReach + STRAND;
     // The shore is summed octaves, not one wave. A single low-frequency wave sampled 13 times gave
     // a waterfront 1% longer than a straight line, sitting beside a world map whose coastline is 6%
     // longer per voronoi edge -- at the plate's scale that reads as the edge of a colour band. Three
@@ -54,10 +69,11 @@ export function buildWater(rng: Rng, kind: WaterKind, bounds: { w: number; h: nu
       const t = i / K;
       let n = 0;
       for (let o = 0; o < OCTAVES.length; o++) n += noise(t * OCTAVES[o][0], side * 1.7 + o * 37.3) * amp * OCTAVES[o][1];
-      if (side === 0) edge.push([w - depth + n, t * h]);
-      else if (side === 1) edge.push([t * w, h - depth + n]);
-      else if (side === 2) edge.push([depth + n, t * h]);
-      else edge.push([t * w, depth + n]);
+      const off = Math.min((side % 2 === 0 ? w : h) / 2 - depth, cap); // the same cap on the fallback side-of-the-plate shore
+      if (side === 0) edge.push([w / 2 + off + n, t * h]);
+      else if (side === 1) edge.push([t * w, h / 2 + off + n]);
+      else if (side === 2) edge.push([w / 2 - off + n, t * h]);
+      else edge.push([t * w, h / 2 - off + n]);
     }
     if (seaBearing !== undefined) {
       // The shore runs across the bearing rather than along a chosen edge: laid out in the rotated
@@ -68,7 +84,7 @@ export function buildWater(rng: Rng, kind: WaterKind, bounds: { w: number; h: nu
       const vx = -uy, vy = ux;
       const R = Math.min(w, h), cx = w / 2, cy = h / 2;
       const reach = Math.hypot(w, h);           // enough to cross the plate at any angle
-      const inland = R / 2 - depth;             // where the waterline sits, as before
+      const inland = Math.min(R / 2 - depth, cap);  // where the waterline sits, pulled in to the town
       const stretch = (2 * reach) / R;          // keep the waves the size they were on a plate edge
       const shore: Point[] = [];
       for (let i = 0; i <= K * 2; i++) {
