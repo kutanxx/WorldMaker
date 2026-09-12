@@ -57,6 +57,7 @@ function reduceGates(gates: Point[], max: number): Point[] {
 function placeGates(segments: Polyline[], roads: Polyline[], maxGates: number): Point[] {
   const NEAR = 15, MERGE2 = 12 * 12;
   const gates: Point[] = [];
+  let fallback: Point | null = null, fd2 = Infinity;   // nearest wall point to any street, however far
   for (const r of roads) {
     if (r.length < 2) continue;
     for (const end of [r[0], r[r.length - 1]]) {
@@ -64,12 +65,25 @@ function placeGates(segments: Polyline[], roads: Polyline[], maxGates: number): 
       for (const s of segments) {
         const { pt, d2 } = nearestOnPolyline(end, s);
         if (d2 < bd2) { bd2 = d2; best = pt; }
+        if (d2 < fd2) { fd2 = d2; fallback = pt; }
       }
       if (best && !gates.some((g) => (g[0] - best![0]) ** 2 + (g[1] - best![1]) ** 2 < MERGE2)) {
         gates.push(best);
       }
     }
   }
+  // ⚠ Every walled town has a gate. The candidates here are the ward-mesh street nodes, and
+  // `extractStreets` returns the edges BETWEEN cells, so the outermost node sits one ward deep
+  // inside the wall — a town with few, large wards, or one whose wall is mostly water openings,
+  // can have no node within 15 units of any wall run at all. Measured over 12 seeds, 11 of 336
+  // towns came out with NO gate, and a gateless town loses everything that hangs off a gate: no
+  // main streets inside, no highway out, and no villages in its countryside (the fields survive
+  // only because they fall back to a synthetic spine). Those towns were river, meander and lake
+  // towns, whose wall is cut by the water, plus two mountain towns.
+  // So when nothing is near enough, the town still takes ONE gate: the wall point closest to a
+  // street, however far that is. It is a floor, not a retune — the 325 towns that had gates keep
+  // exactly the gates they had.
+  if (gates.length === 0 && fallback) return [fallback];
   return reduceGates(gates, maxGates);
 }
 

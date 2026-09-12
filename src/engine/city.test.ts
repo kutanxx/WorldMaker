@@ -968,6 +968,37 @@ describe("a coastal plate faces the way the world faces", () => {
 // ward whole and the label stayed on it, so the map read as a lake named Guildhall. And the parks:
 // a rim ward is a park about one time in five, which is fine on average — median 7.8% of the walled
 // area — but the tail is not: p90 26%, worst 50.5%. A medieval walled town is not half parkland.
+// A gateless town loses everything that hangs off a gate: no main streets inside, no highway out,
+// and no villages in its countryside. The gate candidates are the ward-mesh street nodes, and
+// `extractStreets` returns the edges BETWEEN cells, so the outermost node sits one ward deep inside
+// the wall — 11 of 336 towns over 12 seeds had no node within the 15-unit snap of any wall run and
+// came out with no gate at all. They were the towns whose wall is cut by water (river, meander,
+// lake) plus two whose mountains take a side.
+describe("every walled town has a way in", () => {
+  it("gives a gate to towns whose streets all stop short of the wall", () => {
+    const gateless: string[] = [];
+    const roadless: string[] = [];
+    let walled = 0;
+    for (let seed = 1; seed <= 8; seed++) {
+      const world = generateWorld({ ...DEFAULT_PARAMS, seed }).world;
+      for (const c of world.cities) {
+        const l = generateCityLayout(cityContext(c), seed);
+        if (!l.wall) continue;
+        walled++;
+        if (l.wall.gates.length === 0) gateless.push(`${c.name} (seed ${seed})`);
+        // ...and a gate is worth having because a road leaves by it. The one exception measured is
+        // a town whose every gate opens onto its own water — 8 of 806 gates over 12 seeds are wet,
+        // and exactly one town has no dry one; the road rule is right to refuse a highway into the
+        // river, so this is a count, not an absolute.
+        if (l.suburbRoads.length === 0) roadless.push(`${c.name} (seed ${seed})`);
+      }
+    }
+    expect(walled, "no walled town in eight seeds").toBeGreaterThan(100);
+    expect(gateless).toEqual([]);
+    expect(roadless.length, `no highway out of: ${roadless.join(", ")}`).toBeLessThanOrEqual(1);
+  });
+});
+
 describe("the districts are places a town would have", () => {
   const layouts = function* () {
     for (let seed = 1; seed <= 8; seed++) {
