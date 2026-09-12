@@ -442,18 +442,44 @@ describe("a city marker says what it is", () => {
 describe("a city can be reached", () => {
   const world = () => generateWorld({ ...DEFAULT_PARAMS, seed: 5 }).world;
 
-  it("puts a target around every marker big enough to hit", () => {
+  // ⚠ This asked for a 13-unit target on EVERY city and got one, and that was the bug the reader
+  // found: "몇몇 도시는 클릭이 안돼". A 28-unit target on a 1000-unit map is wider than the gap
+  // between close neighbours — measured over 12 seeds, 9 of 336 towns in SIX of twelve worlds had
+  // their own dot under the next city's target, the closest pair 9.0 units apart — and the city
+  // drawn last took the click. So the target is still 13+ wherever there is room for one, and where
+  // there is not it stops at half the distance to the neighbour rather than swallowing it.
+  it("puts a target around every marker, big enough to hit and never over its neighbour", () => {
     const w = world();
     const svg = renderWorld(w);
     const hits = [...svg.querySelectorAll(".marker-hit")];
     expect(hits.length).toBe(w.cities.length);
     for (const h of hits) {
+      const id = Number(h.getAttribute("data-city"));
+      const c = w.cities.find((x) => x.id === id)!;
+      const nearest = Math.min(...w.cities.filter((o) => o !== c).map((o) => Math.hypot(c.x - o.x, c.y - o.y)));
+      const r = Number(h.getAttribute("r"));
       // the map is 1000 units wide and draws at roughly 900px, so ~0.9px per unit: a 24px target
-      // needs a radius over 13 units
-      expect(Number(h.getAttribute("r"))).toBeGreaterThanOrEqual(13);
+      // needs a radius over 13 units, and that is what a town with room around it gets
+      if (nearest >= 26) expect(r, `${c.name} has room but a ${r}-unit target`).toBeGreaterThanOrEqual(13);
+      expect(r, `${c.name}'s target reaches its neighbour`).toBeLessThanOrEqual(nearest / 2 + 0.05);
+      expect(r, `${c.name}'s target is too small to hit at all`).toBeGreaterThanOrEqual(4);
       expect(h.getAttribute("data-city"), "the target must carry the city it opens").not.toBeNull();
       expect(h.getAttribute("fill")).toBe("transparent");
     }
+  });
+
+  // The other half of the same bug: even a target that stops short leaves the dots of two close
+  // towns inside one another's reach, and whoever is drawn last wins. Every target is laid down
+  // first, so a mark the reader can SEE is never under another city's invisible one.
+  it("draws every target under every mark, so a dot always opens its own city", () => {
+    const w = world();
+    const svg = renderWorld(w);
+    const kids = [...svg.querySelectorAll(".markers > *")];
+    const lastHit = kids.map((k) => k.classList.contains("marker-hit")).lastIndexOf(true);
+    const firstMark = kids.findIndex((k) => k.classList.contains("marker-town") || k.classList.contains("marker-capital"));
+    expect(lastHit, "no targets drawn").toBeGreaterThan(-1);
+    expect(firstMark, "no marks drawn").toBeGreaterThan(-1);
+    expect(firstMark, "a target is drawn on top of a mark").toBeGreaterThan(lastHit);
   });
 
   it("lets a keyboard reach a city, and says what it is reaching", () => {

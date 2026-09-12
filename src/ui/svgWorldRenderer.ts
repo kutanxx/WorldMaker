@@ -251,18 +251,43 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
     const seat = c.isCapital ? ` (${t(lang, "capitalSeat")})` : "";
     return nation ? `${nm(c.name)}${seat} · ${nation}` : `${nm(c.name)}${seat}`;
   };
-  for (const c of world.cities) {
-    if (unfounded.has(c.id)) continue;   // the chronicle has not founded it yet
+  // ★ Two passes, targets then marks, and a target that stops short of its neighbour.
+  //
+  // The target is invisible and 28 units across on a 1000-unit map, and towns are not that far
+  // apart: measured over 12 seeds, 9 of 336 towns — in SIX of the twelve worlds — had their own dot
+  // sitting under the NEXT city's target, the closest pair 9.0 units apart. Whoever was drawn last
+  // took the click, so the reader pressed a capital's star and got the village beside it, or
+  // nothing they could see a reason for. It gets worse as the chronicle runs, because a town that
+  // has not been founded yet has no target to steal with.
+  //
+  // So: every target first, then every mark and name on top of them — a dot you can see is never
+  // under another city's target — and each target is held to half the distance to its nearest
+  // neighbour, so no target ever reaches another town's centre. A lone town keeps the full 14.
+  const HIT_R = 14, HIT_MIN = 4;
+  const hitRadius = (c: { x: number; y: number }) => {
+    let nearest = Infinity;
+    for (const o of world.cities) {
+      if (o === c) continue;
+      nearest = Math.min(nearest, Math.hypot(c.x - o.x, c.y - o.y));
+    }
+    // ⚠ every city, not only the founded ones: a target that grew as history founded its neighbours
+    // would hand the reader a different map to aim at on every scrub.
+    return Math.max(HIT_MIN, Math.min(HIT_R, nearest / 2));
+  };
+  const shown = world.cities.filter((c) => !unfounded.has(c.id));   // the chronicle has not founded the rest
+  for (const c of shown) {
     // The mark itself stays small — a settlement is a point on a map and growing it would be a lie
     // about the size of the place. What grows is an invisible target around it. Measured on the
     // live page the marks were 5px across (8 for a capital) against a 24px minimum touch target,
     // and the page had no focusable element at all, so a keyboard could not reach a city plan.
     // The target is a mark too, so applyMarkerScale holds it at its screen size through the zoom.
     markers.appendChild(named(svgEl("circle", {
-      class: "marker-hit", cx: c.x, cy: c.y, r: 14, fill: "transparent",
+      class: "marker-hit", cx: c.x, cy: c.y, r: hitRadius(c).toFixed(1), fill: "transparent",
       "data-city": c.id, style: "cursor:pointer",
       tabindex: 0, role: "button", "aria-label": markerTitle(c),
     }), markerTitle(c)));
+  }
+  for (const c of shown) {
     if (c.isCapital) {
       markers.appendChild(named(svgEl("path", {
         class: "marker-capital", d: starPath(c.x, c.y, 5, 4.2, 1.9), "data-cx": c.x.toFixed(1), "data-cy": c.y.toFixed(1),
