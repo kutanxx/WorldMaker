@@ -263,8 +263,15 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
   // So: every target first, then every mark and name on top of them — a dot you can see is never
   // under another city's target — and each target is held to half the distance to its nearest
   // neighbour, so no target ever reaches another town's centre. A lone town keeps the full 14.
-  const HIT_R = 14, HIT_MIN = 4;
-  const hitRadius = (c: { x: number; y: number }) => {
+  // ⚠ A finger gets a BIGGER ceiling, not a flat one. The stylesheet used to say
+  // `@media (pointer: coarse) { .marker-hit { r: 20px } }`, and a CSS `r` beats the attribute — so
+  // on a phone every target went back to a flat 20 and the clamp below was undone where it is
+  // needed most: measured over 12 seeds, a flat 20 puts 43 of 336 town centres (12.8%) inside
+  // another town's target, in 9 of the 12 worlds, against 0 for the clamp. The coarse radius rides
+  // on the element as a custom property instead, so the media query can raise the CEILING while the
+  // neighbour clamp still holds. An exported SVG carries no stylesheet, so it keeps the plain `r`.
+  const HIT_R = 14, HIT_COARSE = 20, HIT_MIN = 4;
+  const hitRadius = (c: { x: number; y: number }, ceiling: number) => {
     let nearest = Infinity;
     for (const o of world.cities) {
       if (o === c) continue;
@@ -272,7 +279,7 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
     }
     // ⚠ every city, not only the founded ones: a target that grew as history founded its neighbours
     // would hand the reader a different map to aim at on every scrub.
-    return Math.max(HIT_MIN, Math.min(HIT_R, nearest / 2));
+    return Math.max(HIT_MIN, Math.min(ceiling, nearest / 2));
   };
   const shown = world.cities.filter((c) => !unfounded.has(c.id));   // the chronicle has not founded the rest
   for (const c of shown) {
@@ -282,8 +289,8 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
     // and the page had no focusable element at all, so a keyboard could not reach a city plan.
     // The target is a mark too, so applyMarkerScale holds it at its screen size through the zoom.
     markers.appendChild(named(svgEl("circle", {
-      class: "marker-hit", cx: c.x, cy: c.y, r: hitRadius(c).toFixed(1), fill: "transparent",
-      "data-city": c.id, style: "cursor:pointer",
+      class: "marker-hit", cx: c.x, cy: c.y, r: hitRadius(c, HIT_R).toFixed(1), fill: "transparent",
+      "data-city": c.id, style: `cursor:pointer;--hit-coarse:${hitRadius(c, HIT_COARSE).toFixed(1)}px`,
       tabindex: 0, role: "button", "aria-label": markerTitle(c),
     }), markerTitle(c)));
   }

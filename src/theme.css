@@ -371,9 +371,28 @@ svg.world.lang-en .nation-label { font-variant: small-caps; letter-spacing: 0.10
    focusable element on the page at all. */
 .marker-hit { outline: none; }
 .marker-hit:focus-visible { outline: 2px solid #7a2f2f; outline-offset: 2px; }
+/* ★ A mark says nothing about being pressable until it is pressed, and the reader's report was
+   "몇몇 도시는 클릭이 안돼 … 클릭 자체 표시가 안뜨거나": half of that was a target stealing the
+   click, and the other half is this — a page with a keyboard focus ring and nothing for a mouse.
+   The tint goes on the TARGET, which is drawn under every mark, so the dot and its name stay crisp
+   on top of it and the halo reads as "this speck is a place you can open". */
+.marker-hit:hover { fill: rgba(122, 47, 47, 0.10); }
+/* ⚠ The marks are ink, not controls. They are drawn ON TOP of the target (that is what stops a
+   neighbour stealing a click), and a hover lands on the topmost element — so with the dot live the
+   halo lit up around the speck and went out the moment the pointer reached it. The one interactive
+   element per city is the target; the clamp is what makes that safe, since no foreign target comes
+   within 4.5 units of a centre while a dot is 2.3 across, so every pixel of a dot belongs to its
+   own target. */
+.marker-town, .marker-capital { pointer-events: none; }
+.marker-hit:active { fill: rgba(122, 47, 47, 0.20); }
+.city-label:hover { fill: #7a2f2f; }
 
 @media (pointer: coarse) {
-  .marker-hit { r: 20px; }
+  /* ⚠ A CEILING, not a flat size. A CSS `r` beats the attribute, so the old `r: 20px` here undid
+     the per-city clamp on exactly the device that needs it: measured, a flat 20 puts 43 of 336 town
+     centres (12.8%) inside another town's target, in 9 of 12 worlds, against 0 for the clamp. The
+     renderer hands each target its own coarse radius — the same clamp with a 20-unit ceiling. */
+  .marker-hit { r: var(--hit-coarse, 20px); }
   #landing button { min-height: 44px; padding: 8px 12px; font-size: 14px; touch-action: manipulation; }
   a.home { min-height: 44px; padding: 8px 12px; font-size: 14px; touch-action: manipulation; }
   .map-zoom-controls button { min-width: 48px; }

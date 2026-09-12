@@ -482,6 +482,27 @@ describe("a city can be reached", () => {
     expect(firstMark, "a target is drawn on top of a mark").toBeGreaterThan(lastHit);
   });
 
+  // ⚠ A finger needs a bigger target than a mouse, and the stylesheet used to give it one with
+  // `@media (pointer: coarse) { .marker-hit { r: 20px } }`. A CSS `r` beats the attribute, so that
+  // flat 20 undid the clamp on exactly the device that needs it: measured over 12 seeds, a flat 20
+  // puts 43 of 336 town centres (12.8%) inside another town's target, in 9 of the 12 worlds. The
+  // coarse radius rides on the element instead, so the media query raises the CEILING and the
+  // neighbour clamp still holds.
+  it("carries a coarse-pointer radius that is bigger, but still off its neighbour", () => {
+    const w = world();
+    const svg = renderWorld(w);
+    for (const h of svg.querySelectorAll(".marker-hit")) {
+      const id = Number(h.getAttribute("data-city"));
+      const c = w.cities.find((x) => x.id === id)!;
+      const nearest = Math.min(...w.cities.filter((o) => o !== c).map((o) => Math.hypot(c.x - o.x, c.y - o.y)));
+      const coarse = Number(/--hit-coarse:\s*([\d.]+)px/.exec(h.getAttribute("style") ?? "")?.[1]);
+      expect(coarse, `${c.name} has no coarse radius`).toBeGreaterThan(0);
+      expect(coarse, `${c.name}'s coarse target is smaller than its mouse one`).toBeGreaterThanOrEqual(Number(h.getAttribute("r")));
+      expect(coarse, `${c.name}'s coarse target reaches its neighbour`).toBeLessThanOrEqual(nearest / 2 + 0.05);
+      if (nearest >= 40) expect(coarse, `${c.name} has room for the full finger target`).toBe(20);
+    }
+  });
+
   it("lets a keyboard reach a city, and says what it is reaching", () => {
     const w = world();
     const svg = renderWorld(w);

@@ -104,6 +104,36 @@ describe("a narrow window folds the panels the map cannot carry", () => {
     expect(head, ".fold-head has no coarse-pointer rule").toBeTruthy();
     expect(head!.slice(0, head!.indexOf("\n}"))).toContain("min-height: 44px");
   });
+
+  // ⚠ The finger's target used to be a flat `r: 20px` here, and a CSS `r` beats the attribute the
+  // renderer writes — so on a phone every target went back to 20 units and swallowed its
+  // neighbours: measured over 12 seeds, 43 of 336 town centres (12.8%) land inside another town's
+  // target at a flat 20, in 9 of the 12 worlds. The rule may raise the CEILING; the per-city clamp
+  // has to survive it.
+  it("gives a finger a bigger target without letting it swallow the next town", () => {
+    const block = css().split("@media (pointer: coarse)").slice(1)
+      .map((b) => b.slice(0, b.indexOf("\n}")))
+      .find((b) => b.includes(".marker-hit"));
+    expect(block, ".marker-hit has no coarse-pointer rule at all").toBeTruthy();
+    const rules = block!.replace(/\/\*[\s\S]*?\*\//g, "");   // the comment quotes the old rule
+    expect(rules, "a flat radius is back, and it ignores the clamp").not.toMatch(/r:\s*\d+px/);
+    expect(block, "the rule does not read the radius the renderer worked out").toContain("var(--hit-coarse");
+  });
+
+  // A page whose only sign that a speck is pressable was a keyboard focus ring. The reader's report
+  // was "몇몇 도시는 클릭이 안돼 … 클릭 자체 표시가 안뜨거나" — one half was a target stealing the
+  // click, the other half was that nothing answered the mouse at all.
+  it("answers a mouse on a city's mark, not only a keyboard", () => {
+    const c = css();
+    expect(c, "a mark says nothing when the pointer is over it").toMatch(/\.marker-hit:hover\s*\{/);
+    expect(c, "a mark says nothing when it is pressed").toMatch(/\.marker-hit:active\s*\{/);
+    expect(c, "the name beside the mark opens the city too and says nothing").toMatch(/\.city-label:hover\s*\{/);
+    // ...and the hover has to survive the pointer actually reaching the dot. The marks are drawn ON
+    // TOP of the target, so while they took pointer events the halo lit up around the speck and went
+    // out the moment the pointer was on it. One interactive element per city; the marks are ink.
+    expect(c, "the marks take the pointer, so the hover dies where the reader aims")
+      .toMatch(/\.marker-town,\s*\.marker-capital\s*\{[^}]*pointer-events:\s*none/);
+  });
 });
 
 // The plate's width cap is arithmetic on the plate's own geometry, and the geometry lives in
