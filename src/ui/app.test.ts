@@ -949,34 +949,34 @@ describe("the toolbar says which control is the main one", () => {
   });
 });
 
-// The panel and the map ran on the same year and never spoke. Every row knew its year and the
-// timeline knew how to go to one; joining them is what turns a column of sentences into an index
-// into the map — which is the only reason a chronicle earns its place beside one.
-describe("clicking a chronicle row takes the map to that year", () => {
-  it("moves the year the map is drawn at", async () => {
+// ⚠ This described a panel that is gone. The chronicle stood under the map as every moment of the
+// history — 48 rows on seed 3, always open on a wide window — and each row was a way INTO the map:
+// clicking it moved the year. The reader it was built for, asked whether they read it, said no. So
+// the panel is a one-line caption under the scrubber now, and the rows it indexed are in the
+// gazetteer, which always built its own copy. What replaces this test is the caption's own rule:
+// it says what had last happened by the year the map is drawn at, and it is never blank after the
+// founding — measured, 54% of scrub steps have no event of their own, with runs of 34.
+describe("the chronicle is a caption under the scrubber", () => {
+  it("names what had last happened by the year the map is drawn at", async () => {
     const root = document.createElement("div");
     document.body.appendChild(root);
     createApp(root, { ...DEFAULT_PARAMS, seed: 5 });
     await new Promise((r) => setTimeout(r, 0));
 
-    const before = root.querySelector(".timeline-year")!.textContent;
-    const rows = [...root.querySelectorAll<HTMLElement>(".chronicle-event")];
-    expect(rows.length, "no chronicle rows to click").toBeGreaterThan(3);
-    // a row from late in the record: the direction that matters is forward, into the future the
-    // panel greys out
-    const target = rows[rows.length - 1];
-    const year = Number(target.dataset.year);
-    expect(year).toBeGreaterThan(0);
+    const caption = root.querySelector(".chronicle-caption") as HTMLElement;
+    expect(caption, "no caption under the scrubber").not.toBeNull();
+    expect(caption.closest(".timeline-strip"), "the caption is not with the scrubber it belongs to").not.toBeNull();
+    expect(root.querySelector(".chronicle-event"), "the 48-row panel is back under the map").toBeNull();
 
-    (target.querySelector("button") as HTMLButtonElement).click();
-    await new Promise((r) => setTimeout(r, 0));
-
-    const after = root.querySelector(".timeline-year")!.textContent;
-    expect(after, "the timeline did not move").not.toBe(before);
-    expect(after, `the readout should name ${year}`).toContain(String(year));
-    // and the panel agrees with the map: that row is no longer in the future
-    expect(target.classList.contains("future"), "the clicked row is still greyed as future").toBe(false);
-    root.remove();
+    const slider = root.querySelector(".timeline input[type=range]") as HTMLInputElement;
+    const said: string[] = [];
+    for (const v of ["0", "10", "25", slider.max]) {
+      slider.value = v;
+      slider.dispatchEvent(new Event("input"));
+      said.push(caption.textContent ?? "");
+    }
+    for (const line of said) expect(line.length, "a blank caption").toBeGreaterThan(0);
+    expect(new Set(said).size, "the caption never changed across the whole history").toBeGreaterThan(1);
   });
 });
 
@@ -1034,14 +1034,14 @@ describe("a window too narrow to carry the map's furniture", () => {
     expect(root.querySelector(".legend-sheet .nation-legend")).not.toBeNull();
   });
 
-  it("folds the town list and the chronicle, each under the title it already had", () => {
+  it("folds the town list and the key, each under the title it already had", () => {
     stubWidth(true);
     const root = document.createElement("div");
     createApp(root, small);
     const heads = [...root.querySelectorAll(".fold-head")] as HTMLButtonElement[];
     const titled = (re: RegExp) => heads.find((h) => re.test(h.textContent || ""));
     expect(titled(/Cities/), "no folding town list").toBeTruthy();
-    expect(titled(/Chronicle/), "no folding chronicle").toBeTruthy();
+    expect(titled(/Key/), "no folding key").toBeTruthy();   // the chronicle is a caption now, not a section
     for (const h of heads) expect(h.disabled, `${h.textContent} cannot be folded`).toBe(false);
     // Folded, the head is all that is left of the section: it has to say what is inside — and the
     // number has to be the towns actually in the list, not the `townCount` asked for (a 6-town
@@ -1113,20 +1113,20 @@ describe("a window too narrow to carry the map's furniture", () => {
     const root = document.createElement("div");
     createApp(root, small);
     // ⚠ `.map-frame` is ALSO an SVG <g> the renderer draws, so ask for the HTML boxes by tag.
-    const order = [...root.querySelectorAll("div.map-frame, div.timeline, section.legend-fold, section.city-list, section.chronicle-fold")]
+    const order = [...root.querySelectorAll("div.map-frame, div.timeline, section.legend-fold, section.city-list")]
       .map((el) => (el.getAttribute("class") ?? "").split(" ")
-        .find((c) => /^(map-frame|timeline|legend-fold|city-list|chronicle-fold)$/.test(c)));
-    expect(order).toEqual(["map-frame", "timeline", "legend-fold", "city-list", "chronicle-fold"]);
+        .find((c) => /^(map-frame|timeline|legend-fold|city-list)$/.test(c)));
+    expect(order).toEqual(["map-frame", "timeline", "legend-fold", "city-list"]);
   });
 
   it("leaves the scrubber where it was on a wide window", () => {
     stubWidth(false);
     const root = document.createElement("div");
     createApp(root, small);
-    const order = [...root.querySelectorAll("div.map-frame, div.timeline, section.city-list, section.chronicle-fold")]
+    const order = [...root.querySelectorAll("div.map-frame, div.timeline, section.city-list")]
       .map((el) => (el.getAttribute("class") ?? "").split(" ")
-        .find((c) => /^(map-frame|timeline|city-list|chronicle-fold)$/.test(c)));
-    expect(order).toEqual(["map-frame", "city-list", "timeline", "chronicle-fold"]);
+        .find((c) => /^(map-frame|timeline|city-list)$/.test(c)));
+    expect(order).toEqual(["map-frame", "city-list", "timeline"]);
   });
 
   // Measured on a live phone: the title and toolbar came to 236px of an 812px screen — 29%, on a

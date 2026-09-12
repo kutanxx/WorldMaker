@@ -5,219 +5,120 @@ import { DEFAULT_PARAMS } from "../types/world";
 import { simulateHistory } from "../engine/history";
 import { worldToGazetteer } from "../engine/gazetteer";
 import { buildChronicle, isMoment } from "../engine/chronicleLines";
-import { renderChronicle, applyChronicleYear } from "./chronicle";
+import { renderChronicleCaption } from "./chronicle";
 
-describe("renderChronicle", () => {
-  // Restated twice, and neither time weakened. It first pinned one row per RECORDED event, which
-  // was the narrowness that made the panel tell less history than the download. It then pinned the
-  // whole assembled chronicle. It now pins the chronicle's MOMENTS — the record (king lists,
-  // territorial arithmetic) went back to the gazetteer where you go looking for it — and the
-  // original guarantee still holds: more than the simulation's own events.
-  it("renders one row per moment, which is still more than the recorded events", () => {
-    const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });
-    const h = simulateHistory(world, 1);
-    const el = renderChronicle(world, h, "ko");
-    const moments = buildChronicle(world, h, "ko").filter((l) => isMoment(l.kind));
-    expect(el.querySelectorAll(".chronicle-event").length).toBe(moments.length);
-    expect(moments.length).toBeGreaterThan(h.events.length);
-    // seed 1's eight foundings are told as one line, so "건국" is not the word to look for;
-    // the free-port namings are unconditional and Korean-only.
-    expect(el.textContent).toContain("자유무역항 지정");
-  });
-  it("keeps era headers OUT of the <ol> (valid list markup: an <ol> holds only <li>)", () => {
-    const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });
-    const h = simulateHistory(world, 1);
-    const el = renderChronicle(world, h, "ko");
-    const eras = el.querySelectorAll(".chronicle-era");
-    expect(eras.length).toBeGreaterThan(0);
-    for (const era of eras) expect(era.tagName.toLowerCase()).not.toBe("li"); // a header, not a list item
-    // every list child is an event row (no header smuggled into the <ol>)
-    for (const ol of el.querySelectorAll("ol.chronicle-list")) {
-      for (const child of ol.children) expect(child.classList.contains("chronicle-event")).toBe(true);
+const build = (seed: number) => {
+  const { world } = generateWorld({ ...DEFAULT_PARAMS, seed });
+  return { world, history: simulateHistory(world, seed) };
+};
+const momentsOf = (seed: number, lang: "en" | "ko" = "en") => {
+  const { world, history } = build(seed);
+  return { world, history, moments: buildChronicle(world, history, lang).filter((l) => isMoment(l.kind)) };
+};
+
+// ⚠ These used to be assertions about a PANEL: 48 rows under the map, one per moment, each a
+// button that moved the year. The reader it was built for, asked whether they read it, said no, so
+// the screen keeps one line and the gazetteer keeps the list. What was worth holding was never the
+// DOM but the chronicle behind it, so the invariants moved onto the lines themselves.
+describe("the chronicle caption", () => {
+  it("carries what had last happened, and never a line from the future", () => {
+    const { world, history, moments } = momentsOf(1, "ko");
+    const cap = renderChronicleCaption(world, history, "ko");
+    for (const year of [0, 100, 250, history.years]) {
+      cap.setYear(year);
+      const text = cap.element.textContent ?? "";
+      expect(text.length, `blank at ${year}`).toBeGreaterThan(0);
+      const line = moments.filter((l) => l.year <= year).pop()!;
+      expect(text.startsWith(line.text), `at ${year} the caption is not the last line before it`).toBe(true);
+      // nothing from after the year the map is drawn at
+      for (const l of moments.filter((m) => m.year > year)) expect(text).not.toContain(l.text);
     }
   });
-  it("tells the chronicle in English, chrome and all", () => {
-    const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });
-    const h = simulateHistory(world, 1);
-    const el = renderChronicle(world, h, "en");
-    expect(el.textContent).not.toMatch(/[가-힣]/);
-    expect(el.querySelector("h3")!.textContent).toBe(`Chronicle (Years 0–${h.years})`);
-    expect(el.querySelector(".chronicle-era")!.textContent).toBe("0s");
-    // the eight foundings are one line; assert that line rather than the first row, whose identity
-    // is a question of ordering and not of language
-    expect(el.querySelector(".evt-foundings")!.textContent)
-      .toBe("Year 0 — 8 realms stand: Dhaishdhar, Korvruk, Ceusdu, Thruthkha, Kaargruth, Zashain, Khaak, Laelmaer");
+
+  // Measured over 12 seeds: 43.5 events on 51 scrub steps, 54% of steps empty, runs of 34 empty
+  // steps at the worst. A caption of "this year's events" would be blank more than half the time.
+  it("is never blank on any step of any of four worlds, after the founding", () => {
+    for (const seed of [1, 2, 3, 4]) {
+      const { world, history } = build(seed);
+      const cap = renderChronicleCaption(world, history, "en");
+      for (const s of history.snapshots) {
+        cap.setYear(s.year);
+        expect((cap.element.textContent ?? "").length, `blank at ${s.year} on seed ${seed}`).toBeGreaterThan(0);
+      }
+    }
   });
-  it("still tells it in Korean when the reader is reading Korean", () => {
-    const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });
-    const h = simulateHistory(world, 1);
-    const el = renderChronicle(world, h, "ko");
-    expect(el.querySelector("h3")!.textContent).toBe(`연대기 (0–${h.years}년)`);
-    expect(el.querySelector(".chronicle-era")!.textContent).toBe("0년대");
-    expect(el.textContent).toContain("자유무역항 지정");
+
+  it("says how many others shared the year, rather than showing one of six in silence", () => {
+    const { world, history, moments } = momentsOf(1, "ko");
+    const busiest = [...new Set(moments.map((l) => l.year))]
+      .map((y) => ({ y, n: moments.filter((l) => l.year === y).length }))
+      .sort((a, b) => b.n - a.n)[0];
+    expect(busiest.n, "no year carries more than one moment").toBeGreaterThan(1);
+    const cap = renderChronicleCaption(world, history, "ko");
+    cap.setYear(busiest.y);
+    expect(cap.element.textContent).toContain(`외 ${busiest.n - 1}건`);
+  });
+
+  it("speaks the reader's language", () => {
+    const { world, history } = build(1);
+    const en = renderChronicleCaption(world, history, "en");
+    en.setYear(0);
+    expect(en.element.textContent).not.toMatch(/[가-힣]/);
+    const ko = renderChronicleCaption(world, history, "ko");
+    ko.setYear(0);
+    expect(ko.element.textContent).toMatch(/[가-힣]/);
+  });
+
+  it("carries the kind, so the stylesheet can still colour a fall differently from a founding", () => {
+    const { world, history, moments } = momentsOf(1, "en");
+    const cap = renderChronicleCaption(world, history, "en");
+    const kinds = new Set<string>();
+    for (const l of moments) {
+      cap.setYear(l.year);
+      kinds.add((cap.element.className.match(/evt-\S+/) ?? [""])[0]);
+    }
+    expect(kinds.size, "every line came out the same kind").toBeGreaterThan(1);
+    for (const k of kinds) expect(k.startsWith("evt-"), k).toBe(true);
   });
 });
 
-describe("applyChronicleYear", () => {
-  it("dims events after the current year and clears earlier ones", () => {
-    const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });
-    const h = simulateHistory(world, 1);
-    const el = renderChronicle(world, h, "ko");
-    applyChronicleYear(el, 100);
-    const rows = Array.from(el.querySelectorAll<HTMLElement>(".chronicle-event"));
-    expect(rows.length).toBeGreaterThan(0);
-    for (const r of rows) {
-      expect(r.classList.contains("future")).toBe(Number(r.dataset.year) > 100);
-    }
-  });
-});
-
-// The panel drew only the simulation's raw events, while the downloaded gazetteer drew those PLUS
+// The screen drew only the simulation's raw events, while the downloaded gazetteer drew those PLUS
 // everything mined out of the 51 territory snapshots. Measured on seeds 1/2/3 the screen showed
 // 56/48/42 lines against the download's 122/120/96, and never once named a person. Both come off
-// one assembler now — the panel taking its moments and the gazetteer the whole record — so the
-// panel can no longer be missing something the reader has no other way to see, which was the bug.
-describe("the panel is the gazetteer's moments, and misses none of them", () => {
-  const build = (seed: number) => {
-    const { world } = generateWorld({ ...DEFAULT_PARAMS, seed });
-    return { world, history: simulateHistory(world, seed) };
-  };
+// one assembler now — the screen taking its moments and the gazetteer the whole record — so the
+// screen can no longer be missing something the reader has no other way to see, which was the bug.
+describe("the screen's moments are the gazetteer's, and miss none of them", () => {
   const exportedLines = (world: Parameters<typeof worldToGazetteer>[0], history: ReturnType<typeof simulateHistory>) => {
     const md = worldToGazetteer(world, history, "en");
     return md.slice(md.indexOf("## Chronicle")).split("\n").filter((l) => l.startsWith("- "));
   };
 
   for (const seed of [1, 2, 3]) {
-    it(`shows every moment the gazetteer writes, and no record (seed ${seed})`, () => {
-      const { world, history } = build(seed);
-      const el = renderChronicle(world, history, "en");
-      const shown = [...el.querySelectorAll(".chronicle-event")].map((r) => r.textContent);
+    it(`draws on every moment the gazetteer writes, and no record (seed ${seed})`, () => {
+      const { world, history, moments } = momentsOf(seed, "en");
       const gazetteer = exportedLines(world, history).map((l) => l.slice(2));
-      const moments = buildChronicle(world, history, "en").filter((l) => isMoment(l.kind));
-      // the document is still the bigger of the two, and the panel is still bigger than the
+      // the document is still the bigger of the two, and the moments are still more than the
       // simulation's own events — the two ends this has been squeezed between all along
-      expect(gazetteer.length).toBeGreaterThan(shown.length);
-      expect(shown.length).toBeGreaterThan(history.events.length);
-      // and every moment on screen is a line the gazetteer also carries: same assembler, no drift
-      expect(shown).toEqual(moments.map((l) => l.text));
-      for (const line of shown) expect(gazetteer, line!).toContain(line);
+      expect(gazetteer.length).toBeGreaterThan(moments.length);
+      expect(moments.length).toBeGreaterThan(history.events.length);
+      for (const line of moments) expect(gazetteer, line.text).toContain(line.text);
     });
   }
 
-  // The morning's bug was a reader on the site never seeing a person named. Sending the king LIST
+  // The bug this closed was a reader on the site never seeing a person named. Sending the king LIST
   // back to the gazetteer must not bring that back: a realm's fall and its reach over another
   // people both say who was reigning, and both are moments.
-  it("still names a ruler on screen, without the king list", () => {
-    const { world, history } = build(1);
-    const el = renderChronicle(world, history, "en");
-    expect(el.querySelectorAll(".evt-accession").length).toBe(0);
-    expect(el.textContent).toMatch(/\(under \w+\)/);
+  it("still names a ruler among the moments, without the king list", () => {
+    const { moments } = momentsOf(1, "en");
+    expect(moments.filter((l) => l.kind === "accession").length).toBe(0);
+    expect(moments.map((l) => l.text).join(" ")).toMatch(/\(under \w+\)/);
   });
 
   it("says where the world stands at each century, so a quiet century is not a blank one", () => {
-    const { world, history } = build(1);
-    const el = renderChronicle(world, history, "en");
-    const rows = Array.from(el.querySelectorAll(".chronicle-event"));
-    const standing = rows.filter((r) => /realms stand/.test(r.textContent ?? ""));
-    expect(standing.length).toBeGreaterThan(1);
+    const { history, moments } = momentsOf(1, "en");
+    expect(moments.filter((l) => /realms stand/.test(l.text)).length).toBeGreaterThan(1);
     // seed 1's second century carried 4 raw events; it must no longer be near-empty
-    const second = rows.filter((r) => Number((r as HTMLElement).dataset.year) >= 200
-                                   && Number((r as HTMLElement).dataset.year) < 300);
+    const second = moments.filter((l) => l.year >= 200 && l.year < 300);
     expect(second.length).toBeGreaterThan(history.events.filter((e) => e.year >= 200 && e.year < 300).length);
-  });
-
-  it("carries the kind on the row so the stylesheet can still colour a conquest", () => {
-    const { world, history } = build(1);
-    const el = renderChronicle(world, history, "en");
-    expect(el.querySelectorAll(".evt-conquer").length).toBeGreaterThan(0);
-    expect(el.querySelectorAll(".evt-civilwar").length).toBeGreaterThan(0);
-  });
-});
-
-// The panel shows moments, not the record. Measured over five seeds the full chronicle runs 115
-// lines a world — a third of them accessions, a quarter territorial arithmetic — and a scroll that
-// long beside a moving map is not read. The gazetteer keeps every line; this keeps the ones where
-// something happened.
-describe("the panel shows what happened, and leaves the record to the gazetteer", () => {
-  const build = (seed: number) => {
-    const { world } = generateWorld({ ...DEFAULT_PARAMS, seed });
-    return { world, history: simulateHistory(world, seed) };
-  };
-
-  it("drops the king list and the territorial arithmetic", () => {
-    const { world, history } = build(1);
-    const el = renderChronicle(world, history, "en");
-    for (const k of ["accession", "peak", "loss", "surge"]) {
-      expect(el.querySelectorAll(`.evt-${k}`).length, k).toBe(0);
-    }
-  });
-
-  it("keeps every moment, and nothing else", () => {
-    const { world, history } = build(2);
-    const el = renderChronicle(world, history, "en");
-    const moments = buildChronicle(world, history, "en").filter((l) => isMoment(l.kind));
-    expect(el.querySelectorAll(".chronicle-event").length).toBe(moments.length);
-    expect(el.querySelectorAll(".evt-conquer").length).toBeGreaterThan(0);
-    expect(el.querySelectorAll(".evt-civilwar").length).toBeGreaterThan(0);
-    expect(el.querySelectorAll(".evt-century").length).toBeGreaterThan(0);
-  });
-
-  it("is about half what it was, so the centuries still have a spine", () => {
-    const { world, history } = build(1);
-    const el = renderChronicle(world, history, "en");
-    const shown = el.querySelectorAll(".chronicle-event").length;
-    const all = buildChronicle(world, history, "en").length;
-    expect(shown).toBeLessThan(all * 0.7);
-    expect(el.querySelectorAll(".chronicle-era").length).toBeGreaterThan(3);
-  });
-
-  it("still names a ruler somewhere on screen", () => {
-    const { world, history } = build(1);
-    const el = renderChronicle(world, history, "en");
-    expect(el.textContent).toMatch(/\(under \w+\)/);
-  });
-});
-
-// A chronicle beside a moving map is only worth its column if it is a way INTO the map. Every row
-// already knows its year (`data-year`, used to grey the future) and the timeline already exposes
-// `setIndex`; nothing joined them, so a reader who saw "190년, X가 Y를 정복" had to go and hunt for
-// 190 on a 500-year slider by feel.
-describe("a chronicle row is a way into the map", () => {
-  const world = generateWorld({ ...DEFAULT_PARAMS, seed: 1 }).world;
-  const history = simulateHistory(world, 1);
-
-  it("gives every row a real button, so the keyboard and a screen reader get it for free", () => {
-    const el = renderChronicle(world, history, "ko", () => {});
-    const rows = el.querySelectorAll(".chronicle-event");
-    expect(rows.length).toBeGreaterThan(10);
-    for (const row of rows) {
-      const btn = row.querySelector("button");
-      expect(btn, `row "${row.textContent}" has no button`).not.toBeNull();
-      expect(btn!.tagName).toBe("BUTTON");
-    }
-  });
-
-  it("hands back the year the row is about", () => {
-    const picked: number[] = [];
-    const el = renderChronicle(world, history, "ko", (y) => picked.push(y));
-    const rows = [...el.querySelectorAll<HTMLElement>(".chronicle-event")];
-    const row = rows[rows.length - 1];              // a late row: the interesting direction is forward
-    (row.querySelector("button") as HTMLButtonElement).click();
-    expect(picked).toEqual([Number(row.dataset.year)]);
-  });
-
-  it("still renders without a handler, because the gazetteer's chronicle has nowhere to jump", () => {
-    const el = renderChronicle(world, history, "ko");
-    expect(el.querySelectorAll(".chronicle-event").length).toBeGreaterThan(10);
-    (el.querySelector(".chronicle-event button") as HTMLButtonElement).click();  // must not throw
-  });
-
-  it("keeps the row's text as its text, so the future-greying and the era grouping still work", () => {
-    const el = renderChronicle(world, history, "ko", () => {});
-    const row = el.querySelector<HTMLElement>(".chronicle-event")!;
-    expect(row.textContent!.length).toBeGreaterThan(5);
-    expect(row.dataset.year).toBeTruthy();
-    applyChronicleYear(el, 0);
-    expect(el.querySelectorAll(".chronicle-event.future").length).toBeGreaterThan(0);
   });
 });

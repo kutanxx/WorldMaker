@@ -141,7 +141,8 @@ body.map-focus { overflow: hidden; }
 body.map-focus .app-title,
 body.map-focus .controls,
 body.map-focus .city-list,
-body.map-focus .chronicle,
+body.map-focus .chronicle-caption,
+body.map-focus .legend-fold,
 body.map-focus .city-facts,
 body.map-focus .advanced { display: none; }
 /* the plate's way back off itself stays reachable while the chrome is away */
@@ -215,63 +216,44 @@ svg.world.lang-en .nation-label { font-variant: small-caps; letter-spacing: 0.10
 .city-label { font-family: 'EB Garamond', Georgia, serif; }
 .region-label { font-family: 'EB Garamond', Georgia, serif; opacity: .85; }
 .world-name-text { font-family: 'Cinzel', serif; font-weight: 600; letter-spacing: .08em; }
-/* The chronicle grew from 42-56 lines to 95-121 when the panel started telling the whole history
-   rather than the recorded events alone, and 240px of it is ten lines — half a century through a
-   slot. It is the last thing on the page, so height here pushes nothing off; `max()` keeps the old
-   240px as a floor on short windows and gives a tall one nearly half its height. Measured live at
-   1280x900: 10 lines visible before, 18 after. */
-.chronicle {
-  /* prose, so it keeps a readable measure rather than stretching with the widened page */
-  max-width: 940px; margin-inline: auto;
-  max-height: max(240px, 45vh); overflow: auto; padding: 8px 14px; margin-top: 12px;
-  background: #f6efdd; border: 1px solid #cbb784; border-radius: 6px;
+/* ★ The chronicle is ONE LINE under the scrubber, where it used to be a panel of every moment in
+   the history under the map — 48 rows, always open on a wide window, and the reader it was built
+   for did not read it. The sentence sits with the scrubber because it belongs to the year the
+   scrubber is holding: they move together and they move as one node (`.timeline-strip`).
+   It keeps the per-kind colours the rows had: a fall is not a founding, and one line can say so as
+   well as forty could. */
+.timeline-strip { margin-top: 12px; }
+.chronicle-caption {
+  max-width: 940px; margin: 6px auto 0; padding: 6px 12px; min-height: 1.5em;
+  font-family: 'EB Garamond', Georgia, serif; font-size: 15px; line-height: 1.4; text-align: center;
+  color: #4a3f2f; background: #f6efdd; border: 1px solid #cbb784; border-radius: 6px;
 }
-.chronicle h3 { font-family: 'Cinzel', serif; font-size: 16px; margin: 4px 0 8px; color: #3c2f1c; }
-.chronicle-list { list-style: none; padding-left: 0; margin: 0; }
-.chronicle-era { font-family: 'Cinzel', serif; font-weight: 600; margin: 10px 0 4px; color: #7a5a2f; border-bottom: 1px solid #d8c9a3; }
-.chronicle-event { padding: 0; font-size: 14px; }
-/* A row is a control — it takes the map to the year it names — and a control nobody can see is a
-   feature nobody uses. The button is flat so the panel still reads as prose, and everything that
-   says "you may press this" is spent on the hover and the focus ring instead of on a border.
-   `inherit` on colour and size is what keeps the per-kind colours (evt-conquer, evt-fall...) and
-   the era grouping looking exactly as they did when these were plain <li> text. */
-.chronicle-jump {
-  display: block; width: 100%; text-align: left; padding: 2px 4px; margin: 0;
-  font: inherit; color: inherit; background: none; border: none; border-radius: 3px;
-  cursor: pointer;
-}
-.chronicle-jump:hover { background: #e7d9b6; }
-.chronicle-jump:focus-visible { outline: 2px solid #7a5a2f; outline-offset: -2px; }
-.chronicle-event.future .chronicle-jump { cursor: pointer; }
-.chronicle-event.future { opacity: .4; }
-.chronicle-event.evt-conquer { color: #7a2f2f; }
-.chronicle-event.evt-civilwar { color: #8a3a1a; }
-.chronicle-event.evt-independence { color: #2f6f4a; }
-.chronicle-event.evt-goldenage { color: #9a6a1a; }
-.chronicle-event.evt-staple { color: #2f5a7a; }
-/* The panel draws the whole chronicle now, not only the simulation's own events, so the kinds mined
-   out of the snapshots need a place in the same warm register. The two that describe the SHAPE of
-   the record rather than a moment in it — the century standings, and the accessions that fill the
-   stretches where borders held — are quietened deliberately: they are there to frame the events,
-   not to outnumber them in colour as well as in count. */
-.chronicle-event.evt-foundings { font-weight: 600; }
-.chronicle-event.evt-fall { color: #6a2020; }
-.chronicle-event.evt-hegemon { color: #7a5a2f; font-weight: 600; }
-.chronicle-event.evt-century { color: #6b5a3e; font-style: italic; margin-top: 4px; }
-.chronicle-event.evt-accession { color: #5c5142; }
+.chronicle-caption.evt-conquer { color: #7a2f2f; }
+.chronicle-caption.evt-civilwar { color: #8a3a1a; }
+.chronicle-caption.evt-independence { color: #2f6f4a; }
+.chronicle-caption.evt-goldenage { color: #9a6a1a; }
+.chronicle-caption.evt-staple { color: #2f5a7a; }
+/* The two kinds that describe the SHAPE of the record rather than a moment in it — the century
+   standings, and the accessions that fill the stretches where borders held — are quietened
+   deliberately: they frame the events rather than outshouting them. On a caption they are also the
+   most common thing it will be holding, since they are what a quiet century leaves behind. */
+.chronicle-caption.evt-foundings { font-weight: 600; }
+.chronicle-caption.evt-fall { color: #6a2020; }
+.chronicle-caption.evt-hegemon { color: #7a5a2f; font-weight: 600; }
+.chronicle-caption.evt-century { color: #6b5a3e; font-style: italic; }
+.chronicle-caption.evt-accession { color: #5c5142; }
 /* A realm becoming an empire and a realm becoming the hegemon of its age are the same sentence in
    two keys — one is standing over other peoples, the other over other realms — so they share a
-   register rather than each inventing a colour. Both are rare: one or two lines in five centuries. */
-.chronicle-event.evt-empire { color: #7a5a2f; font-weight: 600; }
-/* The world's natural history. These are the lines that are ABOUT a place rather than about a
-   realm, so they take their colour from the thing that happened rather than from the politics
-   around them — and they stay inside the parchment's warm range, since a chronicle that suddenly
-   goes primary at a fire reads as an alert box, not as a record. */
-.chronicle-event.evt-plague { color: #6a3a52; }
-.chronicle-event.evt-fire { color: #a8541f; }
-.chronicle-event.evt-flood { color: #35617a; }
-.chronicle-event.evt-winter { color: #4a6a80; }
-.chronicle-event.evt-famine { color: #7a6a2f; }
+   register rather than each inventing a colour. */
+.chronicle-caption.evt-empire { color: #7a5a2f; font-weight: 600; }
+/* The world's natural history: lines ABOUT a place rather than about a realm, so they take their
+   colour from the thing that happened — and they stay inside the parchment's warm range, since a
+   chronicle that suddenly goes primary at a fire reads as an alert box, not as a record. */
+.chronicle-caption.evt-plague { color: #6a3a52; }
+.chronicle-caption.evt-fire { color: #a8541f; }
+.chronicle-caption.evt-flood { color: #35617a; }
+.chronicle-caption.evt-winter { color: #4a6a80; }
+.chronicle-caption.evt-famine { color: #7a6a2f; }
 /* The three export buttons each repeated the word "export" — 325px of a 1014px toolbar in Korean,
    274 in English — and that is what pushed the language toggle onto a second row in BOTH languages.
    (The toolbar's width comes from #app's 1040px cap, so the window's size never entered into it.)

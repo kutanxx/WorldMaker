@@ -13,7 +13,7 @@ import { worldToGazetteer } from "../engine/gazetteer";
 import { simulateHistory } from "../engine/history";
 import { assignNationColors, nationColor } from "./nationPalette";
 import { classifyGovernments, type GovernmentForm } from "../engine/government";
-import { renderChronicle, applyChronicleYear } from "./chronicle";
+import { renderChronicleCaption } from "./chronicle";
 import { createTimeline, type Timeline } from "./timeline";
 import { attachZoomPan, type ZoomPan } from "./zoomPan";
 import { politicalLayer } from "./politicalLayer";
@@ -22,7 +22,7 @@ import { provinceLayer, snapOwnersToProvinces } from "./provinceLayer";
 import { deconflictLabels } from "./deconflict";
 import { applyLabelScale, applyMarkerScale } from "./labelScale";
 import { layOutLabelsForExport } from "./exportLabels";
-import { type Lang, t, chronicleTitle } from "./i18n";
+import { type Lang, t } from "./i18n";
 import { makeFold, readFoldPref, writeFoldPref } from "./fold";
 import { legendSheet, placeLegend } from "./legendSheet";
 import { LEGEND_ROW } from "./renderer";
@@ -67,6 +67,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
   // wherever a realm's name is drawn as a label rather than read inside a sentence.
   let governmentForms: Map<number, GovernmentForm> = classifyGovernments(generated.world, history);
   let timeline: Timeline | null = null;
+  let timelineStrip: HTMLElement | null = null;   // the scrubber and the chronicle caption, moved as one
   let worldZoom: ZoomPan | null = null;
   let cityZoom: ZoomPan | null = null;
   let currentYearIndex = 0;
@@ -249,7 +250,6 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
   // The panels under the map fold on a narrow window, and the same bargain applies: a reader who
   // put the chronicle away did not mean "until the next world".
   const CITIES_FOLD_KEY = "wm:fold:cities";
-  const CHRONICLE_FOLD_KEY = "wm:fold:chronicle";
   const CITY_KEY_FOLD_KEY = "wm:fold:cityKey";
   /**
    * Where the map stops being able to carry its own furniture. The same line the town list already
@@ -491,26 +491,14 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
       },
     });
 
-    // The row hands back a YEAR; the timeline works in snapshot indices. The snapshots are the
-    // only record of which years exist, so the year is matched against them rather than divided by
-    // a tick length the panel would then have to know about.
-    const jumpToYear = (year: number) => {
-      let best = 0;
-      for (let i = 0; i < history.snapshots.length; i++) if (history.snapshots[i].year <= year) best = i;
-      timeline?.setIndex(best);
-    };
-    const chronicle = renderChronicle(generated.world, history, lang, jumpToYear);
-    // The fold's head IS this panel's heading now, so the panel's own one would be the title twice.
-    // Only this copy is touched: the gazetteer builds its own chronicle and keeps its <h3>.
-    chronicle.querySelector("h3")?.remove();
-    const chronicleFold = makeFold({
-      title: chronicleTitle(lang, history.years), level: 3,
-      count: chronicle.querySelectorAll(".chronicle-event").length,
-      open: readFoldPref(CHRONICLE_FOLD_KEY, false),
-      onToggle: (on) => writeFoldPref(CHRONICLE_FOLD_KEY, on),
-    });
-    chronicleFold.section.classList.add("chronicle-fold");
-    chronicleFold.body.appendChild(chronicle);
+    // ★ The chronicle is a CAPTION under the scrubber, not a panel under the map. It used to be the
+    // whole list — 48 rows on seed 3, always open on a wide window — and the reader it was built
+    // for, asked whether they read it, said no. The reduction is measured: history is bursty, 43.5
+    // events over 51 scrub steps with 54% of the steps empty and runs of 34 empty steps, so a
+    // caption of "this year's events" would be blank more often than not. It carries the last line
+    // forward instead, and says how many others shared that year. The whole chronicle is still a
+    // click away in the gazetteer, which builds its own and always did.
+    const caption = renderChronicleCaption(generated.world, history, lang);
 
     // Wide windows show all three sections outright and their heads stand down to plain headings;
     // narrow ones fold them and take the key off the map. Watched, not read once: a window is
@@ -523,7 +511,6 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     const applyWidth = () => {
       const n = isNarrow();
       listFold.setFoldable(n);
-      chronicleFold.setFoldable(n);
       // ★ The key comes off the drawing at every width and stands in the fold beside the map. It
       // used to be drawn inside the SVG on wide windows, and the SVG is what the zoom moves —
       // measured at 1440x900, two presses of `+` left the key 294px off the left edge of the frame
@@ -532,13 +519,13 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
       placeLegend(svg, sheet, true);
       // The scrubber moves the MAP, so under a narrow window it goes directly under the drawing.
       // Stacking the sections had left it between the town list and the chronicle — the one control
-      // the map cannot be read without, stranded in the middle of three things that annotate it.
+      // the map cannot be read without, stranded in the middle of the things that annotate it.
       // Moved rather than re-laid-out: at a wide width it is a full-stage row under everything, and
-      // CSS cannot put it in two different parents.
-      const strip = timeline?.element;
-      if (strip) {
-        if (n) withList.insertBefore(strip, legendFold.section);
-        else stage.insertBefore(strip, chronicleFold.section);
+      // CSS cannot put it in two different parents. The strip carries the chronicle's caption with
+      // it: the sentence belongs to the year the scrubber is holding, so the two never separate.
+      if (timelineStrip) {
+        if (n) withList.insertBefore(timelineStrip, legendFold.section);
+        else stage.appendChild(timelineStrip);
       }
     };
     // ⚠ One listener, dropped when this screen goes. Hanging one off each frame leaked a listener
@@ -555,7 +542,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
       fillSlot(slot, currentView, index);
       showFoundedCities(svg, index);
       showCityRealms(index);
-      applyChronicleYear(chronicle, snap.year);
+      caption.setYear(snap.year);
       // Scrubbing a year replaces the political layer, so its labels arrive at their base size.
       // Bring them to whatever zoom the reader is at before working out what fits, or a nation's
       // name would come back full-size on a map zoomed to 8x.
@@ -571,7 +558,10 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     // ...in the reader's language. Without this the timeline took its own Korean default and an
     // English reader was shown "500년" on the scrubber.
     timeline = createTimeline(history, renderYear, (y) => t(lang, "year").replace("{y}", String(y)));
-    stage.append(timeline.element, chronicleFold.section);
+    timelineStrip = document.createElement("div");
+    timelineStrip.className = "timeline-strip";
+    timelineStrip.append(timeline.element, caption.element);
+    stage.append(timelineStrip);
     applyWidth();                       // before the first year, so the key starts where it belongs
     timeline.setIndex(currentYearIndex); // renders the current year in the current view
     // replaceState, not location.hash: re-rendering the same world is not a place to come back to,

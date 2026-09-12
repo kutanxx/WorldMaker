@@ -98,7 +98,7 @@ export const UI: Record<Lang, Record<string, string>> = {
     moreToggle: "More", moreShow: "More controls", moreHide: "Fewer controls",
     focusEnter: "⤢ Fill the screen", focusExit: "✕ Leave", focusEnterHint: "Give the window to the map", focusExitHint: "Back to the page (Esc)",
     // the front page. It used to print every line in both languages at once, so neither read well.
-    landingTagline: "A procedural fantasy atlas & chronicle",
+    landingTagline: "A procedural fantasy atlas & chronicle", chronicleAlso: " and {n} more that year",
     landingCardTitle: "Create a World",
     landingCardDesc: "Generate a random fantasy world — explore its map, cities, rivers, history, and gazetteer.",
     landingNamePlaceholder: "start from a name (e.g. Narnia)",
@@ -132,7 +132,7 @@ export const UI: Record<Lang, Record<string, string>> = {
     legendToggle: "범례", legendShow: "범례 펼치기", legendHide: "범례 접기",
     moreToggle: "더 보기", moreShow: "컨트롤 더 보기", moreHide: "컨트롤 접기",
     focusEnter: "⤢ 크게 보기", focusExit: "✕ 닫기", focusEnterHint: "화면을 지도에 내어준다", focusExitHint: "원래 화면으로 (Esc)",
-    landingTagline: "절차적으로 만들어지는 판타지 지도와 연대기",
+    landingTagline: "절차적으로 만들어지는 판타지 지도와 연대기", chronicleAlso: " 외 {n}건",
     landingCardTitle: "세계 만들기",
     landingCardDesc: "무작위 판타지 세계를 만들고 — 지도, 도시, 강, 역사, 가제티어를 살펴봅니다.",
     landingNamePlaceholder: "세계의 이름으로 시작 (예: Narnia)",
