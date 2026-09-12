@@ -299,6 +299,12 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
   };
   const zoned = assignZones(rng, cells, [center[0], center[1]], radius, { hasCastle, coastal: ctx.coastal, castleAnchor, seaAnchor,
     wet: (poly) => water.bodies.some((b) => polysOverlap(poly, b)),
+    // the ward edge nearest the water: what decides which district is the quayside
+    waterDist: (poly) => {
+      let d = Infinity;
+      for (const p of poly) for (const b of water.bodies) for (let i = 0; i < b.length; i++) d = Math.min(d, pointSegDist(p, b[i], b[(i + 1) % b.length]));
+      return d;
+    },
     drowned: isDrowned,
     walledArea: Math.abs(area(boundary)) });
 

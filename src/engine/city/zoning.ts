@@ -34,6 +34,12 @@ export function assignZones(
     // Guildhall. Such a ward still exists — the mesh has no holes — it is simply not somewhere the
     // town would put its cathedral.
     drowned?: (poly: Polygon) => boolean;
+    // how far the ward's own EDGE stands from the water. `wet` — does the polygon overlap a water
+    // body — was the zoning's only water sense, and an all-or-nothing predicate cannot rank a
+    // shore: over 12 seeds, 59 of 139 harbour towns had no ward overlapping the water at all, and
+    // on those the pick fell back to bearing alone, which cannot tell a quayside from a ward three
+    // streets inland.
+    waterDist?: (poly: Polygon) => number;
     // the area inside the wall, which is what a reader sees. Wards run past the wall (the mesh is
     // laid to the town's reach and the plate clips it), so their own total is the wrong yardstick
     // for "how much of this town is parkland".
@@ -54,47 +60,60 @@ export function assignZones(
   }));
 
   let idx = 0;
-  // the civic landmarks take the innermost wards, but skip any the water has taken: swap the next
-  // dry one up into place rather than founding a cathedral in a lake
-  const setType = (t: WardType) => {
-    if (idx >= out.length) return;
-    if (opts.drowned) {
-      for (let j = idx; j < out.length; j++) {
-        if (opts.drowned(out[j].polygon)) continue;
-        if (j !== idx) { const tmp = out[idx]; out[idx] = out[j]; out[j] = tmp; }
-        break;
-      }
+  // ★ The docks have the first claim on the waterfront — ahead of the plaza, the cathedral and the
+  // guildhall. A port town grew around its harbour: the waterfront IS its economic centre and the
+  // civic landmarks arranged themselves around it. Taking the landmarks first and the harbour from
+  // what was left put the docks inland whenever the ward that met the water happened to be central
+  // — Aerael (seed 2) had its guildhall on the shore and its harbour 102 units back, on a 460-unit
+  // plate.
+  // Measured over 12 seeds / 139 harbour towns, ward-edge to water: median 4.5 → 2.0 units, worst
+  // 102 → 41, and the ward chosen is the nearest the town has to the water in every one of them.
+  // A threshold ("pre-empt only a ward that actually touches the water") was measured too and earns
+  // no constant: by 40 units it never fires, because a ward standing that far back from the water
+  // is the nearest one the town has.
+  let harborWard: ZonedWard | null = null;
+  if (opts.coastal && opts.waterDist) {
+    let bi = -1, bd = Infinity;
+    for (let j = 0; j < out.length; j++) {
+      if (opts.drowned?.(out[j].polygon)) continue;     // a ward the water swallowed has no quayside
+      const d = opts.waterDist(out[j].polygon);
+      if (d < bd) { bd = d; bi = j; }
     }
+    if (bi >= 0) harborWard = out[bi];
+  }
+
+  // the civic landmarks take the innermost wards, but skip any the water has taken (and any the
+  // docks already hold): swap the next dry one up into place rather than founding a cathedral in
+  // a lake
+  const setType = (t: WardType) => {
+    let j = idx;
+    for (; j < out.length; j++) {
+      if (out[j] === harborWard) continue;
+      if (opts.drowned?.(out[j].polygon)) continue;
+      break;
+    }
+    if (j >= out.length) {                              // nothing dry left: take a drowned ward...
+      for (j = idx; j < out.length && out[j] === harborWard; j++);
+      if (j >= out.length) return;                      // ...but never the docks; the landmark waits
+    }
+    if (j !== idx) { const tmp = out[idx]; out[idx] = out[j]; out[j] = tmp; }
     out[idx++].type = t;
   };
   setType("plaza");
   setType("cathedral");
   setType("guildhall");
-  // harbor ward: the district nearest the SEA (a coastal city knows the water side via
-  // seaAnchor). Falls back to the farthest-from-centre ward if no sea anchor is supplied.
-  // Captured BEFORE any castle-anchor swap so the swap can't steal it.
-  let harborWard: ZonedWard | null = null;
-  if (opts.coastal) {
-    if (opts.seaAnchor) {
-      // ⚠ Nearest to the sea is not the same as ON the sea, and the difference was docks inland:
-      // measured over 8 seeds, harbour wards sat a median stone's throw but up to 144 units from
-      // the water on a 460-unit plate (Kukhauth seed 6; Aerael seed 2 at 111). The angle test that
-      // was supposed to catch this measured the harbour's BEARING from the middle of the plate,
-      // which says nothing when the sea has taken a bite out of one side and every ward is on the
-      // land side of it.
-      // So: of the wards left, prefer one that actually MEETS the water — the same `wet` the castle
-      // uses to keep OFF it — and fall back to nearest-to-the-sea only when no ward reaches it.
-      let bi = -1, bd = Infinity, wetI = -1, wetD = Infinity;
-      for (let j = idx; j < out.length; j++) {
-        const d = Math.hypot(out[j].site[0] - opts.seaAnchor[0], out[j].site[1] - opts.seaAnchor[1]);
-        if (d < bd) { bd = d; bi = j; }
-        if (opts.wet?.(out[j].polygon) && d < wetD) { wetD = d; wetI = j; }
-      }
-      const pick = wetI >= 0 ? wetI : bi;
-      harborWard = pick >= 0 ? out[pick] : out[out.length - 1];
-    } else {
-      harborWard = out[out.length - 1];
+  // The town gave no water sense at all (no `waterDist`), or the water had swallowed every ward:
+  // the harbour takes the best of what the landmarks left, by the seaward bearing, and with neither
+  // it takes the outermost ward — the old rule, kept because it is the only one those callers have.
+  if (opts.coastal && !harborWard) {
+    let bi = -1, bd = Infinity;
+    for (let j = idx; j < out.length; j++) {
+      const d = opts.waterDist ? opts.waterDist(out[j].polygon)
+        : opts.seaAnchor ? Math.hypot(out[j].site[0] - opts.seaAnchor[0], out[j].site[1] - opts.seaAnchor[1])
+        : Infinity;
+      if (d < bd) { bd = d; bi = j; }
     }
+    harborWard = bi >= 0 ? out[bi] : out[out.length - 1];
   }
   if (opts.hasCastle) {
     const anchor = opts.castleAnchor;

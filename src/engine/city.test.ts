@@ -883,38 +883,62 @@ describe("a coastal plate faces the way the world faces", () => {
     expect(checked, "no coastal plate in eight seeds").toBeGreaterThan(10);
     expect(worstDeg, `worst: ${worstName}`).toBeLessThan(25);
   });
-
-  // ⚠ This used to measure the harbour's BEARING from the middle of the plate against the world's
-  // sea bearing, and that says nothing when the sea has taken a bite out of one side: every ward is
-  // then on the LAND side of it, so the ward nearest the water can sit a long way round the compass
-  // and still be the right ward. It passed for months and was hiding docks 111 and 144 units from
-  // the water on a 460-unit plate — the real question is not which way the harbour lies but whether
-  // it can reach the sea.
+  // ⚠ Two instruments in a row lied about this, and both lied the same way — by measuring a point
+  // instead of the district.
   //
-  // A distribution, not a maximum: some towns have only three wards left after the civic landmarks
-  // take the innermost, and none of the three reaches the water. Those keep a landlocked harbour,
-  // which is a real defect and is written down as its own item rather than blessed here.
-  it("puts the docks on the water, for all but the towns that have no ward on it", () => {
+  // First it measured the harbour's BEARING from the middle of the plate against the world's sea
+  // bearing, which says nothing when the sea has taken a bite out of one side: every ward is then
+  // on the LAND side of it, so the ward nearest the water can sit a long way round the compass and
+  // still be the right ward.
+  //
+  // Then it measured the CENTROID of the harbour ward, and the centroid of a waterfront ward that
+  // runs back from the quay sits inland by half the ward's depth. On twelve seeds it read a median
+  // 25.5 units and a worst 144, and called the town of Tuisdiar (seed 7) a 47-unit defect when the
+  // ward's own edge was 3 units from the water and 1 from the drawn quay. The backlog carried
+  // "docks 144 units inland" as a live defect on the strength of it; the real count of towns whose
+  // docks could not reach the water was two.
+  //
+  // What a reader sees is the DISTRICT against the water, so the measure is the ward's own edge.
+  it("puts the docks on the water", () => {
     const ds: number[] = [];
+    const landlocked: string[] = [];
+    const edgeToWater = (poly: [number, number][], bodies: [number, number][][]) => {
+      let d = Infinity;
+      for (const p of poly) for (const b of bodies) for (let i = 0; i < b.length; i++) d = Math.min(d, pointSegDist(p, b[i], b[(i + 1) % b.length]));
+      return d;
+    };
+    // mostly UNDER the water — the same ward the zoning refuses to make a quayside of, because it
+    // has no quayside to stand on (city.ts: isDrowned)
+    const isDrowned = (poly: [number, number][], l: { water: { bodies: [number, number][][] } }) => {
+      const pts = [...poly, centroid(poly)];
+      return pts.filter((p) => l.water.bodies.some((b) => pointInPolygon(p, b))).length / pts.length > 0.6;
+    };
     for (let seed = 1; seed <= 8; seed++) {
       const world = generateWorld({ ...DEFAULT_PARAMS, seed }).world;
       for (const c of world.cities) {
         const l = generateCityLayout(cityContext(c), seed);
         const h = l.wards.find((w) => w.type === "harbor");
         if (!h || !l.water.bodies.length) continue;
-        const hc = centroid(h.polygon);
-        let d = Infinity;
-        for (const b of l.water.bodies) {
-          for (let i = 0; i < b.length; i++) d = Math.min(d, pointSegDist(hc, b[i], b[(i + 1) % b.length]));
-        }
+        const d = edgeToWater(h.polygon, l.water.bodies);
         ds.push(d);
+        // The rule, not the percentile: the docks take the ward nearest the water, ahead of the
+        // plaza, the cathedral and the guildhall. A town whose wards all stand back from the water
+        // still has a harbour set back — that is the town's geography, not a zoning defect — but
+        // NO ward may be nearer the water than the one carrying the docks.
+        let bestOther = Infinity;
+        for (const w of l.wards) {
+          if (w === h || isDrowned(w.polygon, l)) continue;
+          bestOther = Math.min(bestOther, edgeToWater(w.polygon, l.water.bodies));
+        }
+        if (d > bestOther + 0.5) landlocked.push(`${c.name} (seed ${seed}): docks ${d.toFixed(0)} from the water, another ward ${bestOther.toFixed(0)}`);
       }
     }
     ds.sort((a, b) => a - b);
     expect(ds.length, "no harbour in eight seeds").toBeGreaterThan(20);
+    expect(landlocked).toEqual([]);
     const median = ds[Math.floor(ds.length / 2)], p90 = ds[Math.floor(ds.length * 0.9)];
-    expect(median, `median dock stands ${median.toFixed(0)} units from the water`).toBeLessThan(35);
-    expect(p90, `p90 dock stands ${p90.toFixed(0)} units from the water`).toBeLessThan(70);
+    expect(median, `median dock stands ${median.toFixed(1)} units from the water`).toBeLessThan(8);
+    expect(p90, `p90 dock stands ${p90.toFixed(0)} units from the water`).toBeLessThan(30);
   });
 });
 
