@@ -1181,17 +1181,23 @@ describe("a window too narrow to carry the map's furniture", () => {
     expect(controls.classList.contains("plate")).toBe(false);
   });
 
-  it("leaves a wide window exactly as it was: key beside the map, panels open, heads standing down", () => {
+  // ⚠ This used to require the town list's head to be DISABLED on a wide window — "a head that
+  // cannot fold anything is a heading, not a control" — because the list only folded where the
+  // page was short of room. The reader asked for it to fold anywhere ("도시 목록도 접었다 피는게
+  // 괜찮지 않을까"), so the head is a control at every width; what still changes with the window is
+  // only which way it starts.
+  it("opens the town list on a wide window, and lets it fold there too", () => {
     stubWidth(false);
     const root = document.createElement("div");
     createApp(root, small);
-    // the key stands in the column beside the map at every width — only the town list and the
-    // chronicle change their manners with the window
+    // the key stands in the column beside the map at every width
     expect(root.querySelector(".legend-fold .legend-sheet .legend")).not.toBeNull();
     expect(root.querySelector("svg.world .legend"), "the key is back in the drawing the zoom moves").toBeNull();
     const cities = [...root.querySelectorAll(".fold-head")]
       .find((h) => /Cities/.test(h.textContent || "")) as HTMLButtonElement;
-    expect(cities.disabled, "a control that does nothing is taking a tab stop").toBe(true);
-    expect(cities.closest(".fold")!.classList.contains("is-open")).toBe(true);
+    expect(cities.disabled, "the head cannot be pressed on a wide window").toBe(false);
+    expect(cities.closest(".fold")!.classList.contains("is-open"), "a wide window starts it folded").toBe(true);
+    cities.click();
+    expect(cities.closest(".fold")!.classList.contains("is-open"), "it will not fold").toBe(false);
   });
 });

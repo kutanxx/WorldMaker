@@ -69,11 +69,24 @@ export function placeLegend(map: SVGSVGElement, sheet: SVGSVGElement, outside: b
  * untouched: those are the key's own coordinates either way.
  */
 function fitToKey(sheet: SVGSVGElement, legend: Element, scale: number): void {
-  const rect = legend.querySelector(".legend-panel rect");
+  const panel = legend.querySelector(".legend-panel");
+  const rect = panel?.querySelector("rect");
   if (!rect) return;
   const n = (a: string) => Number(rect.getAttribute(a) ?? 0);
   const [x, y, w, h] = [n("x"), n("y"), n("width"), n("height")];
-  sheet.setAttribute("viewBox", `${x} ${y} ${w} ${h}`);
-  sheet.setAttribute("width", String(w * scale));
-  sheet.setAttribute("height", String(h * scale));
+  // ★ Crop to the KEY, not to the cartouche. On the map the key wears a double rule, corner dots
+  // and a Cinzel heading — the map's own furniture. Off it, the page has already drawn a panel and
+  // written the heading on the fold, so what is left to show is the swatches: measured, the framed
+  // version sat 112 units wide inside a 210px panel with a second heading above its own, which is a
+  // frame inside a frame. `data-band` is the heading's height, written where the heading is placed;
+  // INSET is the double rule's own margin (3 units) plus a unit of air.
+  const band = Number(panel?.getAttribute("data-band") ?? 0);
+  const INSET = 4;
+  // the band already includes the heading's own air, so the top is cropped by it alone: at 12-unit
+  // type that lands one unit above the first swatch (measured: the swatch sat 3 units ABOVE the
+  // viewport and was clipped when the inset was applied twice).
+  const [vx, vy, vw, vh] = [x + INSET, y + band, w - INSET * 2, h - band - INSET];
+  sheet.setAttribute("viewBox", `${vx} ${vy} ${vw} ${vh}`);
+  sheet.setAttribute("width", String(vw * scale));
+  sheet.setAttribute("height", String(vh * scale));
 }

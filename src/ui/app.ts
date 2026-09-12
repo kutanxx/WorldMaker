@@ -432,7 +432,10 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     // was added to do.
     const listFold = makeFold({
       title: t(lang, "cityList"), count: generated.world.cities.length,
-      open: readFoldPref(CITIES_FOLD_KEY, false),
+      // ★ Foldable at every width now, at the reader's asking: "도시 목록도 접었다 피는게 괜찮지
+      // 않을까". Unread, it opens on a desktop and stays folded on a phone (where it and the
+      // chronicle once came to 641px under a 225px map); once the reader has an opinion, that wins.
+      open: readFoldPref(CITIES_FOLD_KEY, !isNarrowWindow()),
       onToggle: (on) => writeFoldPref(CITIES_FOLD_KEY, on),
     });
     const list = listFold.section;
@@ -468,7 +471,15 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
 
     const withList = document.createElement("div");
     withList.className = "map-with-list";
-    withList.append(frame, legendFold.section, list);
+    // ★ The key and the list share a column, and a FLEX column at that: folded, the list must give
+    // its room back to nothing — in the grid rows this used to live in, a folded section still
+    // stretched to fill its row and left a panel with a head and a hole under it. Under a narrow
+    // window the wrapper is `display: contents`, so the two sections stack with the map exactly as
+    // they did before it existed.
+    const side = document.createElement("div");
+    side.className = "map-side";
+    side.append(legendFold.section, list);
+    withList.append(frame, side);
     stage.appendChild(withList);
     cityZoom?.destroy(); cityZoom = null;
     worldZoom?.destroy();
@@ -510,7 +521,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     const isNarrow = isNarrowWindow;
     const applyWidth = () => {
       const n = isNarrow();
-      listFold.setFoldable(n);
+      // the list folds at every width; only the head's manners used to change with the window
       // ★ The key comes off the drawing at every width and stands in the fold beside the map. It
       // used to be drawn inside the SVG on wide windows, and the SVG is what the zoom moves —
       // measured at 1440x900, two presses of `+` left the key 294px off the left edge of the frame
@@ -524,7 +535,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
       // CSS cannot put it in two different parents. The strip carries the chronicle's caption with
       // it: the sentence belongs to the year the scrubber is holding, so the two never separate.
       if (timelineStrip) {
-        if (n) withList.insertBefore(timelineStrip, legendFold.section);
+        if (n) withList.insertBefore(timelineStrip, side);
         else stage.appendChild(timelineStrip);
       }
     };

@@ -83,7 +83,7 @@ describe("a narrow window folds the panels the map cannot carry", () => {
     expect(css(), "the map carries a chip again").not.toContain(".legend-toggle");
     expect(css(), "the key is floated back onto the drawing").not.toContain(".map-frame .legend-sheet");
     expect(css(), "the key has no place in the column beside the map")
-      .toContain(".map-with-list > .legend-fold");
+      .toContain(".map-side > .legend-fold");
   });
 
   it("stacks the key with the other sections on a narrow window", () => {

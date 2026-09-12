@@ -473,7 +473,7 @@ svg.world.lang-en .nation-label { font-variant: small-caps; letter-spacing: 0.10
    the map and the scrubber under it on screen together at any window size — the map grows into a
    tall window and shrinks out of a short one instead of pushing the timeline under the fold. */
 .map-with-list {
-  display: grid; grid-template-columns: minmax(0, 1fr) 210px; grid-template-rows: auto minmax(0, 1fr);
+  display: grid; grid-template-columns: minmax(0, 1fr) 210px;
   gap: 12px; align-items: stretch;
   width: 100%;   /* the stage is the measure now — see `--page` on #app */
 }
@@ -484,10 +484,21 @@ svg.world.lang-en .nation-label { font-variant: small-caps; letter-spacing: 0.10
    does not reach. No corner is reliably empty, because the land is different every time. This
    column is 210px the page has already spent, so the key costs the drawing nothing here; under the
    map it would cost height, which is the one thing the map is short of. */
-.map-with-list > .map-frame { grid-column: 1; grid-row: 1 / span 2; }
-.map-with-list > .legend-fold { grid-column: 2; grid-row: 1; }
-.map-with-list > .city-list { grid-column: 2; grid-row: 2; }
-.map-with-list > .city-list { grid-column: 2; grid-row: 2; }
+.map-with-list > .map-frame { grid-column: 1; }
+/* The column beside the map is a flex stack so a folded section can give its room back: with the
+   two in grid rows, a folded list still stretched to fill its row and left a panel with a head and
+   a hole under it. */
+/* ⚠ `height: 0; min-height: 100%` is what keeps this column OUT of the row's intrinsic height —
+   the same trick the list used to carry itself. Without it the row grows to the list's full
+   content (measured: the column ran 302px below the map) instead of the map setting the height and
+   the list scrolling inside what is left. */
+.map-side {
+  grid-column: 2; display: flex; flex-direction: column; gap: 12px;
+  height: 0; min-height: 100%; box-sizing: border-box;
+}
+.map-side > .legend-fold { flex: 0 0 auto; }
+.map-side > .city-list { flex: 1 1 auto; min-height: 0; }
+.map-side > .city-list:not(.is-open) { flex: 0 0 auto; }
 /* ★ The column beside the map is TWO panels, and they have to be the same panel. Measured: the key
    section was bare (no ground, no edge, no padding) while the list had parchment and a radius but
    no edge at all — `.fold { border: 0 }` comes after `.city-list` in this file and had been
@@ -495,17 +506,18 @@ svg.world.lang-en .nation-label { font-variant: small-caps; letter-spacing: 0.10
    whose every other box (the card, the scrubber, the caption) is parchment inside a 1px #cbb784
    edge. Wide windows only: stacked under a narrow map these stop being panels on purpose. */
 @media (min-width: 901px) {
-  .map-with-list > .legend-fold, .map-with-list > .city-list {
+  .map-side > .legend-fold, .map-side > .city-list {
     box-sizing: border-box; background: #f6efdc; border: 1px solid #cbb784; border-radius: 6px;
     padding: 6px 8px;
   }
 }
 .city-list {
   border: 1px solid #cbb784; border-radius: 6px; background: #f6efdc; padding: 8px 6px 8px 10px;
-  /* ⚠ border-box, or `min-height: 100%` measures the CONTENT and the padding and border are added
-     on top: measured at 1440x900 the list hung 16px — its own 8px padding, twice — below the map
-     it is meant to end level with. */
-  box-sizing: border-box; height: 0; min-height: 100%; overflow: auto;
+  /* ⚠ border-box: it is the flex item that fills what the key leaves, and `min-height: 100%` used
+     to measure the CONTENT and add its own 8px padding twice on top — the list hung 16px below the
+     map it is meant to end level with. The filling is `flex: 1` now (see .map-side), so a folded
+     list gives its room back instead of stretching into a panel with a hole in it. */
+  box-sizing: border-box; overflow: auto;
 }
 .city-list ul { list-style: none; margin: 0; padding: 0; }
 .city-list-item {
@@ -555,14 +567,23 @@ svg.world.lang-en .nation-label { font-variant: small-caps; letter-spacing: 0.10
    instead of at the size the map was scaled to (6px on a phone). Needs to beat `.stage svg`, which
    stretches every drawing to the full width. */
 .stage .legend-sheet { display: block; width: auto; max-width: 100%; height: auto; pointer-events: none; }
+/* ★ Off the map, the key is not a cartouche. The double rule, the corner dots and the Cinzel
+   heading are the MAP's furniture — on the page the panel is already drawn and the fold's head has
+   already said what this is, so the frame would be a frame inside a frame and the heading a heading
+   under a heading. What is left is the thing itself: the swatches. (`fitToKey` crops past the
+   heading; these hide what the crop still contains.) */
+.legend-sheet .legend-panel > rect, .legend-sheet .legend-panel > circle { display: none; }
+.legend-sheet .legend-title { display: none; }
 .legend-fold { min-width: 0; }   /* the key stands beside the map at every width — see .map-with-list */
 
 @media (max-width: 900px) {
   .map-with-list { grid-template-columns: minmax(0, 1fr); grid-template-rows: none; }
   /* stacked, so the column placements above must let go */
-  .map-with-list > .city-list, .map-with-list > .map-frame, .map-with-list > .legend-fold {
+  .map-with-list > .map-frame, .map-with-list > .map-side {
     grid-column: auto; grid-row: auto;
   }
+  /* the side column stops being a column: its two sections join the stack under the map */
+  .map-side { display: contents; }
   /* Stacked: the list no longer sits beside the map, so it has no height to follow — and no cap
      either. A scrolling box inside a scrolling page is the worst thing a finger can meet, and the
      length it was capping is what the fold is for.

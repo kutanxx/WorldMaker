@@ -36,7 +36,7 @@ describe("the page has one measure", () => {
   // the file and was winning), against a page whose every other box is parchment in a 1px edge.
   it("draws the key and the town list as the same kind of panel", () => {
     const c = css();
-    const i = c.indexOf(".map-with-list > .legend-fold, .map-with-list > .city-list");
+    const i = c.indexOf(".map-side > .legend-fold, .map-side > .city-list");
     expect(i, "the column's two panels have no shared rule").toBeGreaterThan(-1);
     const rule = c.slice(i, c.indexOf("}", i));
     expect(rule).toContain("#f6efdc");

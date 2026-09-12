@@ -86,6 +86,11 @@ export function legendPanel(x: number, y: number, w: number, h: number, title?: 
     t.textContent = title;
     g.appendChild(t);
   }
+  // How much of the top of this box is the cartouche's own heading. The key is also shown OFF the
+  // map, in a panel the page already frames, and there it wants neither this frame nor a second
+  // heading — `fitToKey` crops past this band and the stylesheet hides the rest. The number lives
+  // here because this is where the heading is placed; anywhere else it would be a guess.
+  g.setAttribute("data-band", String(title ? titleSize + 8 : 0));
   return g;
 }
 
