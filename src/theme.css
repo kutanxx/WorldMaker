@@ -21,7 +21,28 @@ body {
 /* The map is the product, and it was 796x557 on a 1920px screen — 41% of the window's width, with
    880px of unused margin either side and 177px of unused height under the timeline, because #app
    was capped at 1040 back when this page was a column of text. */
-#app { max-width: min(1320px, 100vw - 32px); margin: 0 auto; padding: 0 16px 32px; }
+/* The map is the product, and it was 796x557 on a 1920px screen — 41% of the window's width, with
+   880px of unused margin either side and 177px of unused height under the timeline, because #app
+   was capped at 1040 back when this page was a column of text.
+
+   ★ `--page` is the page's ONE measure. The map's width is decided by the height left over (see
+   .map-with-list), and everything else used to pick its own number: measured at 1440x900 the
+   toolbar ran 53→1373, the map block 137→1288, the scrubber 64→1362 and the world settings
+   213→1213 — four left edges and four right edges down one page, which is what "UI 위치가 안 맞거나
+   튀어나온다" looks like from the outside. The card, the bar and the settings now take the map's
+   measure, so the page has a single column edge. (+22px is the stage's own 10px padding and 1px
+   border on each side, so the stage's CONTENT box is exactly `--page`.) */
+#app {
+  --page: max(620px, calc((100vh - 250px) * 10 / 7 + 222px));
+  max-width: min(1320px, 100vw - 32px); margin: 0 auto; padding: 0 16px 32px;
+}
+/* ⚠ No global `box-sizing: border-box` in this stylesheet, so these three say it themselves: the
+   card and the bar are sized by their OUTER box (they line up as cards), and the settings by the
+   same measure as the map inside the card (they line up as text). */
+#app > .controls, #app > .stage {
+  box-sizing: border-box; max-width: min(100%, calc(var(--page) + 22px)); margin-inline: auto;
+}
+#app > .advanced { box-sizing: border-box; max-width: min(100%, var(--page)); }
 /* Twelve controls at one weight. Measured at 1920x945: every control in this bar wore background
    #f3ead2, border #b7a071, weight 400 and 14px, so the button that makes a world looked exactly
    like the button that saves a PNG — and at 71px "Generate" was the narrowest of them all bar the
@@ -149,7 +170,7 @@ body.map-focus .advanced { display: none; }
 body.map-focus .stage > button { position: absolute; left: 12px; top: 12px; z-index: 41; }
 body.map-focus #app { max-width: none; padding: 0; }
 body.map-focus .stage {
-  position: fixed; inset: 0; z-index: 40; margin: 0; padding: 8px;
+  position: fixed; inset: 0; z-index: 40; margin: 0; padding: 8px; max-width: none;
   border: 0; border-radius: 0; box-shadow: none;
   display: flex; flex-direction: column; gap: 8px;
 }
@@ -401,7 +422,7 @@ svg.world.lang-en .nation-label { font-variant: small-caps; letter-spacing: 0.10
 /* World settings: the dials the engine has always read from the URL, folded away until asked for.
    Kept off the toolbar because the toolbar's own lesson is that a control costs a row whether it
    is used or not — and these are for the reader who wants a wetter world, not for every reader. */
-.advanced { max-width: 1000px; margin: 6px auto 0; font-size: 13px; color: #42341f; }
+.advanced { margin: 6px auto 0; font-size: 13px; color: #42341f; }   /* width: the page measure, on #app */
 .advanced > summary { cursor: pointer; padding: 4px 2px; user-select: none; letter-spacing: 0.02em; }
 .advanced > summary::marker { color: #9a8a70; }
 .advanced-row { display: grid; grid-template-columns: 92px 1fr 56px; align-items: center; gap: 10px; padding: 3px 2px; }
@@ -454,8 +475,7 @@ svg.world.lang-en .nation-label { font-variant: small-caps; letter-spacing: 0.10
 .map-with-list {
   display: grid; grid-template-columns: minmax(0, 1fr) 210px; grid-template-rows: auto minmax(0, 1fr);
   gap: 12px; align-items: stretch;
-  /* the floor keeps a very short window from computing a nonsense cap */
-  max-width: max(620px, calc((100vh - 250px) * 10 / 7 + 222px)); margin-inline: auto; width: 100%;
+  width: 100%;   /* the stage is the measure now — see `--page` on #app */
 }
 /* ★ The column beside the map holds the key ABOVE the town list. The key used to stand on the map
    itself, and a key on the map covers the map: measured over 12 seeds, the key and its chip stood
@@ -467,9 +487,25 @@ svg.world.lang-en .nation-label { font-variant: small-caps; letter-spacing: 0.10
 .map-with-list > .map-frame { grid-column: 1; grid-row: 1 / span 2; }
 .map-with-list > .legend-fold { grid-column: 2; grid-row: 1; }
 .map-with-list > .city-list { grid-column: 2; grid-row: 2; }
+.map-with-list > .city-list { grid-column: 2; grid-row: 2; }
+/* ★ The column beside the map is TWO panels, and they have to be the same panel. Measured: the key
+   section was bare (no ground, no edge, no padding) while the list had parchment and a radius but
+   no edge at all — `.fold { border: 0 }` comes after `.city-list` in this file and had been
+   quietly winning — so the column read as two different kinds of thing stacked, against a page
+   whose every other box (the card, the scrubber, the caption) is parchment inside a 1px #cbb784
+   edge. Wide windows only: stacked under a narrow map these stop being panels on purpose. */
+@media (min-width: 901px) {
+  .map-with-list > .legend-fold, .map-with-list > .city-list {
+    box-sizing: border-box; background: #f6efdc; border: 1px solid #cbb784; border-radius: 6px;
+    padding: 6px 8px;
+  }
+}
 .city-list {
   border: 1px solid #cbb784; border-radius: 6px; background: #f6efdc; padding: 8px 6px 8px 10px;
-  height: 0; min-height: 100%; overflow: auto;
+  /* ⚠ border-box, or `min-height: 100%` measures the CONTENT and the padding and border are added
+     on top: measured at 1440x900 the list hung 16px — its own 8px padding, twice — below the map
+     it is meant to end level with. */
+  box-sizing: border-box; height: 0; min-height: 100%; overflow: auto;
 }
 .city-list ul { list-style: none; margin: 0; padding: 0; }
 .city-list-item {
@@ -479,7 +515,21 @@ svg.world.lang-en .nation-label { font-variant: small-caps; letter-spacing: 0.10
 }
 .city-list-item:hover { background: #e7d9b6; }
 .city-list-item.is-capital .city-list-name { font-weight: 600; }
-.city-list-realm { color: #6b5d42; font-size: 11.5px; white-space: nowrap; }
+/* ⚠ `nowrap` with nothing to shrink: a long realm name ran 13-14px OUT of its own row (measured at
+   1440x900, two rows of 28). The name is the row's subject and gives way last, so the realm is the
+   one that clips — and both need `min-width: 0`, or a flex item refuses to go below its content. */
+.city-list-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.city-list-realm {
+  color: #6b5d42; font-size: 11.5px; white-space: nowrap;
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; flex-shrink: 1;
+}
+/* The town list is the one box on this page that scrolls, and it wore the system's own bar —
+   15px of grey chrome down the inside of a parchment panel. Thin, and in the panel's own ink. */
+.city-list { scrollbar-width: thin; scrollbar-color: #cbb784 transparent; }
+.city-list::-webkit-scrollbar { width: 9px; }
+.city-list::-webkit-scrollbar-track { background: transparent; }
+.city-list::-webkit-scrollbar-thumb { background: #cbb784; border-radius: 5px; border: 2px solid #f6efdc; }
+.city-list::-webkit-scrollbar-thumb:hover { background: #b7a071; }
 /* A section that folds away: the town list, the chronicle, and (where the map cannot carry one)
    the key. The head IS the title, so the way to close a section is where the way to open it was. */
 .fold { border: 0; }
