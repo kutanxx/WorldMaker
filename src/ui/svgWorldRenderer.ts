@@ -3,6 +3,7 @@ import { svgEl, legendPanel, starPath, compassRose, mapFrame, INK, PARCHMENT, LE
 import { scaleBar, KM_PER_UNIT, KM_PER_WALKING_DAY } from "./scaleBar";
 import { displayBiomes } from "./displayBiome";
 import { OCEAN, ALPINE, BIOME_COLORS } from "../engine/biome";
+import { reliefBands } from "./relief";
 import { type Lang, biomeName, t } from "./i18n";
 import { coastline, type Segment } from "../engine/borders";
 import { cellPath, segPath } from "./svgPaths";
@@ -108,6 +109,16 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
     biomes.appendChild(svgEl("path", { class: "biome", "data-biome": bm, d, fill: BIOME_COLORS[bm] }));
   }
   root.appendChild(biomes);
+
+  // hill shading on the ranges: the fills say WHAT the ground is, the shading says what SHAPE it is.
+  // Drawn onto the fills, under everything else, so a range carries bulk in every view. Mountains
+  // only, and shadow only — see relief.ts: shading the whole map costs the biome palette its floor.
+  const shades = reliefBands(grid, world.heights, (i) => shownBiome[i] === ALPINE);
+  if (shades.length) {
+    const relief = svgEl("g", view !== "terrain" ? { class: "relief-shade", opacity: OVERLAY_BIOME_OPACITY } : { class: "relief-shade" });
+    for (const b of shades) relief.appendChild(svgEl("path", { class: "shade", d: b.d, fill: b.fill, "fill-opacity": b.opacity.toFixed(2) }));
+    root.appendChild(relief);
+  }
 
   root.appendChild(svgEl("path", {
     class: "coastline", d: coastD,

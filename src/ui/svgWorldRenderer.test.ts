@@ -2,7 +2,7 @@
 import { describe, it, expect } from "vitest";
 import { generateWorld } from "../engine/world";
 import { DEFAULT_PARAMS } from "../types/world";
-import { renderWorld } from "./svgWorldRenderer";
+import { renderWorld, OVERLAY_BIOME_OPACITY } from "./svgWorldRenderer";
 import { politicalBorders } from "../engine/borders";
 import { segPath } from "./svgPaths";
 import { snapOwnersToProvinces } from "./provinceLayer";
@@ -655,5 +655,30 @@ describe("the map's legends are one size, not four", () => {
     expect(LEGEND_TEXT).toBeGreaterThanOrEqual(14);
     expect(LEGEND_ROW).toBeGreaterThanOrEqual(17);
     expect(LEGEND_SWATCH).toBeGreaterThanOrEqual(12);
+  });
+});
+
+// The complaint this answers: a range was a flat grey area, so the map read as paper with colours
+// on it. Shading is what an atlas puts in that place. It is drawn in every view — a range has bulk
+// whoever owns it — and muted with the fills under an overlay so the nation colours still dominate.
+describe("the ranges carry bulk", () => {
+  const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 3 });
+  it("shades the mountains in the terrain view", () => {
+    const svg = renderWorld(world, "terrain", [], "en");
+    const shades = svg.querySelectorAll(".relief-shade .shade");
+    expect(shades.length).toBeGreaterThan(2);
+    // ...and it is shadow, not a wash: every band is the same ink at its own weight
+    const inks = new Set(Array.from(shades).map((s) => s.getAttribute("fill")));
+    expect(inks.size).toBe(1);
+    const weights = Array.from(shades).map((s) => Number(s.getAttribute("fill-opacity")));
+    expect(Math.max(...weights)).toBeGreaterThan(0.1);
+    expect(Math.max(...weights)).toBeLessThanOrEqual(0.45);
+  });
+
+  it("mutes the shading with the fills under an overlay view", () => {
+    const terrain = renderWorld(world, "terrain", [], "en").querySelector(".relief-shade");
+    const political = renderWorld(world, "political", [], "en").querySelector(".relief-shade");
+    expect(terrain!.getAttribute("opacity")).toBeNull();
+    expect(political!.getAttribute("opacity")).toBe(String(OVERLAY_BIOME_OPACITY));
   });
 });
