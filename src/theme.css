@@ -95,6 +95,26 @@ body {
 @media (max-width: 1060px) and (pointer: fine) {
   .controls button, .controls input, .controls a.home { padding-left: 6px; padding-right: 6px; }
 }
+/* ★ One height for the things you press, because nothing declared one and the LABEL was deciding
+   it instead. Measured in the toolbar at 1440x900: Korean labels stood 32px, Latin ones 30, and a
+   label with an emoji 31 — three heights in a single row, and switching the language moves which
+   button is the odd one out (in English it is the Korean language toggle that becomes the 32).
+   A finger gets 44, the target this file already owed `.fold-head` and the zoom buttons and had
+   never given the bar they sit under: measured on a 390x844 phone, the toolbar stood at 27–32px
+   throughout. ⚠ It costs no room — the same bar at 44 came to 116px where it had been 122, because
+   the home link's 62px was setting the first row's height on its own (see the coarse block).
+   ⚠ Not everything a finger meets belongs here: the town list's rows (36) and the plate's
+   neighbour chips (34) are sizes their own measurements chose, and the map's marks are clamped by
+   their neighbours — those say their own numbers. */
+:root { --control-h: 32px; }
+/* ⚠ border-box, because this stylesheet has no global one and an <a> or a text input is content-box
+   where a <button> is not — a height declared without it is that height PLUS the padding, which is
+   how one `min-height: 44px` on the home link came out 62. */
+.controls button, .controls input, .controls a.home, .stage > button,
+.timeline button, .fold-head, .advanced > summary, .landing-lang {
+  min-height: var(--control-h); box-sizing: border-box;
+}
+
 button, input {
   padding: 5px 10px; font-family: inherit; font-size: 14px; color: #3c2f1c;
   background: #f3ead2; border: 1px solid #b7a071; border-radius: 4px; cursor: pointer;
@@ -409,23 +429,39 @@ svg.world.lang-en .nation-label { font-variant: small-caps; letter-spacing: 0.10
 .city-label:hover { fill: #7a2f2f; }
 
 @media (pointer: coarse) {
+  /* ★ The one height a finger is owed. Everything that spends `--control-h` grows with this line
+     and nothing has to name 44 for itself — which is how the home link came to name it in a way
+     that measured 62 (see the shared rule above). */
+  :root { --control-h: 44px; }
+  /* ⚠ The chip is the exception, because it sits ON the map: at 390px the map is 336x235, so every
+     pixel the chip grows is map it covers (the floating chrome already covers 6.1% there). So the
+     TARGET grows and the ink does not — a transparent extension of the button's own box.
+     ⚠ And it grows only AWAY from the map. A symmetric halo was measured first: over 8 worlds at
+     390px it put 5 of 224 town centres (2.2%, 3 of the 8 worlds) inside an invisible target that
+     is not theirs — the same theft (51) and (52) went hunting, and worse for being invisible. The
+     chip sits in the map's top-right corner, so the reach goes up and right, into the margin above
+     the frame, and the map below and left of the chip is left alone. 27px of chip, 44px of reach. */
+  .focus-toggle::after { content: ""; position: absolute; inset: -17px -8px 0 0; }
   /* ⚠ A CEILING, not a flat size. A CSS `r` beats the attribute, so the old `r: 20px` here undid
      the per-city clamp on exactly the device that needs it: measured, a flat 20 puts 43 of 336 town
      centres (12.8%) inside another town's target, in 9 of 12 worlds, against 0 for the clamp. The
      renderer hands each target its own coarse radius — the same clamp with a 20-unit ceiling. */
   .marker-hit { r: var(--hit-coarse, 20px); }
-  #landing button { min-height: 44px; padding: 8px 12px; font-size: 14px; touch-action: manipulation; }
-  a.home { min-height: 44px; padding: 8px 12px; font-size: 14px; touch-action: manipulation; }
+  #landing button {
+    min-height: var(--control-h); box-sizing: border-box;
+    padding: 8px 12px; font-size: 14px; touch-action: manipulation;
+  }
+  a.home { font-size: 14px; touch-action: manipulation; }
   /* 48 wide and 30 tall was what a phone measured: the width had been paid for and the height had
      not, on the one zoom control a finger is left with once pinch replaced the other two. */
-  .map-zoom-controls button { min-width: 48px; min-height: 44px; }
+  .map-zoom-controls button { min-width: 48px; min-height: var(--control-h); box-sizing: border-box; }
 }
 
 /* World settings: the dials the engine has always read from the URL, folded away until asked for.
    Kept off the toolbar because the toolbar's own lesson is that a control costs a row whether it
    is used or not — and these are for the reader who wants a wetter world, not for every reader. */
 .advanced { margin: 6px auto 0; font-size: 13px; color: #42341f; }   /* width: the page measure, on #app */
-.advanced > summary { cursor: pointer; padding: 4px 2px; user-select: none; letter-spacing: 0.02em; }
+.advanced > summary { cursor: pointer; padding: 6px 2px; user-select: none; letter-spacing: 0.02em; }
 .advanced > summary::marker { color: #9a8a70; }
 .advanced-row { display: grid; grid-template-columns: 92px 1fr 56px; align-items: center; gap: 10px; padding: 3px 2px; }
 .advanced-row output { font-variant-numeric: tabular-nums; text-align: right; color: #6b5d42; }
@@ -677,7 +713,12 @@ svg.world.lang-en .nation-label { font-variant: small-caps; letter-spacing: 0.10
 @media (pointer: coarse) {
   .city-list-item { min-height: 36px; }
   /* the heads are the only way into three panels; 44px is the target a finger is owed */
-  .fold-head { min-height: 44px; }
+  /* the settings head is a disclosure, not a button: it keeps its marker, so the room comes
+     from padding rather than from a flex box that would swallow the triangle */
+  .advanced > summary {
+    min-height: var(--control-h); box-sizing: border-box;
+    padding-top: 12px; padding-bottom: 12px;
+  }
   /* ★ A plate is not a map. The world map's controls sit in its bottom-right corner because no
      corner of a MAP is reliably empty — the land is different every time — but a plate has fixed
      furniture and both of its bottom corners are already spoken for: the compass at the right, the

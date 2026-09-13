@@ -3,6 +3,24 @@ import { readFileSync } from "node:fs";
 
 const read = (p: string) => readFileSync(p, "utf8");
 const BLOCK_END = String.fromCharCode(10) + "}";   // where a top-level media block ends
+// What the bar's one control height comes to for a finger. Rules spend `--control-h` instead of
+// naming 44 apiece, so a test that greps a rule for "44px" is asking the old question.
+const controlHeightForFinger = () => {
+  const c = read("src/theme.css");
+  for (let i = c.indexOf("@media (pointer: coarse)"); i > -1; i = c.indexOf("@media (pointer: coarse)", i + 1)) {
+    const m = /--control-h:\s*(\d+)px/.exec(c.slice(i, c.indexOf(BLOCK_END, i)));
+    if (m) return Number(m[1]);
+  }
+  return NaN;
+};
+// the selectors the shared rule hands that height to
+const spendsControlHeight = (selector: string) => {
+  const c = read("src/theme.css");
+  const i = c.indexOf("min-height: var(--control-h)");
+  if (i < 0) return false;
+  const open = c.lastIndexOf("{", i);
+  return c.slice(c.lastIndexOf("}", open) + 1, open).includes(selector);
+};
 
 // Phones without this meta lay the page out at ~980px and scale it down — every
 // control shrinks to ~38% (measured: a 32px advance button ≈ 12pt on a 375pt phone).
@@ -99,11 +117,11 @@ describe("a narrow window folds the panels the map cannot carry", () => {
 
 
   it("gives the three heads a finger-sized target", () => {
-    const c = css();
-    const blocks = c.split("@media (pointer: coarse)").slice(1);
-    const head = blocks.find((b) => b.slice(0, b.indexOf("\n}")).includes(".fold-head"));
-    expect(head, ".fold-head has no coarse-pointer rule").toBeTruthy();
-    expect(head!.slice(0, head!.indexOf("\n}"))).toContain("min-height: 44px");
+    // the heads take the bar's own height now rather than naming one of their own, so what has
+    // to hold is that the shared height is a finger's, and that the heads are among what spends it
+    expect(spendsControlHeight(".fold-head"), "the heads are measured apart from the bar").toBe(true);
+    expect(controlHeightForFinger(), "the shared control height is not a finger's")
+      .toBeGreaterThanOrEqual(44);
   });
 
   // ⚠ The finger's target used to be a flat `r: 20px` here, and a CSS `r` beats the attribute the
@@ -307,7 +325,8 @@ describe("the plate's own furniture keeps its corners", () => {
   });
   it("gives that button the target a finger is owed", () => {
     const rule = coarseRuleFor(read("src/theme.css"), ".map-zoom-controls button");
-    expect(rule, "30px tall is what it measured").toMatch(/min-height:\s*44px/);
+    expect(rule, "30px tall is what it measured").toMatch(/min-height:\s*var\(--control-h\)/);
+    expect(controlHeightForFinger(), "the shared height a finger gets").toBeGreaterThanOrEqual(44);
   });
 });
 
@@ -318,5 +337,42 @@ describe("the landing's rows share one left edge", () => {
     const css = read("src/theme.css");
     const rule = css.slice(css.indexOf(".landing-name {"), css.indexOf("}", css.indexOf(".landing-name {")));
     expect(rule, "the name row is still full-bleed on a narrow screen").toMatch(/padding:\s*0 16px/);
+  });
+});
+
+// 44px is the target this stylesheet already owed `.fold-head` and the zoom buttons — and had never
+// given the bar it sits under. Measured on a 390x844 phone: the view toggles, "new world",
+// "generate", the gazetteer and the plate's way back stood 32px, the export buttons and the
+// language toggle 30, the focus chip and the settings head 27.
+// ⚠ And raising them costs nothing: measured the same way, the whole bar at 44 came to 116px where
+// it had been 122, because the home link's 62px was setting the first row's height on its own.
+describe("a finger gets the same 44 everywhere", () => {
+  const coarseBlocks = () => {
+    const c = read("src/theme.css");
+    const out = [];
+    for (let i = c.indexOf("@media (pointer: coarse)"); i > -1; i = c.indexOf("@media (pointer: coarse)", i + 1)) {
+      out.push(c.slice(i, c.indexOf(BLOCK_END, i)));
+    }
+    return out.join("\n");
+  };
+
+  it("raises the one control height instead of naming 44 in each rule", () => {
+    expect(coarseBlocks(), "a touch screen gets the desktop's control height")
+      .toMatch(/--control-h:\s*44px/);
+  });
+
+  // The chip sits ON the map, and on a phone the map is 336x235 — every pixel it grows is map it
+  // covers, which is the cost A1 measured for the floating chrome (6.1% there). So the target grows
+  // and the ink does not: a transparent extension of the button's own box.
+  it("gives the map's chip a finger's target without giving it a finger's ink", () => {
+    const css = read("src/theme.css");
+    const i = css.indexOf(".focus-toggle::after");
+    expect(i, "the chip has no target beyond its ink").toBeGreaterThan(-1);
+    const rule = css.slice(i, css.indexOf("}", i));
+    expect(rule, "the extension is not laid over the chip").toMatch(/position:\s*absolute/);
+    expect(rule, "the extension does not reach past the chip").toMatch(/inset:\s*-/);
+    // and only where a finger is the pointer: on a desktop the chip stays the size it was drawn
+    const at = css.lastIndexOf("@media", i);
+    expect(css.slice(at, css.indexOf("{", at))).toContain("pointer: coarse");
   });
 });

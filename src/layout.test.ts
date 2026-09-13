@@ -150,3 +150,58 @@ describe("the plate's key stands beside the drawing where there is room", () => 
     }
   });
 });
+
+// Nothing in this stylesheet declared a height for a control, so the LABEL decided it. Measured in
+// the toolbar at 1440x900: Korean labels stood 32px, Latin ones 30, and one with an emoji 31 —
+// three heights in a single row, and switching the language moves which button is the odd one out
+// (in English the Korean language toggle becomes the 32). A row of controls is a row.
+describe("the things you press are one size", () => {
+  const sharedRule = () => {
+    const c = css();
+    const i = c.indexOf("min-height: var(--control-h)");
+    expect(i, "nothing spends a shared control height").toBeGreaterThan(-1);
+    const open = c.lastIndexOf("{", i);
+    return { selectors: c.slice(c.lastIndexOf("}", open) + 1, open), body: c.slice(open, c.indexOf("}", i)) };
+  };
+
+  it("declares the height once and spends it on everything in the bar", () => {
+    const c = css();
+    expect(c, "no control height to share").toMatch(/--control-h:\s*\d+px/);
+    const { selectors, body } = sharedRule();
+    // ⚠ An anchor and a text input are content-box by default where a <button> is not, so a height
+    // declared without this is a height PLUS the padding — which is exactly the 62px below.
+    expect(body, "a declared height that is not border-box is a different height").toContain("box-sizing: border-box");
+    for (const sel of [".controls button", ".controls input", ".controls a.home", ".stage > button", ".fold-head"]) {
+      expect(selectors, `${sel} is not on the one height`).toContain(sel);
+    }
+  });
+
+  // ⚠ Three elements in one sitting took this height and came out wrong because of the box they
+  // measure it in: the home link at 62 (an <a>), the settings head at 68 (a <summary>), and a text
+  // input that would have done the same. This stylesheet has no global `box-sizing`, so anything
+  // that is not a <button> measures its CONTENT and adds the padding and the border on top.
+  // Whoever spends the height says how it is measured, or it is not that height.
+  it("never spends the control height without saying how it is measured", () => {
+    const c = css();
+    for (let i = c.indexOf("min-height: var(--control-h)"); i > -1; i = c.indexOf("min-height: var(--control-h)", i + 1)) {
+      const open = c.lastIndexOf("{", i);
+      const selectors = c.slice(Math.max(c.lastIndexOf("}", open), c.lastIndexOf("*/", open)) + 1, open).trim();
+      expect(c.slice(open, c.indexOf("}", i)), `${selectors} takes the height in a box of its own`)
+        .toContain("box-sizing: border-box");
+    }
+  });
+
+  // The home link measured 62px on a phone against the 32px button beside it: `min-height: 44px`
+  // on the one control in the bar that is an <a>, whose default box adds the padding and the border
+  // on top. Every other 44 in this file lands on a <button>, which the browser measures border-box,
+  // which is why only this one was visibly wrong. Its height comes from the shared rule now, so the
+  // exception that grew must not come back.
+  it("leaves the home link no height of its own to grow past", () => {
+    const c = css();
+    for (let i = c.indexOf("@media (pointer: coarse)"); i > -1; i = c.indexOf("@media (pointer: coarse)", i + 1)) {
+      const block = c.slice(i, c.indexOf(BLOCK_END, i));
+      expect(/a\.home[^{}]*\{[^}]*min-height/.test(block), "the home link is measured apart from the bar again")
+        .toBe(false);
+    }
+  });
+});
