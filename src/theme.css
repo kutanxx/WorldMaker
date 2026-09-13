@@ -589,6 +589,35 @@ svg.world.lang-en .nation-label { font-variant: small-caps; letter-spacing: 0.10
 .legend-sheet .legend-title { display: none; }
 .legend-fold { min-width: 0; }   /* the key stands beside the map at every width — see .map-with-list */
 
+/* ★ Where the window is wide for its height, the plate's key stands BESIDE the drawing instead of
+   under it — the column the world map already gives its town list. ㊾ wrote down what standing it
+   UNDER the plate costs: at 1440x900 the page scrolls 282px, and what scrolls it is a 130px key
+   alone in a 1151px band, 89% of it empty parchment. Beside the drawing the scroll is 76px and the
+   drawing does not move — 720px wide before, 720px after.
+   ⚠ This is NOT the absolute placement ㊾ measured and rejected. That one floated the key in the
+   frame's own margin, which a tall window does not have, so the key ended up over the drawing. A
+   grid column takes its own room, so the only thing it can cost is the drawing's WIDTH — and the
+   ratio is where that cost is nought. The plate is capped by the height its chrome leaves it
+   ((100vh - 230px) * 494/460), so the column is free exactly while `band - 222 >= that cap`;
+   solving that at the narrowest window this admits gives 7/6, and 6/5 is the next simple ratio
+   outside it, worth 24px of slack against a page chrome that is measured rather than declared.
+   Below the ratio — a tall, narrow window — the key stays under the plate, where it costs height
+   such a window has to spare and no width at all. layout.test.ts holds the four numbers together. */
+@media (min-width: 901px) and (min-aspect-ratio: 6/5) {
+  .stage.plate {
+    display: grid; grid-template-columns: minmax(0, 1fr) 210px; gap: 12px; align-items: start;
+  }
+  /* the way back and the caption answer for the page, not for the drawing's column */
+  .stage.plate > button, .stage.plate > .city-facts { grid-column: 1 / -1; }
+  .stage.plate > .map-frame { grid-column: 1; }
+  /* and standing beside the drawing it becomes a panel, the way the world map's column is: every
+     other box on this page is parchment inside a 1px #cbb784 edge */
+  .stage.plate > .legend-fold {
+    grid-column: 2; margin-top: 0; box-sizing: border-box;
+    background: #f6efdc; border: 1px solid #cbb784; border-radius: 6px; padding: 8px;
+  }
+}
+
 @media (max-width: 900px) {
   .map-with-list { grid-template-columns: minmax(0, 1fr); grid-template-rows: none; }
   /* stacked, so the column placements above must let go */

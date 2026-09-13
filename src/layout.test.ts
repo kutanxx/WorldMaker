@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 
 const css = () => readFileSync("src/theme.css", "utf8");
+const BLOCK_END = String.fromCharCode(10) + "}";   // where a top-level media block ends
 
 // Measured at 1440x900 before this: the toolbar ran 53→1373, the map block 137→1288, the scrubber
 // 64→1362 and the world settings 213→1213 — four left edges and four right edges down one page.
@@ -87,5 +88,65 @@ describe("the page has one measure", () => {
     const rule = c.slice(i, c.indexOf("}", i));
     expect(rule).toContain("text-overflow: ellipsis");
     expect(rule, "a flex item cannot shrink below its content without this").toContain("min-width: 0");
+  });
+});
+
+// ㊾ took the plate's key off the drawing and stood it under it, and wrote down what that cost:
+// the page scrolls. Measured live at 1440x900 it is 282px, and the key doing the scrolling is a
+// 130px column standing in a 1151px band — 89% empty parchment — because the band is the whole
+// page. Beside the drawing it costs the page nothing: 282px of scroll becomes 76px.
+//
+// ⚠ This is NOT the absolute placement ㊾ measured and rejected. That one floated the key in the
+// frame's own margin, where a tall window has no margin and the key ends up over the drawing. This
+// is a grid column that takes its own room, the same one the world map gives its town list — so the
+// only thing it can cost is the drawing's WIDTH, and the arithmetic below says when that is zero.
+describe("the plate's key stands beside the drawing where there is room", () => {
+  const wideBlock = () => {
+    const c = css();
+    const i = c.indexOf("@media (min-width: 901px) and (min-aspect-ratio:");
+    expect(i, "there is no window shape in which the plate keeps a side column").toBeGreaterThan(-1);
+    return c.slice(i, c.indexOf(BLOCK_END, i));
+  };
+
+  it("gives the card a second column and puts the key in it", () => {
+    const block = wideBlock();
+    expect(block, "the plate's card is not a grid, so there is no column to stand in")
+      .toMatch(/\.stage\.plate\s*\{[^}]*grid-template-columns:[^;]*\d+px/);
+    expect(block, "the key is not placed in the second column")
+      .toMatch(/\.stage\.plate\s*>\s*\.legend-fold\s*\{[^}]*grid-column:\s*2/);
+    // the caption and the way back belong to the page, not to the drawing's column
+    expect(block, "the fact strip is trapped in the drawing's column")
+      .toMatch(/\.city-facts\s*\{[^}]*grid-column:\s*1\s*\/\s*-1/);
+  });
+
+  // ★ The number in the media query is not a taste. The plate is capped by the room its chrome
+  // leaves it — `(100vh - RESERVE) * 494/460` — and by the band it sits in, so a side column costs
+  // the drawing NOTHING exactly while `band - (column + gap) >= that cap`. Anything else is width
+  // taken off the drawing, which is what ㊾ refused. This reads all four numbers out of the
+  // stylesheet, so changing the column's width, the gap, the plate's reserve or the ratio without
+  // redoing the arithmetic fails here instead of silently shrinking the plan.
+  it("takes that column only at window shapes where the drawing loses no width", () => {
+    const c = css();
+    const block = wideBlock();
+    const ratio = (() => {
+      const m = /min-aspect-ratio:\s*(\d+)\s*\/\s*(\d+)/.exec(block)!;
+      return Number(m[1]) / Number(m[2]);
+    })();
+    const minW = Number(/min-width:\s*(\d+)px/.exec(block)![1]);
+    const col = Number(/grid-template-columns:[^;]*?(\d+)px/.exec(block)![1]);
+    const gap = Number(/\.stage\.plate\s*\{[^}]*gap:\s*(\d+)px/.exec(block)![1]);
+    const reserve = Number(/\.stage svg\.city \{[^}]*\(100vh - (\d+)px\)/.exec(c)![1]);
+    // What the page spends before the card's content box begins: 37px of margin on each side and
+    // the card's own 22px of padding and border. Measured on the live page at three widths.
+    const PAGE_CHROME = 96;
+    for (let h = 600; h <= 1600; h += 25) {
+      const w = Math.max(minW, ratio * h);        // the tightest window the query lets through
+      // the page measure only binds on windows far taller than this query admits, so the window
+      // itself is what decides the band here
+      const band = w - PAGE_CHROME;
+      const heightBound = ((h - reserve) * 494) / 460;
+      expect(band - (col + gap), `at ${Math.round(w)}x${h} the column eats into the drawing`)
+        .toBeGreaterThanOrEqual(heightBound);
+    }
   });
 });
