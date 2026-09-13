@@ -130,7 +130,18 @@ export function fillPreview(root: HTMLElement, day: Date, lang: Lang = "en"): vo
   link.className = "landing-preview-link";
   link.href = dailyTarget(day);
   link.setAttribute("aria-label", `${t(lang, "landingPreviewOf")} — ${t(lang, "landingPreviewOpen")}`);
-  link.appendChild(renderWorld(world, "terrain", [], lang));
+  // ★ A picture inside a link is a picture. The world renderer makes every town a control so the
+  // map page can be driven from the keyboard — `role="button"`, `tabindex="0"` — and this page
+  // appends that same drawing inside ONE anchor: measured on the live front page, 28 of its 34
+  // focus stops were those dots, none of them doing anything, and both buttons that do something
+  // came after them. The label the link already carries is what a reader needs here.
+  const picture = renderWorld(world, "terrain", [], lang);
+  picture.setAttribute("aria-hidden", "true");
+  for (const el of picture.querySelectorAll('[role="button"], [tabindex]')) {
+    el.removeAttribute("role");
+    el.removeAttribute("tabindex");
+  }
+  link.appendChild(picture);
   const cap = document.createElement("p");
   cap.className = "landing-preview-cap";
   cap.textContent = `${t(lang, "landingPreviewOf")} · ${dailyName(day).slice(6)} — ${worldNameIn(world, lang)}`;

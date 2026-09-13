@@ -290,3 +290,35 @@ describe("what is written on the primary card stays legible", () => {
       .toBeLessThan(ratio(colourOf(".choice-card.primary .choice-title"), fill));
   });
 });
+
+// The picture on the front page is ONE link. The world renderer, though, makes every town a
+// control so the map page can open it — `role="button"`, `tabindex="0"`, a title — and the landing
+// appends that same drawing. Measured on the live page: 28 of the landing's 34 tab stops were
+// those dots, they do nothing where they stand, and both buttons that do something come after
+// them. A picture inside a link is a picture.
+describe("the front page's picture is not a field of buttons", () => {
+  const landing = () => {
+    const root = document.createElement("div");
+    document.body.appendChild(root);
+    renderChooser(root);
+    fillPreview(root, new Date("2026-09-09T00:00:00Z"), "ko");
+    return root;
+  };
+
+  it("leaves no focus stop inside the preview", () => {
+    const root = landing();
+    const link = root.querySelector(".landing-preview-link") as HTMLElement;
+    expect(link, "the preview did not render").not.toBeNull();
+    expect(link.querySelectorAll("[tabindex]").length, "the picture still takes the keyboard").toBe(0);
+    expect(link.querySelectorAll('[role="button"]').length, "the picture still claims to be buttons").toBe(0);
+    root.remove();
+  });
+
+  // and the two that DO something are what a keyboard reaches
+  it("puts the real controls back within a few tabs of the top", () => {
+    const root = landing();
+    const stops = [...root.querySelectorAll('a[href], button, input, [tabindex]:not([tabindex="-1"])')];
+    expect(stops.length, "the landing is still a thicket of focus stops").toBeLessThan(12);
+    root.remove();
+  });
+});
