@@ -176,6 +176,25 @@ describe("the things you press are one size", () => {
     }
   });
 
+  // ★ The scrubber's own box has to BE the box its century marks are measured against. The marks
+  // are placed as a fraction of the TICK ROW (`left: calc(--thumb/2 + (100% - --thumb) * f)`), and
+  // the global `button, input` rule hands the range a 1px border — so at 390px the input ran 200px
+  // where the row ran 198, and every mark sat 1px left of where the thumb can actually stop. The
+  // padding had already been taken off this input for the same reason, and cost 22px that time.
+  // A slider is not a text field. ⚠ Measured with the border gone: the thumb travels 94→276 and
+  // the marks stand at 94→276 — the same two numbers — and the box lands on exactly 44 for a
+  // finger instead of 46, because a border is what a content-box height adds on top.
+  it("gives the scrubber the same box its century marks are measured against", () => {
+    const c = css();
+    const i = c.indexOf(".timeline-slider {");
+    expect(i, "the scrubber has no rule of its own").toBeGreaterThan(-1);
+    const rule = c.slice(i, c.indexOf("}", i));
+    expect(rule, "a border the tick row knows nothing about").toMatch(/border:\s*0/);
+    expect(rule, "a slider is not a text field").toMatch(/padding:\s*0/);
+    expect(rule, "and a finger gets the target it gets everywhere else on this page")
+      .toContain("min-height: var(--control-h)");
+  });
+
   // ⚠ Three elements in one sitting took this height and came out wrong because of the box they
   // measure it in: the home link at 62 (an <a>), the settings head at 68 (a <summary>), and a text
   // input that would have done the same. This stylesheet has no global `box-sizing`, so anything

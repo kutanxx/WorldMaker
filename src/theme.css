@@ -223,7 +223,17 @@ body.map-focus .stage svg.city { max-width: min(100%, calc((100vh - 40px) * 494 
    box 22px wider than the tick row beneath it — so every century mark drifted left of the year it
    named, worst at the end, where "500" sat 22px short of where the thumb can actually reach. A
    slider is not a text field; it takes no padding. */
-.timeline-slider { width: 100%; padding: 0; margin: 0; }
+/* ★ ...and it takes no border either, for the same reason and a second one. The century marks
+   below are placed as a fraction of the TICK ROW, so the input has to be that row's width: the
+   1px border made it 200px against the row's 198 at 390px, and every mark stood 1px left of where
+   the thumb can actually stop. With the border gone the thumb travels 94->276 and the marks stand
+   at 94->276. ⚠ And a border is exactly what a content-box height adds on top, so the finger's
+   44 came out 46 while it was there. Measured: an 18px band to grab becomes a 44px one, the marks
+   do not move sideways at all, and the scrubber row grows 66px -> 79px on a phone. */
+.timeline-slider {
+  width: 100%; padding: 0; margin: 0; border: 0;
+  min-height: var(--control-h); box-sizing: border-box;
+}
 /* The century marks sit UNDER the track, positioned by their fraction of the run. `left` is the
    centre of the label, so each one is pulled back half its own width — otherwise every number
    hangs to the right of the year it names, and the last one falls off the end. */
