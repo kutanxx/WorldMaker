@@ -201,20 +201,36 @@ describe("the things you press are one size", () => {
   // and never says where the label goes, so the text stretched to the top — against 12/14 in the
   // home link beside it, which is flex too and does say. The height made it visible; the hole was
   // always there.
-  it("centres the label in every pressable thing it turns into a flex box", () => {
+  // every rule body whose selector list contains exactly `sel` — a rule can be split across the
+  // file (a base one and a narrow-window one), and both count
+  const bodiesOf = (sel: string) => {
     const c = css();
-    const bodiesOf = (sel: string) => {
-      const out: string[] = [];
-      for (let i = c.indexOf(sel); i > -1; i = c.indexOf(sel, i + 1)) {
-        const open = c.indexOf("{", i);
-        if (open < 0) break;
-        // ⚠ past the end of whichever comes last: a rule ends in one character, a comment in two
-        const list = c.slice(Math.max(c.lastIndexOf("}", i) + 1, c.lastIndexOf("*/", i) + 2), open);
-        if (!list.split(",").some((one) => one.trim() === sel)) continue;   // a substring, not the selector
-        out.push(c.slice(open, c.indexOf("}", open)));
-      }
-      return out.join(String.fromCharCode(10));
-    };
+    const out: string[] = [];
+    for (let i = c.indexOf(sel); i > -1; i = c.indexOf(sel, i + 1)) {
+      const open = c.indexOf("{", i);
+      if (open < 0) break;
+      // past the end of whichever comes last: a rule ends in one character, a comment in two
+      const list = c.slice(Math.max(c.lastIndexOf("}", i) + 1, c.lastIndexOf("*/", i) + 2), open);
+      if (!list.split(",").some((one) => one.trim() === sel)) continue;   // a substring, not the selector
+      out.push(c.slice(open, c.indexOf("}", open)));
+    }
+    return out.join(String.fromCharCode(10));
+  };
+
+  // Reported from a phone: the "더 보기" label did not sit level with 지형·정치·문화·영토 beside it.
+  // Measured at 390x844 — it and the home link declare `line-height: 1.4` (19.6px) while every
+  // plain button in the bar takes `normal`, so their text sat 1.8px higher than the row they stand
+  // in (text top 113.2 against 115). The body is `normal` too, so the declaration was not even
+  // holding an inherited value off. One row, one baseline.
+  it("writes every label in the bar on the same line", () => {
+    for (const sel of [".more-toggle", "a.home"]) {
+      const rules = bodiesOf(sel);
+      expect(rules, `${sel} writes its label on a line of its own`)
+        .not.toMatch(/line-height:\s*(?!normal)[^;]+/);
+    }
+  });
+
+  it("centres the label in every pressable thing it turns into a flex box", () => {
     for (const sel of [".more-toggle", "a.home", ".fold-head", ".focus-toggle"]) {
       const rules = bodiesOf(sel);
       if (!/display:\s*(inline-)?flex/.test(rules)) continue;               // not a flex box, not this rule's problem

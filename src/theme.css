@@ -126,7 +126,8 @@ input[type=number] { width: 74px; cursor: text; } /* six digits fit; 88 did not 
 a.home {
   padding: 5px 10px; font-family: inherit; font-size: 14px; color: #3c2f1c; text-decoration: none;
   background: #efdcb4; border: 1px solid #b7a071; border-radius: 4px; cursor: pointer;
-  display: inline-flex; align-items: center; line-height: 1.4;
+  /* same line as every button beside it — see the note on `.more-toggle` */
+  display: inline-flex; align-items: center;
 }
 a.home:hover { background: #e7cf9c; }
 .stage {
@@ -164,7 +165,11 @@ a.home:hover { background: #e7cf9c; }
      stretches to the full height. The home link is flex too and says this; this one never did.
      The height only made it visible — the hole was there at 32px as well, 1px off. */
   display: none; align-items: center; justify-content: center;
-  padding: 5px 10px; font: inherit; font-size: 14px; line-height: 1.4;
+  /* ⚠ ...and no line-height of its own. Every plain button in this bar takes `normal`, so 1.4
+     (19.6px) put this label 1.8px above the view toggles standing beside it — reported from a
+     phone, measured at text top 113.2 against their 115. The body is `normal` too, so the
+     declaration was not holding an inherited value off; it was only breaking the row. */
+  padding: 5px 10px; font: inherit; font-size: 14px;
   background: #f3ead2; border: 1px solid #b7a071; border-radius: 4px; color: #3c2f1c; cursor: pointer;
 }
 .more-toggle:hover { background: #e7d9b6; }
