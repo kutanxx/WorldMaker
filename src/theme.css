@@ -158,7 +158,12 @@ a.home:hover { background: #e7cf9c; }
 /* One control standing for the rest of the toolbar on a narrow window. Wide windows have room for
    all twelve and never show this. */
 .more-toggle {
-  display: none;
+  /* ⚠ A <button> centres its own label; a FLEX box does not, and the narrow window turns this one
+     into a flex box. Measured at 390x844 once the bar was given a 44px height: the label sat 6px
+     from the top and 20px from the bottom, because the text becomes an anonymous flex item and
+     stretches to the full height. The home link is flex too and says this; this one never did.
+     The height only made it visible — the hole was there at 32px as well, 1px off. */
+  display: none; align-items: center; justify-content: center;
   padding: 5px 10px; font: inherit; font-size: 14px; line-height: 1.4;
   background: #f3ead2; border: 1px solid #b7a071; border-radius: 4px; color: #3c2f1c; cursor: pointer;
 }

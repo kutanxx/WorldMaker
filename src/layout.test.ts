@@ -195,6 +195,34 @@ describe("the things you press are one size", () => {
       .toContain("min-height: var(--control-h)");
   });
 
+  // ⚠ A flex box does not centre what is inside it, and a button stops doing so the moment it
+  // becomes one. Measured at 390x844 once the bar was given a 44px height: the "more" button's
+  // label sat 6px from the top and 20px from the bottom — its own rule turns it into a flex box
+  // and never says where the label goes, so the text stretched to the top — against 12/14 in the
+  // home link beside it, which is flex too and does say. The height made it visible; the hole was
+  // always there.
+  it("centres the label in every pressable thing it turns into a flex box", () => {
+    const c = css();
+    const bodiesOf = (sel: string) => {
+      const out: string[] = [];
+      for (let i = c.indexOf(sel); i > -1; i = c.indexOf(sel, i + 1)) {
+        const open = c.indexOf("{", i);
+        if (open < 0) break;
+        // ⚠ past the end of whichever comes last: a rule ends in one character, a comment in two
+        const list = c.slice(Math.max(c.lastIndexOf("}", i) + 1, c.lastIndexOf("*/", i) + 2), open);
+        if (!list.split(",").some((one) => one.trim() === sel)) continue;   // a substring, not the selector
+        out.push(c.slice(open, c.indexOf("}", open)));
+      }
+      return out.join(String.fromCharCode(10));
+    };
+    for (const sel of [".more-toggle", "a.home", ".fold-head", ".focus-toggle"]) {
+      const rules = bodiesOf(sel);
+      if (!/display:\s*(inline-)?flex/.test(rules)) continue;               // not a flex box, not this rule's problem
+      expect(rules, `${sel} is a flex box that never says where its label sits`)
+        .toMatch(/align-items:\s*center/);
+    }
+  });
+
   // ⚠ Three elements in one sitting took this height and came out wrong because of the box they
   // measure it in: the home link at 62 (an <a>), the settings head at 68 (a <summary>), and a text
   // input that would have done the same. This stylesheet has no global `box-sizing`, so anything
