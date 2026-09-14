@@ -9,6 +9,7 @@ import { generateWorld } from "../engine/world";
 import { simulateHistory } from "../engine/history";
 import { snapOwnersToProvinces } from "./provinceLayer";
 import { properName } from "./properName";
+import { worldNameIn } from "../engine/featureLabel";
 
 const small = { ...DEFAULT_PARAMS, width: 300, height: 300, cellCount: 400, townCount: 6 };
 
@@ -564,6 +565,43 @@ describe("a plate tells you where you are and where you can go", () => {
       Element.prototype.getBoundingClientRect = rect;
       root.remove();
     }
+  });
+
+  // The address is shareable — `&city=3` opens that plate from a cold link — but the tab said
+  // "WorldMaker — 세계 지도" whatever was on screen, because nothing ever set it: that is map.html's
+  // static title. So a world never carried its own name, a plate never named its town, and two
+  // tabs of this site were told apart by nothing at all. A title is the one line a bookmark keeps.
+  it("names what the tab is showing — the world, then the town it opens", () => {
+    localStorage.setItem("wm:lang", "ko");
+    const root = document.createElement("div");
+    document.body.appendChild(root);
+    const app = createApp(root, small);
+    const { world } = generateWorld(small);
+    const worldName = worldNameIn(world, "ko");
+    expect(document.title, "the tab does not name the world it is showing").toContain(worldName);
+    app.openCity(0);
+    const town = properName("ko", world.cities.find((c) => c.id === 0)!.name);
+    expect(document.title, "the tab does not name the town on the plate").toContain(town);
+    app.showWorld();
+    expect(document.title, "the town outlived its plate").not.toContain(town);
+    expect(document.title).toContain(worldName);
+    root.remove();
+  });
+
+  // ...and in the reader's language. The toggle re-renders the live screen, so this rides on that;
+  // it is pinned here because the title is written in one place and read in another, and a title
+  // left in the wrong language is the kind of thing nobody looks at twice.
+  it("says it in the language the reader chose", () => {
+    localStorage.setItem("wm:lang", "ko");
+    const root = document.createElement("div");
+    document.body.appendChild(root);
+    createApp(root, small);
+    const { world } = generateWorld(small);
+    expect(document.title).toContain(worldNameIn(world, "ko"));
+    (root.querySelector(".lang-toggle") as HTMLButtonElement).click();
+    expect(document.title, "the tab kept the language the reader left").toContain(worldNameIn(world, "en"));
+    expect(document.title).not.toContain(worldNameIn(world, "ko"));
+    root.remove();
   });
 
   it("walks from one town to the town next door", async () => {

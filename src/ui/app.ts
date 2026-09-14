@@ -28,6 +28,7 @@ import { legendSheet, placeLegend } from "./legendSheet";
 import { LEGEND_ROW } from "./renderer";
 import { detectLang, saveLang } from "./lang";
 import { properName, polityLabeller } from "./properName";
+import { worldNameIn } from "../engine/featureLabel";
 
 export interface App {
   regenerate(p: WorldParams): void;
@@ -358,8 +359,25 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     }
   }
 
+  /**
+   * What the tab says it is holding.
+   *
+   * Nothing set this before, so map.html's static title rode every screen: a world never carried
+   * its own name, a plate never named its town, and two tabs of this site were told apart by
+   * nothing — while the address is shareable down to `&city=3`. A title is the one line a bookmark
+   * keeps. ⚠ The distinguishing word goes FIRST: a tab truncates from the right, so "WorldMaker —
+   * ..." would be all any of them showed.
+   */
+  function setTitle(city?: { name: string }): void {
+    const world = worldNameIn(generated.world, lang);
+    document.title = city
+      ? `${properName(lang, city.name)} · ${world} — WorldMaker`
+      : `${world} — WorldMaker`;
+  }
+
   function showWorld(): void {
     openCityId = null;
+    setTitle();
     controls.classList.remove("plate");
     stage.classList.remove("plate");
     timeline?.destroy();
@@ -613,6 +631,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     const marker = generated.world.cities.find((c) => c.id === cityId);
     if (!marker) return;
     openCityId = cityId;
+    setTitle(marker);
     controls.classList.add("plate");
     // The card says which screen it is holding, because on a narrow window the stylesheet has to
     // reorder it: measured on a 390x844 phone, 319px of chrome stood above a drawing 313px tall,
