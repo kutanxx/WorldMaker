@@ -698,6 +698,11 @@ svg.world.lang-en .nation-label { font-variant: small-caps; letter-spacing: 0.10
   }
   .fold { border-top: 1px solid #d8c9a3; padding-top: 4px; }
   .fold + .fold, .legend-fold { margin-top: 0; }
+  /* ⚠ `margin-left: auto` puts the language toggle at the far end of a bar that is ONE row. This
+     bar is four rows on a phone, and unfolded it stranded the toggle and the fold's own button in
+     the bottom-right corner with the left half of that row empty. Unfolded controls read as a
+     continuation of the rows above them, so they pack from the left like everything else. */
+  .controls > .lang-toggle { margin-left: 0; }
   /* The toolbar folds the way the panels do. Measured before this: title + toolbar 236px of an
      812px screen, over a 225px map — four rows, one of which held the language toggle alone. */
   .more-toggle { display: inline-flex; }

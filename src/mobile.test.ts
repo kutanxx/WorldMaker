@@ -273,6 +273,20 @@ describe("the plate's facts read as facts", () => {
   });
 });
 
+// Measured at 390x844 with the bar unfolded: its last row held the language toggle and the fold's
+// own button pinned to the RIGHT edge, with the left half of that row empty — `margin-left: auto`
+// is furniture placement for a bar that is ONE row, and on a phone this bar is four. Unfolded
+// controls should read as a continuation of the rows above them, which means packing from the left.
+describe("the bar unfolds downward, not into the corner", () => {
+  it("stops pushing the language toggle to the far edge on a narrow window", () => {
+    const css = read("src/theme.css");
+    const i = css.indexOf("@media (max-width: 900px)");
+    const block = css.slice(i, css.indexOf(BLOCK_END, i));
+    expect(block, "the toggle still floats to the edge of a four-row bar")
+      .toMatch(/\.lang-toggle\s*\{[^}]*margin-left:\s*0/);
+  });
+});
+
 // Measured on a 390x844 phone, on the plate: 319px of chrome above a drawing 313px tall. The
 // toolbar had already been folded for this arithmetic (㉞); what is left in front of the drawing is
 // a 134px fact strip, five rows deep, read before the reader has seen the town. The strip is a

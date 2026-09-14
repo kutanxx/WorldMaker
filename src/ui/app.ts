@@ -173,19 +173,27 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
   const moreBtn = document.createElement("button");
   moreBtn.type = "button";
   moreBtn.className = "more-toggle";
+  // ⚠ The LABEL carries the state, not only the title: measured on a phone, the button read
+  // "더 보기" whether the controls were shown or hidden, and the word for the open state lived in
+  // `title` — which a touch screen never shows. A button says what pressing it does.
   const syncMore = (on: boolean) => {
     controls.classList.toggle("more-open", on);
     moreBtn.setAttribute("aria-expanded", String(on));
+    moreBtn.textContent = t(lang, on ? "lessToggle" : "moreToggle");
     moreBtn.title = t(lang, on ? "moreHide" : "moreShow");
   };
   moreBtn.addEventListener("click", () => syncMore(!controls.classList.contains("more-open")));
-  controls.append(homeBtn, seedGroup, randomBtn, viewToggle, exportGroup, gazBtn, langBtn, moreBtn);
+  // ★ The fold's control goes BEFORE the zones it unfolds. It used to be last, so everything it
+  // revealed was inserted in front of it: measured at 390x844, pressing it moved the button 56px
+  // right and 100px down, and a second press in the same place landed on the view toggle. What a
+  // disclosure opens belongs BELOW its own control, and in a wrapping bar "below" is "after".
+  controls.append(homeBtn, seedGroup, randomBtn, viewToggle, moreBtn, exportGroup, gazBtn, langBtn);
   syncMore(false);
   root.appendChild(advanced);
 
   // set every UI string from the current language (called on init and on language toggle)
   function applyLang(): void {
-    moreBtn.textContent = t(lang, "moreToggle");
+    moreBtn.textContent = t(lang, controls.classList.contains("more-open") ? "lessToggle" : "moreToggle");
     moreBtn.title = t(lang, controls.classList.contains("more-open") ? "moreHide" : "moreShow");
     // the document's own language, which is what a screen reader and a translation tool go by:
     // map.html declares lang="ko" and it used to stay that way whatever the toggle said

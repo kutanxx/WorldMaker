@@ -604,6 +604,37 @@ describe("a plate tells you where you are and where you can go", () => {
     root.remove();
   });
 
+  // Measured on a 390x844 phone: pressing "더 보기" moved the button itself 56px right and 100px
+  // DOWN — it was the last thing in the bar, so everything it revealed was inserted in front of
+  // it. Press it twice in the same place and the second press lands on the view toggle. A
+  // disclosure's own control has to stay put while what it discloses grows BELOW it.
+  it("keeps the fold's own control ahead of the zones it unfolds", () => {
+    const root = document.createElement("div");
+    createApp(root, small);
+    const kids = [...root.querySelectorAll(".controls > *")];
+    const more = kids.findIndex((e) => e.classList.contains("more-toggle"));
+    expect(more, "the bar has no more-toggle").toBeGreaterThan(-1);
+    for (const sel of [".export-group", ".gazetteer", ".lang-toggle"]) {
+      const i = kids.findIndex((e) => e.matches(sel));
+      expect(i, `${sel} is not in the bar`).toBeGreaterThan(-1);
+      expect(i, `${sel} unfolds in FRONT of the control that unfolds it`).toBeGreaterThan(more);
+    }
+  });
+
+  // The label said "더 보기" whether the controls were shown or hidden; the only word for the open
+  // state was in `title`, which a phone never shows. A button says what pressing it does.
+  it("says what pressing it does, in the state it is in", () => {
+    const root = document.createElement("div");
+    createApp(root, small);
+    const more = root.querySelector(".more-toggle") as HTMLButtonElement;
+    const shut = more.textContent;
+    more.click();
+    expect(more.getAttribute("aria-expanded"), "the fold did not open").toBe("true");
+    expect(more.textContent, "the label is the same open as shut").not.toBe(shut);
+    more.click();
+    expect(more.textContent).toBe(shut);
+  });
+
   it("walks from one town to the town next door", async () => {
     const root = document.createElement("div");
     document.body.appendChild(root);
