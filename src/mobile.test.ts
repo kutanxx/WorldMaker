@@ -324,9 +324,36 @@ describe("the plate's own furniture keeps its corners", () => {
     expect(rule, "the button stays in the corner the compass is drawn in").toMatch(/bottom:\s*auto/);
   });
   it("gives that button the target a finger is owed", () => {
-    const rule = coarseRuleFor(read("src/theme.css"), ".map-zoom-controls button");
+    const c = read("src/theme.css");
+    const rule = coarseRuleFor(c, ".map-zoom-controls button");
     expect(rule, "30px tall is what it measured").toMatch(/min-height:\s*var\(--control-h\)/);
     expect(controlHeightForFinger(), "the shared height a finger gets").toBeGreaterThanOrEqual(44);
+  });
+
+  // ⚠ ...but on the map, ink is map. Measured over 12 seeds at 375x667: raising this button from
+  // 30px to 44px cost 1.17 points of the map's area (6.67% -> 7.84% covered) and bought no town
+  // its click back (7 of 336 sat under the chrome either way). So where the reset stands ALONE —
+  // the normal touch case, pinch having replaced the other two — the ink goes back to the size it
+  // was drawn at and the TARGET is what grows, the way the focus chip's does.
+  it("pulls that ink back off the map and grows the target instead", () => {
+    const c = read("src/theme.css");
+    const i = c.indexOf(".map-zoom-controls:not(.pinch-unavailable) button::after");
+    expect(i, "the ink and the target are still the same box").toBeGreaterThan(-1);
+    const reach = c.slice(i, c.indexOf("}", i));
+    expect(reach, "the target is not laid over the button").toMatch(/position:\s*absolute/);
+    expect(reach, "the target does not reach past the ink").toMatch(/inset:\s*-/);
+    const at = c.lastIndexOf("@media", i);
+    expect(c.slice(at, c.indexOf("{", at)), "the map loses ink on a mouse too").toContain("pointer: coarse");
+  });
+
+  // ⚠ And NOT in the fallback, where pinch was taken away and three buttons stack 4px apart:
+  // invisible reaches would overlap there, and an invisible target that takes its neighbour's
+  // click is the theft (51) and (52) went hunting. The ink is the target in that state.
+  it("keeps ink and target the same box where the buttons stack", () => {
+    const c = read("src/theme.css");
+    const i = c.indexOf(".map-zoom-controls:not(.pinch-unavailable) button::after");
+    const selectors = c.slice(Math.max(c.lastIndexOf("}", i), c.lastIndexOf("*/", i)) + 1, c.indexOf("{", i));
+    expect(selectors, "the reach reaches the stacked buttons too").toContain(":not(.pinch-unavailable)");
   });
 });
 
