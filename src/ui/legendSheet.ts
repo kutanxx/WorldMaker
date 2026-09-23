@@ -43,7 +43,10 @@ export function placeLegend(
   const fresh = map.querySelector(".legend");
   const held = sheet.firstElementChild;
   if (outside) {
-    if (!fresh) return;            // the sheet already holds the only key there is
+    // the sheet already holds the only key there is — but fit it again: it may have been fitted
+    // while its fold was closed (no layout, every word 0 wide), or for the other side of the
+    // narrow line. Opened on a phone after a folded fit, five realm names ran into the second column.
+    if (!fresh) { if (held) fitToKey(sheet, held, scale, columns); return; }
     if (held) held.remove();       // a redraw made a new one; the old one is stale
     home.set(fresh, { parent: fresh.parentNode as Node, next: fresh.nextSibling });
     sheet.appendChild(fresh);

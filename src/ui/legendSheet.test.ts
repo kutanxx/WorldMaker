@@ -267,3 +267,43 @@ describe("placeLegend sizes a column to its words", () => {
     expect([...legend.querySelectorAll(".legend-row")].some((r) => r.hasAttribute("transform"))).toBe(false);
   });
 });
+
+// ⚠ Found on the live page the first time this shipped: the key's fold starts CLOSED on a phone,
+// and a closed fold has no layout — every word measures 0 wide — so the key was fitted to the
+// cartouche and never again: opened, five realm names ran 6-20 units into the second column. The
+// key already in the sheet has to be fitted again whenever it is placed (the fold opening, the
+// window crossing the narrow line), not only when a layer hands over a new one.
+describe("placeLegend refits the key it already holds", () => {
+  it("measures the words again once they have a width", () => {
+    const PITCH = 17, n = 8, h = n * PITCH + 34, y = 700 - 14 - n * PITCH - 30;
+    const { map, legend } = fakeMapWithBand(20, { x: 9, y, w: 112, h });
+    let open = false;   // a folded panel: no layout, every word 0 wide
+    for (let i = 0; i < n; i++) {
+      const row = svgEl("g", { class: "legend-row", "data-pitch": PITCH });
+      const t = svgEl("text", { x: 35, y: y + 30 + i * PITCH });
+      (t as unknown as { getBBox: () => object }).getBBox = () => ({ x: 35, y: 0, width: open ? 102 : 0, height: 14 });
+      row.appendChild(t);
+      legend.appendChild(row);
+    }
+    const sheet = legendSheet();
+    placeLegend(map, sheet, true, 1, 2);
+    const before = Number(/translate\(([-\d.]+)/.exec(legend.querySelectorAll(".legend-row")[4].getAttribute("transform")!)![1]);
+    open = true;
+    placeLegend(map, sheet, true, 1, 2);   // the fold opens: nothing new on the map, the same key
+    const after = Number(/translate\(([-\d.]+)/.exec(legend.querySelectorAll(".legend-row")[4].getAttribute("transform")!)![1]);
+    expect(13 + before, "the folded measure put the second column inside the first's words").toBeLessThan(137);
+    expect(13 + after, "the second column still starts inside the first column's words").toBeGreaterThanOrEqual(137);
+  });
+
+  it("changes its columns when the window changes, with no new key", () => {
+    const PITCH = 17, n = 8, h = n * PITCH + 34, y = 700 - 14 - n * PITCH - 30;
+    const { map, legend } = fakeMapWithBand(20, { x: 9, y, w: 112, h });
+    for (let i = 0; i < n; i++) legend.appendChild(svgEl("g", { class: "legend-row", "data-pitch": PITCH }));
+    const sheet = legendSheet();
+    placeLegend(map, sheet, true, 1, 1);
+    placeLegend(map, sheet, true, 1, 2);
+    expect([...legend.querySelectorAll(".legend-row")].some((r) => r.hasAttribute("transform"))).toBe(true);
+    placeLegend(map, sheet, true, 1, 1);
+    expect([...legend.querySelectorAll(".legend-row")].some((r) => r.hasAttribute("transform"))).toBe(false);
+  });
+});

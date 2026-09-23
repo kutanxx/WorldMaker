@@ -448,7 +448,10 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     frame.classList.toggle("legend-off", !legendOn);
     const sheet = legendSheet();
     const legendFold = makeFold({
-      title: t(lang, "legendToggle"), open: legendOn, onToggle: (on) => setLegend(on),
+      // ⚠ Opening is when the key can first be MEASURED: folded, every word is 0 wide, and the fit
+      // made then left five realm names running into the second column on a phone.
+      title: t(lang, "legendToggle"), open: legendOn,
+      onToggle: (on) => { setLegend(on); if (on) placeLegend(svg, sheet, true, 1, keyColumns()); },
     });
     legendFold.section.classList.add("legend-fold");
     legendFold.body.appendChild(sheet);
@@ -701,7 +704,11 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     const keySheet = legendSheet();
     const keyFold = makeFold({
       title: t(lang, "legendDistricts"), open: readFoldPref(CITY_KEY_FOLD_KEY, true),
-      onToggle: (on) => writeFoldPref(CITY_KEY_FOLD_KEY, on),
+      onToggle: (on) => {
+        writeFoldPref(CITY_KEY_FOLD_KEY, on);
+        // measured again now that it has a width — see the world key's fold
+        if (on) placeLegend(citySvg, keySheet, true, LEGEND_ROW / CITY_LEGEND_ROW, keyColumns());
+      },
     });
     keyFold.section.classList.add("legend-fold");
     keyFold.body.appendChild(keySheet);
