@@ -130,3 +130,17 @@ describe("the scrubber sits one gap under the map", () => {
       .toMatch(/margin-top:\s*0/);
   });
 });
+
+// The map's height is "the window, less the chrome around it", and the chrome was counted before
+// the chronicle became a caption under the scrubber (㊿) — so that caption was never paid for.
+// Measured at 1440x900, 1366x768 and 1920x945 alike: the caption ended 16-17px under the window's
+// bottom edge and the card 27px under it, so a reader scrubbing the years had to scroll to read
+// what happened in them. Measured chrome: 145px above the map (title, bar, card's top edge) and
+// 132px below it (gap, scrubber, caption, card's bottom edge) — 277, and 12 of air under the card.
+describe("the whole card fits the window it was sized for", () => {
+  it("budgets the chrome that is actually on the page, caption included", () => {
+    const budget = Number(/--page:\s*max\(\d+px,\s*calc\(\(100vh - (\d+)px\)/.exec(css())?.[1]);
+    expect(Number.isFinite(budget), "the page measure no longer reads the window's height").toBe(true);
+    expect(budget, "the caption under the scrubber is left below the fold again").toBeGreaterThanOrEqual(277 + 12);
+  });
+});

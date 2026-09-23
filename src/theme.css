@@ -32,8 +32,12 @@ body {
    튀어나온다" looks like from the outside. The card, the bar and the settings now take the map's
    measure, so the page has a single column edge. (+22px is the stage's own 10px padding and 1px
    border on each side, so the stage's CONTENT box is exactly `--page`.) */
+/* ★ 290 is the chrome that is actually on the page: 145px above the map (title, bar, the card's top
+   edge) and 132 below it (gap, scrubber, caption, the card's bottom edge), and 12 of air. It was 250,
+   counted before the chronicle became a caption under the scrubber, so the caption was never paid
+   for: at 1440x900, 1366x768 and 1920x945 alike it ended 16-17px under the window's edge. */
 #app {
-  --page: max(620px, calc((100vh - 250px) * 10 / 7 + 222px));
+  --page: max(620px, calc((100vh - 290px) * 10 / 7 + 222px));
   max-width: min(1320px, 100vw - 32px); margin: 0 auto; padding: 0 16px 32px;
 }
 /* ⚠ No global `box-sizing: border-box` in this stylesheet, so these three say it themselves: the
