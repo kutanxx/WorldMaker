@@ -368,7 +368,10 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
     root.appendChild(eg);
   }
 
-  root.appendChild(compassRose(grid.width - 26, 28, 14, t(lang, "compassN")));
+  // Top-LEFT: the page floats its focus chip over the top-right, and measured at 1440x900 the chip
+  // stood on the compass there. The name is centred and the bottom corners hold the scale bar and
+  // the zoom controls, so this is the one corner nothing else claims.
+  root.appendChild(compassRose(26, 28, 14, t(lang, "compassN")));
 
   // the world's name, an atlas title cartouche at the top-centre
   const title = svgEl("g", { class: "world-name" });

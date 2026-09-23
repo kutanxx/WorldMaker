@@ -621,6 +621,49 @@ describe("a plate tells you where you are and where you can go", () => {
     }
   });
 
+  // Measured on the live page: the zoom buttons and the play button carried a glyph and nothing
+  // else — no title, no accessible name — so "⤡" was a guess for a reader and silence for a
+  // screen reader.
+  it("names every glyph button, in the reader's language", () => {
+    localStorage.setItem("wm:lang", "ko");
+    const root = document.createElement("div");
+    createApp(root, small);
+    for (const sel of [".zoom-in", ".zoom-out", ".zoom-reset", ".timeline-play"]) {
+      const b = root.querySelector(sel) as HTMLButtonElement;
+      expect(b, `${sel} is not on the page`).not.toBeNull();
+      expect(b.getAttribute("aria-label") ?? "", `${sel} has no name`).not.toBe("");
+      expect(b.title, `${sel} says nothing on hover`).toBe(b.getAttribute("aria-label"));
+      expect(b.getAttribute("aria-label"), `${sel} is named in English on a Korean page`).toMatch(/[가-힣]/);
+    }
+    localStorage.removeItem("wm:lang");
+  });
+
+  it("names the play button by what pressing it does now", () => {
+    const root = document.createElement("div");
+    createApp(root, small);
+    const play = root.querySelector(".timeline-play") as HTMLButtonElement;
+    const idle = play.getAttribute("aria-label");
+    play.click();
+    expect(play.getAttribute("aria-label"), "the button plays and still says play").not.toBe(idle);
+    play.click();
+    expect(play.getAttribute("aria-label")).toBe(idle);
+  });
+
+  // Measured at 390x844: opening the fold moved "새 세계" from x=76 to x=216, because the seed box
+  // it reveals stood in front of it. The primary is the one control that must never move under a
+  // reader's thumb, so nothing the fold reveals goes ahead of it.
+  it("reveals nothing in front of the primary", () => {
+    const root = document.createElement("div");
+    createApp(root, small);
+    const kids = [...root.querySelectorAll(".controls > *")];
+    const die = kids.findIndex((e) => e.classList.contains("random-seed"));
+    kids.forEach((e, i) => {
+      if (e.classList.contains("secondary")) {
+        expect(i, `.${[...e.classList].join(".")} unfolds in front of the primary`).toBeGreaterThan(die);
+      }
+    });
+  });
+
   // The label said "더 보기" whether the controls were shown or hidden; the only word for the open
   // state was in `title`, which a phone never shows. A button says what pressing it does.
   it("says what pressing it does, in the state it is in", () => {

@@ -14,7 +14,12 @@ export function attachZoomPan(
   container: HTMLElement,
   // `onScale` fires whenever the zoom changes, so the caller can hold the lettering at its
   // on-screen size and let deconflictLabels work out what now fits (see labelScale.ts).
-  opts?: { restore?: string | null; onScale?: (scale: number) => void },
+  // `labels` names the three glyph buttons: "⤡" alone was a guess for a reader and silence for a
+  // screen reader. English when the caller says nothing.
+  opts?: {
+    restore?: string | null; onScale?: (scale: number) => void;
+    labels?: { zoomIn: string; zoomOut: string; reset: string };
+  },
 ): ZoomPan {
   const parse = (s: string | null) => { const a = (s || "0 0 100 100").split(/[\s,]+/).map(Number); return { x: a[0], y: a[1], w: a[2], h: a[3] }; };
   const base = parse(svg.getAttribute("viewBox"));
@@ -162,17 +167,19 @@ export function attachZoomPan(
   // Named, because a narrow window hides two of the three: with pinch working, `+` and `−` are a
   // desktop's way of doing what two fingers already do, and the three of them covered 19% of the
   // map on a phone. The reset stays — a pinch can leave you somewhere you cannot pinch back from.
-  const mkBtn = (cls: string, label: string, fn: () => void) => {
+  const mkBtn = (cls: string, label: string, name: string, fn: () => void) => {
     const b = document.createElement("button");
     b.type = "button"; b.className = cls; b.textContent = label;
+    b.setAttribute("aria-label", name); b.title = name;
     b.addEventListener("click", fn);
     return b;
   };
   const zoomCentre = (factor: number) => setScale((base.w / cur.w) * factor, cur.x + cur.w / 2, cur.y + cur.h / 2);
   const reset = () => { cur = { ...base }; apply(); };
-  ctrls.append(mkBtn("zoom-in", "+", () => zoomCentre(1.4)),
-               mkBtn("zoom-out", "−", () => zoomCentre(1 / 1.4)),
-               mkBtn("zoom-reset", "⤡", reset));
+  const names = opts?.labels ?? { zoomIn: "Zoom in", zoomOut: "Zoom out", reset: "Reset zoom" };
+  ctrls.append(mkBtn("zoom-in", "+", names.zoomIn, () => zoomCentre(1.4)),
+               mkBtn("zoom-out", "−", names.zoomOut, () => zoomCentre(1 / 1.4)),
+               mkBtn("zoom-reset", "⤡", names.reset, reset));
   container.appendChild(ctrls);
 
   return {

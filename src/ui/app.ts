@@ -75,6 +75,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
   let currentView: MapView = "terrain";
   let lang: Lang = detectLang();
   let openCityId: number | null = null; // which screen is showing (null = world)
+  const zoomLabels = () => ({ zoomIn: t(lang, "zoomIn"), zoomOut: t(lang, "zoomOut"), reset: t(lang, "zoomReset") });
 
   const homeBtn = document.createElement("a"); // back to the landing chooser (index.html — relative for the Pages subpath)
   homeBtn.className = "home";
@@ -187,7 +188,11 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
   // revealed was inserted in front of it: measured at 390x844, pressing it moved the button 56px
   // right and 100px down, and a second press in the same place landed on the view toggle. What a
   // disclosure opens belongs BELOW its own control, and in a wrapping bar "below" is "after".
-  controls.append(homeBtn, seedGroup, randomBtn, viewToggle, moreBtn, exportGroup, gazBtn, langBtn);
+  // ★ ...and the primary goes ahead of everything the fold reveals, for the same reason. The seed
+  // box used to stand in front of the die, so opening the fold at 390x844 moved "새 세계" from x=76
+  // to x=216 — the one control that must never move under a thumb. On a wide window the zone reads
+  // the same either way round: the die, then the way to a particular world.
+  controls.append(homeBtn, randomBtn, seedGroup, viewToggle, moreBtn, exportGroup, gazBtn, langBtn);
   syncMore(false);
   root.appendChild(advanced);
 
@@ -522,6 +527,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     // Coalesced to one pass per frame: a wheel gesture fires dozens of scale changes.
     let relayout = 0, pendingScale = 1;
     worldZoom = attachZoomPan(svg, frame, {
+      labels: zoomLabels(),
       onScale: (scale) => {
         pendingScale = scale;   // the newest scale of the gesture, not the one that scheduled the frame
         if (relayout) return;
@@ -600,7 +606,8 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
 
     // ...in the reader's language. Without this the timeline took its own Korean default and an
     // English reader was shown "500년" on the scrubber.
-    timeline = createTimeline(history, renderYear, (y) => t(lang, "year").replace("{y}", String(y)));
+    timeline = createTimeline(history, renderYear, (y) => t(lang, "year").replace("{y}", String(y)),
+      { play: t(lang, "play"), pause: t(lang, "pause") });
     timelineStrip = document.createElement("div");
     timelineStrip.className = "timeline-strip";
     timelineStrip.append(timeline.element, caption.element);
@@ -766,6 +773,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     floorLabelSize(citySvg, ".ward-label", PLATE_NAME_MIN_PX);
     deconflictLabels(citySvg);
     cityZoom = attachZoomPan(citySvg, frame, {
+      labels: zoomLabels(),
       onScale: (scale) => {
         cityScale = scale;
         if (cityRelayout) return;

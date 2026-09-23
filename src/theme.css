@@ -226,8 +226,13 @@ body.map-focus .timeline { margin: 0; }
 body.map-focus .stage svg.city { max-width: min(100%, calc((100vh - 40px) * 494 / 460)); }
 .timeline {
   display: flex; gap: 10px; padding: 10px 12px; align-items: center;
-  background: #efe6cf; border: 1px solid #cbb784; border-radius: 6px; margin-top: 12px;
+  background: #efe6cf; border: 1px solid #cbb784; border-radius: 6px;
 }
+/* ⚠ No margin of its own: it always stands inside `.timeline-strip`, which already carries the gap.
+   With both, measured at 390x844, 24px of parchment stood between the map and the scrubber
+   against 6 between the scrubber and its caption. */
+/* measured 36x44 — the one button in the row that was not square */
+.timeline-play { min-width: var(--control-h); box-sizing: border-box; }
 .timeline-track { flex: 1; display: flex; flex-direction: column; gap: 1px; }
 /* ⚠ The global `button, input` rule was giving this range input 5px/10px of padding, which put its
    box 22px wider than the tick row beneath it — so every century mark drifted left of the year it
@@ -346,6 +351,11 @@ svg.world.lang-en .nation-label { font-variant: small-caps; letter-spacing: 0.10
 /* phones: shrink the title so the map gets the vertical space instead of the chrome */
 @media (max-width: 640px) {
   .app-title { font-size: 21px; padding: 8px 0 4px; letter-spacing: .06em; }
+  /* ★ The compass is drawn in map units, so it shrinks with the map: 9x12px with a 3px "N" on a
+     390px phone, a smudge in the corner rather than a compass. North is up on every map this site
+     draws, so on a phone it is left out rather than grown over the land. The exports carry no
+     stylesheet, so a downloaded map keeps it. */
+  svg.world .compass { display: none; }
 }
 /* One card, in a row that was built for two. The other was the game's, and when it went this was
    left as a 204px column of text stranded in 792px of parchment, breaking its own sentence across
@@ -418,7 +428,23 @@ svg.world.lang-en .nation-label { font-variant: small-caps; letter-spacing: 0.10
   border: 1px solid #b7a071; border-radius: 4px; color: #3c2f1c; cursor: pointer;
 }
 .landing-lang:hover { background: #e7d9b6; }
-.landing-daily { margin-top: 10px; text-align: center; }
+/* ⚠ After the rule above, not in the phone block near the top of the file: same specificity, so the
+   later rule wins, and the first cut of this measured 22 on a phone. */
+@media (max-width: 640px) {
+  /* ★ The language toggle stands in the TITLE's row, not on the tagline. Measured at 390x844 it sat
+     at 329..374 x 22..66 while the tagline ran 16..374 x 50..70, so the button covered the tagline's
+     last word. It starts where the hero starts (its 8px padding), and the title's row is made at
+     least as tall as the button, so the tagline begins under both — whatever font the title has
+     arrived in, since the row no longer depends on the title's own line height. */
+  .landing-lang { top: 8px; }
+  .landing-hero .app-title {
+    min-height: var(--control-h); box-sizing: border-box; padding: 6px 0;
+    display: flex; align-items: center; justify-content: center;
+  }
+}
+/* ⚠ The gutter, for the same reason as the name row: measured on a phone the line under the daily
+   button ran 0..390, the one block on the page whose words could touch the screen's edge. */
+.landing-daily { margin-top: 10px; text-align: center; padding: 0 16px; }
 .landing-daily-sub { margin: 6px 0 0; font-size: 0.85em; opacity: 0.75; }
 .name-daily { padding: 8px 18px; cursor: pointer; }
 
@@ -494,14 +520,28 @@ svg.world.lang-en .nation-label { font-variant: small-caps; letter-spacing: 0.10
    Kept off the toolbar because the toolbar's own lesson is that a control costs a row whether it
    is used or not — and these are for the reader who wants a wetter world, not for every reader. */
 .advanced { margin: 6px auto 0; font-size: 13px; color: #42341f; }   /* width: the page measure, on #app */
-.advanced > summary { cursor: pointer; padding: 6px 2px; user-select: none; letter-spacing: 0.02em; }
-.advanced > summary::marker { color: #9a8a70; }
+/* ★ The fold heads' marker, not the browser's. The page had two kinds of disclosure: a triangle at
+   the RIGHT of the key's and the list's heads, and a disclosure triangle at the LEFT of this one. */
+.advanced > summary {
+  cursor: pointer; padding: 6px 2px; user-select: none; letter-spacing: 0.02em;
+  list-style: none; display: flex; align-items: center; gap: 8px;
+}
+.advanced > summary::-webkit-details-marker { display: none; }
+.advanced > summary::after {
+  content: "\25be"; margin-left: auto; font-size: 16px; line-height: 1; color: #6b5d42;
+  transform: rotate(-90deg); transition: transform .12s;
+}
+.advanced[open] > summary::after { transform: none; }
 .advanced-row { display: grid; grid-template-columns: 92px 1fr 56px; align-items: center; gap: 10px; padding: 3px 2px; }
 .advanced-row output { font-variant-numeric: tabular-nums; text-align: right; color: #6b5d42; }
-.advanced-row input[type=range] { accent-color: #7a5a3a; }
+/* ⚠ A slider is not a text field — the scrubber's lesson again. The global `button, input` rule gave
+   these its padding and border on top of a content-box height: measured 46px on a phone. */
+.advanced-row input[type=range] {
+  accent-color: #7a5a3a; padding: 0; border: 0; margin: 0;
+  min-height: var(--control-h); box-sizing: border-box;
+}
 @media (pointer: coarse) {
   .advanced-row { grid-template-columns: 96px 1fr 56px; }
-  .advanced-row input[type=range] { min-height: 34px; }
 }
 
 /* What a plate can say about its town, and the way off it. The plan used to carry its name and
@@ -632,6 +672,9 @@ svg.world.lang-en .nation-label { font-variant: small-caps; letter-spacing: 0.10
 .fold-head:hover:not(:disabled) { background: #e7d9b6; }
 .fold-title { flex: 1; }
 .fold-count { font-variant: tabular-nums; font-weight: 400; color: #8a7a5c; letter-spacing: 0; }
+/* 16px, not the head's 13: at 13 the triangle was a speck at the far end of a 336px head, and it is
+   the only thing on the head that says the head opens */
+.fold-mark { font-size: 16px; line-height: 1; }
 .fold-mark::before { content: "\25be"; display: inline-block; transition: transform .12s; } /* ▾ */
 .fold:not(.is-open) > .fold-head .fold-mark::before { transform: rotate(-90deg); }
 .fold-body { display: none; }
@@ -713,6 +756,15 @@ svg.world.lang-en .nation-label { font-variant: small-caps; letter-spacing: 0.10
      the bottom-right corner with the left half of that row empty. Unfolded controls read as a
      continuation of the rows above them, so they pack from the left like everything else. */
   .controls > .lang-toggle { margin-left: 0; }
+  /* ...and the zones' own 12px, which is space BETWEEN zones on one row, lands at the START of every
+     wrapped row. Measured at 390x844: the bar's first row began at x=29 and its second at x=41,
+     and opened it was four rows with three left edges and the language toggle alone on the last.
+     On a phone the rows are what separate the zones. */
+  .controls > .seed-group, .controls > .view-toggle, .controls > .export-group { margin-left: 0; }
+  /* The scrubber is moved INTO the map's grid here (app.ts), and the grid's own 12px gap is already
+     the space above it — with the strip's margin on top, measured 36px under the map before the
+     scrubber's own margin went, and 24 after. */
+  .map-with-list > .timeline-strip { margin-top: 0; }
   /* The toolbar folds the way the panels do. Measured before this: title + toolbar 236px of an
      812px screen, over a 225px map — four rows, one of which held the language toggle alone. */
   .more-toggle { display: inline-flex; }
@@ -749,10 +801,14 @@ svg.world.lang-en .nation-label { font-variant: small-caps; letter-spacing: 0.10
   .city-fact { display: contents; }
 }
 @media (pointer: coarse) {
-  .city-list-item { min-height: 36px; }
+  /* ★ The shared height, where it was 36 — the one list a finger opens towns from stood 8px short
+     of every other thing it presses. The list is folded by default, so the length this costs
+     (+8px a row) is paid only by a reader who asked for it. Centred, because baseline alignment
+     in a taller flex row keeps the text at the top — the "more" button's hole again. */
+  .city-list-item { min-height: var(--control-h); box-sizing: border-box; align-items: center; }
   /* the heads are the only way into three panels; 44px is the target a finger is owed */
-  /* the settings head is a disclosure, not a button: it keeps its marker, so the room comes
-     from padding rather than from a flex box that would swallow the triangle */
+  /* the settings head is a disclosure, not a button: the room comes from padding, and its marker
+     is drawn by the page (see `.advanced > summary::after`) */
   .advanced > summary {
     min-height: var(--control-h); box-sizing: border-box;
     padding-top: 12px; padding-bottom: 12px;

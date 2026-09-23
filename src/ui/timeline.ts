@@ -15,6 +15,8 @@ export function createTimeline(
   history: TimelineSource,
   onIndex: (i: number) => void,
   formatYear: (y: number) => string = (y) => `${y}년`,
+  // what the button does when pressed, in each state — the glyph alone named nothing
+  labels: { play: string; pause: string } = { play: "재생", pause: "일시정지" },
 ): Timeline {
   const max = history.snapshots.length - 1;
 
@@ -23,7 +25,10 @@ export function createTimeline(
 
   const playBtn = document.createElement("button");
   playBtn.className = "timeline-play";
-  playBtn.textContent = "▶";
+  const say = (glyph: string, name: string) => {
+    playBtn.textContent = glyph; playBtn.setAttribute("aria-label", name); playBtn.title = name;
+  };
+  say("▶", labels.play);
 
   const slider = document.createElement("input");
   slider.type = "range";
@@ -78,12 +83,12 @@ export function createTimeline(
 
   function stop(): void {
     if (timer !== null) { clearInterval(timer); timer = null; }
-    playBtn.textContent = "▶";
+    say("▶", labels.play);
   }
 
   function play(): void {
     if (index >= max) apply(0); // replay from the dawn
-    playBtn.textContent = "⏸";
+    say("⏸", labels.pause);
     timer = setInterval(() => {
       if (index >= max) { stop(); return; }
       apply(index + 1);

@@ -58,6 +58,15 @@ describe("renderWorld biomes", () => {
     expect(svg.querySelectorAll(".compass").length).toBe(1);
     expect(svg.querySelector(".compass-n")?.textContent).toBe("N");
   });
+  // The top-right corner belongs to the focus chip, which the page floats over the map there.
+  // Measured at 1440x900, the chip (994..1052 x 159..186) stood on the compass (1029..1055 x
+  // 149..184). The top-left is the corner nothing else claims: the name is centred, the scale bar
+  // and the zoom controls are at the bottom.
+  it("stands the compass in the corner the page leaves free", () => {
+    const c = svg.querySelector(".compass circle")!;
+    expect(Number(c.getAttribute("cx")), "the compass is back under the chip").toBeLessThan(world.grid.width / 2);
+    expect(Number(c.getAttribute("cy"))).toBeLessThan(world.grid.height / 2);
+  });
   it("renders the world name as a title and geographic region labels (atlas depth)", () => {
     expect(svg.querySelector(".world-name-text")?.textContent).toBe(world.name);
     expect(svg.querySelectorAll(".region-labels .region-label").length).toBeGreaterThan(0);
