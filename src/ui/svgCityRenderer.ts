@@ -1,4 +1,4 @@
-import { svgEl, legendPanel, compassRose, mapFrame, INK, PARCHMENT } from "./renderer";
+import { svgEl, legendPanel, legendRow, compassRose, mapFrame, INK, PARCHMENT } from "./renderer";
 import { scaleBar, METRES_PER_UNIT } from "./scaleBar";
 import type { CityLayout } from "../engine/city";
 import type { WardType } from "../engine/city/zoning";
@@ -639,10 +639,12 @@ export function renderCity(layout: CityLayout, lang: Lang = "en", opts: CityRend
   legend.appendChild(legendPanel(x0 - 4, y0 - 8 - CITY_TITLE_H, 92, items.length * CITY_LEGEND_ROW + 12 + CITY_TITLE_H, t(lang, "legendDistricts"), 7.5));
   items.forEach(([color, label], i) => {
     const y = y0 + i * CITY_LEGEND_ROW;
-    legend.appendChild(svgEl("rect", { class: "legend-item", x: x0, y: y - 6, width: 8, height: 8, fill: color, stroke: INK, "stroke-width": 0.6 }));
+    const row = legendRow(CITY_LEGEND_ROW);
+    row.appendChild(svgEl("rect", { class: "legend-item", x: x0, y: y - 6, width: 8, height: 8, fill: color, stroke: INK, "stroke-width": 0.6 }));
     const txt = svgEl("text", { x: x0 + 14, y, "font-size": 9, fill: "#42341f", "letter-spacing": 0.3 });
     txt.textContent = label;
-    legend.appendChild(txt);
+    row.appendChild(txt);
+    legend.appendChild(row);
   });
   root.appendChild(legend);
 

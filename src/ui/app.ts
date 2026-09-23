@@ -285,6 +285,9 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
   const NARROW = "(max-width: 900px)";
   const isNarrowWindow = (): boolean =>
     typeof matchMedia === "function" && matchMedia(NARROW).matches;
+  // A key standing UNDER its drawing on a narrow window has the width for two columns; one standing
+  // in the 210px column beside a wide window's map does not (see legendSheet.ts).
+  const keyColumns = (): number => (isNarrowWindow() ? 2 : 1);
   /** drops the world screen's width watcher; see the listener leak note in showWorld */
   let dropWidthWatch: (() => void) | null = null;
   function readLegendPref(): boolean {
@@ -571,7 +574,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
       // measured at 1440x900, two presses of `+` left the key 294px off the left edge of the frame
       // at twice its size, with no way back but zooming out. Off the drawing it also stops
       // shrinking with the map (it was drawn at x0.93 there, and at x0.32 on a phone).
-      placeLegend(svg, sheet, true);
+      placeLegend(svg, sheet, true, 1, keyColumns());
       // The scrubber moves the MAP, so under a narrow window it goes directly under the drawing.
       // Stacking the sections had left it between the town list and the chronicle — the one control
       // the map cannot be read without, stranded in the middle of the things that annotate it.
@@ -607,7 +610,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
       deconflictLabels(svg, z); // hide colliding lower-priority labels, and those the zoom has not earned yet
       // ⚠ After `fillSlot`, always: outside terrain the key is drawn INSIDE the slot that was just
       // replaced, so every scrub hands back a new key and the one standing under the map is stale.
-      placeLegend(svg, sheet, true);
+      placeLegend(svg, sheet, true, 1, keyColumns());
     };
 
     // ...in the reader's language. Without this the timeline took its own Korean default and an
@@ -706,7 +709,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     // ㉗'s one size, arrived at from the other direction: the plate's key is drawn in 11-unit rows
     // because the plate is drawn big. Standing it at 1:1 would put an 11px row beside the world
     // map's 17px one on the same phone.
-    placeLegend(citySvg, keySheet, true, LEGEND_ROW / CITY_LEGEND_ROW);
+    placeLegend(citySvg, keySheet, true, LEGEND_ROW / CITY_LEGEND_ROW, keyColumns());
 
     // ⚠ One watcher, dropped on the way out — see the leak note in showWorld.
     dropWidthWatch?.();

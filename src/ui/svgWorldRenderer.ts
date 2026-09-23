@@ -1,5 +1,5 @@
 import type { World } from "../types/world";
-import { svgEl, legendPanel, starPath, compassRose, mapFrame, INK, PARCHMENT, LEGEND_TITLE_H, LEGEND_TEXT, LEGEND_ROW, LEGEND_SWATCH, LEGEND_GAP, LEGEND_W_FIXED } from "./renderer";
+import { svgEl, legendPanel, legendRow, starPath, compassRose, mapFrame, INK, PARCHMENT, LEGEND_TITLE_H, LEGEND_TEXT, LEGEND_ROW, LEGEND_SWATCH, LEGEND_GAP, LEGEND_W_FIXED } from "./renderer";
 import { scaleBar, KM_PER_UNIT, KM_PER_WALKING_DAY } from "./scaleBar";
 import { displayBiomes } from "./displayBiome";
 import { OCEAN, ALPINE, BIOME_COLORS } from "../engine/biome";
@@ -335,10 +335,12 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
     legend.appendChild(legendPanel(x0 - 5, y0 - 10 - LEGEND_TITLE_H, LEGEND_W_FIXED, present.length * LEGEND_ROW + 14 + LEGEND_TITLE_H, t(lang, "legendTerrain")));
     present.forEach((bm, i) => {
       const y = y0 + i * LEGEND_ROW;
-      legend.appendChild(svgEl("rect", { class: "legend-item", x: x0, y: y - 9, width: LEGEND_SWATCH, height: LEGEND_SWATCH, fill: BIOME_COLORS[bm], stroke: INK, "stroke-width": 0.6, "vector-effect": "non-scaling-stroke" }));
+      const row = legendRow(LEGEND_ROW);
+      row.appendChild(svgEl("rect", { class: "legend-item", x: x0, y: y - 9, width: LEGEND_SWATCH, height: LEGEND_SWATCH, fill: BIOME_COLORS[bm], stroke: INK, "stroke-width": 0.6, "vector-effect": "non-scaling-stroke" }));
       const t = svgEl("text", { x: x0 + LEGEND_SWATCH + LEGEND_GAP, y: y, "font-size": LEGEND_TEXT, fill: "#42341f", "letter-spacing": 0.3 });
       t.textContent = biomeName(lang, bm);
-      legend.appendChild(t);
+      row.appendChild(t);
+      legend.appendChild(row);
     });
     root.appendChild(legend);
   }

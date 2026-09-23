@@ -1,5 +1,5 @@
 import type { World } from "../types/world";
-import { svgEl, legendPanel, INK, LEGEND_TITLE_H, LEGEND_TEXT, LEGEND_ROW, LEGEND_SWATCH, LEGEND_GAP, LEGEND_W_FIXED } from "./renderer";
+import { svgEl, legendPanel, legendRow, INK, LEGEND_TITLE_H, LEGEND_TEXT, LEGEND_ROW, LEGEND_SWATCH, LEGEND_GAP, LEGEND_W_FIXED } from "./renderer";
 import { t, type Lang } from "./i18n";
 import { cellPath, segPath } from "./svgPaths";
 import { politicalBorders } from "../engine/borders";
@@ -189,10 +189,12 @@ export function provinceLayer(
     lg.appendChild(legendPanel(x0 - 5, y0 - 10 - LEGEND_TITLE_H, LEGEND_W_FIXED, rows.length * LEGEND_ROW + 14 + LEGEND_TITLE_H, t(lang, "legendProvinces")));
     rows.forEach(([label, mark], i) => {
       const y = y0 + i * LEGEND_ROW;
-      lg.appendChild(mark(x0, y));
+      const row = legendRow(LEGEND_ROW);
+      row.appendChild(mark(x0, y));
       const tx = svgEl("text", { x: x0 + LEGEND_SWATCH + LEGEND_GAP, y, "font-size": LEGEND_TEXT, fill: INK });
       tx.textContent = label;
-      lg.appendChild(tx);
+      row.appendChild(tx);
+      lg.appendChild(row);
     });
     g.appendChild(lg);
   }

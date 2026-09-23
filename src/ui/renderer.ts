@@ -94,6 +94,16 @@ export function legendPanel(x: number, y: number, w: number, h: number, title?: 
   return g;
 }
 
+/**
+ * One row of a key: its swatch and its word, as ONE group. Off the map the page lays a key out in
+ * two columns on a phone (legendSheet.ts), and it can only move a row that is a thing — the layers
+ * used to append the swatch and the word loose. `data-pitch` is the row height the layer spaced its
+ * rows by, so the page moves a row by exactly the room the layer gave it.
+ */
+export function legendRow(pitch: number): SVGElement {
+  return svgEl("g", { class: "legend-row", "data-pitch": pitch });
+}
+
 // A four-point star, used for the compass needle and for a capital's mark.
 export function starPath(cx: number, cy: number, points: number, outer: number, inner: number): string {
   let d = "";

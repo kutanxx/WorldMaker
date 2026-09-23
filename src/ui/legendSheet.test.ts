@@ -155,3 +155,115 @@ describe("placeLegend at the size the key was drawn for", () => {
     expect(sheet.getAttribute("width")).toBe("104");   // 112 less the rule's own margin, both sides
   });
 });
+
+// ★ On a phone the key stands UNDER the map, 336px wide, and a one-column key of eight rows used
+// 104 of them: measured, a 146px-tall strip with two thirds of its width empty. Two columns halve
+// the height and still fit (2 x 104 + a gap, well inside 336). Desktop keeps one column: there the
+// key stands in the 210px column beside the map, which two columns would overflow.
+describe("placeLegend in two columns", () => {
+  // a real terrain-shaped key: a 20-unit heading band and n rows of 17 at y0 + i*17
+  function keyWithRows(n: number) {
+    const PITCH = 17, h = n * PITCH + 14 + 20, y = 700 - 14 - n * PITCH - 10 - 20;
+    const { map, legend } = fakeMapWithBand(20, { x: 9, y, w: 112, h });
+    for (let i = 0; i < n; i++) {
+      const row = svgEl("g", { class: "legend-row", "data-pitch": PITCH });
+      row.appendChild(svgEl("rect", { class: "legend-item", x: 14, y: y + 30 + i * PITCH - 9, width: 12, height: 12 }));
+      legend.appendChild(row);
+    }
+    return { map, legend, h };
+  }
+  const box = (s: SVGSVGElement) => s.getAttribute("viewBox")!.split(" ").map(Number);
+
+  it("puts the second half of the rows beside the first, and halves the height", () => {
+    const one = keyWithRows(8), two = keyWithRows(8);
+    const s1 = legendSheet(), s2 = legendSheet();
+    placeLegend(one.map, s1, true);
+    placeLegend(two.map, s2, true, 1, 2);
+    const rows = [...two.legend.querySelectorAll(".legend-row")];
+    rows.slice(0, 4).forEach((r, i) => expect(r.getAttribute("transform"), `row ${i} moved`).toBeNull());
+    for (const r of rows.slice(4)) expect(r.getAttribute("transform")).toBe(`translate(${104 + 12} ${-4 * 17})`);
+    expect(box(s2)[3], "the key is as tall as it was").toBe(box(s1)[3] - 4 * 17);
+    expect(box(s2)[2]).toBe(104 * 2 + 12);
+    expect(Number(s2.getAttribute("width"))).toBe(104 * 2 + 12);
+  });
+
+  it("gives an odd row to the first column", () => {
+    const { map, legend } = keyWithRows(7);
+    placeLegend(map, legendSheet(), true, 1, 2);
+    const moved = [...legend.querySelectorAll(".legend-row")].map((r) => r.getAttribute("transform") !== null);
+    expect(moved).toEqual([false, false, false, false, true, true, true]);
+  });
+
+  it("leaves a short key in one column — two rows side by side is not a key", () => {
+    const { map, legend } = keyWithRows(3);
+    const sheet = legendSheet();
+    placeLegend(map, sheet, true, 1, 2);
+    expect([...legend.querySelectorAll(".legend-row")].some((r) => r.hasAttribute("transform"))).toBe(false);
+  });
+
+  // the same key goes back to one column when the window widens — nothing left over from two
+  it("takes the columns back out when asked for one", () => {
+    const { map, legend } = keyWithRows(8);
+    const sheet = legendSheet();
+    placeLegend(map, sheet, true, 1, 2);
+    const back = legend;
+    // the key now lives in the sheet; a re-fit for one column has to reach it there
+    map.appendChild(back);
+    placeLegend(map, sheet, true, 1, 1);
+    expect([...legend.querySelectorAll(".legend-row")].some((r) => r.hasAttribute("transform"))).toBe(false);
+    expect(box(sheet)[2]).toBe(104);
+  });
+});
+
+// ★ The sheet clips (`overflow: hidden` on an inline svg), and it was cut to the CARTOUCHE's width,
+// which the layer chose before it knew the names. Measured on a 390x844 phone, seed "Narnia": five
+// of eight realm names ran past it by 6-20 units — "브라르그루그 제국" lost its last syllable in the
+// key, in one column as much as in two. A column is as wide as its widest word.
+describe("placeLegend sizes a column to its words", () => {
+  function keyWithWords(widths: number[]) {
+    const PITCH = 17, n = widths.length, h = n * PITCH + 14 + 20, y = 700 - 14 - n * PITCH - 10 - 20;
+    const { map, legend } = fakeMapWithBand(20, { x: 9, y, w: 112, h });
+    widths.forEach((w, i) => {
+      const row = svgEl("g", { class: "legend-row", "data-pitch": PITCH });
+      const t = svgEl("text", { x: 35, y: y + 30 + i * PITCH });
+      // jsdom has no layout; the width a browser would measure is what is being tested
+      (t as unknown as { getBBox: () => object }).getBBox = () => ({ x: 35, y: 0, width: w, height: 14 });
+      row.appendChild(t);
+      legend.appendChild(row);
+    });
+    return { map, legend };
+  }
+  const box = (s: SVGSVGElement) => s.getAttribute("viewBox")!.split(" ").map(Number);
+
+  it("widens the key to the longest word, where the cartouche was too narrow", () => {
+    const { map } = keyWithWords([60, 102, 70]);            // 35 + 102 ends at 137; the key ran to 117
+    const sheet = legendSheet();
+    placeLegend(map, sheet, true);
+    expect(box(sheet)[0] + box(sheet)[2], "the longest word is cut off").toBeGreaterThanOrEqual(137);
+  });
+
+  it("keeps the cartouche's width when every word fits it", () => {
+    const { map } = keyWithWords([40, 50, 60]);
+    const sheet = legendSheet();
+    placeLegend(map, sheet, true);
+    expect(box(sheet)[2]).toBe(104);
+  });
+
+  it("puts the second column past the first column's longest word", () => {
+    const { map, legend } = keyWithWords([60, 102, 70, 50, 40, 30, 20, 10]);
+    placeLegend(map, legendSheet(), true, 1, 2);
+    const moved = legend.querySelectorAll(".legend-row")[4].getAttribute("transform")!;
+    const dx = Number(/translate\(([-\d.]+)/.exec(moved)![1]);
+    expect(13 + dx, "the second column starts inside the first column's words").toBeGreaterThanOrEqual(137);
+  });
+
+  it("stays in one column where two would not fit the room it is standing in", () => {
+    const { map, legend } = keyWithWords([60, 102, 70, 50, 40, 30, 20, 10]);
+    const sheet = legendSheet();
+    const room = document.createElement("div");
+    Object.defineProperty(room, "clientWidth", { value: 200 });
+    room.appendChild(sheet);
+    placeLegend(map, sheet, true, 1, 2);
+    expect([...legend.querySelectorAll(".legend-row")].some((r) => r.hasAttribute("transform"))).toBe(false);
+  });
+});

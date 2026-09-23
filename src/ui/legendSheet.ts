@@ -34,7 +34,12 @@ export function legendSheet(): SVGSVGElement {
  * the other case: its key is drawn once on the map root and nothing redraws it, so finding no key
  * on the map must not be read as "empty the sheet".
  */
-export function placeLegend(map: SVGSVGElement, sheet: SVGSVGElement, outside: boolean, scale = 1): void {
+export function placeLegend(
+  map: SVGSVGElement, sheet: SVGSVGElement, outside: boolean, scale = 1,
+  // two on a phone, where the key stands under the map with most of 336px beside it; one where it
+  // stands in the 210px column beside a desktop's map, which two would overflow
+  columns = 1,
+): void {
   const fresh = map.querySelector(".legend");
   const held = sheet.firstElementChild;
   if (outside) {
@@ -42,10 +47,12 @@ export function placeLegend(map: SVGSVGElement, sheet: SVGSVGElement, outside: b
     if (held) held.remove();       // a redraw made a new one; the old one is stale
     home.set(fresh, { parent: fresh.parentNode as Node, next: fresh.nextSibling });
     sheet.appendChild(fresh);
-    fitToKey(sheet, fresh, scale);
+    fitToKey(sheet, fresh, scale, columns);
     return;
   }
   if (!held) return;
+  // back on the map it is the map's key again: one column, as the layer drew it
+  for (const r of held.querySelectorAll(".legend-row")) r.removeAttribute("transform");
   if (fresh) { held.remove(); return; }  // the map drew itself a new key while we were away
   // `map.contains`, not `isConnected`: the question is whether the place it came from is still part
   // of THIS map — a slot `fillSlot` has since replaced is gone even though the document is fine, and
@@ -68,7 +75,7 @@ export function placeLegend(map: SVGSVGElement, sheet: SVGSVGElement, outside: b
  * one and 64% for the other, so the caller says which scale its key was drawn for. The viewBox is
  * untouched: those are the key's own coordinates either way.
  */
-function fitToKey(sheet: SVGSVGElement, legend: Element, scale: number): void {
+function fitToKey(sheet: SVGSVGElement, legend: Element, scale: number, columns = 1): void {
   const panel = legend.querySelector(".legend-panel");
   const rect = panel?.querySelector("rect");
   if (!rect) return;
@@ -85,7 +92,42 @@ function fitToKey(sheet: SVGSVGElement, legend: Element, scale: number): void {
   // the band already includes the heading's own air, so the top is cropped by it alone: at 12-unit
   // type that lands one unit above the first swatch (measured: the swatch sat 3 units ABOVE the
   // viewport and was clipped when the inset was applied twice).
-  const [vx, vy, vw, vh] = [x + INSET, y + band, w - INSET * 2, h - band - INSET];
+  let [vx, vy, vw, vh] = [x + INSET, y + band, w - INSET * 2, h - band - INSET];
+  // ★ Two columns: the second half of the rows moves up beside the first, by exactly the room the
+  // layer gave each row. Measured on a 390x844 phone, the one-column terrain key was 104 units of a
+  // 336px panel, 146 tall — two thirds of its width empty. Column-major, the way a printed key reads
+  // (down, then across), and the first column takes an odd row. Three rows or fewer stay one column:
+  // two short columns read as a table, not a key.
+  const rows = [...legend.querySelectorAll<SVGElement>(".legend-row")];
+  const pitch = Number(rows[0]?.getAttribute("data-pitch") ?? 0);
+  const COL_GAP = 12;
+  // ★ A column is as wide as its widest word. The sheet clips (an inline svg is `overflow: hidden`)
+  // and the cartouche's width was chosen before the names were known: measured on a phone, five of
+  // eight realm names ran 6-20 units past it and lost their last syllable, in one column as much as
+  // in two. getBBox is the browser's own measure of the word; without layout (jsdom, or a sheet not
+  // yet in the page) the cartouche's width is all there is to go on. Measured before any row moves:
+  // a row's transform is on the group, so the word's own box is in the layer's coordinates.
+  const words = legend.querySelectorAll<SVGGraphicsElement>(".legend-row text");
+  for (const w of words) {
+    try {
+      const b = w.getBBox();
+      if (b.width > 0) vw = Math.max(vw, Math.ceil(b.x + b.width + 2 - vx));
+    } catch { break; }
+  }
+  // two columns only where they fit the room the sheet stands in; unmeasured room is not a "no"
+  const room = (sheet.parentElement as HTMLElement | null)?.clientWidth ?? 0;
+  const fits = !(room > 0) || (vw * 2 + COL_GAP) * scale <= room;
+  if (columns >= 2 && rows.length >= 4 && pitch > 0 && fits) {
+    const per = Math.ceil(rows.length / 2);
+    rows.forEach((r, i) => {
+      if (i < per) r.removeAttribute("transform");
+      else r.setAttribute("transform", `translate(${vw + COL_GAP} ${-per * pitch})`);
+    });
+    vh -= (rows.length - per) * pitch;
+    vw = vw * 2 + COL_GAP;
+  } else {
+    for (const r of rows) r.removeAttribute("transform");
+  }
   sheet.setAttribute("viewBox", `${vx} ${vy} ${vw} ${vh}`);
   sheet.setAttribute("width", String(vw * scale));
   sheet.setAttribute("height", String(vh * scale));

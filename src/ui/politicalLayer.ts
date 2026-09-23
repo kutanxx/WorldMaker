@@ -1,5 +1,5 @@
 import type { World } from "../types/world";
-import { svgEl, legendPanel, INK, LEGEND_TITLE_H, LEGEND_TEXT, LEGEND_ROW, LEGEND_SWATCH, LEGEND_GAP, LEGEND_W_NAMED } from "./renderer";
+import { svgEl, legendPanel, legendRow, INK, LEGEND_TITLE_H, LEGEND_TEXT, LEGEND_ROW, LEGEND_SWATCH, LEGEND_GAP, LEGEND_W_NAMED } from "./renderer";
 import { cellPath, segPath } from "./svgPaths";
 import { politicalBorders } from "../engine/borders";
 import { nationColor, nationCentroids } from "./nationPalette";
@@ -146,13 +146,15 @@ export function politicalLayer(
       legend.appendChild(legendPanel(x0 - 5, y0 - 10 - LEGEND_TITLE_H, LEGEND_W, rows.length * LEGEND_ROW + 14 + LEGEND_TITLE_H, opts.legendTitle));
       rows.forEach(([id], i) => {
         const y = y0 + i * LEGEND_ROW;
-        legend.appendChild(svgEl("rect", {
+        const row = legendRow(LEGEND_ROW);
+        row.appendChild(svgEl("rect", {
           class: "legend-item", x: x0, y: y - 9, width: LEGEND_SWATCH, height: LEGEND_SWATCH,
           fill: colorOf(id), stroke: INK, "stroke-width": 0.6, "vector-effect": "non-scaling-stroke",
         }));
         const t = svgEl("text", { x: x0 + LEGEND_SWATCH + LEGEND_GAP, y, "font-size": LEGEND_TEXT, fill: "#42341f", "letter-spacing": 0.3 });
         t.textContent = nameOf(id) ?? "";
-        legend.appendChild(t);
+        row.appendChild(t);
+        legend.appendChild(row);
       });
       g.appendChild(legend);
     }
