@@ -17,6 +17,17 @@ import { svgEl } from "./renderer";
  * renders its own SVG from scratch (app.ts) and never sees this.
  */
 
+/**
+ * How far in from its panel the key stands: the fold head's own horizontal padding (`.fold-head`,
+ * theme.css — a test holds the two together), so the swatches start under the heading's words and
+ * the town names, not 6px to the left of them as they did.
+ */
+export const KEY_INSET = 6;
+/** between two columns, in CSS pixels */
+const COL_GAP = 12;
+/** extra room between rows when the key stands in two columns, in CSS pixels */
+const KEY_AIR = 5;
+
 /** where a key was taken from, so it can be put back without anything being redrawn */
 const home = new WeakMap<Element, { parent: Node; next: Node | null }>();
 
@@ -103,7 +114,6 @@ function fitToKey(sheet: SVGSVGElement, legend: Element, scale: number, columns 
   // two short columns read as a table, not a key.
   const rows = [...legend.querySelectorAll<SVGElement>(".legend-row")];
   const pitch = Number(rows[0]?.getAttribute("data-pitch") ?? 0);
-  const COL_GAP = 12;
   // ★ A column is as wide as its widest word. The sheet clips (an inline svg is `overflow: hidden`)
   // and the cartouche's width was chosen before the names were known: measured on a phone, five of
   // eight realm names ran 6-20 units past it and lost their last syllable, in one column as much as
@@ -117,17 +127,32 @@ function fitToKey(sheet: SVGSVGElement, legend: Element, scale: number, columns 
       if (b.width > 0) vw = Math.max(vw, Math.ceil(b.x + b.width + 2 - vx));
     } catch { break; }
   }
-  // two columns only where they fit the room the sheet stands in; unmeasured room is not a "no"
+  // The key's MEASURE: the room it stands in, less the heading's inset on each side, in the key's
+  // own units (a plate's key is drawn at 11-unit rows and shown x1.545). Pixels are what the page
+  // lines up, so the gap and the air are said in pixels and turned into units here.
   const room = (sheet.parentElement as HTMLElement | null)?.clientWidth ?? 0;
-  const fits = !(room > 0) || (vw * 2 + COL_GAP) * scale <= room;
+  const measure = room > 0 ? (room - KEY_INSET * 2) / scale : 0;
+  const gap = COL_GAP / scale, air = KEY_AIR / scale;
+  // two columns only where they fit; an unmeasured room (jsdom, a folded panel) is not a "no" —
+  // opening the fold places the key again and measures it then
+  const fits = !(measure > 0) || vw * 2 + gap <= measure;
   if (columns >= 2 && rows.length >= 4 && pitch > 0 && fits) {
     const per = Math.ceil(rows.length / 2);
+    // ★ The second column starts at the middle of the measure, not just past the first column's
+    // words: measured on a phone, "just past" put it at x=144 of a panel running to 363, lined up
+    // with nothing and with the right third of the panel empty — a block shoved into a corner.
+    // Split evenly, it sits the way the town list under it does. And each row gets a few pixels of
+    // air: at the map's own 17 the key was a dense block between a heading and 44px list rows.
+    const offset = Math.max(vw + gap, measure / 2);
+    const fmt = (v: number) => +v.toFixed(2);
     rows.forEach((r, i) => {
-      if (i < per) r.removeAttribute("transform");
-      else r.setAttribute("transform", `translate(${vw + COL_GAP} ${-per * pitch})`);
+      const c = i < per ? 0 : 1, k = i - c * per;
+      const dx = c * offset, dy = -c * per * pitch + k * air;
+      if (dx === 0 && dy === 0) r.removeAttribute("transform");
+      else r.setAttribute("transform", `translate(${fmt(dx)} ${fmt(dy)})`);
     });
-    vh -= (rows.length - per) * pitch;
-    vw = vw * 2 + COL_GAP;
+    vh += -(rows.length - per) * pitch + (per - 1) * air;
+    vw = Math.max(offset + vw, measure);
   } else {
     for (const r of rows) r.removeAttribute("transform");
   }

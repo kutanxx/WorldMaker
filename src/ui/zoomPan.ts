@@ -34,6 +34,7 @@ export function attachZoomPan(
     // panning does not change the scale, and re-laying every label out on each pointermove would be
     // wasted work, so only a real zoom notifies.
     const s = base.w / cur.w;
+    syncRest();
     if (Math.abs(s - lastScale) > 1e-9) { lastScale = s; opts?.onScale?.(s); }
   };
   const rectOf = () => { const r = svg.getBoundingClientRect(); return r && r.width ? r : ({ left: 0, top: 0, width: base.w, height: base.h } as DOMRect); };
@@ -92,6 +93,15 @@ export function attachZoomPan(
   // note there), and the buttons below need `setScale`, which needs the state above.
   const ctrls = document.createElement("div");
   ctrls.className = "map-zoom-controls";
+  // ★ "At rest" — the whole map in view, nothing to undo. The page puts the reset away then where it
+  // stands alone (a phone: two fingers replaced + and −), and dims it where it stands in the stack,
+  // so + and − above it never move. At rest it only ever stood on the map doing nothing.
+  let resetBtn: HTMLButtonElement | null = null;
+  const syncRest = () => {
+    const atRest = cur.w >= base.w - 1e-9;
+    ctrls.classList.toggle("at-rest", atRest);
+    if (resetBtn) resetBtn.disabled = atRest;
+  };
   const active = new Map<number, { x: number; y: number }>();
   let pinch: { dist: number; scale: number; ux: number; uy: number } | null = null;
   const spread = (): number => {
@@ -176,10 +186,21 @@ export function attachZoomPan(
   };
   const zoomCentre = (factor: number) => setScale((base.w / cur.w) * factor, cur.x + cur.w / 2, cur.y + cur.h / 2);
   const reset = () => { cur = { ...base }; apply(); };
-  const names = opts?.labels ?? { zoomIn: "Zoom in", zoomOut: "Zoom out", reset: "Reset zoom" };
+  const names = opts?.labels ?? { zoomIn: "Zoom in", zoomOut: "Zoom out", reset: "Reset view" };
+  // ★ Not "⤡" any more: a diagonal double arrow reads as "make it bigger", which is the focus chip's
+  // job on the same map, and the map-app convention (a house, for "home view") is taken by the
+  // toolbar's way back to the front page. An anticlockwise arrow says "back", the word says to what.
+  // The word shows where the reset stands alone; in the desktop's 30px stack it is the icon, with the
+  // word as its name and tooltip.
+  resetBtn = mkBtn("zoom-reset", "", names.reset, reset);
+  const word = document.createElement("span");
+  word.className = "zoom-reset-label";
+  word.textContent = names.reset;
+  resetBtn.replaceChildren(resetIcon(), word);
   ctrls.append(mkBtn("zoom-in", "+", names.zoomIn, () => zoomCentre(1.4)),
                mkBtn("zoom-out", "−", names.zoomOut, () => zoomCentre(1 / 1.4)),
-               mkBtn("zoom-reset", "⤡", names.reset, reset));
+               resetBtn);
+  syncRest();
   container.appendChild(ctrls);
 
   return {
@@ -198,4 +219,26 @@ export function attachZoomPan(
       ctrls.remove();
     },
   };
+}
+
+/**
+ * ↺, drawn rather than typed: no font this page loads has the glyph, so typed it would be whatever
+ * each phone substitutes — or a box. An open circle going anticlockwise from its tail at eight
+ * o'clock, round through the bottom, the right and the top, to a head at ten o'clock pointing down
+ * into the gap. Stroked in `currentColor`, so it takes the button's ink, dimmed state included.
+ */
+function resetIcon(): SVGSVGElement {
+  const NS = "http://www.w3.org/2000/svg";
+  const icon = document.createElementNS(NS, "svg");
+  for (const [k, v] of Object.entries({
+    class: "zoom-reset-icon", viewBox: "0 0 16 16", "aria-hidden": "true", focusable: "false",
+    fill: "none", stroke: "currentColor", "stroke-width": "1.6",
+    "stroke-linecap": "round", "stroke-linejoin": "round",
+  })) icon.setAttribute(k, v);
+  const arc = document.createElementNS(NS, "path");
+  arc.setAttribute("d", "M3.67 10.5A5 5 0 1 0 3.67 5.5");
+  const head = document.createElementNS(NS, "path");
+  head.setAttribute("d", "M6.49 4.47L3.67 5.5L3.15 2.55");
+  icon.append(arc, head);
+  return icon;
 }

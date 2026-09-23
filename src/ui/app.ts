@@ -773,6 +773,10 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     panel.appendChild(near);
 
     stage.append(back, panel, frame, keyFold.section);   // beside the frame, never inside it
+    // ...and fitted again now that it stands in the page: the fit above ran before the card was in
+    // the document, with no room to measure, so the plate's key came out a compact block (271px of
+    // a 324px measure on a phone) where the world's spans its panel.
+    placeLegend(citySvg, keySheet, true, LEGEND_ROW / CITY_LEGEND_ROW, keyColumns());
     worldZoom?.destroy(); worldZoom = null;
     cityZoom?.destroy();
     // the ward names hold their size here for the same reason the world's names do

@@ -157,6 +157,15 @@ a.home:hover { background: #e7cf9c; }
   background: #f3ead2; border: 1px solid #b7a071; border-radius: 4px; color: #3c2f1c; cursor: pointer;
 }
 .map-zoom-controls button:hover { background: #e7d9b6; }
+/* The reset is its icon in the stack's 30px square; the word is its name (aria-label, tooltip).
+   Where it stands alone the word comes back — see the narrow block. */
+.map-zoom-controls .zoom-reset { display: inline-flex; align-items: center; justify-content: center; }
+.zoom-reset .zoom-reset-label { display: none; }
+.zoom-reset-icon { display: block; width: 16px; height: 16px; flex: none; }
+/* At rest there is nothing to undo. Dimmed rather than hidden in the stack, so + and − above it
+   never move under a pointer that is busy pressing them. */
+.map-zoom-controls button:disabled { opacity: .4; cursor: default; }
+.map-zoom-controls button:disabled:hover { background: #f3ead2; }
 /* The map's key, folded away by default. Hiding it on screen cannot reach the export: that builds
    its own SVG and carries no stylesheet, so a downloaded map always has its key. */
 .map-frame.legend-off svg .legend { display: none; }
@@ -505,19 +514,10 @@ svg.world.lang-en .nation-label { font-variant: small-caps; letter-spacing: 0.10
   /* 48 wide and 30 tall was what a phone measured: the width had been paid for and the height had
      not, on the one zoom control a finger is left with once pinch replaced the other two. */
   .map-zoom-controls button { min-width: 48px; min-height: var(--control-h); box-sizing: border-box; }
-  /* ★ ...but on the map, ink is map. Measured over 12 seeds at 375x667: taking this button from
-     30px to 44px cost 1.17 points of the map's own area (6.67% -> 7.84% covered by the floating
-     chrome) and bought no town its click back — 7 of 336 town centres sat under that chrome either
-     way. So where the reset stands ALONE, which is the normal touch case now that pinch has
-     replaced the other two, the ink goes back to the size it was drawn at and the TARGET is what
-     grows, exactly as the focus chip's does: 30px of button inside a 44px reach.
-     ⚠ NOT in the pinch-unavailable fallback. Three buttons stack 4px apart there, so invisible
-     reaches would overlap and each would take a share of its neighbour's clicks — the theft (51)
-     and (52) went hunting, and worse for being invisible. In that state the ink IS the target. */
-  .map-zoom-controls:not(.pinch-unavailable) button { min-height: 30px; position: relative; }
-  .map-zoom-controls:not(.pinch-unavailable) button::after {
-    content: ""; position: absolute; inset: -7px 0;
-  }
+  /* (Where the reset stands ALONE it is a chip, with its own reach — see the narrow touch block.
+     In the stack, here, the ink IS the target: three buttons 4px apart would share invisible
+     reaches, and an invisible target that takes its neighbour's click is the theft (51) and (52)
+     went hunting.) */
 }
 
 /* World settings: the dials the engine has always read from the URL, folded away until asked for.
@@ -690,7 +690,13 @@ svg.world.lang-en .nation-label { font-variant: small-caps; letter-spacing: 0.10
 /* The key's own sheet: one map unit to one CSS pixel, so the key arrives at the size it was drawn
    instead of at the size the map was scaled to (6px on a phone). Needs to beat `.stage svg`, which
    stretches every drawing to the full width. */
-.stage .legend-sheet { display: block; width: auto; max-width: 100%; height: auto; pointer-events: none; }
+/* ★ Inset by the fold head's own padding (6px), so the key starts under its heading's words and the
+   town names rather than 6px to the left of them — measured x=28 against 33 on a phone. KEY_INSET in
+   legendSheet.ts is the same number: it is what the two-column layout measures the room with. */
+.stage .legend-sheet {
+  display: block; width: auto; max-width: calc(100% - 12px); height: auto; pointer-events: none;
+  margin: 0 6px;
+}
 /* ★ The plate is centred in the card and its key was not. Measured at 1440x900: the drawing ran
    353→1072 in a band running 137→1288, while the key — a 130px column — stood at the far left of
    that band, 216px from the edge of the thing it explains, with 89% of the band empty beside it.
@@ -782,6 +788,30 @@ svg.world.lang-en .nation-label { font-variant: small-caps; letter-spacing: 0.10
      available here and these are the only way to zoom (set in zoomPan on a two-pointer cancel). */
   .map-zoom-controls.pinch-unavailable .zoom-in,
   .map-zoom-controls.pinch-unavailable .zoom-out { display: block; }
+  /* ★ Standing alone, the reset is the focus chip's twin. It was a 48x30 button inside a 60x42
+     mount — a box in a box — beside the chip's single pill: two kits on one map. One button needs
+     no mount, so the mount goes and the button wears the chip's look, word and all.
+     ★ And it is there only while there is a zoom to undo: at rest it stood on the map doing
+     nothing, and the floating chrome covered 5.2% of a 336x235 map where the chip alone covers 2.0%.
+     It appears where it always was, at the moment a reader has zoomed — which is also what says
+     what it is for. (zoomPan marks `at-rest`; the stack's dimmed version is the rule above.) */
+  .map-zoom-controls:not(.pinch-unavailable) {
+    background: none; border: 0; padding: 0; box-shadow: none;
+  }
+  .map-zoom-controls.at-rest:not(.pinch-unavailable) { display: none; }
+  /* the plate's key spans the room in two columns here (legendSheet.ts), so it stands at the
+     heading's inset like the world's instead of centring */
+  .stage.plate .legend-sheet { margin-inline: 6px; }
+  .map-zoom-controls:not(.pinch-unavailable) .zoom-reset {
+    width: auto; height: auto; min-width: 0; min-height: 0; gap: 5px;
+    padding: 4px 10px; font-size: 12px; letter-spacing: .04em; line-height: 1.4;
+    background: rgba(244, 236, 216, 0.88); color: #3c2f1c;
+    border: 1px solid rgba(183, 160, 113, 0.7); border-radius: 6px;
+    box-shadow: 0 1px 3px rgba(42, 33, 24, 0.18);
+  }
+  .map-zoom-controls:not(.pinch-unavailable) .zoom-reset:hover { background: #e7d9b6; }
+  .map-zoom-controls:not(.pinch-unavailable) .zoom-reset .zoom-reset-label { display: inline; }
+  .map-zoom-controls:not(.pinch-unavailable) .zoom-reset .zoom-reset-icon { width: 12px; height: 12px; }
   /* The plate's key has left it too, so the 108-unit strip it lived in is down to the compass's
      own width (COMPASS_STRIP in svgCityRenderer.ts): the plate is 460 + 34 = 494 units across
      here, not 568, and the cap that keeps a whole plan on screen has to say so or it lets the
@@ -803,6 +833,21 @@ svg.world.lang-en .nation-label { font-variant: small-caps; letter-spacing: 0.10
      become items of the SAME grid, which is the only way the columns line up ACROSS facts. */
   .city-facts { display: grid; grid-template-columns: max-content 1fr; gap: 6px 12px; }
   .city-fact { display: contents; }
+}
+/* ★ The reset chip's reach: 27px of ink, 44 for a finger — grown AWAY from the map, the way the focus
+   chip's is. A target over the map is a target over a town, and an invisible one that takes a
+   town's click is the theft (51) and (52) hunted. The world map's reset sits in the bottom-right
+   corner, so it reaches down and right, into the frame's own margin and the gap under it.
+   ⚠ The plate's sits top-left, and the way back ("지도로 돌아가기") ends EXACTLY where the plate
+   begins — measured 173 and 173 on a phone — so a reach past the frame's top edge takes the bottom
+   of that button. It reaches up only to the edge (the controls' own 14px) and makes up the rest
+   downward, over a drawing that has nothing in it to press. */
+@media (max-width: 900px) and (pointer: coarse) {
+  .map-zoom-controls:not(.pinch-unavailable) .zoom-reset { position: relative; }
+  .map-zoom-controls:not(.pinch-unavailable) .zoom-reset::after {
+    content: ""; position: absolute; inset: 0 -8px -17px 0;
+  }
+  .stage.plate .map-zoom-controls:not(.pinch-unavailable) .zoom-reset::after { inset: -14px 0 -3px -8px; }
 }
 @media (pointer: coarse) {
   /* ★ The shared height, where it was 36 — the one list a finger opens towns from stood 8px short

@@ -287,3 +287,44 @@ describe("the buttons come back if the browser takes the gesture", () => {
     z.destroy();
   });
 });
+
+// ★ The reset said "⤡", which reads as "make bigger" — the job of the focus chip beside it — and
+// it stood on the map at rest, where there is nothing to reset. It says what it does now, with an
+// icon AND the word, and the controls say when the map is at rest so the page can put it away.
+describe("the reset says what it does, and when there is something to undo", () => {
+  const reset = (c: HTMLElement) => c.querySelector(".map-zoom-controls .zoom-reset") as HTMLButtonElement;
+  const ctrls = (c: HTMLElement) => c.querySelector(".map-zoom-controls") as HTMLElement;
+
+  it("draws an icon and writes the word, and no longer the arrow that meant 'bigger'", () => {
+    const { svg, container } = makeSvg();
+    const z = attachZoomPan(svg, container, { labels: { zoomIn: "확대", zoomOut: "축소", reset: "전체 보기" } });
+    const b = reset(container);
+    expect(b.querySelector("svg.zoom-reset-icon"), "no icon").not.toBeNull();
+    expect(b.querySelector("svg.zoom-reset-icon")!.getAttribute("aria-hidden")).toBe("true");
+    expect(b.querySelector(".zoom-reset-label")?.textContent).toBe("전체 보기");
+    expect(b.textContent).not.toContain("⤡");
+    expect(b.getAttribute("aria-label")).toBe("전체 보기");
+    z.destroy();
+  });
+
+  it("is at rest before any zoom, and the reset has nothing to do", () => {
+    const { svg, container } = makeSvg();
+    const z = attachZoomPan(svg, container);
+    expect(ctrls(container).classList.contains("at-rest")).toBe(true);
+    expect(reset(container).disabled).toBe(true);
+    z.destroy();
+  });
+
+  it("leaves rest when the map is zoomed, and returns to it on reset", () => {
+    const { svg, container } = makeSvg();
+    const z = attachZoomPan(svg, container);
+    (container.querySelector(".zoom-in") as HTMLButtonElement).click();
+    expect(ctrls(container).classList.contains("at-rest"), "zoomed in and still 'at rest'").toBe(false);
+    expect(reset(container).disabled).toBe(false);
+    reset(container).click();
+    expect(z.scale()).toBe(1);
+    expect(ctrls(container).classList.contains("at-rest")).toBe(true);
+    expect(reset(container).disabled).toBe(true);
+    z.destroy();
+  });
+});

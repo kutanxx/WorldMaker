@@ -144,3 +144,79 @@ describe("the whole card fits the window it was sized for", () => {
     expect(budget, "the caption under the scrubber is left below the fold again").toBeGreaterThanOrEqual(277 + 12);
   });
 });
+
+// ★ The reset on a phone stands alone (two fingers replaced + and −), and it was a button inside a
+// second box — a mount 60x42 around a 48x30 button — beside the focus chip's single pill: two kits
+// on one map. Alone, it IS a chip, the focus chip's exact look; and it appears only when there is
+// a zoom to undo, so at rest the map carries one control where it carried two (5.2% -> 2.0%).
+describe("the reset is the focus chip's twin, and only while zoomed", () => {
+  const narrow = () => blocksOf("@media (max-width: 900px)");
+  const chip = () => ruleIn(narrow(), ".map-zoom-controls:not(.pinch-unavailable) .zoom-reset");
+  const prop = (rule: string, p: string) => new RegExp(`(?:^|[;{\s])${p}:\s*([^;]+);`).exec(rule)?.[1].trim();
+
+  it("hides the whole control at rest, where the reset alone would stand", () => {
+    expect(ruleIn(narrow(), ".map-zoom-controls.at-rest:not(.pinch-unavailable)")).toMatch(/display:\s*none/);
+  });
+  it("drops the mount where there is one button to mount", () => {
+    const mount = ruleIn(narrow(), ".map-zoom-controls:not(.pinch-unavailable)");
+    expect(mount).toMatch(/background:\s*none/);
+    expect(mount).toMatch(/border:\s*0/);
+    expect(mount).toMatch(/padding:\s*0/);
+  });
+  it("wears the focus chip's own look", () => {
+    const focus = ruleIn(css(), ".focus-toggle");
+    for (const p of ["padding", "font-size", "letter-spacing", "line-height", "background", "border", "border-radius", "box-shadow"]) {
+      expect(prop(chip(), p), `the reset's ${p} is not the chip's`).toBe(prop(focus, p));
+    }
+    // the stack's finger-sized box must not reach the chip, or its ink is 44 tall on the map
+    expect(chip()).toMatch(/min-height:\s*0/);
+    expect(chip()).toMatch(/min-width:\s*0/);
+  });
+  it("writes the word only where the reset stands alone", () => {
+    expect(ruleIn(css(), ".zoom-reset .zoom-reset-label"), "the stack's 30px square writes the word").toMatch(/display:\s*none/);
+    expect(ruleIn(narrow(), ".map-zoom-controls:not(.pinch-unavailable) .zoom-reset .zoom-reset-label")).toMatch(/display:\s*inline/);
+  });
+  it("dims the reset in the stack while there is nothing to undo", () => {
+    expect(ruleIn(css(), ".map-zoom-controls button:disabled")).toMatch(/opacity:\s*0?\.\d+/);
+  });
+  // The chip's 27px of ink reaches 44 for a finger AWAY from the map — the theft (51)/(52) hunted
+  // is a target over a town. The world map's reset is in the bottom-right corner, so it reaches
+  // down and right (into the gap under the frame); the plate's is in the top-left, so up and left.
+  it("reaches for a finger away from the map, never into it", () => {
+    const c = css();
+    const world = /\.map-zoom-controls:not\(\.pinch-unavailable\) \.zoom-reset::after\s*\{[^}]*inset:\s*([^;]+);/.exec(c)?.[1];
+    expect(world, "the reset has no reach").toBeDefined();
+    const [t, r, b, l] = world!.split(/\s+/).map((v) => parseFloat(v));
+    expect([t, l], "the reach goes up or left, over the map").toEqual([0, 0]);
+    expect(b, "the reach does not make 44 below a 27px chip").toBeLessThanOrEqual(-17);
+    expect(r).toBeLessThan(0);
+    const plate = /\.stage\.plate \.map-zoom-controls:not\(\.pinch-unavailable\) \.zoom-reset::after\s*\{[^}]*inset:\s*([^;]+);/.exec(c)?.[1];
+    expect(plate, "the plate's reset has no reach of its own").toBeDefined();
+    // ⚠ ...but not past the plate's top edge: the way back ends exactly where the plate begins
+    // (173 and 173, measured on a phone), so up is capped at the controls' own 14px inset and the
+    // rest of the 17 is made up downward, over a drawing with nothing in it to press.
+    const [pt, pr, pb, pl] = plate!.split(/\s+/).map((v) => parseFloat(v));
+    expect(pt, "the plate's reach takes the bottom of the way back").toBeGreaterThanOrEqual(-14);
+    expect(-(pt + pb), "the plate's reach does not make 44").toBeGreaterThanOrEqual(17);
+    expect(pr, "the plate's reach goes right, off its corner").toBe(0);
+    expect(pl).toBeLessThan(0);
+  });
+});
+
+// Measured on a 390x844 phone: the key's first swatch stood at x=28 while its own heading, the town
+// list's heading and every town name start at x=33 — the fold head's 6px padding, which the key
+// never had. And its second column stood at x=144, lined up with nothing, with the right third of
+// the panel empty. The key starts where its heading's words start.
+describe("the key stands under its heading's words", () => {
+  it("insets the key by the fold head's own padding", () => {
+    const head = /padding:\s*\d+px\s+(\d+)px/.exec(ruleIn(css(), ".fold-head"))?.[1];
+    const sheet = ruleIn(css(), ".stage .legend-sheet");
+    expect(sheet, "the key has no inset").toContain(`margin: 0 ${head}px`);
+    expect(sheet, "the inset lets the key run past its panel").toContain(`max-width: calc(100% - ${Number(head) * 2}px)`);
+    const src = readFileSync("src/ui/legendSheet.ts", "utf8");
+    expect(Number(/KEY_INSET\s*=\s*(\d+)/.exec(src)?.[1]), "the key's room is measured with another inset").toBe(Number(head));
+  });
+  it("puts the plate's key there too on a narrow window, where it no longer centres", () => {
+    expect(ruleIn(blocksOf("@media (max-width: 900px)"), ".stage.plate .legend-sheet")).toMatch(/margin-inline:\s*6px/);
+  });
+});

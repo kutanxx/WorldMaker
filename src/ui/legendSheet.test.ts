@@ -174,15 +174,19 @@ describe("placeLegend in two columns", () => {
   }
   const box = (s: SVGSVGElement) => s.getAttribute("viewBox")!.split(" ").map(Number);
 
+  // ★ ...and with a little more air between the rows than the map's own key has (17 -> 22): packed
+  // at 17 the key sat as a dense block between a heading and a list of 44px rows, and read as
+  // squeezed in. Column-major: row k of a column stands k rows (and k airs) below its top.
   it("puts the second half of the rows beside the first, and halves the height", () => {
     const one = keyWithRows(8), two = keyWithRows(8);
     const s1 = legendSheet(), s2 = legendSheet();
     placeLegend(one.map, s1, true);
     placeLegend(two.map, s2, true, 1, 2);
     const rows = [...two.legend.querySelectorAll(".legend-row")];
-    rows.slice(0, 4).forEach((r, i) => expect(r.getAttribute("transform"), `row ${i} moved`).toBeNull());
-    for (const r of rows.slice(4)) expect(r.getAttribute("transform")).toBe(`translate(${104 + 12} ${-4 * 17})`);
-    expect(box(s2)[3], "the key is as tall as it was").toBe(box(s1)[3] - 4 * 17);
+    expect(rows[0].getAttribute("transform"), "the first row moved").toBeNull();
+    rows.slice(1, 4).forEach((r, k) => expect(r.getAttribute("transform")).toBe(`translate(0 ${(k + 1) * 5})`));
+    rows.slice(4).forEach((r, k) => expect(r.getAttribute("transform")).toBe(`translate(${104 + 12} ${-4 * 17 + k * 5})`));
+    expect(box(s2)[3], "the key is not half as tall as it was").toBe(box(s1)[3] - 4 * 17 + 3 * 5);
     expect(box(s2)[2]).toBe(104 * 2 + 12);
     expect(Number(s2.getAttribute("width"))).toBe(104 * 2 + 12);
   });
@@ -190,8 +194,9 @@ describe("placeLegend in two columns", () => {
   it("gives an odd row to the first column", () => {
     const { map, legend } = keyWithRows(7);
     placeLegend(map, legendSheet(), true, 1, 2);
-    const moved = [...legend.querySelectorAll(".legend-row")].map((r) => r.getAttribute("transform") !== null);
-    expect(moved).toEqual([false, false, false, false, true, true, true]);
+    const column = [...legend.querySelectorAll(".legend-row")]
+      .map((r) => Number(/translate\(([-\d.]+)/.exec(r.getAttribute("transform") ?? "translate(0")![1]) > 0);
+    expect(column).toEqual([false, false, false, false, true, true, true]);
   });
 
   it("leaves a short key in one column — two rows side by side is not a key", () => {
@@ -305,5 +310,42 @@ describe("placeLegend refits the key it already holds", () => {
     expect([...legend.querySelectorAll(".legend-row")].some((r) => r.hasAttribute("transform"))).toBe(true);
     placeLegend(map, sheet, true, 1, 1);
     expect([...legend.querySelectorAll(".legend-row")].some((r) => r.hasAttribute("transform"))).toBe(false);
+  });
+});
+
+// ★ Two columns share the room evenly. Measured on a phone, the columns stood at x=28 and x=144 and
+// the key ended at x=247 of a panel running to 363: a block pushed into the left two thirds, its
+// second column lined up with nothing. Spread across the room it sits the way the town list under it
+// does — the second column at the middle of the words' measure.
+describe("placeLegend spreads two columns across the room", () => {
+  function roomy(width: number) {
+    const PITCH = 17, n = 8, h = n * PITCH + 34, y = 700 - 14 - n * PITCH - 30;
+    const { map, legend } = fakeMapWithBand(20, { x: 9, y, w: 112, h });
+    for (let i = 0; i < n; i++) {
+      const row = svgEl("g", { class: "legend-row", "data-pitch": PITCH });
+      const t = svgEl("text", { x: 35, y: y + 30 + i * PITCH });
+      (t as unknown as { getBBox: () => object }).getBBox = () => ({ x: 35, y: 0, width: 60, height: 14 });
+      row.appendChild(t);
+      legend.appendChild(row);
+    }
+    const sheet = legendSheet();
+    const room = document.createElement("div");
+    Object.defineProperty(room, "clientWidth", { value: width });
+    room.appendChild(sheet);
+    return { map, legend, sheet };
+  }
+  it("starts the second column at the middle of the key's measure", () => {
+    const { map, legend, sheet } = roomy(336);             // the panel under a phone's map
+    placeLegend(map, sheet, true, 1, 2);
+    const inner = 336 - 2 * 6;                             // less the heading's inset, both sides
+    const dx = Number(/translate\(([-\d.]+)/.exec(legend.querySelectorAll(".legend-row")[4].getAttribute("transform")!)![1]);
+    expect(dx).toBe(inner / 2);
+    expect(Number(sheet.getAttribute("width")), "the key does not span its measure").toBe(inner);
+  });
+  it("keeps a column past the longest word, where half the room is not enough", () => {
+    const { map, legend, sheet } = roomy(240);             // 228 inside: half is 114, a column needs 104
+    placeLegend(map, sheet, true, 1, 2);
+    const dx = Number(/translate\(([-\d.]+)/.exec(legend.querySelectorAll(".legend-row")[4].getAttribute("transform")!)![1]);
+    expect(dx).toBe(Math.max(104 + 12, 228 / 2));
   });
 });

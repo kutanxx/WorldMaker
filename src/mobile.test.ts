@@ -321,7 +321,10 @@ describe("a phone sees the plate before it reads about it", () => {
 describe("the plate's own furniture keeps its corners", () => {
   // the same selector appears at rest and again under a media query, so find the one that is
   // actually inside a coarse block rather than the first one in the file
-  const coarseRuleFor = (css: string, sel: string) => {
+  // (the WHOLE selector: `.stage.plate .map-zoom-controls` must not find the reset chip's reach,
+  // `.stage.plate .map-zoom-controls:not(...) .zoom-reset::after`, which also lives in a touch block)
+  const coarseRuleFor = (css: string, whole: string) => {
+    const sel = whole + " {";
     for (let i = css.indexOf(sel); i > -1; i = css.indexOf(sel, i + 1)) {
       const at = css.lastIndexOf("@media", i);
       if (at < 0) continue;
@@ -351,11 +354,13 @@ describe("the plate's own furniture keeps its corners", () => {
   // was drawn at and the TARGET is what grows, the way the focus chip's does.
   it("pulls that ink back off the map and grows the target instead", () => {
     const c = read("src/theme.css");
-    const i = c.indexOf(".map-zoom-controls:not(.pinch-unavailable) button::after");
+    const i = c.indexOf(".map-zoom-controls:not(.pinch-unavailable) .zoom-reset::after");
     expect(i, "the ink and the target are still the same box").toBeGreaterThan(-1);
     const reach = c.slice(i, c.indexOf("}", i));
     expect(reach, "the target is not laid over the button").toMatch(/position:\s*absolute/);
-    expect(reach, "the target does not reach past the ink").toMatch(/inset:\s*-/);
+    // past the ink on SOME side — the chip's reach grows away from the map, so the side facing the
+    // map stays at 0 (finish.test.ts holds which sides)
+    expect(reach, "the target does not reach past the ink").toMatch(/inset:[^;]*-\d/);
     const at = c.lastIndexOf("@media", i);
     expect(c.slice(at, c.indexOf("{", at)), "the map loses ink on a mouse too").toContain("pointer: coarse");
   });
@@ -365,7 +370,7 @@ describe("the plate's own furniture keeps its corners", () => {
   // click is the theft (51) and (52) went hunting. The ink is the target in that state.
   it("keeps ink and target the same box where the buttons stack", () => {
     const c = read("src/theme.css");
-    const i = c.indexOf(".map-zoom-controls:not(.pinch-unavailable) button::after");
+    const i = c.indexOf(".map-zoom-controls:not(.pinch-unavailable) .zoom-reset::after");
     const selectors = c.slice(Math.max(c.lastIndexOf("}", i), c.lastIndexOf("*/", i)) + 1, c.indexOf("{", i));
     expect(selectors, "the reach reaches the stacked buttons too").toContain(":not(.pinch-unavailable)");
   });
