@@ -43,13 +43,30 @@ const growth = (scale: number) => Math.min(Math.pow(scale, GROWTH), MAX_GROWTH);
  * The size each label started at is remembered on the element, so this is safe to call repeatedly
  * and in any order of scales — it always works from the original, never from the last result.
  */
-export function applyLabelScale(svg: SVGSVGElement, scale: number): void {
+export function applyLabelScale(
+  svg: SVGSVGElement,
+  scale: number,
+  // The smallest a name may stand ON SCREEN at this scale — the world map's floor (see the tests:
+  // x0.336 on a phone put its names at a median 4.4px). Held here, in the arithmetic every scrub
+  // and every pinch re-runs, and against the size on screen rather than the base size, so it only
+  // ever lifts a name that is under it and never multiplies a zoomed one. `drawnPx` is for tests.
+  floor?: { minPx: number; drawnPx?: number },
+): void {
   if (!(scale > 0)) return;
+  // map units to screen pixels at this scale: the drawing's width over the part of the map in view
+  let pxPerUnit = 0;
+  if (floor) {
+    const vb = (svg.dataset.baseViewbox || svg.getAttribute("viewBox") || "").split(/[\s,]+/).map(Number);
+    const drawn = floor.drawnPx ?? svg.getBoundingClientRect().width;
+    // unmeasured (jsdom, or not mounted yet): no floor, rather than an infinity in the drawing
+    if (vb.length === 4 && vb[2] > 0 && drawn > 0) pxPerUnit = (drawn / vb[2]) * scale;
+  }
   for (const el of svg.querySelectorAll<SVGGraphicsElement>(SELECTOR)) {
     const base = el.dataset.fs ?? el.getAttribute("font-size");
     if (base === null) continue;
     el.dataset.fs = base;
-    const k = (readerSize(el) * growth(scale)) / scale;
+    let k = (readerSize(el) * growth(scale)) / scale;
+    if (floor && pxPerUnit > 0) k = Math.max(k, floor.minPx / (Number(base) * pxPerUnit));
     el.setAttribute("font-size", (Number(base) * k).toFixed(2));
     // the parchment halo behind the letters follows them exactly, or at 8x it swallows the word
     const hw = el.dataset.sw ?? el.getAttribute("stroke-width");

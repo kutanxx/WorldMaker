@@ -331,3 +331,68 @@ describe("floorLabelSize", () => {
     }
   });
 });
+
+// ★ The world map's names had no floor at all. Measured over 12 seeds on a 390x844 phone, the map
+// is drawn 336px across for 1000 units (x0.336), so its names stood at a median 4.4px and as small
+// as 3.5 — while the same map on a desktop reads 15. The floor lives INSIDE the zoom's own
+// arithmetic, because the world map re-runs that arithmetic on every scrub and every pinch: a floor
+// written once at rest (the plate's `floorLabelSize`) is overwritten by the first year the reader
+// scrubs to. And it floors the size ON SCREEN at each scale rather than raising the base size,
+// which would multiply every zoomed size along with it — a town's name at 2.6x would go from 6px
+// to 18px.
+describe("applyLabelScale with a floor", () => {
+  const map = (fs = 12, sw = 3) => {
+    const svg = document.createElementNS(NS, "svg") as SVGSVGElement;
+    svg.setAttribute("viewBox", "0 0 1000 700");
+    const t = document.createElementNS(NS, "text");
+    t.setAttribute("class", "region-label");
+    t.setAttribute("font-size", String(fs));
+    t.setAttribute("stroke-width", String(sw));
+    svg.appendChild(t);
+    return { svg, t };
+  };
+  const onScreen = (t: Element, drawnPx: number, scale: number) =>
+    Number(t.getAttribute("font-size")) * (drawnPx / 1000) * scale;
+
+  it("lifts a name drawn under the floor to the floor, on screen", () => {
+    const { svg, t } = map();                              // 12 units at x0.336 is 4.0px
+    applyLabelScale(svg, 1, { minPx: 8, drawnPx: 336 });
+    expect(onScreen(t, 336, 1)).toBeCloseTo(8, 1);
+  });
+
+  it("holds the floor at every zoom, and every scrub that re-runs it", () => {
+    const { svg, t } = map();
+    for (const scale of [1, 1.2, 2, 1, 4, 8, 1]) {
+      applyLabelScale(svg, scale, { minPx: 8, drawnPx: 336 });
+      expect(onScreen(t, 336, scale), "zoomed to " + scale).toBeGreaterThanOrEqual(8 - 0.02);
+    }
+  });
+
+  it("changes nothing once the zoom has carried a name past the floor", () => {
+    const a = map(), b = map();
+    applyLabelScale(a.svg, 8, { minPx: 8, drawnPx: 336 });
+    applyLabelScale(b.svg, 8);
+    expect(a.t.getAttribute("font-size"), "the floor inflated a name that was already big enough")
+      .toBe(b.t.getAttribute("font-size"));
+  });
+
+  it("leaves a desktop map, already past the floor, as it was", () => {
+    const a = map(), b = map();
+    applyLabelScale(a.svg, 1, { minPx: 8, drawnPx: 929 });   // 12 units at x0.929 is 11px
+    applyLabelScale(b.svg, 1);
+    expect(a.t.getAttribute("font-size")).toBe(b.t.getAttribute("font-size"));
+  });
+
+  it("keeps the halo in proportion to the letters it grew", () => {
+    const { svg, t } = map(12, 3);
+    applyLabelScale(svg, 1, { minPx: 8, drawnPx: 336 });
+    expect(Number(t.getAttribute("stroke-width")) / Number(t.getAttribute("font-size"))).toBeCloseTo(3 / 12, 2);
+  });
+
+  it("does nothing at all when the drawing has not been laid out", () => {
+    const a = map(), b = map();
+    applyLabelScale(a.svg, 1, { minPx: 8, drawnPx: 0 });
+    applyLabelScale(b.svg, 1);
+    expect(a.t.getAttribute("font-size")).toBe(b.t.getAttribute("font-size"));
+  });
+});

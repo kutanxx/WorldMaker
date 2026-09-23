@@ -269,6 +269,12 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
   // 4.8px against 24.5% at 9px — and what it buys is that the ones left can be read. The survivors
   // are the landmarks (they outrank plain quarters in the cull), and the rest arrive on a pinch.
   const PLATE_NAME_MIN_PX = 9;
+  // ★ The world map's floor, which it never had: measured over 12 seeds on a 390x844 phone its
+  // names stood at a median 4.4px (3.5 at the smallest) against 15 on a desktop. The floor is paid
+  // for in names — the cull hides what no longer fits — and 8 was chosen from the measured trade:
+  // terrain 202 -> 169 names at rest (-16%, capitals 91 -> 84), political 265 -> 222; 9px would
+  // cost a quarter of them. What it hides comes back on a pinch. A desktop map is past it already.
+  const WORLD_LABEL_FLOOR = { minPx: 8 };
   const CITY_KEY_FOLD_KEY = "wm:fold:cityKey";
   /**
    * Where the map stops being able to carry its own furniture. The same line the town list already
@@ -533,7 +539,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
         if (relayout) return;
         relayout = requestAnimationFrame(() => {
           relayout = 0;
-          applyLabelScale(svg, pendingScale);
+          applyLabelScale(svg, pendingScale, WORLD_LABEL_FLOOR);
           applyMarkerScale(svg, pendingScale);
           deconflictLabels(svg, pendingScale);
         });
@@ -596,7 +602,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
       // Bring them to whatever zoom the reader is at before working out what fits, or a nation's
       // name would come back full-size on a map zoomed to 8x.
       const z = worldZoom?.scale() ?? 1;
-      applyLabelScale(svg, z);
+      applyLabelScale(svg, z, WORLD_LABEL_FLOOR);
       applyMarkerScale(svg, z);
       deconflictLabels(svg, z); // hide colliding lower-priority labels, and those the zoom has not earned yet
       // ⚠ After `fillSlot`, always: outside terrain the key is drawn INSIDE the slot that was just
