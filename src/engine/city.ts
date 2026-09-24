@@ -1,7 +1,7 @@
 import { mulberry32, deriveSeed } from "./rng";
 import type { Rng } from "./rng";
 import type { Point, Polygon, Polyline } from "./geometry";
-import { centroid, area, pointInPolygon, bbox, pointSegDist, insetConvex, polysOverlap, segmentsIntersect, clipToConvex } from "./geometry";
+import { centroid, area, pointInPolygon, bbox, pointSegDist, insetEdges, insetPolygon, polysOverlap, segmentsIntersect, clipToConvex, convexHull } from "./geometry";
 import { selectArchetype } from "./city/archetypes";
 import type { Archetype } from "./city/archetypes";
 import { extractStreets, classifyStreets } from "./city/blockStreets";
@@ -18,7 +18,7 @@ import type { Harbor } from "./city/harbor";
 import { generateWards } from "./city/wards";
 import { assignZones } from "./city/zoning";
 import type { WardType } from "./city/zoning";
-import { subdivide } from "./city/buildings";
+import { lots, cathedralChurch, guildHall } from "./city/buildings";
 import { generateCountryside } from "./city/countryside";
 import type { Countryside } from "./city/countryside";
 import { makeCastle, castleLabelAt, deepest } from "./city/castle";
@@ -31,6 +31,9 @@ export interface Ward {
   buildings: Polygon[];
   inner: boolean;
 }
+
+/** a building a town has only one of, drawn as itself: the cathedral's church, the guild's hall */
+export interface Landmark { kind: "cathedral" | "guildhall"; outline: Polygon; at: Point; ridges: [Point, Point][] }
 
 export interface CityFeatures {
   wallMaterial: "stone" | "timber";
@@ -62,6 +65,8 @@ export interface CityLayout {
   minorRoads: Polyline[];
   wards: Ward[];
   parks: Polygon[];
+  parkTrees: Point[];
+  landmarks: Landmark[];
   labels: { x: number; y: number; type: WardType; landmark: boolean }[];
   features: CityFeatures;
   suburbRoads: Polyline[];
@@ -111,6 +116,28 @@ const NO_BUILDINGS: WardType[] = ["plaza", "park", "castle"];
 const DENSITY: Partial<Record<WardType, number>> = {
   slum: 70, craftsmen: 110, gate: 120, merchant: 150, market: 170, patriciate: 240, military: 260,
 };
+// How each kind of ward is built (see `lots` in buildings.ts): a slum packed and crooked, a patrician
+// ward in big houses with gardens between them, a garrison in orderly blocks round a parade ground.
+// A grid town cuts its lots half as crookedly again.
+const LOT_STYLE: Partial<Record<WardType, { chaos: number; sizeChaos: number; empty: number }>> = {
+  slum: { chaos: 0.75, sizeChaos: 0.5, empty: 0.02 },
+  craftsmen: { chaos: 0.55, sizeChaos: 0.6, empty: 0.04 },
+  gate: { chaos: 0.55, sizeChaos: 0.6, empty: 0.06 },
+  market: { chaos: 0.45, sizeChaos: 0.5, empty: 0.04 },
+  merchant: { chaos: 0.4, sizeChaos: 0.5, empty: 0.06 },
+  patriciate: { chaos: 0.35, sizeChaos: 0.8, empty: 0.22 },
+  military: { chaos: 0.15, sizeChaos: 0.3, empty: 0.25 },
+  harbor: { chaos: 0.3, sizeChaos: 0.4, empty: 0.03 },
+  guildhall: { chaos: 0.4, sizeChaos: 0.5, empty: 0.08 },
+  cathedral: { chaos: 0.35, sizeChaos: 0.5, empty: 0.3 },
+};
+// how far a block's buildings stand back from the streets on its edges (a main road is drawn 4.6
+// wide, a street 2.6), and from the town wall's line (drawn 4 wide): the lane inside the wall
+const STREET_SETBACK = 3;
+const WALL_SETBACK = 3.5;
+// ...and from a road that cuts through the block, from its centre line: half its drawn width and a little
+const MAIN_ROAD_CLEAR = 2.7;
+const MINOR_ROAD_CLEAR = 1.6;
 // river towns are defended by the river itself — a separate moat ring hugging the wall read as a
 // second, disconnected river alongside the big one, so bridgeTown gets no moat (user-reported)
 const MOAT_ARCHETYPES = new Set(["coastalPort", "plainsMarket"]);
@@ -120,6 +147,8 @@ const LORD_SEAT_MIN_SIZE = 3;
 const LORD_SEAT_ODDS = 1 / 3;
 // the castle's own rng stream, beside the lord-seat pick (+4300) and the mountain form pick (+4200)
 const CASTLE_SALT = 4500;
+// ...and the buildings', beside it
+const BUILDING_SALT = 4400;
 
 /**
  * The seed of one of a plate's streams: the town's id (plus the stream's salt) under a key that is
@@ -330,6 +359,41 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
     room: (poly) => { const cut = clipToConvex(boundary, poly); return cut.length >= 3 ? deepest(cut).depth : 0; },
     castleRoom: ctx.isCapital || ctx.size >= 5 ? GREAT_CASTLE_ROOM : undefined });
 
+  // ★ The town's buildings draw from a stream of their own, so how a block is built can change
+  // without moving a single tree, hamlet or mill in the country around it (the castle's convention).
+  const brng = mulberry32(plateSeed(worldSeed, ctx.id + BUILDING_SALT));
+  const wallDist = (p: Point) => {
+    let d = Infinity;
+    for (let i = 0; i < boundary.length; i++) d = Math.min(d, pointSegDist(p, boundary[i], boundary[(i + 1) % boundary.length]));
+    return d;
+  };
+  // A house stands inside the wall, not under it: the wall is drawn 4 wide on the town's outline,
+  // and a lot tested only by its centre was cut by that line on every plate (a median 28 houses a
+  // town). Lots keep WALL_SETBACK off it — the lane inside a town wall — and one that straddles the
+  // line is cut back parallel to the wall rather than dropped, if enough of it is left.
+  const townInset = insetPolygon(boundary, WALL_SETBACK);
+  const inTown = (p: Point) => pointInPolygon(p, boundary) && wallDist(p) >= WALL_SETBACK;
+  const settle = (lot: Polygon): Polygon | null => {
+    if (lot.every(inTown)) return lot;
+    if (!lot.some((p) => pointInPolygon(p, boundary))) return null;
+    const cut = clipToConvex(townInset, lot);
+    if (cut.length < 3 || area(cut) < area(lot) * 0.4) return null;
+    return cut.every((p) => pointInPolygon(p, boundary) && wallDist(p) >= WALL_SETBACK - 0.8) ? cut : null;
+  };
+  // ...and on dry ground: a house tested by its centre alone stood with two or more corners in the
+  // river on 109 plates. A marsh town's stilt houses are the exception, by design.
+  const dry = (b: Polygon) => archetype.onStilts || !b.some((p) => inWater(water, p));
+  // A great building is long enough to stand with every corner on dry ground and the river running
+  // through its middle (a cathedral at Vragr, seed 1, did): it is tested against the water whole.
+  const dryWhole = (b: Polygon) => !water.bodies.some((w) => polysOverlap(b, w));
+  const nearOutline = (b: Polygon, o: Polygon, air: number) => {
+    if (polysOverlap(b, o)) return true;
+    for (const p of b) for (let i = 0; i < o.length; i++) if (pointSegDist(p, o[i], o[(i + 1) % o.length]) < air) return true;
+    for (const p of o) for (let i = 0; i < b.length; i++) if (pointSegDist(p, b[i], b[(i + 1) % b.length]) < air) return true;
+    return false;
+  };
+  const gridTown = archetype.streetField === "grid";
+  const landmarks: Landmark[] = [];
   const parks: Polygon[] = [];
   const wards: Ward[] = zoned.map((z) => {
     if (z.type === "park") {
@@ -338,43 +402,89 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
     }
     let buildings: Polygon[] = [];
     if (!NO_BUILDINGS.includes(z.type)) {
-      buildings = subdivide(rng, insetConvex(z.polygon, 4), { minArea: DENSITY[z.type] ?? 130, margin: 0.5 });
-      buildings = buildings.filter((b) => {
-        const c = centroid(b);
-        const dryOk = archetype.onStilts || !inWater(water, c);
-        return pointInPolygon(c, boundary) && dryOk;
-      });
+      // The block as the town has it. A ward by the wall is a Voronoi cell that runs on out into the
+      // fields, and lots laid out for the whole cell left its sliver inside the wall with fragments
+      // too small to keep — an empty band along the inside of the wall. The lots are laid out in the
+      // part of the block that is in the town (its hull, so the cutting still sees a convex block).
+      const whole = insetEdges(z.polygon, STREET_SETBACK);
+      const inside = whole.length >= 3 ? clipToConvex(townInset, whole) : [];
+      const block = inside.length >= 3 && area(inside) < area(whole) * 0.97 ? convexHull(inside) : whole;
+      // A ward a town has only one of is built around its one building: the cathedral's church, the
+      // guild's hall. They used to be blocks of houses like any other, told apart by their tint.
+      let great: Polygon | null = null;
+      if ((z.type === "cathedral" || z.type === "guildhall") && block.length >= 3) {
+        const room = clipToConvex(townInset, block);
+        if (room.length >= 3) {
+          if (z.type === "cathedral") {
+            const ch = cathedralChurch(room, dryWhole);
+            if (ch && dryWhole(ch.outline)) { great = ch.outline; landmarks.push({ kind: "cathedral", outline: ch.outline, at: ch.crossing, ridges: ch.ridges }); }
+          } else {
+            const hall = guildHall(room, dryWhole);
+            if (hall && dryWhole(hall.outline)) { great = hall.outline; landmarks.push({ kind: "guildhall", outline: hall.outline, at: centroid(hall.outline), ridges: hall.ridges }); }
+          }
+        }
+      }
+      const style = LOT_STYLE[z.type] ?? LOT_STYLE.craftsmen!;
+      const raw = block.length >= 3
+        ? lots(brng, block, { minArea: DENSITY[z.type] ?? 130, chaos: style.chaos * (gridTown ? 0.5 : 1), sizeChaos: style.sizeChaos, emptyProb: style.empty })
+        : [];
+      for (const lot of raw) {
+        const b = settle(lot);
+        if (!b || !dry(b)) continue;
+        // the close round a cathedral, the yard in front of a hall
+        if (great && nearOutline(b, great, 3)) continue;
+        buildings.push(b);
+      }
     }
     return { polygon: z.polygon, type: z.type, buildings, inner: z.inner };
   });
 
-  // drop any building a road centreline runs through: the block-centric inset (insetConvex) falls
-  // back to a radial inset for non-convex wards, which can leave a building corner under a main
-  // road — user-reported "road passes through a building/district". Sample each road densely.
-  // ★ Every road segment once, with its box. The test below walked EVERY road, every 2 units, for
-  // EVERY building — measured, 62% of generating a town, and a capital's plate took 274ms to open
-  // in the page (a mid-range phone runs that about four times slower). A segment whose box misses
-  // the building's box can neither put a sample point inside it nor cross one of its edges (both
-  // tests are exact, and a proper crossing lies in both boxes), so it is skipped; the air (1e-6)
-  // covers the last ulp of a sample. The result is the same, building for building — a byte-lock
-  // over two whole worlds of plates holds it (city.test).
-  const roadSegs: { a: Point; c: Point; x0: number; y0: number; x1: number; y1: number }[] = [];
-  for (const r of [...mainRoads, ...minorRoads]) for (let i = 0; i < r.length - 1; i++) {
-    const a: Point = r[i], c: Point = r[i + 1];
-    roadSegs.push({ a, c, x0: Math.min(a[0], c[0]), y0: Math.min(a[1], c[1]), x1: Math.max(a[0], c[0]), y1: Math.max(a[1], c[1]) });
+
+  // ★ A house keeps clear of the road as it is DRAWN, not only of its centre line. The filter asked
+  // whether a road's centre line ran through a building — and a main road is drawn 4.6 wide, so a
+  // house a unit off the line stood half under it, on 150 of 336 plates (the gate stubs and bridge
+  // approaches cut through wards; the streets on their edges are held off by the block's setback).
+  // Every road segment once, with its box grown by the clearance: a segment whose grown box misses
+  // the building's box is nowhere near it (the prefilter the perf pass proved exact, 2026-09-24).
+  const roadSegs: { a: Point; c: Point; clear: number; x0: number; y0: number; x1: number; y1: number }[] = [];
+  for (const [roads, clear] of [[mainRoads, MAIN_ROAD_CLEAR], [minorRoads, MINOR_ROAD_CLEAR]] as [Polyline[], number][]) {
+    for (const r of roads) for (let i = 0; i < r.length - 1; i++) {
+      const a: Point = r[i], c: Point = r[i + 1];
+      roadSegs.push({ a, c, clear, x0: Math.min(a[0], c[0]) - clear, y0: Math.min(a[1], c[1]) - clear, x1: Math.max(a[0], c[0]) + clear, y1: Math.max(a[1], c[1]) + clear });
+    }
   }
-  const roadRunsThrough = (b: Polygon): boolean => {
-    const bb = bbox(b), AIR = 1e-6;
-    for (const { a, c, x0, y0, x1, y1 } of roadSegs) {
-      if (x1 < bb.minX - AIR || x0 > bb.maxX + AIR || y1 < bb.minY - AIR || y0 > bb.maxY + AIR) continue;
-      // centreline inside (through) OR an edge crossing (a corner clip) — both read as a road on the block
-      const steps = Math.max(1, Math.ceil(Math.hypot(c[0] - a[0], c[1] - a[1]) / 2));
-      for (let s = 0; s <= steps; s++) if (pointInPolygon([a[0] + ((c[0] - a[0]) * s) / steps, a[1] + ((c[1] - a[1]) * s) / steps], b)) return true;
-      for (let j = 0; j < b.length; j++) if (segmentsIntersect(a, c, b[j], b[(j + 1) % b.length])) return true;
+  const crowdedByRoad = (b: Polygon): boolean => {
+    const bb = bbox(b);
+    for (const s of roadSegs) {
+      if (s.x1 < bb.minX || s.x0 > bb.maxX || s.y1 < bb.minY || s.y0 > bb.maxY) continue;
+      if (pointInPolygon(s.a, b) || pointInPolygon(s.c, b)) return true;
+      for (let j = 0; j < b.length; j++) {
+        const p = b[j], q = b[(j + 1) % b.length];
+        // two segments are nearer than the clearance where they cross or an end of one is
+        if (segmentsIntersect(s.a, s.c, p, q) || pointSegDist(p, s.a, s.c) < s.clear
+          || pointSegDist(s.a, p, q) < s.clear || pointSegDist(s.c, p, q) < s.clear) return true;
+      }
     }
     return false;
   };
-  for (const ward of wards) if (ward.buildings.length) ward.buildings = ward.buildings.filter((b) => !roadRunsThrough(b));
+  for (const ward of wards) if (ward.buildings.length) ward.buildings = ward.buildings.filter((b) => !crowdedByRoad(b));
+
+  // Parks were a plain green pane, which on a plate full of fields reads as one more field. Trees on
+  // a loose grid, clear of the wall and the paths — the country's own tree, so a taiga town's park
+  // is a stand of conifers.
+  const parkTrees: Point[] = [];
+  for (const z of zoned) {
+    if (z.type !== "park" || archetype.oasis) continue;
+    const room = insetEdges(z.polygon, 3);
+    if (room.length < 3) continue;
+    const b = bbox(room), step = 6.5;
+    for (let y = b.minY + step / 2; y < b.maxY; y += step) for (let x = b.minX + step / 2; x < b.maxX; x += step) {
+      const p: Point = [x + (brng() - 0.5) * step * 0.7, y + (brng() - 0.5) * step * 0.7];
+      if (brng() > 0.72 || !pointInPolygon(p, room) || !inTown(p) || inWater(water, p)) continue;
+      if (roadSegs.some((s) => pointSegDist(p, s.a, s.c) < s.clear + 1.5)) continue;
+      parkTrees.push(p);
+    }
+  }
 
   // landmark districts get an on-map label; the display TEXT is localised at render time from
   // the ward type (so KO/EN can switch without regenerating the city).
@@ -423,6 +533,12 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
     if (at === null) continue;
     labels.push({ x: at[0], y: at[1], type: z.type, landmark: LANDMARKS.includes(z.type) });
   }
+
+  // The cathedral is named at its church's crossing, where its cross is drawn; the page then sets the
+  // name beside the church (`clearMarks` counts the church as a sign), as it does any name at its sign.
+  const church = landmarks.find((m) => m.kind === "cathedral");
+  const churchLabel = labels.find((l) => l.type === "cathedral");
+  if (church && churchLabel) { churchLabel.x = church.at[0]; churchLabel.y = church.at[1]; }
 
   // the lord's castle: built from the zoned castle ward polygon, right after wards/labels and before
   // features/extramural work. It draws from a stream of its own (the mountain-pick convention), so
@@ -730,5 +846,6 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
     name: ctx.name, size: ctx.size, coastal: ctx.coastal, isCapital: ctx.isCapital,
     archetype, bounds, boundary, water, mountains, wall, moat, gateBridges, mainRoads, minorRoads, wards, parks, labels, features, suburbRoads, suburbs, outworks, harbor,
     abbey, cemetery, gallows, leperHouse, fairground, parishChurches, marketCross, well, inns, barbicans, riversideTrades, countryside, castle,
+    parkTrees, landmarks,
   };
 }

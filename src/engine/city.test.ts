@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { generateCityLayout, cityContext } from "./city";
-import { centroid, area, pointInPolygon, polysOverlap, polygonSelfIntersects, pointSegDist, bbox } from "./geometry";
+import { centroid, area, pointInPolygon, polysOverlap, polygonSelfIntersects, pointSegDist, bbox, segmentsIntersect } from "./geometry";
 import { inWater } from "./city/water";
 import { inMountains } from "./city/mountain";
 import { GRASSLAND } from "./biome";
@@ -1160,6 +1160,119 @@ describe("the districts are places a town would have", () => {
   });
 });
 
+// ★ The houses. Measured over twelve worlds before this: a house tested by its centre alone stood
+// with corners in the river on 109 plates, half under a main road (drawn 4.6 wide, tested by its
+// centre line) on 150, and cut by the town wall's line on every one; and the lots were cut on the
+// page's grid, so a median 54% of houses stood more than 15 degrees askew of their street.
+describe("the houses of a town", () => {
+  const towns = (() => {
+    let memo: { where: string; l: ReturnType<typeof generateCityLayout> }[] | null = null;
+    return () => {
+      if (memo) return memo;
+      memo = [];
+      for (let seed = 1; seed <= 12; seed++) {
+        const w = generateWorld({ ...DEFAULT_PARAMS, seed }).world;
+        for (const c of w.cities) memo.push({ where: `${c.name} (seed ${seed}, ${c.id})`, l: generateCityLayout(cityContext(c), seed) });
+      }
+      return memo;
+    };
+  })();
+  const edgeDist = (p: [number, number], poly: [number, number][]) => {
+    let d = Infinity;
+    for (let i = 0; i < poly.length; i++) d = Math.min(d, pointSegDist(p, poly[i], poly[(i + 1) % poly.length]));
+    return d;
+  };
+
+  it("stands no house in the water, bar a marsh town's stilt houses", () => {
+    let houses = 0;
+    for (const { where, l } of towns()) {
+      if (l.archetype.onStilts) continue;
+      for (const w of l.wards) for (const b of w.buildings) {
+        houses++;
+        expect(b.some((p) => inWater(l.water, p)), `a house in the water at ${where}`).toBe(false);
+      }
+    }
+    expect(houses).toBeGreaterThan(10000);
+  });
+
+  it("keeps every house inside the wall and off its line", () => {
+    for (const { where, l } of towns()) for (const w of l.wards) for (const b of w.buildings) for (const p of b) {
+      expect(pointInPolygon(p, l.boundary) && edgeDist(p, l.boundary) >= 2.6, `a house on the wall at ${where}`).toBe(true);
+    }
+  });
+
+  it("keeps every house clear of the roads as they are drawn", () => {
+    const clearOf = (b: [number, number][], roads: [number, number][][], clear: number) => {
+      for (const r of roads) for (let i = 0; i < r.length - 1; i++) {
+        if (pointInPolygon(r[i], b)) return false;
+        for (let j = 0; j < b.length; j++) {
+          const p = b[j], q = b[(j + 1) % b.length];
+          if (segmentsIntersect(r[i], r[i + 1], p, q) || pointSegDist(p, r[i], r[i + 1]) < clear
+            || pointSegDist(r[i], p, q) < clear || pointSegDist(r[i + 1], p, q) < clear) return false;
+        }
+      }
+      return true;
+    };
+    for (const { where, l } of towns()) for (const w of l.wards) for (const b of w.buildings) {
+      // a main road is drawn 4.6 wide, a street 2.6
+      expect(clearOf(b, l.mainRoads, 2.3), `a house under a main road at ${where}`).toBe(true);
+      expect(clearOf(b, l.minorRoads, 1.3), `a house on a street at ${where}`).toBe(true);
+    }
+  });
+
+  it("stands its houses square to their streets", () => {
+    const shares: number[] = [];
+    for (const { l } of towns()) {
+      let square = 0, all = 0;
+      for (const w of l.wards) for (const b of w.buildings) {
+        let le = 0, ang = 0;
+        for (let i = 0; i < b.length; i++) { const p = b[i], q = b[(i + 1) % b.length], len = Math.hypot(q[0] - p[0], q[1] - p[1]); if (len > le) { le = len; ang = Math.atan2(q[1] - p[1], q[0] - p[0]); } }
+        const c = centroid(b);
+        let nd = Infinity, street = 0;
+        for (let i = 0; i < w.polygon.length; i++) { const p = w.polygon[i], q = w.polygon[(i + 1) % w.polygon.length], d = pointSegDist(c, p, q); if (d < nd) { nd = d; street = Math.atan2(q[1] - p[1], q[0] - p[0]); } }
+        let d = Math.abs(ang - street) % (Math.PI / 2); d = Math.min(d, Math.PI / 2 - d);
+        all++; if (d <= (15 * Math.PI) / 180) square++;
+      }
+      if (all) shares.push(square / all);
+    }
+    shares.sort((a, b) => a - b);
+    expect(shares[Math.floor(shares.length / 2)], "the median town's share of houses square to their street").toBeGreaterThan(0.6);
+  });
+
+  it("builds a cathedral ward round its church and a guild ward round its hall", () => {
+    let wards = 0, built = 0;
+    for (const { where, l } of towns()) {
+      for (const kind of ["cathedral", "guildhall"] as const) {
+        if (!l.wards.some((w) => w.type === kind)) continue;
+        wards++;
+        const m = l.landmarks.find((x) => x.kind === kind);
+        if (!m) continue;
+        built++;
+        const ward = l.wards.find((w) => w.type === kind)!;
+        for (const p of m.outline) {
+          expect(pointInPolygon(p, ward.polygon) && pointInPolygon(p, l.boundary), `the ${kind} of ${where} outside its ward`).toBe(true);
+          expect(inWater(l.water, p), `the ${kind} of ${where} in the water`).toBe(false);
+        }
+        for (const b of ward.buildings) expect(polysOverlap(b, m.outline), `a house on the ${kind} of ${where}`).toBe(false);
+      }
+    }
+    expect(built / wards, `${built} of ${wards}`).toBeGreaterThan(0.85);
+  });
+
+  it("plants its parks with trees", () => {
+    let parks = 0, planted = 0;
+    for (const { l } of towns()) {
+      for (const w of l.wards) {
+        if (w.type !== "park" || l.archetype.oasis) continue;
+        parks++;
+        if (l.parkTrees.some((t) => pointInPolygon(t, w.polygon))) planted++;
+      }
+    }
+    expect(parks).toBeGreaterThan(30);
+    expect(planted / parks).toBeGreaterThan(0.8);
+  });
+});
+
 // A plate's numbers were keyed by (world seed XOR town id), so world 2's town 4 drew what world 3's
 // town 5 drew, and when the two were the same kind and size of town they were the same drawing
 // under another name — 16 of the 336 plates of worlds 1-12, 105 of 1,120 over worlds 1-40.
@@ -1199,6 +1312,9 @@ describe("a town in one world is not a copy of a town in another", () => {
 // Re-pinned again the same day for the plate key (see plateSeed): EVERY plate moved, by design — a
 // town's streams were keyed by (world seed XOR town id), which made towns of neighbouring worlds
 // each other's copies. Nothing outside the plate reads those streams; the world is untouched.
+//
+// And again for the houses: every plate moved — the lots are cut along their streets now, from a
+// stream of their own (so the main stream, and with it the country round every town, moved once more).
 describe("a plate is the same plate, byte for byte", () => {
   const fold = (h: number, c: number) => Math.imul(h ^ c, 16777619) >>> 0;
   const fnv = (s: string) => { let h = 2166136261 >>> 0; for (let i = 0; i < s.length; i++) h = fold(h, s.charCodeAt(i)); return h >>> 0; };
@@ -1209,9 +1325,9 @@ describe("a plate is the same plate, byte for byte", () => {
     return { h, n };
   };
   it("draws seed 1's twenty-eight towns exactly as it did", () => {
-    expect(worldHash(1)).toEqual({ h: 3559719564, n: 28 });
+    expect(worldHash(1)).toEqual({ h: 4141238281, n: 28 });
   });
   it("draws seed 12's twenty-eight towns exactly as it did", () => {
-    expect(worldHash(12)).toEqual({ h: 974286404, n: 28 });
+    expect(worldHash(12)).toEqual({ h: 834570937, n: 28 });
   });
 });

@@ -141,8 +141,9 @@ export function deconflictLabels(svg: SVGSVGElement, scale = 1): void {
 }
 
 /** The signs a city plate draws at a district's own place: the cathedral's cross, the market's
- *  cross and well, a parish church's steeple, the castle's keep. */
-const SIGNS = ".landmark, .market-cross-base, .market-cross, .well, .parish-church, .castle-keep";
+ *  cross and well, a parish church's steeple, the castle's keep — and the two buildings a town has
+ *  only one of, the cathedral's church and the guild's hall, which a name is set beside, not on. */
+const SIGNS = ".landmark, .market-cross-base, .market-cross, .well, .parish-church, .castle-keep, .cathedral-church, .guild-hall";
 
 /**
  * Set each district's name BESIDE the sign at its place, not on it.

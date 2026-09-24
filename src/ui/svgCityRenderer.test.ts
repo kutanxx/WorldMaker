@@ -728,8 +728,9 @@ describe("the cathedral's cross stands in its cathedral", () => {
         const name = layout.labels.find((l) => l.type === "cathedral");
         for (const p of svg.querySelectorAll(".landmark")) {
           crosses++;
-          const m = /M([\d.-]+) ([\d.-]+)/.exec(p.getAttribute("d") ?? "")!;
-          const at: [number, number] = [Number(m[1]), Number(m[2]) + 7];
+          // the stem: from its top, half its length down is the cross's own place
+          const m = /M([\d.-]+) ([\d.-]+) v([\d.-]+)/.exec(p.getAttribute("d") ?? "")!;
+          const at: [number, number] = [Number(m[1]), Number(m[2]) + Number(m[3]) / 2];
           if (!pointInPolygon(at, layout.boundary)) outside.push(`${c.name} (seed ${seed})`);
           expect(name, `${c.name}: a cross for a cathedral that is not named`).toBeDefined();
           expect(Math.hypot(at[0] - name!.x, at[1] - name!.y), `${c.name}: the cross is not at its name`).toBeLessThan(0.01);

@@ -472,6 +472,17 @@ export function renderCity(layout: CityLayout, lang: Lang = "en", opts: CityRend
     const fill = TINT[ward.type] ?? "#e6dcc8";
     for (const b of ward.buildings) clipped.appendChild(svgEl("polygon", { class: "building", points: pts(b), fill, stroke: "#8a7a60", "stroke-width": 0.4 }));
   }
+  // The buildings a town has one of stand out of their ward's tint in its deeper tone, with the
+  // ridge of the roof drawn along them: a cross-shaped church reads as a church before any label.
+  for (const m of layout.landmarks) {
+    const [fill, edge, ridge] = m.kind === "cathedral" ? ["#a78fbe", "#4f3f63", "#d9cce6"] : ["#95ab76", "#4a5a33", "#cddbb8"];
+    const g = named(svgEl("g", { class: m.kind === "cathedral" ? "cathedral-church" : "guild-hall" }), WARD_NAME[lang][m.kind] ?? m.kind);
+    g.appendChild(svgEl("polygon", { points: pts(m.outline), fill, stroke: edge, "stroke-width": 0.7, "stroke-linejoin": "round" }));
+    for (const [a, b] of m.ridges) g.appendChild(svgEl("line", { x1: a[0].toFixed(1), y1: a[1].toFixed(1), x2: b[0].toFixed(1), y2: b[1].toFixed(1), stroke: ridge, "stroke-width": 0.6, "stroke-linecap": "round" }));
+    clipped.appendChild(g);
+  }
+  // a park is its trees, in the country's own kind
+  for (const t2 of layout.parkTrees) clipped.appendChild(treeGlyph(t2, layout.countryside.vocabulary.tree, "park-tree", 2.1));
 
   // roads drawn ON TOP of buildings so the street network always reads (never buried under a block)
   const road = (cls: string, r: Polyline, stroke: string, wd: number) =>
@@ -655,9 +666,13 @@ export function renderCity(layout: CityLayout, lang: Lang = "en", opts: CityRend
   // outside the town (up to 21 units, on the river beyond the wall). The engine keeps the name
   // inside the town, and a cathedral too drowned to be named gets no cross in the water either.
   // (The name then steps off its cross — see `clearMarks` — as a map sets a name beside its sign.)
+  // Where the cathedral is drawn as its church, the cross stands on the church's crossing, a roof
+  // cross in the church's own ink — at the old size it lay across the transept like a second building.
+  const onChurch = layout.landmarks.some((m) => m.kind === "cathedral");
   for (const l of layout.labels) {
     if (l.type !== "cathedral") continue;
-    root.appendChild(svgEl("path", { class: "landmark", d: `M${l.x} ${l.y - 7} v14 M${l.x - 4} ${l.y - 2} h8`, stroke: "#7a5a86", "stroke-width": 2, fill: "none" }));
+    const [h, a, wd, ink] = onChurch ? [4.5, 2.6, 1.3, "#4f3f63"] : [7, 4, 2, "#7a5a86"];
+    root.appendChild(svgEl("path", { class: "landmark", d: `M${l.x} ${l.y - h} v${2 * h} M${l.x - a} ${l.y - h * 0.3} h${2 * a}`, stroke: ink, "stroke-width": wd, fill: "none" }));
   }
 
   const labelsG = svgEl("g", { class: "labels" });
