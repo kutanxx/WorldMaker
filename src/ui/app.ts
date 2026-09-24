@@ -93,8 +93,18 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
   const regenBtn = document.createElement("button");
   seedGroup.append(seedInput, regenBtn);
   // The primary action, and the only one in the bar: a die always yields a world you have not seen.
+  // World-only: on a plate it threw the plate AND its world away, and Back then left the address on
+  // the old world with the new one on screen.
   const randomBtn = document.createElement("button");
-  randomBtn.className = "random-seed primary";
+  randomBtn.className = "random-seed primary world-only";
+  // ★ The way off a plate, in the bar with the page's other way off a screen. It was a bar of its
+  // own across the whole card — 1093px wide at 1440x900, 336 on a phone, the biggest control on the
+  // page — standing between the toolbar and the drawing: an accident of the card becoming a flex
+  // column (and later a grid), never a decision. It shows only on a plate (`plate-only`).
+  const backBtn = document.createElement("button");
+  backBtn.type = "button";
+  backBtn.className = "plate-back plate-only";
+  backBtn.addEventListener("click", () => backToWorld());
   // One control, not three buttons each repeating the verb: the formats name themselves and the
   // download arrow says what the group does. See the note in theme.css for what that bought.
   const exportGroup = document.createElement("div");
@@ -193,7 +203,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
   // box used to stand in front of the die, so opening the fold at 390x844 moved "새 세계" from x=76
   // to x=216 — the one control that must never move under a thumb. On a wide window the zone reads
   // the same either way round: the die, then the way to a particular world.
-  controls.append(homeBtn, randomBtn, seedGroup, viewToggle, moreBtn, exportGroup, gazBtn, langBtn);
+  controls.append(homeBtn, backBtn, randomBtn, seedGroup, viewToggle, moreBtn, exportGroup, gazBtn, langBtn);
   syncMore(false);
   root.appendChild(advanced);
 
@@ -207,6 +217,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     advancedSummary.textContent = t(lang, "advanced");
     for (const d of dialRows) d.name.textContent = t(lang, d.key as never);
     homeBtn.textContent = t(lang, "home");
+    backBtn.textContent = "← " + t(lang, "backToWorld");
     homeBtn.title = t(lang, "homeLabel"); // the house carries it; the word cost the toolbar a second row
     regenBtn.textContent = t(lang, "generate");
     randomBtn.textContent = "🎲 " + t(lang, "newWorld");
@@ -305,8 +316,9 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
    * controls — the card ran past the window and the chronicle's line, or the plan's bottom, was cut.
    */
   // The plan's side column is proved against this reserve (layout.test): the chrome above a plate
-  // always holds the title, the bar, the way back and the facts, and it is never let under it.
-  const PLATE_RESERVE_FLOOR = 230;
+  // always holds the title and the bar — the way back is in the bar now, and the facts stand beside
+  // or under the drawing — and it is never let under it. Measured: 149 on a phone, 168 at 1440x900.
+  const PLATE_RESERVE_FLOOR = 150;
   const fitWorldChrome = (): void => {
     const frame = stage.querySelector<HTMLElement>(".map-with-list > .map-frame");
     // A narrow window stacks the key and the town list under the map, and there the map is sized
@@ -458,6 +470,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     setTitle();
     controls.classList.remove("plate");
     stage.classList.remove("plate");
+    root.classList.remove("plate-screen");
     timeline?.destroy();
     stage.innerHTML = "";
     terrainBtn.classList.toggle("active", currentView === "terrain");
@@ -748,6 +761,9 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     // reorder it: measured on a 390x844 phone, 319px of chrome stood above a drawing 313px tall,
     // and the fact strip is 134px of that. Under the drawing it is a caption, which is what it is.
     stage.classList.add("plate");
+    // ...and the page says it too: a plate sizes its card by its own chrome (theme.css, --plate-page)
+    // and has no use for the world's settings under it
+    root.classList.add("plate-screen");
     dropWidthWatch?.();   // the world screen's sections are about to be thrown away
     const url = "#" + worldHash() + "&city=" + cityId;
     // ★ How many plates this one stands on top of, counted in the entry itself: the town next door
@@ -757,10 +773,10 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     else if (record === "replace") window.history.replaceState({ city: cityId, depth }, "", url);
     timeline?.destroy();
     stage.innerHTML = "";
-    const back = document.createElement("button");
-    back.className = "plate-back";
-    back.textContent = "← " + t(lang, "backToWorld");
-    back.addEventListener("click", backToWorld);
+    // A plate the reader opens is a new page, and it opens at the top — where its way back is. Opened
+    // from far down a phone's town list it kept that scroll, clamped: the toolbar off the top. (Back
+    // returns the world to where the list was left; the browser keeps that scroll with its entry.)
+    if (record === "push") { document.documentElement.scrollTop = 0; document.body.scrollTop = 0; }
     // The plate's key never stood ON the drawing — it has a 108-unit strip of its own — so the
     // trouble here was size, not room: 568 units drawn 321px wide is x0.565, and the district key
     // measured 7.0px type and a 4.5px swatch on a real phone, for quarters that are told apart by
@@ -795,7 +811,6 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     });
     keyFold.section.classList.add("legend-fold");
     keyFold.body.appendChild(keySheet);
-    frame.appendChild(keyFold.section);
     // ㉗'s one size, arrived at from the other direction: the plate's key is drawn in 11-unit rows
     // because the plate is drawn big. Standing it at 1:1 would put an 11px row beside the world
     // map's 17px one on the same phone.
@@ -865,7 +880,15 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     near.appendChild(nearList);
     panel.appendChild(near);
 
-    stage.append(back, panel, frame, keyFold.section);   // beside the frame, never inside it
+    // ★ What is said about the plate comes after it, the facts over the key, in one column: beside
+    // the drawing where the page has room for a column, under it — a caption — where it does not.
+    // In a 1366x650 laptop window the facts stood ABOVE the drawing, two lines of them under the way
+    // back and a two-row toolbar: 293px of chrome over a plate 334px tall, smaller than a phone's.
+    // ⚠ Beside the frame, never inside it: the frame is what the floating controls hang off.
+    const side = document.createElement("div");
+    side.className = "plate-side";
+    side.append(panel, keyFold.section);
+    stage.append(frame, side);
     // ...and fitted again now that it stands in the page: the fit above ran before the card was in
     // the document, with no room to measure, so the plate's key came out a compact block (271px of
     // a 324px measure on a phone) where the world's spans its panel.

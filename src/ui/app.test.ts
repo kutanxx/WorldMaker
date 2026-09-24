@@ -761,6 +761,45 @@ describe("a plate tells you where you are and where you can go", () => {
     expect(more.textContent).toBe(shut);
   });
 
+  // ★ The way back was a bar across the whole card — 1093px wide at 1440x900, 336 on a phone, the
+  // biggest control on the page — between the toolbar and the drawing: an accident of the card
+  // becoming a flex column (and later a grid), never a decision. It stands in the toolbar with the
+  // page's other way off a screen, and there the world map's own controls stand down on a plate —
+  // the die too, which threw the plate and its world away with no way back.
+  it("keeps the way back in the toolbar, and takes the world's own controls out of it", () => {
+    const root = document.createElement("div");
+    const app = createApp(root, small);
+    const back = root.querySelector(".controls .plate-back");
+    expect(back, "the way back is not in the toolbar").not.toBeNull();
+    expect(back!.classList.contains("plate-only"), "the way back shows on the world map too").toBe(true);
+    for (const worldOnly of [".random-seed", ".seed-group", ".view-toggle"]) {
+      expect(root.querySelector(`.controls ${worldOnly}.world-only`) !== null, `${worldOnly} stays on a plate`).toBe(true);
+    }
+    app.openCity(0);
+    expect(root.querySelector(".stage > button"), "a bar across the card again").toBeNull();
+    expect(root.classList.contains("plate-screen"), "the page does not say it is showing a plate").toBe(true);
+    app.showWorld();
+    expect(root.classList.contains("plate-screen"), "the plate's page outlived the plate").toBe(false);
+  });
+
+  // ★ In a 1366x650 laptop window the facts stood ABOVE the drawing — two lines of them, under the
+  // way back and a two-row toolbar — 293px of chrome over a plate 334px tall, smaller than a phone
+  // draws it. What is said about the plate comes after it: beside it with the key where the page has
+  // a column, under it as a caption where it does not.
+  it("stands the facts and the key together, after the drawing", () => {
+    const root = document.createElement("div");
+    const app = createApp(root, small);
+    app.openCity(0);
+    const kids = [...root.querySelector(".stage")!.children];
+    const frame = kids.findIndex((k) => k.classList.contains("map-frame"));
+    const side = kids.find((k) => k.classList.contains("plate-side"));
+    expect(side, "no column for what is said about the plate").toBeTruthy();
+    expect(kids.indexOf(side!), "what is said about the plate comes before it").toBeGreaterThan(frame);
+    const inside = [...side!.children].map((k) => k.getAttribute("class") ?? "");
+    expect(inside[0], "the facts are not first in the column").toContain("city-facts");
+    expect(inside[1], "the key is not under the facts").toContain("legend-fold");
+  });
+
   // Measured over 336 towns (12 worlds): opened at year 0 — where every world starts — 170 of them
   // said "Realm — X · 0 AY" over "Founded — 360 AY", a town answering for a year before it stood.
   // The town list offers every town at every year while the map hides the ones not founded yet, so

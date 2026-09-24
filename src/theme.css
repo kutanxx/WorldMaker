@@ -38,6 +38,11 @@ body {
    for: at 1440x900, 1366x768 and 1920x945 alike it ended 16-17px under the window's edge. */
 #app {
   --page: max(620px, calc((100vh - var(--chrome, 290px)) * 10 / 7 + 222px));
+  /* A plate's own measure: its square, as tall as its chrome leaves it, and the 210px column with
+     its 12px gap. A plate's chrome is not the world map's (no scrubber, no caption under it), so on
+     a short window the world's measure starved it: 1366x650 capped the plate at 460 of the 482 its
+     height allowed. The card never gets narrower than the world's, so it does not jump. */
+  --plate-page: calc(100vh - var(--plate-chrome, 150px) + 222px);
   max-width: min(1320px, 100vw - 32px); margin: 0 auto; padding: 0 16px 32px;
 }
 /* ⚠ No global `box-sizing: border-box` in this stylesheet, so these three say it themselves: the
@@ -47,6 +52,11 @@ body {
   box-sizing: border-box; max-width: min(100%, calc(var(--page) + 22px)); margin-inline: auto;
 }
 #app > .advanced { box-sizing: border-box; max-width: min(100%, var(--page)); }
+#app.plate-screen > .controls, #app.plate-screen > .stage {
+  max-width: min(100%, calc(max(var(--page), var(--plate-page)) + 22px));
+}
+/* the world's settings make a world; on a plate they would only leave it */
+#app.plate-screen > .advanced { display: none; }
 /* Twelve controls at one weight. Measured at 1920x945: every control in this bar wore background
    #f3ead2, border #b7a071, weight 400 and 14px, so the button that makes a world looked exactly
    like the button that saves a PNG — and at 71px "Generate" was the narrowest of them all bar the
@@ -114,7 +124,7 @@ body {
 /* ⚠ border-box, because this stylesheet has no global one and an <a> or a text input is content-box
    where a <button> is not — a height declared without it is that height PLUS the padding, which is
    how one `min-height: 44px` on the home link came out 62. */
-.controls button, .controls input, .controls a.home, .stage > button,
+.controls button, .controls input, .controls a.home,
 .timeline button, .fold-head, .advanced > summary, .landing-lang {
   min-height: var(--control-h); box-sizing: border-box;
 }
@@ -157,6 +167,14 @@ a.home:hover { background: #e7cf9c; }
   background: #f3ead2; border: 1px solid #b7a071; border-radius: 4px; color: #3c2f1c; cursor: pointer;
 }
 .map-zoom-controls button:hover { background: #e7d9b6; }
+/* ★ A plate is not a map. The world map's controls sit in its bottom-right corner because no corner
+   of a MAP is reliably empty — the land is different every time — but a plate has fixed furniture
+   and both of its bottom corners are spoken for: the compass at the right, the scale bar at the left.
+   Measured at 390x844, the reset ran 295..343 against a compass drawn at 343..360, touching it
+   exactly. The plate's top-left is the corner it keeps — the name is centred and the focus button
+   owns the top-right — and it keeps it for a mouse too, now that the controls stand ON the drawing
+   (their frame is the drawing): a desktop's +/−/↺ at the bottom-right would stand on the compass. */
+.stage.plate .map-zoom-controls { top: 14px; bottom: auto; left: 14px; right: auto; }
 /* The reset is its icon in the stack's 30px square; the word is its name (aria-label, tooltip).
    Where it stands alone the word comes back — see the narrow block. */
 .map-zoom-controls .zoom-reset { display: inline-flex; align-items: center; justify-content: center; }
@@ -186,6 +204,13 @@ a.home:hover { background: #e7cf9c; }
   background: #f3ead2; border: 1px solid #b7a071; border-radius: 4px; color: #3c2f1c; cursor: pointer;
 }
 .more-toggle:hover { background: #e7d9b6; }
+/* ★ A plate is not the world map: the view toggles switch a map that is not on screen, and the seed
+   box, the die and the world settings build a world you would leave the plate to see — the die
+   threw the plate and its world away with no way back. Once only on a narrow window; at every width
+   now, since in a 1366x650 laptop window these folded the bar to a second row over the plate. The
+   way back shows only on a plate. */
+.controls.plate .world-only { display: none; }
+.controls:not(.plate) .plate-only { display: none; }
 .controls.more-open .more-toggle { background: #e7d9b6; }
 /* Focus mode: the window belongs to the map. Everything the map was competing with for vertical
    room — the title, the toolbar, the town list, the chronicle, the dials — is gone, and the height
@@ -208,9 +233,8 @@ body.map-focus .city-list,
 body.map-focus .chronicle-caption,
 body.map-focus .legend-fold,
 body.map-focus .city-facts,
+body.map-focus .plate-side,
 body.map-focus .advanced { display: none; }
-/* the plate's way back off itself stays reachable while the chrome is away */
-body.map-focus .stage > button { position: absolute; left: 12px; top: 12px; z-index: 41; }
 body.map-focus #app { max-width: none; padding: 0; }
 body.map-focus .stage {
   position: fixed; inset: 0; z-index: 40; margin: 0; padding: 8px; max-width: none;
@@ -232,12 +256,20 @@ body.map-focus .timeline { margin: 0; }
    Whole-plan-at-once matters here: the town is what you orient by before leaning in, and there is
    zoom for the leaning. ★ Nothing stands beside the town any more — the key stands under the plan
    at 1:1, and the compass in the plan's own corner — so there is no strip, no ratio in the cap,
-   and on a phone the town is 7% bigger than it was beside the compass's strip. */
-.stage svg.city {
-  max-width: min(100%, calc(100vh - var(--plate-chrome, 230px)));
-  margin: 0 auto;
+   and on a phone the town is 7% bigger than it was beside the compass's strip.
+   ★ The cap is on the FRAME, and the drawing fills it. What floats over a plate — the "지도만" chip,
+   the zoom controls — hangs off the frame, and the frame used to be as wide as its column while
+   the drawing sat centred inside it: at 1440x900 the chip stood 16px and the zoom stack 32px off
+   the drawing's edge in bare parchment, 90px off at 800px wide, and on a tablet the reset chip
+   straddled the drawing's left edge. A frame that IS the drawing puts them on its corners. */
+/* ⚠ `width: 100%` is not redundant: auto side margins stop a grid or flex item from stretching, and
+   a box sized by its content holds an svg of `width: 100%` at the browser's default 300px. */
+.stage.plate > .map-frame {
+  width: 100%; max-width: min(100%, calc(100vh - var(--plate-chrome, 150px)));
+  margin-inline: auto;
 }
-body.map-focus .stage svg.city { max-width: min(100%, calc(100vh - 40px)); }
+/* focus mode: the stage's own 8px padding above and below is all that is left around the plate */
+body.map-focus .stage.plate > .map-frame { width: min(100%, calc(100vh - 16px)); max-width: none; }
 .timeline {
   display: flex; gap: 10px; padding: 10px 12px; align-items: center;
   background: #efe6cf; border: 1px solid #cbb784; border-radius: 6px;
@@ -731,25 +763,35 @@ svg.city .wall-seg, svg.city .wall-seg-inner, svg.city .tower, svg.city .gate { 
    ⚠ This is NOT the absolute placement ㊾ measured and rejected. That one floated the key in the
    frame's own margin, which a tall window does not have, so the key ended up over the drawing. A
    grid column takes its own room, so the only thing it can cost is the drawing's WIDTH — and the
-   ratio is where that cost is nought. The plate is capped by the height its chrome leaves it
-   (100vh - 230px), so the column is free exactly while `band - 222 >= that cap`;
-   solving that at the narrowest window this admits gives 7/6, and 6/5 is the next simple ratio
-   outside it, worth 24px of slack against a page chrome that is measured rather than declared.
+   ratio is where that cost is nought. The plate is square and capped by the height its chrome
+   leaves it (100vh - 150px at the least), so the column is free exactly while
+   `band - 222 >= that cap`; solving that at the narrowest window this admits gives 1.23, and 5/4 is
+   the next simple ratio outside it. (It was 6/5 while the chrome over a plate held the way back and
+   two lines of facts; with those gone the plate is taller, so the window must be a little wider.)
    Below the ratio — a tall, narrow window — the key stays under the plate, where it costs height
-   such a window has to spare and no width at all. layout.test.ts holds the four numbers together. */
-@media (min-width: 901px) and (min-aspect-ratio: 6/5) {
+   such a window has to spare and no width at all. layout.test.ts holds the four numbers together.
+   ★ The FACTS stand in the column too, above the key. In a 1366x650 laptop window they were two
+   lines above the drawing, under the way back and a two-row toolbar — 293px of chrome over a plate
+   334px tall, smaller than a phone draws it. With the way back in the bar and the facts beside the
+   drawing, the same window draws it 482px tall. */
+@media (min-width: 901px) and (min-aspect-ratio: 5/4) {
+  /* the drawing's track is the plate's own width, and the pair stands centred in the card — a card
+     wider than the plate used to leave the drawing centred in its track and the column far off */
   .stage.plate {
-    display: grid; grid-template-columns: minmax(0, 1fr) 210px; gap: 12px; align-items: start;
+    display: grid; justify-content: center; gap: 12px; align-items: start;
+    grid-template-columns: min(calc(100% - 222px), calc(100vh - var(--plate-chrome, 150px))) 210px;
   }
-  /* the way back and the caption answer for the page, not for the drawing's column */
-  .stage.plate > button, .stage.plate > .city-facts { grid-column: 1 / -1; }
   .stage.plate > .map-frame { grid-column: 1; }
-  /* and standing beside the drawing it becomes a panel, the way the world map's column is: every
+  .stage.plate > .plate-side { grid-column: 2; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+  /* and standing beside the drawing each becomes a panel, the way the world map's column is: every
      other box on this page is parchment inside a 1px #cbb784 edge */
-  .stage.plate > .legend-fold {
-    grid-column: 2; margin-top: 0; box-sizing: border-box;
+  .plate-side > .legend-fold, .plate-side > .city-facts {
+    margin: 0; box-sizing: border-box;
     background: #f6efdc; border: 1px solid #cbb784; border-radius: 6px; padding: 8px;
   }
+  /* a gazetteer entry: labels in a column, answers in a column (the phone's caption, the same way) */
+  .plate-side > .city-facts { display: grid; grid-template-columns: max-content 1fr; gap: 6px 10px; }
+  .plate-side > .city-facts > .city-fact { display: contents; }
 }
 
 @media (max-width: 900px) {
@@ -798,8 +840,6 @@ svg.city .wall-seg, svg.city .wall-seg-inner, svg.city .tower, svg.city .gate { 
      812px screen, over a 225px map — four rows, one of which held the language toggle alone. */
   .more-toggle { display: inline-flex; }
   .controls:not(.more-open) .secondary { display: none; }
-  /* and a plate is not the world map: these two act on a map that is not on screen */
-  .controls.plate .world-only { display: none; }
   /* the plate's key spans the room in two columns here (legendSheet.ts), so it stands at the
      heading's inset like the world's instead of centring */
   .stage.plate .legend-sheet { margin-inline: 6px; }
@@ -810,8 +850,9 @@ svg.city .wall-seg, svg.city .wall-seg-inner, svg.city .tower, svg.city .gate { 
      picture; the key keeps its place under the caption. Only the plate's card becomes a column:
      the world map's holds a grid and a scrubber that are laid out as blocks. */
   .stage.plate { display: flex; flex-direction: column; }
-  .stage.plate > .city-facts { order: 1; }
-  .stage.plate > .legend-fold { order: 2; }
+  /* the facts and the key stand beside a wide window's drawing as one column; here they are just
+     the next two things in the stack, in the order the markup already has them */
+  .plate-side { display: contents; }
   /* A narrow strip wraps, and wrapped it had a ragged second column — 27 / 176 / 219 — so the eye
      had no column to follow and the whole thing read as one sentence. One fact per row, labels in
      a column and answers in a column: a gazetteer entry. `display: contents` is what makes that
@@ -858,10 +899,10 @@ svg.city .wall-seg, svg.city .wall-seg-inner, svg.city .tower, svg.city .gate { 
    chip's is. A target over the map is a target over a town, and an invisible one that takes a
    town's click is the theft (51) and (52) hunted. The world map's reset sits in the bottom-right
    corner, so it reaches down and right, into the frame's own margin and the gap under it.
-   ⚠ The plate's sits top-left, and the way back ("지도로 돌아가기") ends EXACTLY where the plate
-   begins — measured 173 and 173 on a phone — so a reach past the frame's top edge takes the bottom
-   of that button. It reaches up only to the edge (the controls' own 14px) and makes up the rest
-   downward, over a drawing that has nothing in it to press. */
+   ⚠ The plate's sits top-left. Up it reaches only to the drawing's own edge (the controls' 14px) —
+   the way back used to end exactly where the plate began (173 and 173 on a phone), and past the edge
+   is the card's rim now, still nothing to reach into — and it makes up the rest downward, over a
+   drawing that has nothing in it to press. */
 @media (pointer: coarse) {
   .map-zoom-controls:not(.pinch-unavailable) .zoom-reset { position: relative; }
   .map-zoom-controls:not(.pinch-unavailable) .zoom-reset::after {
@@ -882,13 +923,6 @@ svg.city .wall-seg, svg.city .wall-seg-inner, svg.city .tower, svg.city .gate { 
     min-height: var(--control-h); box-sizing: border-box;
     padding-top: 12px; padding-bottom: 12px;
   }
-  /* ★ A plate is not a map. The world map's controls sit in its bottom-right corner because no
-     corner of a MAP is reliably empty — the land is different every time — but a plate has fixed
-     furniture and both of its bottom corners are already spoken for: the compass at the right, the
-     scale bar at the left. Measured at 390x844, the reset ran 295..343 against a compass drawn at
-     343..360, touching it exactly. The plate's top-left is the corner it keeps: the name is centred
-     and the focus button owns the top-right. */
-  .stage.plate .map-zoom-controls { top: 14px; bottom: auto; left: 14px; right: auto; }
 }
 
 /* ★ The window's height with the browser's own bars SHOWING. `100vh` is the large viewport on a
@@ -901,7 +935,13 @@ svg.city .wall-seg, svg.city .wall-seg-inner, svg.city .tower, svg.city .gate { 
    it fails at computed time and drops to the property's initial value, not back to the `vh` line. */
 @supports (height: 100svh) {
   #app { --page: max(620px, calc((100svh - var(--chrome, 290px)) * 10 / 7 + 222px)); }
-  .stage svg.city { max-width: min(100%, calc(100svh - var(--plate-chrome, 230px))); }
+  #app { --plate-page: calc(100svh - var(--plate-chrome, 150px) + 222px); }
+  .stage.plate > .map-frame { max-width: min(100%, calc(100svh - var(--plate-chrome, 150px))); }
+  @media (min-width: 901px) and (min-aspect-ratio: 5/4) {
+    .stage.plate {
+      grid-template-columns: min(calc(100% - 222px), calc(100svh - var(--plate-chrome, 150px))) 210px;
+    }
+  }
   body.map-focus .map-frame { width: min(100%, calc((100svh - 90px) * 10 / 7)); }
-  body.map-focus .stage svg.city { max-width: min(100%, calc(100svh - 40px)); }
+  body.map-focus .stage.plate > .map-frame { width: min(100%, calc(100svh - 16px)); }
 }

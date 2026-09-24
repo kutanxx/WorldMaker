@@ -108,15 +108,17 @@ describe("the plate's key stands beside the drawing where there is room", () => 
     return c.slice(i, c.indexOf(BLOCK_END, i));
   };
 
-  it("gives the card a second column and puts the key in it", () => {
+  // ★ ...and the facts stand there too, above the key: in a 1366x650 laptop window they were two
+  // lines ABOVE the drawing, part of 293px of chrome over a plate 334px tall.
+  it("gives the card a second column and stands the facts and the key in it", () => {
     const block = wideBlock();
     expect(block, "the plate's card is not a grid, so there is no column to stand in")
-      .toMatch(/\.stage\.plate\s*\{[^}]*grid-template-columns:[^;]*\d+px/);
-    expect(block, "the key is not placed in the second column")
-      .toMatch(/\.stage\.plate\s*>\s*\.legend-fold\s*\{[^}]*grid-column:\s*2/);
-    // the caption and the way back belong to the page, not to the drawing's column
-    expect(block, "the fact strip is trapped in the drawing's column")
-      .toMatch(/\.city-facts\s*\{[^}]*grid-column:\s*1\s*\/\s*-1/);
+      .toMatch(/\.stage\.plate\s*\{[^}]*grid-template-columns:[^;]*\d+px;/);
+    expect(block, "what is said about the plate is not in the second column")
+      .toMatch(/\.stage\.plate\s*>\s*\.plate-side\s*\{[^}]*grid-column:\s*2/);
+    // standing in a 210px column the facts read as a gazetteer entry, labels beside answers
+    expect(block, "the facts are a ribbon in a 210px column")
+      .toMatch(/\.plate-side\s*>\s*\.city-facts\s*\{[^}]*grid-template-columns:\s*max-content/);
   });
 
   // ★ The number in the media query is not a taste. The plate is capped by the room its chrome
@@ -133,12 +135,13 @@ describe("the plate's key stands beside the drawing where there is room", () => 
       return Number(m[1]) / Number(m[2]);
     })();
     const minW = Number(/min-width:\s*(\d+)px/.exec(block)![1]);
-    const col = Number(/grid-template-columns:[^;]*?(\d+)px/.exec(block)![1]);
+    // the side column is the LAST width in the template (the drawing's track is a formula)
+    const col = Number(/grid-template-columns:[^;]*?(\d+)px;/.exec(block)![1]);
     const gap = Number(/\.stage\.plate\s*\{[^}]*gap:\s*(\d+)px/.exec(block)![1]);
     // the plate's reserve is measured at run time now (chromeBudget.ts), never under this floor —
     // the chrome above a plate always holds the title, the bar, the way back and the facts — so the
     // floor is the tightest case the arithmetic has to hold for
-    const reserve = Number(/\.stage svg\.city \{[^}]*\(100vh - var\(--plate-chrome, (\d+)px\)\)/.exec(c)![1]);
+    const reserve = Number(/\.stage\.plate > \.map-frame \{[^}]*\(100vh - var\(--plate-chrome, (\d+)px\)\)/.exec(c)![1]);
     // What the page spends before the card's content box begins: 37px of margin on each side and
     // the card's own 22px of padding and border. Measured on the live page at three widths.
     const PAGE_CHROME = 96;
@@ -174,7 +177,7 @@ describe("the things you press are one size", () => {
     // ⚠ An anchor and a text input are content-box by default where a <button> is not, so a height
     // declared without this is a height PLUS the padding — which is exactly the 62px below.
     expect(body, "a declared height that is not border-box is a different height").toContain("box-sizing: border-box");
-    for (const sel of [".controls button", ".controls input", ".controls a.home", ".stage > button", ".fold-head"]) {
+    for (const sel of [".controls button", ".controls input", ".controls a.home", ".fold-head"]) {
       expect(selectors, `${sel} is not on the one height`).toContain(sel);
     }
   });

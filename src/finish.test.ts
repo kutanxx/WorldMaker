@@ -252,11 +252,13 @@ describe("the page measures what it spends around the drawing", () => {
     expect(Number(m![1]), "the fallback forgets the caption under the scrubber").toBeGreaterThanOrEqual(277 + 12);
   });
   it("sizes the city plan the same way, every place it is capped", () => {
-    // the rules whose WHOLE selector is `.stage svg.city` — focus mode's own cap is 100vh less the
-    // scrubber's strip, and it is not a budget
-    const resting = css().match(/(?:^|\n)[ \t]*\.stage svg\.city \{[^}]*\}/g) ?? [];
+    // the rules whose WHOLE selector is the plate's frame — focus mode's own cap is 100vh less the
+    // card's padding, and it is not a budget. (The frame, not the drawing: what floats over a plate
+    // hangs off the frame, and it hangs off the drawing's corners only if the frame IS the drawing.)
+    const resting = (css().match(/(?:^|\n)[ \t]*\.stage\.plate > \.map-frame \{[^}]*\}/g) ?? [])
+      .filter((r) => /max-width:\s*min/.test(r));
     expect(resting.length, "no plate cap").toBeGreaterThan(0);
-    for (const r of resting) expect(r, "a plate cap still reads a fixed number").toContain("var(--plate-chrome, 230px)");
+    for (const r of resting) expect(r, "a plate cap still reads a fixed number").toContain("var(--plate-chrome, 150px)");
   });
 });
 

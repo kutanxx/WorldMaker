@@ -163,7 +163,7 @@ describe("a narrow window folds the panels the map cannot carry", () => {
 describe("the plate's cap agrees with the plate's geometry", () => {
   it("caps a square plate by its height, with no strip's ratio left in any cap", () => {
     const css = read("src/theme.css");
-    const caps = css.match(/svg\.city \{[^}]*max-width:[^}]*\}/g) ?? [];
+    const caps = (css.match(/\.stage\.plate > \.map-frame \{[^}]*\}/g) ?? []).filter((r) => /max-width:\s*min/.test(r));
     expect(caps.length, "no plate cap at all").toBeGreaterThan(0);
     for (const cap of caps) expect(cap, "a cap still multiplies by a strip's ratio").not.toMatch(/\*\s*\d+\s*\/\s*460/);
   });
@@ -200,8 +200,18 @@ describe("a narrow window folds the toolbar too", () => {
   it("folds what a phone can do least with, until it is asked", () => {
     expect(narrowBlock()).toContain(".controls:not(.more-open) .secondary { display: none");
   });
-  it("drops the world map's own controls on a city plate", () => {
-    expect(narrowBlock()).toContain(".controls.plate .world-only { display: none");
+  // ⚠ At every width now, not only a narrow one: in a 1366x650 laptop window the seed box and the
+  // view toggles folded the bar to two rows over a plate they do nothing to — and the way back,
+  // which lives in the bar now, shows only on a plate.
+  it("drops the world map's own controls on a city plate, at every width", () => {
+    const css = read("src/theme.css");
+    for (const rule of [".controls.plate .world-only { display: none", ".controls:not(.plate) .plate-only { display: none"]) {
+      const i = css.indexOf(rule);
+      expect(i, `${rule} is gone`).toBeGreaterThan(-1);
+      const media = css.lastIndexOf("@media", i);
+      const closed = css.indexOf(String.fromCharCode(10) + "}", media);
+      expect(media < 0 || closed < i, `${rule} holds only inside a media query`).toBe(true);
+    }
   });
 });
 
@@ -291,18 +301,19 @@ describe("a phone sees the plate before it reads about it", () => {
     if (i < 0) return NaN;
     return Number(/order:\s*(-?\d+)/.exec(block.slice(i, block.indexOf("}", i)))?.[1]);
   };
+  // ⚠ This used to read `order` rules: the strip stood before the drawing in the markup and a phone
+  // reordered it. The markup puts it AFTER the drawing now at every width (app.test holds that), in
+  // one column with the key; on a phone that column dissolves into the card's own stack.
   it("puts the fact strip under the drawing and the key under both", () => {
     const css = read("src/theme.css");
     const i = css.indexOf("@media (max-width: 900px)");
     const block = css.slice(i, css.indexOf("\n}", i));
-    // ordering needs a flex box, and only the plate's card may become one: the world map's card
-    // holds a grid and a scrubber that are laid out as blocks
-    expect(block, "the plate's card is not a column, so nothing can be ordered in it")
-      .toMatch(/\.stage\.plate\s*\{[^}]*display:\s*flex/);
-    const facts = orderOf(block, ".stage.plate > .city-facts");
-    const key = orderOf(block, ".stage.plate > .legend-fold");
-    expect(facts, "the fact strip keeps its place in front of the drawing").toBeGreaterThan(0);
-    expect(key, "the key does not stay under the strip it used to sit below").toBeGreaterThan(facts);
+    // only the plate's card may become a column: the world map's card holds a grid and a scrubber
+    // that are laid out as blocks
+    expect(block, "the plate's card is not a column").toMatch(/\.stage\.plate\s*\{[^}]*display:\s*flex/);
+    expect(block, "the facts and the key stay boxed in a column on a phone")
+      .toMatch(/\.plate-side\s*\{[^}]*display:\s*contents/);
+    expect(Number.isNaN(orderOf(block, ".stage.plate > .city-facts")), "something still reorders the card").toBe(true);
   });
 });
 
@@ -327,11 +338,16 @@ describe("the plate's own furniture keeps its corners", () => {
     }
     return "";
   };
-  it("moves the plate's button out of the compass corner, on touch screens only", () => {
-    const rule = coarseRuleFor(read("src/theme.css"), ".stage.plate .map-zoom-controls");
-    expect(rule, "the plate's controls do not move for a finger at all")
-      .not.toBe("");
-    expect(rule, "the button stays in the corner the compass is drawn in").toMatch(/bottom:\s*auto/);
+  // ⚠ This was "on touch screens only": a mouse's +/−/↺ stood OFF the drawing, in the margin of a
+  // frame wider than the plate. The frame is the drawing now, so the stack stands on it, and the
+  // bottom-right corner is the compass's — for a mouse as much as for a finger.
+  it("moves the plate's controls out of the compass corner, for every pointer", () => {
+    const css = read("src/theme.css");
+    const i = css.indexOf(".stage.plate .map-zoom-controls {");
+    expect(i, "the plate's controls do not move at all").toBeGreaterThan(-1);
+    const at = css.lastIndexOf("@media", i);
+    expect(at < 0 || css.slice(at, i).includes(BLOCK_END), "the plate's corner is kept only for a finger").toBe(true);
+    expect(css.slice(i, css.indexOf("}", i)), "the controls stay in the corner the compass is drawn in").toMatch(/bottom:\s*auto/);
   });
   it("gives that button the target a finger is owed", () => {
     const c = read("src/theme.css");
