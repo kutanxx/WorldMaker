@@ -194,6 +194,8 @@ const LORD_SEAT_ODDS = 1 / 3;
 const CASTLE_SALT = 4500;
 // ...and the buildings', beside it
 const BUILDING_SALT = 4400;
+// ...and the river a port draws where the world's river reaches the sea
+const RIVER_MOUTH_SALT = 4600;
 // the width of the key strip an exported plate carries beside the town (the renderer's KEY_STRIP;
 // a test holds the two equal), which moves the town's name right by half of it
 export const PLATE_KEY_STRIP = 108;
@@ -227,6 +229,17 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
   const archetype = selectArchetype({ coastal: ctx.coastal, elevation: ctx.elevation, size: ctx.size, biome: ctx.biome, pick, river: ctx.river });
 
   const water = buildWater(rng, archetype.water, bounds, ctx.seaBearing, radius, ctx.riverBearing);
+  // The sea on its own: what a port's harbour, docks and seaward side are measured against, whatever
+  // else runs into it.
+  const seaOnly: Water = { kind: water.kind, bodies: water.bodies.slice(), bridges: [] };
+  // ★ A port where the world's river reaches the sea draws its river. 22 of the 80 river towns of
+  // twelve worlds stand on a coast AND a river — the world map draws the river running out to sea
+  // at the town — and their plates drew the sea and no river at all. It comes down the way the world's
+  // river runs, into the sea, from a stream of its own, so no other port moves.
+  const riverMouth = archetype.water === "sea" && !!ctx.river && ctx.riverBearing !== undefined;
+  if (riverMouth) {
+    water.bodies.push(...buildWater(mulberry32(plateSeed(worldSeed, ctx.id + RIVER_MOUTH_SALT)), "river", bounds, undefined, undefined, ctx.riverBearing).bodies);
+  }
   if (archetype.oasis) {
     const or = radius * 0.12;
     const oasisPoly: Polygon = [];
@@ -257,7 +270,7 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
   // ★ The water comes out of the street network before any road is chosen (see riverStreets.ts):
   // streets in the channel are dropped, streets that meet it stop at the bank, and a river town's
   // banks are joined by square crossings. A town with no water keeps its network exactly.
-  const riverTown = archetype.water === "river" || archetype.water === "meander" || archetype.water === "loop";
+  const riverTown = archetype.water === "river" || archetype.water === "meander" || archetype.water === "loop" || riverMouth;
   const net = streetsOverWater(extractStreets(wardCells), water, boundary, riverTown);
   const streetGraph = net.graph;
   const onStreet = new Set<number>(streetGraph.edges.flat());
@@ -364,7 +377,7 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
   let seaAnchor: Point | undefined;
   if (ctx.coastal && water.kind === "sea" && water.bodies.length) {
     let ax = 0, ay = 0, aw = 0;
-    for (const b of water.bodies) {
+    for (const b of seaOnly.bodies) {
       const c = centroid(b), w = area(b);
       ax += c[0] * w; ay += c[1] * w; aw += w;
     }
@@ -395,9 +408,10 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
   const zoned = assignZones(rng, cells, [center[0], center[1]], radius, { hasCastle, coastal: ctx.coastal, castleAnchor, seaAnchor,
     wet: (poly) => overlapsWater(water, poly),
     // the ward edge nearest the water: what decides which district is the quayside
+    // (the sea's edge: a port's docks face the sea, not the river running into it)
     waterDist: (poly) => {
       let d = Infinity;
-      for (const p of poly) for (const b of water.bodies) for (let i = 0; i < b.length; i++) d = Math.min(d, pointSegDist(p, b[i], b[(i + 1) % b.length]));
+      for (const p of poly) for (const b of seaOnly.bodies) for (let i = 0; i < b.length; i++) d = Math.min(d, pointSegDist(p, b[i], b[(i + 1) % b.length]));
       return d;
     },
     drowned: isDrowned,
@@ -474,12 +488,22 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
       const raw = block.length >= 3
         ? lots(brng, block, { minArea: DENSITY[z.type] ?? 130, chaos: style.chaos * (gridTown ? 0.5 : 1), sizeChaos: style.sizeChaos, emptyProb: style.empty })
         : [];
+      const minArea = DENSITY[z.type] ?? 130;
       for (const lot of raw) {
         const b = settle(lot);
-        if (!b || !dry(b)) continue;
-        // the close round a cathedral, the yard in front of a hall
-        if (great && nearOutline(b, great, 3)) continue;
-        buildings.push(b);
+        if (!b) continue;
+        // A lot the shore runs through is cut again, smaller, and its dry pieces kept: dropped whole,
+        // a ward a river runs through lost its whole bank to the water's edge (a cathedral ward at
+        // Grukdruth, seed 7, all of its houses) — where a waterfront is lined with the smallest plots.
+        const pieces = dry(b) ? [b]
+          : b.some((p) => !inWater(water, p)) && area(b) > minArea * 0.4
+            ? lots(brng, b, { minArea: minArea * 0.35, chaos: 0, sizeChaos: 0.3, emptyProb: 0, margin: 0.2 }).filter(dry)
+            : [];
+        for (const piece of pieces) {
+          // the close round a cathedral, the yard in front of a hall
+          if (great && nearOutline(piece, great, 3)) continue;
+          buildings.push(piece);
+        }
       }
     }
     return { polygon: z.polygon, type: z.type, buildings, inner: z.inner };
@@ -640,7 +664,7 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
   const harbourLabel = labels.find((l) => l.type === "harbor");
   const harbourWard = zoned.find((z) => z.type === "harbor");
   if (harbourLabel && harbourWard && water.bodies.length) {
-    const toWater = (q: Point) => { let d = Infinity; for (const b of water.bodies) for (let i = 0; i < b.length; i++) d = Math.min(d, pointSegDist(q, b[i], b[(i + 1) % b.length])); return d; };
+    const toWater = (q: Point) => { let d = Infinity; for (const b of seaOnly.bodies) for (let i = 0; i < b.length; i++) d = Math.min(d, pointSegDist(q, b[i], b[(i + 1) % b.length])); return d; };
     const bb = bbox(harbourWard.polygon);
     let best: Point | null = null, bd = Infinity;
     for (let y = bb.minY + 1.5; y < bb.maxY; y += 3) for (let x = bb.minX + 1.5; x < bb.maxX; x += 3) {
@@ -778,7 +802,7 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
   }
 
   // harbor: generated LAST of the intramural/water features (its rng draws don't perturb the layout above); sea cities only
-  const harbor = makeHarbor(rng, water, boundary, [center[0], center[1]]);
+  const harbor = makeHarbor(rng, seaOnly, boundary, [center[0], center[1]]);
   // the wharves ARE the dockside warehouses; drop any intramural house they cover so the quay
   // buildings don't visually overlap the town blocks (user-reported "buildings overlapping").
   if (harbor && harbor.wharves.length) {

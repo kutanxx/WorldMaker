@@ -1022,7 +1022,9 @@ describe("a coastal plate faces the way the world faces", () => {
         const l = generateCityLayout(cityContext(c), seed);
         const h = l.wards.find((w) => w.type === "harbor");
         if (!h || !l.water.bodies.length) continue;
-        const d = edgeToWater(h.polygon, l.water.bodies);
+        // the SEA: a port where a river reaches the sea draws the river too, and the docks face the sea
+        const sea = [l.water.bodies[0]];
+        const d = edgeToWater(h.polygon, sea);
         ds.push(d);
         // The rule, not the percentile: the docks take the ward nearest the water, ahead of the
         // plaza, the cathedral and the guildhall. A town whose wards all stand back from the water
@@ -1031,7 +1033,7 @@ describe("a coastal plate faces the way the world faces", () => {
         let bestOther = Infinity;
         for (const w of l.wards) {
           if (w === h || isDrowned(w.polygon, l)) continue;
-          bestOther = Math.min(bestOther, edgeToWater(w.polygon, l.water.bodies));
+          bestOther = Math.min(bestOther, edgeToWater(w.polygon, sea));
         }
         if (d > bestOther + 0.5) landlocked.push(`${c.name} (seed ${seed}): docks ${d.toFixed(0)} from the water, another ward ${bestOther.toFixed(0)}`);
       }
@@ -1326,6 +1328,29 @@ describe("water in a town", () => {
     expect(n).toBeGreaterThan(20);
   });
 
+  // 22 of the 80 river towns of twelve worlds stand where the world's river reaches the sea, and
+  // their plates drew the sea with no river in it at all
+  it("draws the river of a port where the world's river reaches the sea, and keeps its harbour on the sea", () => {
+    let n = 0;
+    for (const { where, c, l } of towns()) {
+      if (!c.coastal || !c.river || c.riverBearing === undefined) continue;
+      n++;
+      expect(l.water.bodies.length, `the river of ${where}`).toBeGreaterThanOrEqual(2);
+      const b = l.water.bodies[1];
+      let mx = 0, my = 0; for (const p of b) { mx += p[0]; my += p[1]; } mx /= b.length; my /= b.length;
+      let sxx = 0, syy = 0, sxy = 0; for (const p of b) { const dx = p[0] - mx, dy = p[1] - my; sxx += dx * dx; syy += dy * dy; sxy += dx * dy; }
+      let d = Math.abs(0.5 * Math.atan2(2 * sxy, sxx - syy) - c.riverBearing) % Math.PI; d = Math.min(d, Math.PI - d);
+      expect((d * 180) / Math.PI, `the river of ${where}`).toBeLessThan(30);
+      // the harbour's quay faces the sea, not the river running into it
+      if (l.harbor) {
+        const q = l.harbor.quay[Math.floor(l.harbor.quay.length / 2)];
+        const toBody = (poly: [number, number][]) => { let dd = Infinity; for (let i = 0; i < poly.length; i++) dd = Math.min(dd, pointSegDist(q, poly[i], poly[(i + 1) % poly.length])); return dd; };
+        expect(toBody(l.water.bodies[0] as [number, number][]), `the quay of ${where}`).toBeLessThan(40);
+      }
+    }
+    expect(n).toBeGreaterThan(15);
+  });
+
   it("wraps a town in the river's bend on most sides", () => {
     let n = 0;
     for (const { where, l } of towns()) {
@@ -1562,6 +1587,10 @@ describe("a town in one world is not a copy of a town in another", () => {
 // (proved over all 336 plates of twelve worlds); what moved is only what was made coarser on purpose —
 // the 17 meander towns' loop (its corners cut three times, not four) and the name of 116 of 122
 // castles (its spot sought on a 2-unit grid, not 1.5). The other 200 plates hold.
+//
+// And for the river mouths: the 22 ports where the world's river reaches the sea draw it now, and a lot
+// the shore runs through is cut again into waterfront plots — 69 plates moved (35 river towns, 31 ports,
+// a lake town and 2 oasis towns); 267 hold.
 describe("a plate is the same plate, byte for byte", () => {
   const fold = (h: number, c: number) => Math.imul(h ^ c, 16777619) >>> 0;
   const fnv = (s: string) => { let h = 2166136261 >>> 0; for (let i = 0; i < s.length; i++) h = fold(h, s.charCodeAt(i)); return h >>> 0; };
@@ -1572,9 +1601,9 @@ describe("a plate is the same plate, byte for byte", () => {
     return { h, n };
   };
   it("draws seed 1's twenty-eight towns exactly as it did", () => {
-    expect(worldHash(1)).toEqual({ h: 2938391531, n: 28 });
+    expect(worldHash(1)).toEqual({ h: 2344518269, n: 28 });
   });
   it("draws seed 12's twenty-eight towns exactly as it did", () => {
-    expect(worldHash(12)).toEqual({ h: 139291029, n: 28 });
+    expect(worldHash(12)).toEqual({ h: 3941486733, n: 28 });
   });
 });
