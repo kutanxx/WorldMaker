@@ -5,6 +5,7 @@ import { centroid, area, pointInPolygon, bbox, pointSegDist, insetEdges, insetPo
 import { selectArchetype } from "./city/archetypes";
 import type { Archetype } from "./city/archetypes";
 import { extractStreets, classifyStreets } from "./city/blockStreets";
+import { streetsOverWater, squareCrossing } from "./city/riverStreets";
 import { chainRoads } from "./city/roads";
 import { buildWater, inWater, waterBridges } from "./city/water";
 import type { Water } from "./city/water";
@@ -98,10 +99,11 @@ export interface CityContext {
   biome: number;
   river?: boolean; // world river through the cell (optional so test fixtures can omit it → no river)
   seaBearing?: number; // which way the open sea lies, in world radians; absent → the plate picks
+  riverBearing?: number; // which way the world's river runs through the town; absent → the plate picks
 }
 
 export function cityContext(c: CityMarker): CityContext {
-  return { id: c.id, name: c.name, size: c.size, coastal: c.coastal, isCapital: c.isCapital, elevation: c.elevation, biome: c.biome, river: c.river, seaBearing: c.seaBearing };
+  return { id: c.id, name: c.name, size: c.size, coastal: c.coastal, isCapital: c.isCapital, elevation: c.elevation, biome: c.biome, river: c.river, seaBearing: c.seaBearing, riverBearing: c.riverBearing };
 }
 
 function offsetSegment(seg: Polyline, c: Point, d: number): Polyline {
@@ -178,7 +180,7 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
   const pick = mulberry32(plateSeed(worldSeed, ctx.id + 4200))();
   const archetype = selectArchetype({ coastal: ctx.coastal, elevation: ctx.elevation, size: ctx.size, biome: ctx.biome, pick, river: ctx.river });
 
-  const water = buildWater(rng, archetype.water, bounds, ctx.seaBearing, radius);
+  const water = buildWater(rng, archetype.water, bounds, ctx.seaBearing, radius, ctx.riverBearing);
   if (archetype.oasis) {
     const or = radius * 0.12;
     const oasisPoly: Polygon = [];
@@ -206,71 +208,39 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
   // town; the renderer clips away whatever hangs outside the wall.
   // (the mesh is already confined to the town: generateWards drops outside sites before building
   // the diagram, so there is no cell here that does not belong to the place)
-  const streetGraph = extractStreets(wardCells);
+  // ★ The water comes out of the street network before any road is chosen (see riverStreets.ts):
+  // streets in the channel are dropped, streets that meet it stop at the bank, and a river town's
+  // banks are joined by square crossings. A town with no water keeps its network exactly.
+  const riverTown = archetype.water === "river" || archetype.water === "meander" || archetype.water === "loop";
+  const net = streetsOverWater(extractStreets(wardCells), water, boundary, riverTown);
+  const streetGraph = net.graph;
+  const onStreet = new Set<number>(streetGraph.edges.flat());
 
   const maxGates = 2 + Math.floor(ctx.size / 3);
-  // gates sit where streets reach the wall: feed the street nodes as candidate road-ends
-  const wall = wallFromDefenses(boundary, water, mountains, streetGraph.nodes.map((nd) => [nd, nd]), maxGates);
+  // gates sit where streets reach the wall: feed the street nodes as candidate road-ends — the ones
+  // still on a street, on dry ground (a node the water cut off is no road-end)
+  const roadEnds = streetGraph.nodes.filter((nd, i) => onStreet.has(i) && !inWater(water, nd));
+  const wall = wallFromDefenses(boundary, water, mountains, roadEnds.map((nd) => [nd, nd]), maxGates);
 
-  const classified = classifyStreets(streetGraph, wall.gates, [center[0], center[1]]);
-  // drop MINOR streets that run through water (buildings avoid water so those blocks are empty);
-  // main streets/stubs are kept and bridged where they cross water
+  // a straight link a gate or a stranded street may lay to the network, provided it stays dry
+  const dryLink = (a: Point, b: Point) => {
+    const n = Math.max(1, Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) / 2));
+    for (let k = 0; k <= n; k++) if (inWater(water, [a[0] + ((b[0] - a[0]) * k) / n, a[1] + ((b[1] - a[1]) * k) / n])) return false;
+    return true;
+  };
+  const classified = classifyStreets(streetGraph, wall.gates, [center[0], center[1]], water.bodies.length ? dryLink : undefined);
   let mainRoads = classified.main;
-  // drop main segments that lie ENTIRELY in water (no bridge possible); one-wet-one-dry crossings
-  // are kept and bridged by waterBridges below
-  mainRoads = mainRoads.filter((r) => !(r.length === 2 && inWater(water, r[0]) && inWater(water, r[1])));
-  let minorRoads = classified.minor.filter((s) => !inWater(water, [(s[0][0] + s[1][0]) / 2, (s[0][1] + s[1][1]) / 2]));
+  const minorRoads = [...classified.minor, ...net.stubs];
   // ...and only now are the main streets roads rather than the pieces a shortest path was cut into:
   // stitched into continuous runs that carry straight on through a junction, with the stretches
-  // drawn twice thrown out and the corners eased. Done here, after the water filter and before the
-  // bridges, so a crossing is measured against the road as it will be drawn.
+  // drawn twice thrown out and the corners eased. Done before the bridges, so a crossing is
+  // measured against the road as it will be drawn.
   mainRoads = chainRoads(mainRoads, wall.gates);
-  water.bridges = waterBridges([...mainRoads, ...minorRoads], water);
-
-  // river towns: the block streets rarely cross the channel on their own, so a river bisecting the
-  // town got one floating bridge and the banks read as disconnected. Add real crossings — a bridge
-  // is a ROAD continued across the river: nearest street on bank A → the bank → (bridge over the
-  // water) → the far bank → nearest street on bank B (user: "the bridge doesn't join road to road").
-  if ((archetype.water === "river" || archetype.water === "meander") && water.bodies.length) {
-    const roadPts: Point[] = [...mainRoads, ...minorRoads].flat();
-    const nearestSameBank = (p: Point): Point | null => {
-      let best: Point | null = null, bd = 55 * 55;
-      for (const q of roadPts) {
-        const d = (q[0] - p[0]) ** 2 + (q[1] - p[1]) ** 2;
-        if (d >= bd) continue;
-        if (inWater(water, [(q[0] + p[0]) / 2, (q[1] + p[1]) / 2])) continue; // q must be on p's side (run doesn't cross the channel)
-        bd = d; best = q;
-      }
-      return best;
-    };
-    const bb = bbox(water.bodies[0]);
-    const horizontal = bb.maxX - bb.minX > bb.maxY - bb.minY; // river runs along its longer axis
-    const [lo, hi] = horizontal ? [bb.minX, bb.maxX] : [bb.minY, bb.maxY];
-    const [slo, shi] = horizontal ? [bb.minY, bb.maxY] : [bb.minX, bb.maxX];
-    const crossings: Polyline[] = [];
-    for (const tt of [0.3, 0.5, 0.7]) {
-      const along = lo + (hi - lo) * tt;
-      let prevWet = false, entry: number | null = null, exit: number | null = null;
-      for (let s = slo - 8; s <= shi + 8; s += 1) { // scan across the channel for the wet span
-        const p: Point = horizontal ? [along, s] : [s, along];
-        const wet = inWater(water, p);
-        if (wet && !prevWet) entry = s;
-        if (!wet && prevWet) { exit = s; break; }
-        prevWet = wet;
-      }
-      if (entry === null || exit === null) continue;
-      const p1: Point = horizontal ? [along, entry - 3] : [entry - 3, along]; // dry banks on both sides
-      const p2: Point = horizontal ? [along, exit + 3] : [exit + 3, along];
-      if (!pointInPolygon(p1, boundary) || !pointInPolygon(p2, boundary)) continue; // both banks in town
-      const a = nearestSameBank(p1), b = nearestSameBank(p2);
-      if (!a || !b) continue; // no street near a bank → skip (don't leave a bridge dangling in open ground)
-      const mid: Point = [(p1[0] + p2[0]) / 2, (p1[1] + p2[1]) / 2];
-      if (water.bridges.some((br) => Math.hypot((br[0][0] + br[1][0]) / 2 - mid[0], (br[0][1] + br[1][1]) / 2 - mid[1]) < 16)) continue; // not on an existing crossing
-      crossings.push([a, p1, p2, b]);  // a road that runs bank-to-bank via the bridge
-      water.bridges.push([p1, p2]);    // the bridge deck spanning the wet part
-    }
-    if (crossings.length) mainRoads = [...mainRoads, ...crossings];
-  }
+  // A bridge is drawn where a road the plate DRAWS crosses the water. The ward mesh runs on past
+  // the wall and the plate clips its streets to the town, so a crossing out there carried a bridge
+  // over the river with no road to either end of it — 39 of them over twelve worlds.
+  water.bridges = waterBridges([...mainRoads, ...minorRoads], water)
+    .filter(([a, b]) => pointInPolygon([(a[0] + b[0]) / 2, (a[1] + b[1]) / 2], boundary));
 
   const moat = MOAT_ARCHETYPES.has(archetype.id)
     ? wall.segments.map((s) => offsetSegment(s, center, 6).map((o, i) => (inWater(water, o) ? s[i] : o)))
@@ -624,16 +594,30 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
   for (const g of wall.gates) {
     const dx = g[0] - center[0], dy = g[1] - center[1];
     const gl = Math.hypot(dx, dy) || 1;
-    const ux = dx / gl, uy = dy / gl;        // outward unit
+    // ★ Straight out from the middle of the town, or turned up to 45 degrees where straight out
+    // runs into the water at the edge of the plate. A river town's gate stands by its river, and
+    // the road straight out of it ran down the channel to the edge — so it was dropped, and a town
+    // whose only gate that was had no road out at all.
+    let road: { ux: number; uy: number; start: Point; L: number; end: Point } | null = null;
+    for (const turn of [0, 0.26, -0.26, 0.52, -0.52, 0.78, -0.78]) {
+      const c = Math.cos(turn), s = Math.sin(turn);
+      const ux = (dx * c - dy * s) / gl, uy = (dx * s + dy * c) / gl;
+      const start: Point = [g[0] + ux * 8, g[1] + uy * 8]; // clear wall + moat
+      const distX = ux > 0.001 ? (bounds.w - 3 - start[0]) / ux : ux < -0.001 ? (3 - start[0]) / ux : Infinity;
+      const distY = uy > 0.001 ? (bounds.h - 3 - start[1]) / uy : uy < -0.001 ? (3 - start[1]) / uy : Infinity;
+      const room = Math.min(distX, distY);
+      if (room < 14 || inWater(water, start) || inMountains(mountains, start) || !inCanvas(start) || pointInPolygon(start, boundary)) continue;
+      const L = room - 1;                       // run all the way to the canvas edge
+      const end: Point = [start[0] + ux * L, start[1] + uy * L];
+      if (inWater(water, end) || inMountains(mountains, end)) continue; // don't run a highway into the sea
+      // ...and it crosses water, if at all, the way the town's own bridges do: once, and square
+      if (!dryLink(start, end) && !squareCrossing(start, end, water)) continue;
+      road = { ux, uy, start, L, end };
+      break;
+    }
+    if (!road) continue;
+    const { ux, uy, start, L, end } = road;
     const nx = -uy, ny = ux;                  // perpendicular unit
-    const start: Point = [g[0] + ux * 8, g[1] + uy * 8]; // clear wall + moat
-    const distX = ux > 0.001 ? (bounds.w - 3 - start[0]) / ux : ux < -0.001 ? (3 - start[0]) / ux : Infinity;
-    const distY = uy > 0.001 ? (bounds.h - 3 - start[1]) / uy : uy < -0.001 ? (3 - start[1]) / uy : Infinity;
-    const room = Math.min(distX, distY);
-    if (room < 14 || inWater(water, start) || inMountains(mountains, start) || !inCanvas(start)) continue;
-    const L = room - 1;                       // run all the way to the canvas edge
-    const end: Point = [start[0] + ux * L, start[1] + uy * L];
-    if (inWater(water, end)) continue; // don't run a highway into the sea
     // gentle bend at the midpoint so the highway reads hand-drawn, not ruled
     const bendOff = (rng() - 0.5) * 12;
     const mid: Point = [start[0] + ux * L * 0.5 + nx * bendOff, start[1] + uy * L * 0.5 + ny * bendOff];
@@ -665,6 +649,10 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
       }
     }
   }
+  // A road out of a gate that crosses the water on its way to the edge of the plate crosses it on a
+  // bridge: it used to be drawn straight over the river (11 plates of twelve worlds).
+  water.bridges.push(...waterBridges(suburbRoads, water));
+
   const outworks: Outwork[] = [];
   const nearWater = (p: Point) =>
     inWater(water, [p[0] + 4, p[1]]) || inWater(water, [p[0] - 4, p[1]]) ||

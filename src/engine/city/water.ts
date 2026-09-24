@@ -45,8 +45,11 @@ const STRAND = 16;
  * could not find a seaward edge — so those plates carried a district named Harbour with no quay,
  * no breakwater and no boats, under a header calling the place a port town. The waterline is now
  * pulled in to within a strand of the wall. Omitted, the shore sits wherever it was drawn.
+ * @param riverBearing which way the world's river runs through the town (same frame). A river was
+ * drawn north-south or east-west on a coin toss, and 30 of 57 river towns over twelve worlds had it
+ * more than 45 degrees off the river the world map draws through them. Omitted, the toss decides.
  */
-export function buildWater(rng: Rng, kind: WaterKind, bounds: { w: number; h: number }, seaBearing?: number, townReach?: number): Water {
+export function buildWater(rng: Rng, kind: WaterKind, bounds: { w: number; h: number }, seaBearing?: number, townReach?: number, riverBearing?: number): Water {
   const { w, h } = bounds;
   if (kind === "none") return { kind, bodies: [], bridges: [] };
 
@@ -115,9 +118,21 @@ export function buildWater(rng: Rng, kind: WaterKind, bounds: { w: number; h: nu
     return { kind, bodies: [polygon], bridges: [] };
   }
 
+  const plate: Polygon = [[0, 0], [w, 0], [w, h], [0, h]];
+  const onPlate = (poly: Polygon): Polygon[] => { const c = clipToConvex(poly, plate); return c.length >= 3 ? [c] : [poly]; };
+
   if (kind === "lake") {
-    const cx = w * (0.35 + rng() * 0.3), cy = h * (0.35 + rng() * 0.3);
-    const r = 28 + rng() * 22;
+    // ★ Beside the town, not in it. The lake was dropped anywhere in the middle half of the plate,
+    // so it stood inside the walls more often than not: the streets ran across it on long bridges,
+    // parish churches stood in the water, and a cathedral ward it drowned went without its church.
+    // A lake the world map does not draw is the plate's own invention; it should at least be where
+    // a town is ON a lake — against its wall, the wall following the shore. Same draws, same order.
+    const a1 = rng(), a2 = rng();
+    const r = 34 + rng() * 26;
+    const reach = townReach ?? 90;
+    // its near shore about where the wall runs (the wall itself wanders a fifth either side)
+    const ang = a1 * Math.PI * 2, d = reach + r * (0.85 + a2 * 0.2);
+    const cx = w / 2 + Math.cos(ang) * d, cy = h / 2 + Math.sin(ang) * d;
     const poly: Polygon = [];
     const n = 14;
     for (let i = 0; i < n; i++) {
@@ -125,23 +140,66 @@ export function buildWater(rng: Rng, kind: WaterKind, bounds: { w: number; h: nu
       const rr = r * (0.75 + rng() * 0.4);
       poly.push([cx + Math.cos(a) * rr, cy + Math.sin(a) * rr]);
     }
-    return { kind, bodies: [poly], bridges: [] };
+    return { kind, bodies: onPlate(poly), bridges: [] };
   }
 
-  // river / meander: a winding centre line crossing the map, turned into a ribbon
+  // river / meander / loop: a winding centre line crossing the plate, turned into a ribbon. The
+  // draws are the ones the river always made, in the order it made them.
   const vertical = kind === "river" ? rng() < 0.5 : true;
-  const center: Polyline = [];
-  const steps = 12;
-  const amp = kind === "meander" ? 70 : 40;
-  const base = vertical ? w * (0.4 + rng() * 0.2) : h * (0.4 + rng() * 0.2);
-  for (let i = 0; i <= steps; i++) {
-    const t = i / steps;
-    const off = Math.sin(t * Math.PI * (kind === "meander" ? 3 : 2)) * amp * (0.75 + rng() * 0.5);
-    if (vertical) center.push([base + off, t * h]);
-    else center.push([t * w, base + off]);
+  const baseDraw = rng();
+  const jit: number[] = [];
+  for (let i = 0; i <= 12; i++) jit.push(0.75 + rng() * 0.5);
+  const flow = riverBearing ?? (vertical ? Math.PI / 2 : 0);
+  const ux = Math.cos(flow), uy = Math.sin(flow);
+
+  if (kind === "loop") {
+    // A town in the river's bend, the way Toledo and Besançon sit in theirs: the river comes in from
+    // upstream, turns up round the town and back, and leaves downstream, leaving one neck of land as
+    // the way in. It used to be a sine wave laid straight through the middle of the plate, which
+    // cut the town in two and put its "bridges" lengthwise in the channel.
+    const R = (townReach ?? 90) + 24;
+    const bulge = baseDraw < 0.5 ? 1 : -1;            // which bank of the river the loop swings out to
+    const vx = -uy * bulge, vy = ux * bulge;
+    const at = (u: number, v: number): Point => [w / 2 + ux * u * R + vx * v * R, h / 2 + uy * u * R + vy * v * R];
+    const wob = (i: number) => 1 + (jit[i] - 1) * 0.2;   // the drawn jitter, as a few percent of reach
+    let path: Point[] = [
+      at(-3.4, -2.6), at(-1.6, -1.6), at(-0.55, -1.08),
+      at(-1.0 * wob(2), -0.35 * wob(2)), at(-1.0 * wob(3), 0.45 * wob(3)), at(-0.45 * wob(4), 1.0 * wob(4)),
+      at(0.45 * wob(5), 1.0 * wob(5)), at(1.0 * wob(6), 0.45 * wob(6)), at(1.0 * wob(7), -0.35 * wob(7)),
+      at(0.55, -1.08), at(1.6, -1.6), at(3.4, -2.6),
+    ];
+    // corner cutting (Chaikin) until the bends are curves
+    for (let k = 0; k < 4; k++) {
+      const next: Point[] = [path[0]];
+      for (let i = 0; i < path.length - 1; i++) {
+        const a = path[i], b = path[i + 1];
+        next.push([a[0] * 0.75 + b[0] * 0.25, a[1] * 0.75 + b[1] * 0.25], [a[0] * 0.25 + b[0] * 0.75, a[1] * 0.25 + b[1] * 0.75]);
+      }
+      next.push(path[path.length - 1]);
+      path = next;
+    }
+    return { kind, bodies: onPlate(ribbon(path, 14)), bridges: [] };
   }
-  const poly = ribbon(center, kind === "meander" ? 16 : 11);
-  return { kind, bodies: [poly], bridges: [] };
+
+  // A river (or a marsh's channel) runs the way the world's river runs, crossing the plate at any
+  // angle: laid along the flow, carried past the plate's corners, cut back to the plate.
+  const amp = kind === "meander" ? 70 : 40, waves = kind === "meander" ? 3 : 2, half = kind === "meander" ? 16 : 11;
+  const vx = -uy, vy = ux;
+  const side = Math.min(w, h), far = Math.hypot(w, h) / 2 + 24;
+  const v0 = (baseDraw - 0.5) * 0.2 * side;          // where it passes the middle: 0.4..0.6 of the plate
+  const jitAt = (t: number) => {
+    const x = Math.max(0, Math.min(12, t * 12)), i = Math.min(11, Math.floor(x)), f = x - i;
+    return jit[i] * (1 - f) + jit[i + 1] * f;
+  };
+  const center: Polyline = [];
+  const N = 60;
+  for (let i = 0; i <= N; i++) {
+    const along = -far + (2 * far * i) / N;
+    const t = (along + side / 2) / side;              // 0..1 across the plate, as the waves were laid
+    const off = v0 + Math.sin(t * Math.PI * waves) * amp * jitAt(t);
+    center.push([w / 2 + ux * along + vx * off, h / 2 + uy * along + vy * off]);
+  }
+  return { kind, bodies: onPlate(ribbon(center, half)), bridges: [] };
 }
 
 export function inWater(water: Water, p: Point): boolean {

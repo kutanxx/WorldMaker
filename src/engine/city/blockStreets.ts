@@ -45,21 +45,30 @@ export function extractStreets(wards: WardCell[]): StreetGraph {
   return { nodes, edges, segments };
 }
 
+/**
+ * @param dry whether a straight link from a to b may be laid — a gate's stub onto the network, or
+ * the stub to the middle of a network the gate cannot reach. A town with water in it passes one, so
+ * neither is laid across the river; a town without water is laid exactly as it always was.
+ */
 export function classifyStreets(
-  graph: StreetGraph, gates: Point[], centre: Point,
+  graph: StreetGraph, gates: Point[], centre: Point, dry: (a: Point, b: Point) => boolean = () => true,
 ): { main: Polyline[]; minor: Polyline[] } {
   const { nodes, edges } = graph;
   if (nodes.length === 0) return { main: [], minor: [] };
-  const nearestNode = (p: Point) => {
-    let bi = 0, bd = Infinity;
-    for (let i = 0; i < nodes.length; i++) {
-      const d = (nodes[i][0] - p[0]) ** 2 + (nodes[i][1] - p[1]) ** 2;
-      if (d < bd) { bd = d; bi = i; }
-    }
-    return bi;
-  };
   const adj: { to: number; edge: number }[][] = nodes.map(() => []);
   edges.forEach(([a, b], ei) => { adj[a].push({ to: b, edge: ei }); adj[b].push({ to: a, edge: ei }); });
+  // the nearest node that is on a street (a node the water has cut off has none), and that a
+  // straight link from p could reach dry — or, failing that, the nearest on a street at all
+  const nearestNode = (p: Point) => {
+    let bi = -1, bd = Infinity, fi = 0, fd = Infinity;
+    for (let i = 0; i < nodes.length; i++) {
+      if (!adj[i].length) continue;
+      const d = (nodes[i][0] - p[0]) ** 2 + (nodes[i][1] - p[1]) ** 2;
+      if (d < fd) { fd = d; fi = i; }
+      if (d < bd && dry(p, nodes[i])) { bd = d; bi = i; }
+    }
+    return bi >= 0 ? bi : fi;
+  };
   const wlen = (ei: number) => { const [a, b] = edges[ei]; return Math.hypot(nodes[a][0] - nodes[b][0], nodes[a][1] - nodes[b][1]); };
   const centreNode = nearestNode(centre);
   const mainEdge = new Set<number>();
@@ -85,7 +94,7 @@ export function classifyStreets(
     if (dist[centreNode] < Infinity && centreNode !== start) {
       let cur = centreNode;
       while (cur !== start && prevEdge[cur] !== -1) { mainEdge.add(prevEdge[cur]); cur = prevNode[cur]; }
-    } else if (centreNode !== start) {
+    } else if (centreNode !== start && dry(nodes[start], centre)) {
       stubs.push([nodes[start], centre]);             // fallback: disconnected graph
     }
   }

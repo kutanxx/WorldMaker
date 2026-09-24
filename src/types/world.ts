@@ -30,6 +30,9 @@ export interface CityMarker {
   // coastal cities only. The city plate's north is the world's north, so its water can be laid
   // where the world actually put it instead of on an edge drawn from the town's own rng.
   seaBearing?: number;
+  // which way the world's river runs through this town (atan2 radians, +x east, +y south), for river
+  // towns only, so the plate's river runs where the world map draws it
+  riverBearing?: number;
 }
 
 export interface Polity {

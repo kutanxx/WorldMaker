@@ -61,20 +61,20 @@ describe("city organic", () => {
   });
   it("shows a river in the drilldown when a world river runs through the city cell (world<->city coupling)", () => {
     const withRiver = generateCityLayout({ id: 7, name: "T", size: 4, coastal: false, isCapital: false, elevation: 0.4, biome: GRASSLAND, river: true }, 1);
-    // a river cell yields one of the two river kinds — crossed by bridges, or wrapped by a meander
+    // a river cell yields one of the two river kinds — crossed by bridges, or wrapped by a loop of it
     expect(["bridgeTown", "meanderDefense"]).toContain(withRiver.archetype.id);
-    expect(["river", "meander"]).toContain(withRiver.water.kind);
+    expect(["river", "loop"]).toContain(withRiver.water.kind);
     expect(withRiver.water.bodies.length).toBeGreaterThan(0);
-    // a river town is defended by the river, not a separate moat ring, and the banks are joined by
-    // bridges spanning the channel (a river bisecting the town used to get just one)
+    // a river town is defended by the river, not a separate moat ring, and its river is crossed —
+    // the banks of a town it runs through, or the road out of a town it wraps
     expect(withRiver.moat).toBeNull();
-    expect(withRiver.water.bridges.length).toBeGreaterThanOrEqual(2);
+    expect(withRiver.water.bridges.length).toBeGreaterThanOrEqual(1);
     // every bridge is the continuation of a road across the river — an abutment sits ON the road
     // (a floating bridge line that didn't meet any road read as "just a line", user-reported).
     // This used to demand a road VERTEX at each end, which held only while a bridge WAS a whole road
     // segment; now it spans the crossing itself, so it starts anywhere along the road and its far
     // end lands on whatever the road reaches next — the chord across a bend in the street.
-    const roads = [...withRiver.mainRoads, ...withRiver.minorRoads];
+    const roads = [...withRiver.mainRoads, ...withRiver.minorRoads, ...withRiver.suburbRoads];
     const toRoad = (p: [number, number]) => {
       let best = Infinity;
       for (const r of roads) for (let k = 0; k < r.length - 1; k++) best = Math.min(best, pointSegDist(p, r[k], r[k + 1]));
@@ -1273,6 +1273,116 @@ describe("the houses of a town", () => {
   });
 });
 
+// ★ Water in a town. Over twelve worlds before this: a river was drawn north-south or east-west on a
+// coin toss (30 of 57 river towns more than 45 degrees off the river the world map draws through
+// them); a town "in the river's bend" was cut in two by a wave rather than wrapped in a loop; a plains
+// town's lake sat inside its walls; streets ran IN the channel and their bridges lay lengthwise in it
+// (91 pairs under 25 apart, up to 115 long); 39 bridges stood over the river outside the town with no
+// road to either end; and 11 roads out of a gate crossed the river on no bridge at all.
+describe("water in a town", () => {
+  const towns = (() => {
+    let memo: { where: string; c: CityMarker; l: ReturnType<typeof generateCityLayout> }[] | null = null;
+    return () => {
+      if (memo) return memo;
+      memo = [];
+      for (let seed = 1; seed <= 12; seed++) {
+        const w = generateWorld({ ...DEFAULT_PARAMS, seed }).world;
+        for (const c of w.cities) memo.push({ where: `${c.name} (seed ${seed}, ${c.id})`, c, l: generateCityLayout(cityContext(c), seed) });
+      }
+      return memo;
+    };
+  })();
+  const segDist = (p: [number, number], r: [number, number][]) => {
+    let d = Infinity;
+    for (let i = 0; i < r.length - 1; i++) d = Math.min(d, pointSegDist(p, r[i], r[i + 1]));
+    return d;
+  };
+
+  it("runs a river town's river the way the world's river runs", () => {
+    let n = 0;
+    for (const { where, c, l } of towns()) {
+      if (c.riverBearing === undefined || (l.water.kind !== "river" && l.water.kind !== "meander")) continue;
+      n++;
+      // the long axis of the channel as drawn
+      const b = l.water.bodies[0];
+      let mx = 0, my = 0; for (const p of b) { mx += p[0]; my += p[1]; } mx /= b.length; my /= b.length;
+      let sxx = 0, syy = 0, sxy = 0; for (const p of b) { const dx = p[0] - mx, dy = p[1] - my; sxx += dx * dx; syy += dy * dy; sxy += dx * dy; }
+      const axis = 0.5 * Math.atan2(2 * sxy, sxx - syy);
+      let d = Math.abs(axis - c.riverBearing) % Math.PI; d = Math.min(d, Math.PI - d);
+      expect((d * 180) / Math.PI, `the river of ${where}`).toBeLessThan(30);
+    }
+    expect(n).toBeGreaterThan(20);
+  });
+
+  it("wraps a town in the river's bend on most sides", () => {
+    let n = 0;
+    for (const { where, l } of towns()) {
+      if (l.archetype.id !== "meanderDefense") continue;
+      n++;
+      const reach = Math.max(...l.boundary.map((p) => Math.hypot(p[0] - 230, p[1] - 230)));
+      let met = 0;
+      for (let k = 0; k < 36; k++) {
+        const a = (k / 36) * Math.PI * 2;
+        for (let r = reach * 0.9; r < 230; r += 2) if (inWater(l.water, [230 + Math.cos(a) * r, 230 + Math.sin(a) * r])) { met++; break; }
+      }
+      expect(met / 36, `the bend round ${where}`).toBeGreaterThan(0.6);
+    }
+    expect(n).toBeGreaterThan(5);
+  });
+
+  it("sets a plains town's lake beside it, not in it", () => {
+    let n = 0;
+    for (const { where, l } of towns()) {
+      if (l.water.kind !== "lake") continue;
+      n++;
+      const lake = l.water.bodies[0], bb = bbox(lake);
+      let wet = 0, walled = 0;
+      for (let y = bb.minY; y < bb.maxY; y += 2) for (let x = bb.minX; x < bb.maxX; x += 2) {
+        if (!pointInPolygon([x, y], lake)) continue;
+        wet++;
+        if (pointInPolygon([x, y], l.boundary)) walled++;
+      }
+      expect(walled / wet, `the lake inside ${where}`).toBeLessThan(0.2);
+    }
+    expect(n).toBeGreaterThan(20);
+  });
+
+  it("draws a bridge only where a drawn road crosses the water", () => {
+    for (const { where, l } of towns()) for (const [a, b] of l.water.bridges) {
+      const mid: [number, number] = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+      const onRoadOut = l.suburbRoads.some((r) => segDist(mid, r as [number, number][]) < 2);
+      expect(pointInPolygon(mid, l.boundary) || onRoadOut, `a bridge with no road at ${where}`).toBe(true);
+    }
+  });
+
+  it("crosses the water square, one bridge to a crossing", () => {
+    let bridges = 0;
+    for (const { where, l } of towns()) {
+      const br = l.water.bridges;
+      bridges += br.length;
+      for (const [a, b] of br) expect(Math.hypot(b[0] - a[0], b[1] - a[1]), `a bridge along the river at ${where}`).toBeLessThan(50);
+      for (let i = 0; i < br.length; i++) for (let j = i + 1; j < br.length; j++) {
+        const m1 = [(br[i][0][0] + br[i][1][0]) / 2, (br[i][0][1] + br[i][1][1]) / 2], m2 = [(br[j][0][0] + br[j][1][0]) / 2, (br[j][0][1] + br[j][1][1]) / 2];
+        expect(Math.hypot(m1[0] - m2[0], m1[1] - m2[1]), `two bridges on one crossing at ${where}`).toBeGreaterThan(25);
+      }
+    }
+    expect(bridges).toBeGreaterThan(60);
+  });
+
+  it("bridges every road out of a gate that crosses the water", () => {
+    for (const { where, l } of towns()) for (const r of l.suburbRoads) {
+      let wet = false;
+      for (let i = 0; i < r.length - 1 && !wet; i++) for (let k = 1; k < 20; k++) {
+        const p: [number, number] = [r[i][0] + ((r[i + 1][0] - r[i][0]) * k) / 20, r[i][1] + ((r[i + 1][1] - r[i][1]) * k) / 20];
+        if (inWater(l.water, p)) { wet = true; break; }
+      }
+      if (!wet) continue;
+      const bridged = l.water.bridges.some(([a, b]) => segDist(a, r as [number, number][]) < 3 && segDist(b, r as [number, number][]) < 3);
+      expect(bridged, `a road over the water with no bridge at ${where}`).toBe(true);
+    }
+  });
+});
+
 // A plate's numbers were keyed by (world seed XOR town id), so world 2's town 4 drew what world 3's
 // town 5 drew, and when the two were the same kind and size of town they were the same drawing
 // under another name — 16 of the 336 plates of worlds 1-12, 105 of 1,120 over worlds 1-40.
@@ -1315,6 +1425,10 @@ describe("a town in one world is not a copy of a town in another", () => {
 //
 // And again for the houses: every plate moved — the lots are cut along their streets now, from a
 // stream of their own (so the main stream, and with it the country round every town, moved once more).
+//
+// And for the water: every river, loop, lake, marsh and oasis town and 103 of 139 ports moved (the
+// water comes out of the street network; the river runs the world's way; the bend wraps its town; the
+// lake stands beside it), and 4 mountain towns whose road out turned off the cliff. The other 116 held.
 describe("a plate is the same plate, byte for byte", () => {
   const fold = (h: number, c: number) => Math.imul(h ^ c, 16777619) >>> 0;
   const fnv = (s: string) => { let h = 2166136261 >>> 0; for (let i = 0; i < s.length; i++) h = fold(h, s.charCodeAt(i)); return h >>> 0; };
@@ -1325,9 +1439,9 @@ describe("a plate is the same plate, byte for byte", () => {
     return { h, n };
   };
   it("draws seed 1's twenty-eight towns exactly as it did", () => {
-    expect(worldHash(1)).toEqual({ h: 4141238281, n: 28 });
+    expect(worldHash(1)).toEqual({ h: 1872649511, n: 28 });
   });
   it("draws seed 12's twenty-eight towns exactly as it did", () => {
-    expect(worldHash(12)).toEqual({ h: 834570937, n: 28 });
+    expect(worldHash(12)).toEqual({ h: 2218615901, n: 28 });
   });
 });

@@ -6,7 +6,7 @@ export type ArchetypeId =
   | "forestGrove" | "marshStilt" | "desertOasis"
   | "hillside" | "spur" | "valleyPass";
 export type StreetField = "radial" | "grid" | "linear" | "organic";
-export type WaterKind = "sea" | "river" | "lake" | "meander" | "none";
+export type WaterKind = "sea" | "river" | "lake" | "meander" | "loop" | "none";
 export type WallShape = "hull" | "rect" | "contour" | "riverbank";
 
 export interface Archetype {
@@ -28,7 +28,7 @@ export const TABLE: Record<ArchetypeId, Archetype> = {
   coastalPort: { id: "coastalPort", streetField: "organic", wallShape: "hull", water: "sea", ...BASE },
   bridgeTown: { id: "bridgeTown", streetField: "linear", wallShape: "riverbank", water: "river", ...BASE },
   hilltopFortress: { id: "hilltopFortress", streetField: "radial", wallShape: "contour", water: "none", ...BASE },
-  meanderDefense: { id: "meanderDefense", streetField: "organic", wallShape: "riverbank", water: "meander", ...BASE },
+  meanderDefense: { id: "meanderDefense", streetField: "organic", wallShape: "riverbank", water: "loop", ...BASE },
   plainsMarket: { id: "plainsMarket", streetField: "grid", wallShape: "rect", water: "lake", ...BASE },
   forestGrove: { id: "forestGrove", streetField: "organic", wallShape: "hull", water: "none", ...BASE, wallMaterial: "timber", vegetation: "trees", groundColor: "#e3e7d0" },
   marshStilt: { id: "marshStilt", streetField: "organic", wallShape: "riverbank", water: "meander", ...BASE, wallMaterial: "timber", onStilts: true, groundColor: "#dfe4dc" },

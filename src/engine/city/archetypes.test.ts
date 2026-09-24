@@ -52,7 +52,8 @@ describe("selectArchetype", () => {
     expect(selectArchetype({ ...inland, elevation: 0.9, biome: GRASSLAND, river: true }).id).toBe("hilltopFortress");
     // both river kinds carry water; only which kind differs
     expect(selectArchetype({ ...inland, biome: GRASSLAND, river: true, pick: 0.9 }).water).toBe("river");
-    expect(selectArchetype({ ...inland, biome: GRASSLAND, river: true, pick: 0.1 }).water).toBe("meander");
+    // the town in the bend is wrapped by a loop of its river, not crossed by a wave of it
+    expect(selectArchetype({ ...inland, biome: GRASSLAND, river: true, pick: 0.1 }).water).toBe("loop");
   });
   it("spreads the high ground across all of its kinds of town, by `pick`", () => {
     const mtn = { ...inland, elevation: 0.9, biome: GRASSLAND };
