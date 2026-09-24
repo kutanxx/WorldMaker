@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { mulberry32 } from "../rng";
-import { area } from "../geometry";
+import { area, pointSegDist } from "../geometry";
 import type { Point, Polyline } from "../geometry";
 import { buildWater, inWater, waterBridges } from "./water";
 
@@ -225,5 +225,59 @@ describe("the sea lies where the world says it lies", () => {
   it("falls back to a drawn side when the world has not said which way", () => {
     const water = buildWater(mulberry32(7), "sea", bounds);
     expect(water.bodies.length).toBe(1);
+  });
+});
+
+// The river does at a town what the world's river does there (see world.ts): it turns at a town in its
+// bend the way the world's turns, and a town where the world's river rises has it rise there.
+describe("the river at a town does what the world's does", () => {
+  const R = 90;
+  // how far along the flow each point of the water lies from the middle of the plate, and how far to
+  // its right (the flow turned a quarter clockwise on the map)
+  const frame = (flow: number) => ({
+    along: (p: Point) => (p[0] - 150) * Math.cos(flow) + (p[1] - 150) * Math.sin(flow),
+    right: (p: Point) => -(p[0] - 150) * Math.sin(flow) + (p[1] - 150) * Math.cos(flow),
+  });
+
+  // The loop is drawn round the town in the point of a V: the river comes in on one side of its chord
+  // and leaves on the other, some 60 degrees turned. Its legs — where it comes and goes, off the edge
+  // of the plate — lie on the side the world's river turns toward, and the loop swings out the other.
+  it("swings the loop round the town the way the world's river turns", () => {
+    for (const flow of [0, 1.1, -2.3]) for (const turn of [-0.9, 0.9]) {
+      const w = buildWater(mulberry32(4), "loop", B, undefined, R, flow, { turn });
+      const edge = w.bodies[0].filter((p) => p[0] < 0.5 || p[0] > B.w - 0.5 || p[1] < 0.5 || p[1] > B.h - 0.5);
+      expect(edge.length, `flow ${flow}, turn ${turn}`).toBeGreaterThan(0);
+      const side = edge.reduce((t, p) => t + frame(flow).right(p), 0) / edge.length;
+      expect(Math.sign(side), `flow ${flow}, turn ${turn}`).toBe(Math.sign(turn));
+    }
+  });
+
+  it("raises the river at a town where the world's river rises, and runs it on from there", () => {
+    for (const flow of [0, 1.1, -2.3]) {
+      const { along } = frame(flow);
+      const rises = buildWater(mulberry32(4), "river", B, undefined, R, flow, { rises: true });
+      expect(rises.bodies.length).toBe(1);
+      const a = rises.bodies[0].map(along);
+      expect(Math.min(...a), `flow ${flow}: it begins in the town`).toBeGreaterThan(-R * 0.8);
+      expect(Math.min(...a), `flow ${flow}: upstream of its middle`).toBeLessThan(0);
+      expect(Math.max(...a), `flow ${flow}: and runs out off the plate`).toBeGreaterThan(140);
+      // ...where a river that does not rise there crosses the whole plate
+      const through = buildWater(mulberry32(4), "river", B, undefined, R, flow);
+      expect(Math.min(...through.bodies[0].map(along))).toBeLessThan(-140);
+    }
+  });
+
+  it("wells up from a spring wider than the stream it gives", () => {
+    const w = buildWater(mulberry32(4), "river", B, undefined, R, 0, { rises: true });
+    const b = w.bodies[0];
+    // how wide the water is at its widest along a stretch of it: the largest circle that fits in it there
+    const edge = (p: Point) => { let d = Infinity; for (let i = 0; i < b.length; i++) d = Math.min(d, pointSegDist(p, b[i], b[(i + 1) % b.length])); return d; };
+    const widest = (x0: number, x1: number) => {
+      let m = 0;
+      for (let x = x0; x <= x1; x++) for (let y = 0; y <= B.h; y++) if (inWater(w, [x, y])) m = Math.max(m, edge([x, y]));
+      return m;
+    };
+    const head = Math.min(...b.map((p) => p[0]));
+    expect(widest(head, head + 30)).toBeGreaterThan(widest(head + 60, head + 150) * 1.5);
   });
 });

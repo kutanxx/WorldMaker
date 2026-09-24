@@ -33,6 +33,11 @@ export interface CityMarker {
   // which way the world's river runs through this town (atan2 radians, +x east, +y south), for river
   // towns only, so the plate's river runs where the world map draws it
   riverBearing?: number;
+  // ...and what it does there: how far it turns (radians, from the way its biggest feeder comes in to
+  // the way it leaves; positive is clockwise on the map) — absent where it rises at the town, which is
+  // where the world map first draws it, no feeder coming in
+  riverTurn?: number;
+  riverRises?: boolean;
   // the high ground beside the town: which way the mountain cells next to its own lie (weighted by how
   // far they rise above it) and what share of its neighbours they are — only where some do — so the
   // plate's mountains stand where the world map draws them

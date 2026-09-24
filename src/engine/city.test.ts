@@ -3,7 +3,7 @@ import { generateCityLayout, cityContext } from "./city";
 import { centroid, area, pointInPolygon, polysOverlap, polygonSelfIntersects, pointSegDist, bbox, segmentsIntersect, clipToConvex } from "./geometry";
 import { inWater, overlapsWater } from "./city/water";
 import { inMountains } from "./city/mountain";
-import { GRASSLAND } from "./biome";
+import { GRASSLAND, WETLAND } from "./biome";
 import type { CityMarker } from "../types/world";
 import { generateWorld } from "./world";
 import { DEFAULT_PARAMS } from "../types/world";
@@ -1334,6 +1334,36 @@ describe("water in a town", () => {
     expect(n).toBeGreaterThan(20);
   });
 
+  // A town is wrapped in a loop of its river where the world's river turns sharply at it — it was a coin
+  // toss, and 7 of the 17 loop towns stood where their river rises; the loop swings the way the world's
+  // river turns; and where the river rises at the town, the plate's rises there too instead of running
+  // in from the edge of the plate.
+  it("puts a town in its river's bend where the world's river turns, and raises the river where it rises", () => {
+    let rises = 0, bends = 0;
+    for (const { where, c, l } of towns()) {
+      if (!c.river || c.coastal || c.biome === WETLAND) continue;
+      const bend = !c.riverRises && Math.abs(c.riverTurn!) >= Math.PI / 4;
+      expect(l.archetype.id, `the form of ${where}`).toBe(bend ? "meanderDefense" : "bridgeTown");
+      const f = c.riverBearing!;
+      const along = (p: [number, number]) => (p[0] - 230) * Math.cos(f) + (p[1] - 230) * Math.sin(f);
+      if (c.riverRises) {
+        rises++;
+        const reach = Math.max(...l.boundary.map((p) => Math.hypot(p[0] - 230, p[1] - 230)));
+        const head = Math.min(...l.water.bodies.flatMap((b) => b.map((p) => along(p as [number, number]))));
+        expect(head, `the river of ${where} runs in from the edge of the plate`).toBeGreaterThan(-reach);
+      }
+      if (bend) {
+        bends++;
+        const right = (p: [number, number]) => -(p[0] - 230) * Math.sin(f) + (p[1] - 230) * Math.cos(f);
+        const edge = l.water.bodies[0].filter((p) => p[0] < 0.5 || p[0] > 459.5 || p[1] < 0.5 || p[1] > 459.5);
+        const side = edge.reduce((t, p) => t + right(p as [number, number]), 0) / edge.length;
+        expect(Math.sign(side), `the loop of ${where} swings against the world's turn`).toBe(Math.sign(c.riverTurn!));
+      }
+    }
+    expect(rises).toBeGreaterThan(10);
+    expect(bends).toBeGreaterThan(6);
+  });
+
   // 22 of the 80 river towns of twelve worlds stand where the world's river reaches the sea, and
   // their plates drew the sea with no river in it at all
   it("draws the river of a port where the world's river reaches the sea, and keeps its harbour on the sea", () => {
@@ -1919,6 +1949,12 @@ describe("a town in one world is not a copy of a town in another", () => {
 // valley's pass, a spur, a slope's hillside) and 10 turned theirs to it (a valley town running along its
 // valley, a spur town out along its one ridge, a summit's shoulder and a slope's rise where the ground
 // rises). Seed 1 has none of them. The other 310 hashed byte for byte the same.
+//
+// And for what the world's river does at a town (riverTurn, riverRises): exactly 44 river towns moved —
+// 8 bridge towns where the world's river turns 45 degrees or more are wrapped in a loop of it, and 16
+// loop towns are bridge towns (7 where the river rises, 9 on a straight reach); 20 towns where it rises
+// have it rise there (11 bridge towns, a marsh and 8 ports). Every loop swings the way the world's river
+// turns: the one loop town that stays one (2:10) already did. The other 292 hashed byte for byte the same.
 describe("a plate is the same plate, byte for byte", () => {
   const fold = (h: number, c: number) => Math.imul(h ^ c, 16777619) >>> 0;
   const fnv = (s: string) => { let h = 2166136261 >>> 0; for (let i = 0; i < s.length; i++) h = fold(h, s.charCodeAt(i)); return h >>> 0; };
@@ -1929,9 +1965,9 @@ describe("a plate is the same plate, byte for byte", () => {
     return { h, n };
   };
   it("draws seed 1's twenty-eight towns exactly as it did", () => {
-    expect(worldHash(1)).toEqual({ h: 184864013, n: 28 });
+    expect(worldHash(1)).toEqual({ h: 1120411161, n: 28 });
   });
   it("draws seed 12's twenty-eight towns exactly as it did", () => {
-    expect(worldHash(12)).toEqual({ h: 211413890, n: 28 });
+    expect(worldHash(12)).toEqual({ h: 511797427, n: 28 });
   });
 });

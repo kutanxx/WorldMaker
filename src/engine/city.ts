@@ -101,6 +101,8 @@ export interface CityContext {
   river?: boolean; // world river through the cell (optional so test fixtures can omit it → no river)
   seaBearing?: number; // which way the open sea lies, in world radians; absent → the plate picks
   riverBearing?: number; // which way the world's river runs through the town; absent → the plate picks
+  riverTurn?: number;    // ...how far it turns there; absent → the plate picks whether it wraps the town
+  riverRises?: boolean;  // ...and whether it rises there, rather than running in from upstream
   mountainBearing?: number; // which way the mountains beside the town lie; absent → none beside it
   mountainShare?: number;   // ...and what share of the town's neighbours they are
   onMountain?: boolean;     // the world draws the town in its mountains; absent → judged by elevation
@@ -111,7 +113,7 @@ export interface CityContext {
 export function cityContext(c: CityMarker): CityContext {
   return {
     id: c.id, name: c.name, size: c.size, coastal: c.coastal, isCapital: c.isCapital, elevation: c.elevation, biome: c.biome,
-    river: c.river, seaBearing: c.seaBearing, riverBearing: c.riverBearing,
+    river: c.river, seaBearing: c.seaBearing, riverBearing: c.riverBearing, riverTurn: c.riverTurn, riverRises: c.riverRises,
     mountainBearing: c.mountainBearing, mountainShare: c.mountainShare, onMountain: c.onMountain,
     relief: c.relief, reliefBearing: c.reliefBearing,
   };
@@ -252,11 +254,14 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
   // mountain-variant pick uses a SEPARATE rng stream so the main stream (and thus every
   // existing non-mountain city) is byte-identical; only high-elevation form choice changes.
   const pick = mulberry32(plateSeed(worldSeed, ctx.id + 4200))();
-  const archetype = selectArchetype({ coastal: ctx.coastal, elevation: ctx.elevation, size: ctx.size, biome: ctx.biome, pick, river: ctx.river, onMountain: ctx.onMountain, relief: ctx.relief });
+  const archetype = selectArchetype({ coastal: ctx.coastal, elevation: ctx.elevation, size: ctx.size, biome: ctx.biome, pick, river: ctx.river, onMountain: ctx.onMountain, relief: ctx.relief,
+    riverTurn: ctx.riverTurn, riverRises: ctx.riverRises,
+  });
   // ...and what it is built of, from the country it stands in (see textureOf)
   const texture = textureOf(ctx.biome);
 
-  const water = buildWater(rng, archetype.water, bounds, ctx.seaBearing, radius, ctx.riverBearing);
+  const course = { turn: ctx.riverTurn, rises: ctx.riverRises };
+  const water = buildWater(rng, archetype.water, bounds, ctx.seaBearing, radius, ctx.riverBearing, course);
   // The sea on its own: what a port's harbour, docks and seaward side are measured against, whatever
   // else runs into it.
   const seaOnly: Water = { kind: water.kind, bodies: water.bodies.slice(), bridges: [] };
@@ -266,7 +271,7 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
   // river runs, into the sea, from a stream of its own, so no other port moves.
   const riverMouth = archetype.water === "sea" && !!ctx.river && ctx.riverBearing !== undefined;
   if (riverMouth) {
-    water.bodies.push(...buildWater(mulberry32(plateSeed(worldSeed, ctx.id + RIVER_MOUTH_SALT)), "river", bounds, undefined, undefined, ctx.riverBearing).bodies);
+    water.bodies.push(...buildWater(mulberry32(plateSeed(worldSeed, ctx.id + RIVER_MOUTH_SALT)), "river", bounds, undefined, radius, ctx.riverBearing, course).bodies);
   }
   if (archetype.oasis) {
     const or = radius * 0.12;

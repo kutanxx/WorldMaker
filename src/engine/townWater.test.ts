@@ -52,3 +52,34 @@ describe("towns stand on water", () => {
     }
   });
 });
+
+// What the world's river does at a river town, read off the network the map draws: whether it rises
+// there (the map first draws it at the town, no feeder coming in), and otherwise how far it turns. The
+// plate put a town in a loop of its river on a coin toss — 7 of 17 of them where the river rises.
+describe("what the river does at a river town", () => {
+  it("says where the river rises, and how far it turns everywhere else", () => {
+    let rises = 0, turns = 0;
+    for (const w of worlds) {
+      for (const c of w.cities) {
+        if (!c.river) {
+          expect(c.riverRises, `${c.name} has no river`).toBeUndefined();
+          expect(c.riverTurn, `${c.name} has no river`).toBeUndefined();
+          continue;
+        }
+        const feeders = w.riverNet.filter((g) => g.x2 === c.x && g.y2 === c.y);
+        const out = w.riverNet.find((g) => g.x1 === c.x && g.y1 === c.y)!;
+        expect(c.riverRises, `where the river of ${c.name} rises`).toBe(feeders.length === 0);
+        if (!feeders.length) { rises++; expect(c.riverTurn).toBeUndefined(); continue; }
+        turns++;
+        const main = feeders.reduce((a, b) => (b.f > a.f ? b : a));
+        // the heading its biggest feeder comes in by, turned by riverTurn, is the heading it leaves by
+        const a1 = Math.atan2(main.y2 - main.y1, main.x2 - main.x1) + c.riverTurn!;
+        const a2 = Math.atan2(out.y2 - out.y1, out.x2 - out.x1);
+        expect(Math.abs(Math.atan2(Math.sin(a1 - a2), Math.cos(a1 - a2))), `the turn of the river at ${c.name}`).toBeLessThan(1e-9);
+        expect(Math.abs(c.riverTurn!)).toBeLessThanOrEqual(Math.PI);
+      }
+    }
+    expect(rises).toBeGreaterThan(15);
+    expect(turns).toBeGreaterThan(40);
+  });
+});

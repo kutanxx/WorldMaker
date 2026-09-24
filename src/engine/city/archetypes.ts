@@ -48,9 +48,15 @@ const RELIEF_FORM: Record<ReliefKind, ArchetypeId> = { summit: "hilltopFortress"
 // own alpine line (mountainLevel 0.55) so a foothill town is not drawn as a mountain one.
 const MOUNTAIN_ELEVATION = 0.6;
 const MEANDER_SHARE = 0.35;
+// the world's river turns at least this much at a town in its bend (the loop drawn round it is a V
+// some 60 degrees turned)
+const MEANDER_TURN = Math.PI / 4;
 
 export function selectArchetype(
-  opts: { coastal: boolean; elevation: number; size: number; biome: number; pick?: number; river?: boolean; onMountain?: boolean; relief?: ReliefKind }
+  opts: {
+    coastal: boolean; elevation: number; size: number; biome: number; pick?: number; river?: boolean;
+    onMountain?: boolean; relief?: ReliefKind; riverTurn?: number; riverRises?: boolean;
+  }
 ): Archetype {
   if (opts.coastal) return TABLE.coastalPort;
   // a world river runs through this cell → the drilldown must show it (world<->city coupling).
@@ -63,6 +69,10 @@ export function selectArchetype(
   // mountain kinds carry no water, so a river town up in the hills was drawn dry.
   if (opts.river) {
     if (opts.biome === WETLAND) return TABLE.marshStilt;
+    // ...wrapped by it where the world says its river turns sharply at the town, and never where it
+    // rises there: a river that begins at a town cannot wind round it. A draw where it cannot say.
+    if (opts.riverRises) return TABLE.bridgeTown;
+    if (opts.riverTurn !== undefined) return Math.abs(opts.riverTurn) >= MEANDER_TURN ? TABLE.meanderDefense : TABLE.bridgeTown;
     return (opts.pick ?? 0) < MEANDER_SHARE ? TABLE.meanderDefense : TABLE.bridgeTown;
   }
   // The world says where its mountains are (`onMountain`, its own terrain line); a height is the

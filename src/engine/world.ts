@@ -95,6 +95,20 @@ export function generateWorld(params: WorldParams, nameOverride?: string): Gener
     const fx = main ? main.x1 : x, fy = main ? main.y1 : y;
     return Math.atan2(out.y2 - fy, out.x2 - fx);
   };
+  // ...and what it does there: whether it rises at the town (the map first draws it there, no feeder
+  // coming in) and otherwise how far it turns, from the way its biggest feeder comes in to the way it
+  // leaves. The plate put a town in a loop of its river on a coin toss — 7 of the 17 loop towns of
+  // twelve worlds stood where the river rises, and the rest mostly on a straight reach of it.
+  const riverCourseAt = (cell: number): { riverTurn?: number; riverRises?: boolean } => {
+    if (!riverCells.has(cell)) return {};
+    const x = grid.points[cell * 2], y = grid.points[cell * 2 + 1];
+    const out = outflow.get(pointKey(x, y));
+    if (!out) return {};
+    const main = (inflows.get(pointKey(x, y)) ?? []).reduce<RiverSegment | null>((best, sg) => (!best || sg.f > best.f ? sg : best), null);
+    if (!main) return { riverRises: true };
+    const turn = Math.atan2(out.y2 - out.y1, out.x2 - out.x1) - Math.atan2(main.y2 - main.y1, main.x2 - main.x1);
+    return { riverTurn: Math.atan2(Math.sin(turn), Math.cos(turn)), riverRises: false };
+  };
 
   // The high ground beside a town: the mountain cells next to its own, their directions (unit vectors,
   // each weighted by how far that cell rises above the town, so the higher side wins where they close
@@ -137,6 +151,7 @@ export function generateWorld(params: WorldParams, nameOverride?: string): Gener
       biome: biome[p.capital],
       river: riverCells.has(p.capital),
       riverBearing: riverBearingAt(p.capital),
+      ...riverCourseAt(p.capital),
       ...siteOf(p.capital),
     });
   }
@@ -200,6 +215,7 @@ export function generateWorld(params: WorldParams, nameOverride?: string): Gener
       biome: biome[cell],
       river: riverCells.has(cell),
       riverBearing: riverBearingAt(cell),
+      ...riverCourseAt(cell),
       ...siteOf(cell),
     });
   }

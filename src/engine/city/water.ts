@@ -11,19 +11,30 @@ export interface Water {
   bridges: [Point, Point][];
 }
 
-function ribbon(center: Polyline, halfWidth: number): Polygon {
+function ribbon(center: Polyline, halfWidth: number | ((i: number) => number), roundHead = false): Polygon {
   const left: Point[] = [];
   const right: Point[] = [];
+  const half = typeof halfWidth === "number" ? () => halfWidth : halfWidth;
   for (let i = 0; i < center.length; i++) {
     const a = center[Math.max(0, i - 1)];
     const b = center[Math.min(center.length - 1, i + 1)];
     const dx = b[0] - a[0], dy = b[1] - a[1];
     const m = Math.hypot(dx, dy) || 1;
-    const nx = -dy / m, ny = dx / m;
-    left.push([center[i][0] + nx * halfWidth, center[i][1] + ny * halfWidth]);
-    right.push([center[i][0] - nx * halfWidth, center[i][1] - ny * halfWidth]);
+    const nx = -dy / m, ny = dx / m, hw = half(i);
+    left.push([center[i][0] + nx * hw, center[i][1] + ny * hw]);
+    right.push([center[i][0] - nx * hw, center[i][1] - ny * hw]);
   }
-  return left.concat(right.reverse());
+  // a rounded head: half a circle round the first point, from its right bank back round to its left
+  const head: Point[] = [];
+  if (roundHead && center.length > 1) {
+    const [c0, c1] = center, m = Math.hypot(c1[0] - c0[0], c1[1] - c0[1]) || 1;
+    const tx = (c1[0] - c0[0]) / m, ty = (c1[1] - c0[1]) / m, hw = half(0);
+    for (let k = 1; k < 12; k++) {
+      const phi = (k / 12) * Math.PI;   // from the right bank (ty, -tx), round behind it, to the left
+      head.push([c0[0] + (Math.cos(phi) * ty - Math.sin(phi) * tx) * hw, c0[1] + (-Math.cos(phi) * tx - Math.sin(phi) * ty) * hw]);
+    }
+  }
+  return left.concat(right.reverse(), head);
 }
 
 // ★ Where a port's shore runs: through the edge of the town's reach, so the town's seaward side is on
@@ -33,6 +44,13 @@ function ribbon(center: Polyline, halfWidth: number): Polygon {
 // length over the beach. At 0.8 of the reach the wall's seaward corners are in the water and are
 // set on the bank (see makeBoundary); the sea takes some 5% of the town's disc.
 const SHORE_IN = 0.8;
+
+// Where the world's river rises at a town (see world.ts), the plate's rises there too, in a spring this
+// share of the town's reach upstream of its middle, a pool this much wider than the stream it gives.
+const SPRING_AT = 0.5, SPRING_POOL = 1.8;
+
+/** What the world's river does at a town: how far it turns there, and whether it rises there. */
+export interface RiverCourse { turn?: number; rises?: boolean }
 
 /**
  * @param seaBearing which way the open water lies, in the world's own frame (atan2, +x east,
@@ -52,7 +70,10 @@ const SHORE_IN = 0.8;
  * drawn north-south or east-west on a coin toss, and 30 of 57 river towns over twelve worlds had it
  * more than 45 degrees off the river the world map draws through them. Omitted, the toss decides.
  */
-export function buildWater(rng: Rng, kind: WaterKind, bounds: { w: number; h: number }, seaBearing?: number, townReach?: number, riverBearing?: number): Water {
+export function buildWater(
+  rng: Rng, kind: WaterKind, bounds: { w: number; h: number }, seaBearing?: number, townReach?: number, riverBearing?: number,
+  course: RiverCourse = {},
+): Water {
   const { w, h } = bounds;
   if (kind === "none") return { kind, bodies: [], bridges: [] };
 
@@ -161,7 +182,10 @@ export function buildWater(rng: Rng, kind: WaterKind, bounds: { w: number; h: nu
     // the way in. It used to be a sine wave laid straight through the middle of the plate, which
     // cut the town in two and put its "bridges" lengthwise in the channel.
     const R = (townReach ?? 90) + 24;
-    const bulge = baseDraw < 0.5 ? 1 : -1;            // which bank of the river the loop swings out to
+    // Which bank of the river the loop swings out to. Drawn as a V round the town, the river comes in on
+    // one side of its chord and leaves on the other, turned some 60 degrees — so it swings out against
+    // the way the world's river turns there, where the world says; on the draw where it cannot.
+    const bulge = course.turn !== undefined ? (course.turn < 0 ? 1 : -1) : baseDraw < 0.5 ? 1 : -1;
     const vx = -uy * bulge, vy = ux * bulge;
     const at = (u: number, v: number): Point => [w / 2 + ux * u * R + vx * v * R, h / 2 + uy * u * R + vy * v * R];
     const wob = (i: number) => 1 + (jit[i] - 1) * 0.2;   // the drawn jitter, as a few percent of reach
@@ -196,13 +220,19 @@ export function buildWater(rng: Rng, kind: WaterKind, bounds: { w: number; h: nu
   };
   const center: Polyline = [];
   const N = 60;
+  // ...from its spring, where it rises at the town: nothing runs in from the edge of the plate above it
+  const spring = course.rises ? -(townReach ?? 90) * SPRING_AT : -Infinity;
   for (let i = 0; i <= N; i++) {
     const along = -far + (2 * far * i) / N;
+    if (along < spring) continue;
     const t = (along + side / 2) / side;              // 0..1 across the plate, as the waves were laid
     const off = v0 + Math.sin(t * Math.PI * waves) * amp * jitAt(t);
     center.push([w / 2 + ux * along + vx * off, h / 2 + uy * along + vy * off]);
   }
-  return { kind, bodies: onPlate(ribbon(center, half)), bridges: [] };
+  if (!course.rises) return { kind, bodies: onPlate(ribbon(center, half)), bridges: [] };
+  // the spring a pool wider than the stream, narrowing to it over the first two stretches below it
+  const pool = (i: number) => half * (1 + (SPRING_POOL - 1) * Math.max(0, 1 - i / 2));
+  return { kind, bodies: onPlate(ribbon(center, pool, true)), bridges: [] };
 }
 
 /**

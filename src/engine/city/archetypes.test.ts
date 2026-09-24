@@ -57,6 +57,20 @@ describe("selectArchetype", () => {
     // the town in the bend is wrapped by a loop of its river, not crossed by a wave of it
     expect(selectArchetype({ ...inland, biome: GRASSLAND, river: true, pick: 0.1 }).water).toBe("loop");
   });
+  // ...where the world says what its river does there: a town wrapped in a loop of its river where the
+  // world's river turns sharply at it, and never where it rises — the loop was a coin toss, and 7 of the
+  // 17 loop towns of twelve worlds stood where their river begins.
+  it("puts a town in its river's bend only where the world's river turns there, never where it rises", () => {
+    const r = { ...inland, biome: GRASSLAND, river: true };
+    for (let pick = 0; pick < 1; pick += 0.1) {
+      expect(selectArchetype({ ...r, pick, riverTurn: 1.0 }).id, `a sharp bend at pick ${pick.toFixed(1)}`).toBe("meanderDefense");
+      expect(selectArchetype({ ...r, pick, riverTurn: -0.9 }).id, `a sharp bend the other way at pick ${pick.toFixed(1)}`).toBe("meanderDefense");
+      expect(selectArchetype({ ...r, pick, riverTurn: 0.3 }).id, `a straight reach at pick ${pick.toFixed(1)}`).toBe("bridgeTown");
+      expect(selectArchetype({ ...r, pick, riverRises: true }).id, `a river's source at pick ${pick.toFixed(1)}`).toBe("bridgeTown");
+    }
+    // a marsh keeps its channel either way
+    expect(selectArchetype({ ...r, biome: WETLAND, riverTurn: 1.2 }).id).toBe("marshStilt");
+  });
   it("spreads the high ground across all of its kinds of town, by `pick`", () => {
     const mtn = { ...inland, elevation: 0.9, biome: GRASSLAND };
     const got = new Set<string>();
