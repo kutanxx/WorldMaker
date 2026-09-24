@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { selectArchetype, TABLE } from "./archetypes";
-import { TAIGA, TEMPERATE_FOREST, TROPICAL, DESERT, WETLAND, GRASSLAND, TUNDRA } from "../biome";
+import { selectArchetype, TABLE, textureOf } from "./archetypes";
+import { TAIGA, TEMPERATE_FOREST, TROPICAL, DESERT, WETLAND, GRASSLAND, TUNDRA, ALPINE } from "../biome";
 
 const inland = { coastal: false, elevation: 0.5, size: 4 };
 
@@ -96,5 +96,27 @@ describe("the archetype table has no unreachable entries", () => {
       }
     }
     expect([...Object.keys(TABLE)].filter((id) => !seen.has(id))).toEqual([]);
+  });
+});
+
+// The texture of a town is its country's, whatever form its site gave it: a port, a river town or a
+// mountain town used to be a stone town on grass in marsh, forest and desert alike.
+describe("textureOf", () => {
+  it("builds a wooded or marsh country's wall of timber and a bare country's of stone", () => {
+    for (const b of [TAIGA, TEMPERATE_FOREST, TROPICAL, WETLAND]) expect(textureOf(b).wallMaterial).toBe("timber");
+    for (const b of [GRASSLAND, DESERT, TUNDRA, ALPINE]) expect(textureOf(b).wallMaterial).toBe("stone");
+  });
+  it("grows trees in a wooded country's town, and keeps a desert town's parks bare", () => {
+    for (const b of [TAIGA, TEMPERATE_FOREST, TROPICAL]) expect(textureOf(b).vegetation).toBe("trees");
+    for (const b of [GRASSLAND, DESERT, TUNDRA, ALPINE, WETLAND]) expect(textureOf(b).vegetation).toBe("none");
+    expect(textureOf(DESERT).arid).toBe(true);
+    for (const b of [GRASSLAND, TAIGA, WETLAND]) expect(textureOf(b).arid).toBe(false);
+  });
+  it("wears the ground of the forms its biome makes on its own", () => {
+    expect(textureOf(TEMPERATE_FOREST).groundColor).toBe(TABLE.forestGrove.groundColor);
+    expect(textureOf(WETLAND).groundColor).toBe(TABLE.marshStilt.groundColor);
+    expect(textureOf(DESERT).groundColor).toBe(TABLE.desertOasis.groundColor);
+    expect(textureOf(GRASSLAND).groundColor).toBe(TABLE.plainsMarket.groundColor);
+    expect(textureOf(ALPINE).groundColor).toBe(TABLE.hillside.groundColor);
   });
 });

@@ -591,9 +591,8 @@ export function renderCity(layout: CityLayout, lang: Lang = "en", opts: CityRend
 
   if (layout.features.trees.length) {
     const treesG = svgEl("g", { class: "trees", "clip-path": `url(#${clipId})` });
-    for (const [x, y] of layout.features.trees) {
-      treesG.appendChild(svgEl("circle", { class: "tree", cx: x, cy: y, r: 2.2, fill: "#6f9457", stroke: "#4c6b3c", "stroke-width": 0.4 }));
-    }
+    // in the kind the country round it grows — a taiga town's trees are the conifers of its woods
+    for (const t of layout.features.trees) treesG.appendChild(treeGlyph(t, layout.countryside.vocabulary.tree, "tree", 2.2));
     root.appendChild(treesG);
   }
 

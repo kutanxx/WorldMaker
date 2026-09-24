@@ -1,4 +1,4 @@
-import { TAIGA, TEMPERATE_FOREST, TROPICAL, DESERT, WETLAND } from "../biome";
+import { TUNDRA, TAIGA, TEMPERATE_FOREST, GRASSLAND, TROPICAL, DESERT, WETLAND, ALPINE } from "../biome";
 
 export type ArchetypeId =
   | "coastalPort" | "bridgeTown" | "hilltopFortress"
@@ -72,4 +72,28 @@ export function selectArchetype(
     case TROPICAL: return TABLE.forestGrove;
     default: return TABLE.plainsMarket;
   }
+}
+
+/**
+ * What a town is built of and grows in: the texture of the biome it stands in, whatever form its
+ * site gave it. The texture rode on the form, so only a town the biome itself had formed wore it: a
+ * port, a river town or a mountain town was a stone town on grass in whatever country it stood —
+ * of 139 ports over twelve worlds, 45 stood in marsh, 56 in forest, taiga or jungle and 6 in desert
+ * (one of them a desert capital with green parks inside its walls).
+ * A wooded or marsh country builds its wall of timber (as its forest and marsh towns always had);
+ * a wooded country's town has its trees; a desert town keeps no green park.
+ */
+export interface Texture { wallMaterial: "stone" | "timber"; vegetation: "trees" | "none"; arid: boolean; groundColor: string }
+const GROUND: Record<number, string> = {
+  [TUNDRA]: "#e8e7de", [TAIGA]: "#e3e7d0", [TEMPERATE_FOREST]: "#e3e7d0", [GRASSLAND]: "#efe7d2",
+  [DESERT]: "#ece0c2", [TROPICAL]: "#e3e7d0", [WETLAND]: "#dfe4dc", [ALPINE]: "#e8e2d6",
+};
+export function textureOf(biome: number): Texture {
+  const wooded = biome === TAIGA || biome === TEMPERATE_FOREST || biome === TROPICAL;
+  return {
+    wallMaterial: wooded || biome === WETLAND ? "timber" : "stone",
+    vegetation: wooded ? "trees" : "none",
+    arid: biome === DESERT,
+    groundColor: GROUND[biome] ?? BASE.groundColor,
+  };
 }

@@ -2,7 +2,7 @@ import { mulberry32, deriveSeed } from "./rng";
 import type { Rng } from "./rng";
 import type { Point, Polygon, Polyline } from "./geometry";
 import { centroid, area, pointInPolygon, bbox, pointSegDist, insetEdges, insetPolygon, polysOverlap, segmentsIntersect, clipToConvex, convexHull } from "./geometry";
-import { selectArchetype } from "./city/archetypes";
+import { selectArchetype, textureOf } from "./city/archetypes";
 import type { Archetype } from "./city/archetypes";
 import { extractStreets, classifyStreets } from "./city/blockStreets";
 import { streetsOverWater, squareCrossing } from "./city/riverStreets";
@@ -240,6 +240,8 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
   // existing non-mountain city) is byte-identical; only high-elevation form choice changes.
   const pick = mulberry32(plateSeed(worldSeed, ctx.id + 4200))();
   const archetype = selectArchetype({ coastal: ctx.coastal, elevation: ctx.elevation, size: ctx.size, biome: ctx.biome, pick, river: ctx.river });
+  // ...and what it is built of, from the country it stands in (see textureOf)
+  const texture = textureOf(ctx.biome);
 
   const water = buildWater(rng, archetype.water, bounds, ctx.seaBearing, radius, ctx.riverBearing);
   // The sea on its own: what a port's harbour, docks and seaward side are measured against, whatever
@@ -480,7 +482,7 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
   const parks: Polygon[] = [];
   const wards: Ward[] = zoned.map((z) => {
     if (z.type === "park") {
-      if (!archetype.oasis) parks.push(z.polygon); // desert: no green parks
+      if (!texture.arid) parks.push(z.polygon); // desert: no green parks
       return { polygon: z.polygon, type: z.type, buildings: [], inner: z.inner };
     }
     let buildings: Polygon[] = [];
@@ -570,7 +572,7 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
   // is a stand of conifers.
   const parkTrees: Point[] = [];
   for (const z of zoned) {
-    if (z.type !== "park" || archetype.oasis) continue;
+    if (z.type !== "park" || texture.arid) continue;
     const room = insetEdges(z.polygon, 3);
     if (room.length < 3) continue;
     const b = bbox(room), step = 6.5;
@@ -770,11 +772,11 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
   };
 
   const features: CityFeatures = {
-    wallMaterial: archetype.wallMaterial,
-    trees: archetype.vegetation === "trees" ? scatterTrees(18 + ctx.size * 4) : [],
+    wallMaterial: texture.wallMaterial,
+    trees: texture.vegetation === "trees" ? scatterTrees(18 + ctx.size * 4) : [],
     onStilts: archetype.onStilts,
     oasis: archetype.oasis ? { center: [center[0], center[1]], radius: radius * 0.12 } : null,
-    groundColor: archetype.groundColor,
+    groundColor: texture.groundColor,
   };
 
   // ---- extramural suburbs (faubourg) + outworks: OUTSIDE the wall, in the canvas margin ----

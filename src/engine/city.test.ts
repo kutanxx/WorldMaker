@@ -1739,6 +1739,23 @@ describe("everything a plate draws stands where it belongs", () => {
     }
   });
 
+  it("builds every town of its country, whatever form its site gave it", () => {
+    const wooded = new Set([2, 3, 6]);   // taiga, temperate forest, tropical
+    let ports = 0;
+    for (let seed = 1; seed <= 12; seed++) {
+      const w = generateWorld({ ...DEFAULT_PARAMS, seed }).world;
+      for (const c of w.cities) {
+        const l = towns().find((t) => t.where === `${c.name} (seed ${seed}, ${c.id})`)!.l;
+        const where = `${c.name} (seed ${seed}, ${c.id})`;
+        if (c.coastal) ports++;
+        expect(l.features.wallMaterial, `the wall of ${where}`).toBe(wooded.has(c.biome) || c.biome === 7 ? "timber" : "stone");
+        if (wooded.has(c.biome)) expect(l.features.trees.length, `no trees in ${where}`).toBeGreaterThan(0);
+        if (c.biome === 5) expect(l.parkTrees, `a green park in the desert at ${where}`).toEqual([]);
+      }
+    }
+    expect(ports).toBeGreaterThan(120);
+  });
+
   it("spaces the towers along a wall", () => {
     for (const { where, l } of towns()) {
       if (!l.wall) continue;
@@ -1824,6 +1841,11 @@ describe("a town in one world is not a copy of a town in another", () => {
 // out on the quay (piers in the mole's basin, warehouses clear of them), and the landward side is walled
 // — and 42 other plates, where a gate house stood on a later gate's road (and the country round it
 // moved with it), a waterfront plot stood on the wall line, or a district mostly water was named.
+//
+// And for the country a town is built of (textureOf): exactly the 211 towns whose texture differed from
+// their biome's moved — 123 ports and 44 river towns out of forest, marsh, desert and tundra, and 44
+// tundra, alpine and hill towns whose ground was the grassland's; the forest, marsh and oasis towns,
+// which always wore their biome, and the grassland towns hashed byte for byte the same.
 describe("a plate is the same plate, byte for byte", () => {
   const fold = (h: number, c: number) => Math.imul(h ^ c, 16777619) >>> 0;
   const fnv = (s: string) => { let h = 2166136261 >>> 0; for (let i = 0; i < s.length; i++) h = fold(h, s.charCodeAt(i)); return h >>> 0; };
@@ -1834,9 +1856,9 @@ describe("a plate is the same plate, byte for byte", () => {
     return { h, n };
   };
   it("draws seed 1's twenty-eight towns exactly as it did", () => {
-    expect(worldHash(1)).toEqual({ h: 1156543626, n: 28 });
+    expect(worldHash(1)).toEqual({ h: 1346848510, n: 28 });
   });
   it("draws seed 12's twenty-eight towns exactly as it did", () => {
-    expect(worldHash(12)).toEqual({ h: 845795580, n: 28 });
+    expect(worldHash(12)).toEqual({ h: 3590053046, n: 28 });
   });
 });
