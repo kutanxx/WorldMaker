@@ -818,3 +818,24 @@ describe("the plate's furniture as the engine reserves it", () => {
     expect(PLATE_KEY_STRIP).toBe(KEY_STRIP);
   });
 });
+
+// Two bodies of water meet where a river runs out into the sea. Each was drawn whole, its shallows and
+// then its deep water, before the next — so the river laid its pale shallows over the sea's deep water:
+// a seam across the sea from the river's mouth to the edge of the plate. All the shallows go down first.
+describe("where two waters meet", () => {
+  it("draws every body's shallows before any deep water, so a river leaves no seam across the sea", () => {
+    const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 3 });
+    const port = world.cities.find((c) => c.coastal && c.river && c.riverBearing !== undefined)!;
+    const layout = generateCityLayout(cityContext(port), 3);
+    expect(layout.water.bodies.length).toBeGreaterThanOrEqual(2);
+    const svg = renderCity(layout);
+    const parents = new Set([...svg.querySelectorAll(".water, .water-shallow")].map((e) => e.parentNode!));
+    expect(parents.size, "under the town and inside its walls").toBeGreaterThanOrEqual(2);
+    for (const parent of parents) {
+      const kids = [...parent.childNodes] as Element[];
+      const lastShallow = Math.max(...kids.map((e, i) => (e.classList?.contains("water-shallow") ? i : -1)));
+      const firstDeep = Math.min(...kids.map((e, i) => (e.classList?.contains("water") ? i : Infinity)));
+      expect(lastShallow).toBeLessThan(firstDeep);
+    }
+  });
+});

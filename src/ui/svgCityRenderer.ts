@@ -206,10 +206,10 @@ export function renderCity(layout: CityLayout, lang: Lang = "en", opts: CityRend
   defs.appendChild(clip);
   root.appendChild(defs);
 
-  for (const body of layout.water.bodies) {
-    root.appendChild(svgEl("polygon", { class: "water-shallow", points: pts(body), fill: "#bfd8e4" }));
-    root.appendChild(svgEl("polygon", { class: "water", points: pts(body), fill: "#9fc1d6", transform: "scale(0.985)", "transform-origin": `${w / 2} ${h / 2}` }));
-  }
+  // Every body's shallows, then every body's deep water: drawn body by body, a river running out into
+  // the sea laid its pale shallows over the sea's deep water, a seam across the sea to the plate's edge.
+  for (const body of layout.water.bodies) root.appendChild(svgEl("polygon", { class: "water-shallow", points: pts(body), fill: "#bfd8e4" }));
+  for (const body of layout.water.bodies) root.appendChild(svgEl("polygon", { class: "water", points: pts(body), fill: "#9fc1d6", transform: "scale(0.985)", "transform-origin": `${w / 2} ${h / 2}` }));
 
   // harbor: breakwater/mole + lighthouse + piers + moored boats (on the sea)
   if (layout.harbor) {
@@ -461,10 +461,9 @@ export function renderCity(layout: CityLayout, lang: Lang = "en", opts: CityRend
   // only meant that the one kind of town defined by its water was the one kind that never drew any
   // — measured, 95% of the ground inside a marsh town's walls is river — so the channel stopped at
   // the wall, picked up again on the far side, and the stilt houses stood on dry land.
-  for (const body of layout.water.bodies) {
-    clipped.appendChild(svgEl("polygon", { class: "water-shallow", points: pts(body), fill: "#bfd8e4" }));
-    clipped.appendChild(svgEl("polygon", { class: "water", points: pts(body), fill: "#9fc1d6", transform: "scale(0.985)", "transform-origin": `${w / 2} ${h / 2}` }));
-  }
+  // (all the shallows first, as under the town)
+  for (const body of layout.water.bodies) clipped.appendChild(svgEl("polygon", { class: "water-shallow", points: pts(body), fill: "#bfd8e4" }));
+  for (const body of layout.water.bodies) clipped.appendChild(svgEl("polygon", { class: "water", points: pts(body), fill: "#9fc1d6", transform: "scale(0.985)", "transform-origin": `${w / 2} ${h / 2}` }));
 
   for (const ward of layout.wards) {
     // colour the buildings by their district so the whole zone reads as its hue (otherwise
