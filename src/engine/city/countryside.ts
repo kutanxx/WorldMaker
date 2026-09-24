@@ -3,7 +3,7 @@
 // farmhouses at field edges (spec 2026-07-05-extramural-countryside-castle-design.md).
 import type { Rng } from "../rng";
 import type { Point, Polygon, Polyline } from "../geometry";
-import { pointInPolygon, centroid, polysOverlap, pointSegDist, segmentsIntersect } from "../geometry";
+import { pointInPolygon, centroid, polysOverlap, pointSegDist, segmentsIntersect, bbox } from "../geometry";
 import { inWater } from "./water";
 import type { Water } from "./water";
 import { inMountains } from "./mountain";
@@ -120,8 +120,14 @@ export function generateCountryside(rng: Rng, opts: CountrysideOpts): Countrysid
   // the faubourg house footprints so patches never sit on a gate-hamlet house (centre-gap missed it).
   const claimedPolys: Polygon[] = [...(opts.obstaclePolys ?? [])];
   const roadThrough = (poly: Polygon) => {
+    // a segment whose box misses the patch's box can neither sample inside it nor cross an edge
+    // (exact tests), so it is skipped unsampled — the same answer, without walking every road
+    // every 2 units for every candidate patch (see `roadRunsThrough` in city.ts)
+    const pb = bbox(poly), AIR = 1e-6;
     for (const road of roads) for (let i = 0; i < road.length - 1; i++) {
       const a: Point = road[i], b: Point = road[i + 1];
+      if (Math.max(a[0], b[0]) < pb.minX - AIR || Math.min(a[0], b[0]) > pb.maxX + AIR
+        || Math.max(a[1], b[1]) < pb.minY - AIR || Math.min(a[1], b[1]) > pb.maxY + AIR) continue;
       const steps = Math.max(1, Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) / 2));
       for (let s = 0; s <= steps; s++) {
         if (pointInPolygon([a[0] + ((b[0] - a[0]) * s) / steps, a[1] + ((b[1] - a[1]) * s) / steps], poly)) return true;

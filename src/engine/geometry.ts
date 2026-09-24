@@ -186,6 +186,12 @@ export function polygonSelfIntersects(poly: Polygon): boolean {
 
 // true when two simple polygons overlap: a vertex of one inside the other, or crossing edges
 export function polysOverlap(a: Polygon, b: Polygon): boolean {
+  // Two shapes whose boxes miss cannot overlap: no vertex of either is inside the other's box, and
+  // a proper crossing lies inside both boxes. The tests below are exact, so the answer is the same;
+  // the box is linear where they are quadratic. (Measured: the countryside asks this of every field,
+  // pasture and hamlet against every water body and every claimed patch — 21% of generating a plate.)
+  const ab = bbox(a), bb = bbox(b), AIR = 1e-6;
+  if (ab.maxX < bb.minX - AIR || bb.maxX < ab.minX - AIR || ab.maxY < bb.minY - AIR || bb.maxY < ab.minY - AIR) return false;
   for (const p of a) if (pointInPolygon(p, b)) return true;
   for (const p of b) if (pointInPolygon(p, a)) return true;
   for (let i = 0; i < a.length; i++) {

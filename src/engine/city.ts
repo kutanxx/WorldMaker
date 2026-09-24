@@ -329,9 +329,22 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
   // drop any building a road centreline runs through: the block-centric inset (insetConvex) falls
   // back to a radial inset for non-convex wards, which can leave a building corner under a main
   // road — user-reported "road passes through a building/district". Sample each road densely.
+  // ★ Every road segment once, with its box. The test below walked EVERY road, every 2 units, for
+  // EVERY building — measured, 62% of generating a town, and a capital's plate took 274ms to open
+  // in the page (a mid-range phone runs that about four times slower). A segment whose box misses
+  // the building's box can neither put a sample point inside it nor cross one of its edges (both
+  // tests are exact, and a proper crossing lies in both boxes), so it is skipped; the air (1e-6)
+  // covers the last ulp of a sample. The result is the same, building for building — a byte-lock
+  // over two whole worlds of plates holds it (city.test).
+  const roadSegs: { a: Point; c: Point; x0: number; y0: number; x1: number; y1: number }[] = [];
+  for (const r of [...mainRoads, ...minorRoads]) for (let i = 0; i < r.length - 1; i++) {
+    const a: Point = r[i], c: Point = r[i + 1];
+    roadSegs.push({ a, c, x0: Math.min(a[0], c[0]), y0: Math.min(a[1], c[1]), x1: Math.max(a[0], c[0]), y1: Math.max(a[1], c[1]) });
+  }
   const roadRunsThrough = (b: Polygon): boolean => {
-    for (const r of [...mainRoads, ...minorRoads]) for (let i = 0; i < r.length - 1; i++) {
-      const a: Point = r[i], c: Point = r[i + 1];
+    const bb = bbox(b), AIR = 1e-6;
+    for (const { a, c, x0, y0, x1, y1 } of roadSegs) {
+      if (x1 < bb.minX - AIR || x0 > bb.maxX + AIR || y1 < bb.minY - AIR || y0 > bb.maxY + AIR) continue;
       // centreline inside (through) OR an edge crossing (a corner clip) — both read as a road on the block
       const steps = Math.max(1, Math.ceil(Math.hypot(c[0] - a[0], c[1] - a[1]) / 2));
       for (let s = 0; s <= steps; s++) if (pointInPolygon([a[0] + ((c[0] - a[0]) * s) / steps, a[1] + ((c[1] - a[1]) * s) / steps], b)) return true;

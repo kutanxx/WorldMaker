@@ -1068,3 +1068,26 @@ describe("the districts are places a town would have", () => {
     expect(worst, `worst: ${worstName} at ${(worst * 100).toFixed(0)}%`).toBeLessThan(0.2);
   });
 });
+
+// ★ A lock on the plates themselves, byte for byte. Nothing pinned a city layout (the world and the
+// history have golden hashes; a plate had only "is deterministic"), so a change meant only to make
+// the generator FASTER could have moved a building and nobody would know. Opening a capital's
+// plate took 274ms of the 293 its screen cost (measured in the page, 2026-09-24) — a mid-range
+// phone runs that about four times slower — and 62% of the generator's time was one filter.
+// Whatever speeds it up must reproduce these exactly. Two whole worlds, every kind of town.
+describe("a plate is the same plate, byte for byte", () => {
+  const fold = (h: number, c: number) => Math.imul(h ^ c, 16777619) >>> 0;
+  const fnv = (s: string) => { let h = 2166136261 >>> 0; for (let i = 0; i < s.length; i++) h = fold(h, s.charCodeAt(i)); return h >>> 0; };
+  const worldHash = (seed: number) => {
+    const { world } = generateWorld({ ...DEFAULT_PARAMS, seed });
+    let h = 2166136261 >>> 0, n = 0;
+    for (const c of world.cities) { h = fold(h, fnv(JSON.stringify(generateCityLayout(cityContext(c), seed)))); n++; }
+    return { h, n };
+  };
+  it("draws seed 1's twenty-eight towns exactly as it did", () => {
+    expect(worldHash(1)).toEqual({ h: 2780561046, n: 28 });
+  });
+  it("draws seed 12's twenty-eight towns exactly as it did", () => {
+    expect(worldHash(12)).toEqual({ h: 2875279024, n: 28 });
+  });
+});
