@@ -1553,6 +1553,10 @@ describe("everything a plate draws stands where it belongs", () => {
     expect(castles).toBeGreaterThan(100);
   });
 
+  // A town gate is drawn as a 6-wide block square to the plate, its corners rounded by 1 and its
+  // outline 1 wide: a 4-wide core grown by 1.5. How far a point stands from that core:
+  const offGateCore = (p: P, g: P) => Math.hypot(Math.max(Math.abs(p[0] - g[0]) - 2, 0), Math.max(Math.abs(p[1] - g[1]) - 2, 0));
+
   it("opens no town gate into a castle, and stands no castle tower on one", () => {
     for (const { where, l } of towns()) {
       const ca = l.castle;
@@ -1560,8 +1564,8 @@ describe("everything a plate draws stands where it belongs", () => {
       const TS = Math.pow(ca.scale, 0.7);
       for (const g of l.wall.gates) for (const ring of [ca.innerWall, ...(ca.outerWall ? [ca.outerWall] : [])] as P[][]) {
         expect(pointInPolygon(g, ring), `a town gate inside the castle at ${where}`).toBe(false);
-        // the gate block is 6 wide; a castle tower is drawn 2.8 across the radius, in the castle's units
-        for (const t of ring) expect(Math.hypot(t[0] - g[0], t[1] - g[1]), `a castle tower on a town gate at ${where}`).toBeGreaterThanOrEqual(3 + 2.8 * TS);
+        // a castle tower is drawn 2.8 across the radius in the castle's units, with a 0.9 outline
+        for (const t of ring) expect(offGateCore(t, g), `a castle tower on a town gate at ${where}`).toBeGreaterThanOrEqual(1.5 + 2.8 * TS + 0.45);
       }
     }
   });
@@ -1651,11 +1655,18 @@ describe("everything a plate draws stands where it belongs", () => {
     }
   });
 
-  it("stands no wall tower on a gate", () => {
+  it("stands no wall tower on a gate, nor runs its outline into the gate's", () => {
+    let near = 0;
     for (const { where, l } of towns()) {
       if (!l.wall) continue;
-      for (const g of l.wall.gates) for (const t of l.wall.towers) expect(Math.hypot(t[0] - g[0], t[1] - g[1]), `a tower on a gate at ${where}`).toBeGreaterThanOrEqual(4.5);
+      // a tower is a disc of 2.6 with a 0.8 outline
+      for (const g of l.wall.gates) for (const t of l.wall.towers) {
+        const d = offGateCore(t as P, g as P);
+        if (d < 8) near++;
+        expect(d, `a tower on a gate at ${where}`).toBeGreaterThanOrEqual(1.5 + 3.0);
+      }
     }
+    expect(near, "towers still flank the gates they clear").toBeGreaterThan(100);
   });
 
   it("spaces the towers along a wall", () => {
@@ -1734,6 +1745,10 @@ describe("a town in one world is not a copy of a town in another", () => {
 // a footprint the size it is drawn and the country is laid round them (every plate's rejection sampling
 // moved), the gate hamlet makes way for the barbican and keeps out of the water, and a castle stands
 // off the streets as they are drawn, on a ward no town gate opens into (122 castles).
+//
+// And for the towers beside a gate, measured to the gate block as drawn rather than to its middle:
+// exactly the 52 plates where a tower stood on a gate's corner or ran its outline into it moved (a
+// tower went); the other 284 hashed byte for byte the same.
 describe("a plate is the same plate, byte for byte", () => {
   const fold = (h: number, c: number) => Math.imul(h ^ c, 16777619) >>> 0;
   const fnv = (s: string) => { let h = 2166136261 >>> 0; for (let i = 0; i < s.length; i++) h = fold(h, s.charCodeAt(i)); return h >>> 0; };
@@ -1744,9 +1759,9 @@ describe("a plate is the same plate, byte for byte", () => {
     return { h, n };
   };
   it("draws seed 1's twenty-eight towns exactly as it did", () => {
-    expect(worldHash(1)).toEqual({ h: 1593100724, n: 28 });
+    expect(worldHash(1)).toEqual({ h: 638198415, n: 28 });
   });
   it("draws seed 12's twenty-eight towns exactly as it did", () => {
-    expect(worldHash(12)).toEqual({ h: 1871962794, n: 28 });
+    expect(worldHash(12)).toEqual({ h: 762570575, n: 28 });
   });
 });

@@ -18,8 +18,15 @@ export interface DefenseWall {
 const SEA_PROBE = 36;
 // two towers on one run of wall stand at least this far apart
 const TOWER_GAP = 9;
-// ...and no tower this close to a gate (a 6-wide gate block and a 2.6-radius tower touch inside it)
-const GATE_CLEAR = 6;
+// ...and none where it would be drawn on a gate. A gate is drawn as a 6-wide block, square to the
+// plate, its corners rounded by 1 and its outline 1 wide; a tower as a disc of 2.6 with a 0.8
+// outline. So the block is a 4-wide core grown by 1.5, the tower a point grown by 3.0, and a tower
+// is kept only where the two outlines stay apart. (A flat 6 from the gate's middle cleared the block
+// along the wall but not toward its corners, which reach 4.2 out: 12 towers still stood on a gate
+// there, and 45 more ran their outline into its.)
+const GATE_CORE = 2, GATE_REACH = 1.5, TOWER_REACH = 3.0;
+const onGate = (t: Point, g: Point) =>
+  Math.hypot(Math.max(Math.abs(t[0] - g[0]) - GATE_CORE, 0), Math.max(Math.abs(t[1] - g[1]) - GATE_CORE, 0)) < GATE_REACH + TOWER_REACH;
 
 // nearest point on a polyline to p, with its squared distance
 function nearestOnPolyline(p: Point, line: Polyline): { pt: Point; d2: number } {
@@ -182,6 +189,6 @@ export function wallFromDefenses(
   const gates = placeGates(segments, mainRoads, maxGates, seaGates, usable);
   // A gate is its own tower: the square gate block stands where the wall is opened, and a drum tower
   // on the corner beside it was drawn on top of it — on 213 of 336 plates of twelve worlds.
-  const clearOfGates = towers.filter((t) => !gates.some((g) => Math.hypot(t[0] - g[0], t[1] - g[1]) < GATE_CLEAR));
+  const clearOfGates = towers.filter((t) => !gates.some((g) => onGate(t, g)));
   return { segments, towers: clearOfGates, gates, seaGates };
 }
