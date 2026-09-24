@@ -7,7 +7,7 @@ import type { Archetype } from "./city/archetypes";
 import { extractStreets, classifyStreets } from "./city/blockStreets";
 import { streetsOverWater, squareCrossing } from "./city/riverStreets";
 import { chainRoads } from "./city/roads";
-import { buildWater, inWater, waterBridges } from "./city/water";
+import { buildWater, inWater, waterBridges, overlapsWater } from "./city/water";
 import type { Water } from "./city/water";
 import { makeBoundary } from "./city/cityBoundary";
 import { wallFromDefenses } from "./city/walls";
@@ -104,6 +104,47 @@ export interface CityContext {
 
 export function cityContext(c: CityMarker): CityContext {
   return { id: c.id, name: c.name, size: c.size, coastal: c.coastal, isCapital: c.isCapital, elevation: c.elevation, biome: c.biome, river: c.river, seaBearing: c.seaBearing, riverBearing: c.riverBearing };
+}
+
+/**
+ * `p => pointInPolygon(p, poly) && (distance from p to poly's edges) >= clear`, answered by a grid:
+ * a cell farther than `clear` from every edge is wholly in or wholly out, and its centre says which;
+ * only a point in a cell near an edge is measured. The same answer — the houses of a capital ask it
+ * some 3,500 times, and the byte-lock holds the plates to it.
+ */
+function insideClearOf(poly: Polygon, clear: number): (p: Point) => boolean {
+  const CELL = 6;
+  const b = bbox(poly);
+  const x0 = b.minX - CELL, y0 = b.minY - CELL;
+  const nx = Math.ceil((b.maxX - x0) / CELL) + 2, ny = Math.ceil((b.maxY - y0) / CELL) + 2;
+  const cells = new Uint8Array(nx * ny);   // 0 not yet known, 1 out, 2 in, 3 near an edge
+  const exact = (p: Point) => {
+    if (!pointInPolygon(p, poly)) return false;
+    for (let i = 0; i < poly.length; i++) if (pointSegDist(p, poly[i], poly[(i + 1) % poly.length]) < clear) return false;
+    return true;
+  };
+  for (let i = 0; i < poly.length; i++) {
+    const a = poly[i], c = poly[(i + 1) % poly.length];
+    const reach = clear + CELL;   // a cell whose centre is within reach of the edge may come within clear of it
+    const i0 = Math.max(0, Math.floor((Math.min(a[0], c[0]) - reach - x0) / CELL)), i1 = Math.min(nx - 1, Math.floor((Math.max(a[0], c[0]) + reach - x0) / CELL));
+    const j0 = Math.max(0, Math.floor((Math.min(a[1], c[1]) - reach - y0) / CELL)), j1 = Math.min(ny - 1, Math.floor((Math.max(a[1], c[1]) + reach - y0) / CELL));
+    for (let j = j0; j <= j1; j++) for (let k = i0; k <= i1; k++) {
+      const idx = j * nx + k;
+      if (cells[idx] === 3) continue;
+      // the cell's centre within clear + half its diagonal of the edge: some point of it may be near
+      const mid: Point = [x0 + (k + 0.5) * CELL, y0 + (j + 0.5) * CELL];
+      if (pointSegDist(mid, a, c) < clear + CELL * Math.SQRT1_2 + 1e-6) cells[idx] = 3;
+    }
+  }
+  return (p: Point) => {
+    const k = Math.floor((p[0] - x0) / CELL), j = Math.floor((p[1] - y0) / CELL);
+    if (!(k >= 0 && j >= 0 && k < nx && j < ny)) return false;
+    const idx = j * nx + k;
+    const s = cells[idx];
+    if (s === 3) return exact(p);
+    if (s === 0) cells[idx] = pointInPolygon([x0 + (k + 0.5) * CELL, y0 + (j + 0.5) * CELL], poly) ? 2 : 1;
+    return cells[idx] === 2;
+  };
 }
 
 function offsetSegment(seg: Polyline, c: Point, d: number): Polyline {
@@ -352,7 +393,7 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
     return pts.filter((p) => inWater(water, p)).length / pts.length > 0.6;
   };
   const zoned = assignZones(rng, cells, [center[0], center[1]], radius, { hasCastle, coastal: ctx.coastal, castleAnchor, seaAnchor,
-    wet: (poly) => water.bodies.some((b) => polysOverlap(poly, b)),
+    wet: (poly) => overlapsWater(water, poly),
     // the ward edge nearest the water: what decides which district is the quayside
     waterDist: (poly) => {
       let d = Infinity;
@@ -377,7 +418,7 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
   // town). Lots keep WALL_SETBACK off it — the lane inside a town wall — and one that straddles the
   // line is cut back parallel to the wall rather than dropped, if enough of it is left.
   const townInset = insetPolygon(boundary, WALL_SETBACK);
-  const inTown = (p: Point) => pointInPolygon(p, boundary) && wallDist(p) >= WALL_SETBACK;
+  const inTown = insideClearOf(boundary, WALL_SETBACK);
   const settle = (lot: Polygon): Polygon | null => {
     if (lot.every(inTown)) return lot;
     if (!lot.some((p) => pointInPolygon(p, boundary))) return null;
@@ -390,7 +431,7 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
   const dry = (b: Polygon) => archetype.onStilts || !b.some((p) => inWater(water, p));
   // A great building is long enough to stand with every corner on dry ground and the river running
   // through its middle (a cathedral at Vragr, seed 1, did): it is tested against the water whole.
-  const dryWhole = (b: Polygon) => !water.bodies.some((w) => polysOverlap(b, w));
+  const dryWhole = (b: Polygon) => !overlapsWater(water, b);
   const nearOutline = (b: Polygon, o: Polygon, air: number) => {
     if (polysOverlap(b, o)) return true;
     for (const p of b) for (let i = 0; i < o.length; i++) if (pointSegDist(p, o[i], o[(i + 1) % o.length]) < air) return true;
@@ -800,15 +841,14 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
   // market cross and three wells on a road through the square.
   const roadDist = (p: Point) => { let d = Infinity; for (const sg of roadSegs) d = Math.min(d, pointSegDist(p, sg.a, sg.c) - sg.clear); return d; };
   const openSpot = (poly: Polygon, prefer: Point, clear: number): Point | null => {
+    // the grid's points nearest first (a stable sort, so a tie keeps its place in the scan), and the
+    // first that is open ground is the answer — the nearest, found without testing the rest
     const b = bbox(poly);
-    let best: Point | null = null, bd = Infinity;
-    for (let y = b.minY + 1.25; y < b.maxY; y += 2.5) for (let x = b.minX + 1.25; x < b.maxX; x += 2.5) {
-      const q: Point = [x, y];
-      const d = Math.hypot(x - prefer[0], y - prefer[1]);
-      if (d >= bd || !pointInPolygon(q, poly) || !inTown(q) || inWater(water, q) || roadDist(q) < clear) continue;
-      bd = d; best = q;
-    }
-    return best;
+    const pts: { q: Point; d: number }[] = [];
+    for (let y = b.minY + 1.25; y < b.maxY; y += 2.5) for (let x = b.minX + 1.25; x < b.maxX; x += 2.5) pts.push({ q: [x, y], d: Math.hypot(x - prefer[0], y - prefer[1]) });
+    pts.sort((u, v) => u.d - v.d);
+    for (const { q } of pts) if (pointInPolygon(q, poly) && inTown(q) && !inWater(water, q) && roadDist(q) >= clear) return q;
+    return null;
   };
 
   // parish churches: a steeple in a few non-civic wards (skyline). Uses zoned wards, no overlap

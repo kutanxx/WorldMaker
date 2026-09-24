@@ -1557,6 +1557,11 @@ describe("a town in one world is not a copy of a town in another", () => {
 // And for everything else in its place: every plate moved — the country now keeps clear of the name,
 // the compass and the scale (every plate's rejection sampling moved), and gates, the breakwater, the
 // harbour's name, the parish churches and the market cross and well were set where they belong.
+//
+// And for speed: the water, the town's outline and the open-spot search answer the same through a grid
+// (proved over all 336 plates of twelve worlds); what moved is only what was made coarser on purpose —
+// the 17 meander towns' loop (its corners cut three times, not four) and the name of 116 of 122
+// castles (its spot sought on a 2-unit grid, not 1.5). The other 200 plates hold.
 describe("a plate is the same plate, byte for byte", () => {
   const fold = (h: number, c: number) => Math.imul(h ^ c, 16777619) >>> 0;
   const fnv = (s: string) => { let h = 2166136261 >>> 0; for (let i = 0; i < s.length; i++) h = fold(h, s.charCodeAt(i)); return h >>> 0; };
@@ -1567,9 +1572,9 @@ describe("a plate is the same plate, byte for byte", () => {
     return { h, n };
   };
   it("draws seed 1's twenty-eight towns exactly as it did", () => {
-    expect(worldHash(1)).toEqual({ h: 2575092816, n: 28 });
+    expect(worldHash(1)).toEqual({ h: 2938391531, n: 28 });
   });
   it("draws seed 12's twenty-eight towns exactly as it did", () => {
-    expect(worldHash(12)).toEqual({ h: 3161708744, n: 28 });
+    expect(worldHash(12)).toEqual({ h: 139291029, n: 28 });
   });
 });

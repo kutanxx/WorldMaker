@@ -83,6 +83,21 @@ export function deepest(ring: Polygon): { at: Point; depth: number } {
   return { at, depth };
 }
 
+/** whether a ring is at least `need` deep anywhere — `deepest(ring).depth >= need`, stopping at the first
+ *  point that shows it (the same points, in the same order) */
+function reaches(ring: Polygon, need: number): boolean {
+  if (ring.length < 3) return false;
+  const c = centroid(ring);
+  if (pointInPolygon(c, ring) && edgeDist(c, ring) >= need) return true;
+  const b = bbox(ring);
+  const step = Math.max(0.75, Math.min(b.maxX - b.minX, b.maxY - b.minY) / 24);
+  for (let y = b.minY + step / 2; y < b.maxY; y += step) for (let x = b.minX + step / 2; x < b.maxX; x += step) {
+    const p: Point = [x, y];
+    if (pointInPolygon(p, ring) && edgeDist(p, ring) >= need) return true;
+  }
+  return false;
+}
+
 /** the edge whose middle is nearest `target`, among those `ok` allows (all of them if none are) */
 function nearestEdge(poly: Polygon, target: Point, ok: (a: Point, b: Point) => boolean = () => true): { mid: Point; ux: number; uy: number; i: number } {
   let best = { mid: poly[0], ux: 1, uy: 0, i: 0 }, bd = Infinity;
@@ -124,7 +139,7 @@ export function makeCastle(
   const yardR = Math.min(Math.max(5 + size * 3.7, minYard), Math.max(6, wardR - (great ? BAILEY_MIN : 3)));
   const floor = Math.max(1.5, Math.min(size >= 3 ? 3 : 4, wardR * 0.18));
   // the yard has to hold the donjon with its set-back from the rampart all round
-  const holdsKeep = (ring: Polygon) => ring.length >= 3 && deepest(ring).depth >= WALL_CLEAR + kr0 * Math.SQRT2;
+  const holdsKeep = (ring: Polygon) => reaches(ring, WALL_CLEAR + kr0 * Math.SQRT2);
   // How far the enceinte stands back from the streets. Its area falls as it withdraws, so this is a
   // bisection for the yard the lord is owed — bounded by the one that still holds his tower. The
   // wall side is not withdrawn (see ringOf), which is why a flat "ward radius minus yard radius"
@@ -155,7 +170,7 @@ export function makeCastle(
     const back = OUTER_INSET + BAILEY_MIN;
     const deeper = d >= back ? inner : ringOf(ward, boundary, back);
     const outer = ringOf(ward, boundary, OUTER_INSET);
-    const holdsSmallerKeep = deeper.length >= 3 && deepest(deeper).depth >= WALL_CLEAR + 0.75 * kr0 * Math.SQRT2;
+    const holdsSmallerKeep = reaches(deeper, WALL_CLEAR + 0.75 * kr0 * Math.SQRT2);
     if (outer.length >= 3 && holdsSmallerKeep) { inner = deeper; d = Math.max(d, back); outerWall = outer; }
   }
   const wc = centroid(inner);
@@ -343,7 +358,7 @@ export function castleLabelAt(c: Castle, ground: Polygon, blocked: (p: Point) =>
   const middle = deepest(c.innerWall).at;
   const b = bbox(ground);
   let best: Point | null = null, bestScore = -Infinity;
-  for (let y = b.minY + 1; y < b.maxY; y += 1.5) for (let x = b.minX + 1; x < b.maxX; x += 1.5) {
+  for (let y = b.minY + 1; y < b.maxY; y += 2) for (let x = b.minX + 1; x < b.maxX; x += 2) {
     const p: Point = [x, y];
     if (blocked(p)) continue;
     const cl = clearance(p);

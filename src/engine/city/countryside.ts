@@ -4,7 +4,7 @@
 import type { Rng } from "../rng";
 import type { Point, Polygon, Polyline } from "../geometry";
 import { pointInPolygon, centroid, polysOverlap, pointSegDist, segmentsIntersect, bbox } from "../geometry";
-import { inWater } from "./water";
+import { inWater, overlapsWater } from "./water";
 import type { Water } from "./water";
 import { inMountains } from "./mountain";
 import type { MountainMass } from "./mountain";
@@ -160,7 +160,7 @@ export function generateCountryside(rng: Rng, opts: CountrysideOpts): Countrysid
     // water needs the same exact-geometry treatment the roads and claimed patches already get:
     // vertex + centroid probes miss a cove narrow enough to pass between them, and the shore now
     // has coves that narrow (seed 25 put a field across one).
-    if (water.bodies.some((b) => polysOverlap(poly, b))) return false;
+    if (overlapsWater(water, poly)) return false;
     if (obstacles.some((o) => Math.hypot(o[0] - c[0], o[1] - c[1]) < gap)) return false;
     if (claimedPolys.some((cp) => polysOverlap(poly, cp))) return false;
     if (roadThrough(poly) || nearMoat(poly)) return false;

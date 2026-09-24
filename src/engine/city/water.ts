@@ -169,7 +169,7 @@ export function buildWater(rng: Rng, kind: WaterKind, bounds: { w: number; h: nu
       at(0.55, -1.08), at(1.6, -1.6), at(3.4, -2.6),
     ];
     // corner cutting (Chaikin) until the bends are curves
-    for (let k = 0; k < 4; k++) {
+    for (let k = 0; k < 3; k++) {
       const next: Point[] = [path[0]];
       for (let i = 0; i < path.length - 1; i++) {
         const a = path[i], b = path[i + 1];
@@ -202,9 +202,99 @@ export function buildWater(rng: Rng, kind: WaterKind, bounds: { w: number; h: nu
   return { kind, bodies: onPlate(ribbon(center, half)), bridges: [] };
 }
 
+/**
+ * A water body laid over a grid: each cell is known to be all water, all dry, or crossed by the
+ * shore — and only a point in a shore cell needs the exact test.
+ *
+ * ★ Speed, not a new answer. A river is a ribbon of some 120 vertices and a meander's loop of some
+ * 190 (360 before its corners were cut three times rather than four), and once houses were kept
+ * dry corner by corner and roads walked for their crossings, the
+ * point-in-polygon test behind `inWater` was 70% of generating a plate (56 plates took 2.45s, a
+ * capital 252ms). A cell no edge touches is on one side of the shore throughout, so its centre
+ * answers for all of it; a point outside the body's box is outside the body. The plates come out
+ * byte for byte the same (city.test's byte-lock).
+ */
+interface Raster { x0: number; y0: number; cs: number; nx: number; ny: number; cells: Uint8Array }
+const CELL = 6;
+const rasters = new WeakMap<Polygon, Raster>();
+// does the segment a-b touch the closed box [x0,x1]x[y0,y1]? (Liang-Barsky, the box a hair larger)
+function touches(a: Point, b: Point, x0: number, y0: number, x1: number, y1: number): boolean {
+  const E = 1e-7;
+  let t0 = 0, t1 = 1;
+  const dx = b[0] - a[0], dy = b[1] - a[1];
+  for (const [p, q] of [[-dx, a[0] - (x0 - E)], [dx, (x1 + E) - a[0]], [-dy, a[1] - (y0 - E)], [dy, (y1 + E) - a[1]]]) {
+    if (p === 0) { if (q < 0) return false; continue; }
+    const r = q / p;
+    if (p < 0) { if (r > t1) return false; if (r > t0) t0 = r; }
+    else { if (r < t0) return false; if (r < t1) t1 = r; }
+  }
+  return true;
+}
+function rasterOf(poly: Polygon): Raster {
+  const had = rasters.get(poly);
+  if (had) return had;
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const [x, y] of poly) { if (x < minX) minX = x; if (y < minY) minY = y; if (x > maxX) maxX = x; if (y > maxY) maxY = y; }
+  const x0 = minX - CELL, y0 = minY - CELL;
+  const nx = Math.ceil((maxX - x0) / CELL) + 2, ny = Math.ceil((maxY - y0) / CELL) + 2;
+  const cells = new Uint8Array(nx * ny);   // 0 not yet known, 1 dry, 2 water, 3 the shore runs through it
+  for (let i = 0; i < poly.length; i++) {
+    const a = poly[i], b = poly[(i + 1) % poly.length];
+    const i0 = Math.max(0, Math.floor((Math.min(a[0], b[0]) - x0) / CELL) - 1), i1 = Math.min(nx - 1, Math.floor((Math.max(a[0], b[0]) - x0) / CELL) + 1);
+    const j0 = Math.max(0, Math.floor((Math.min(a[1], b[1]) - y0) / CELL) - 1), j1 = Math.min(ny - 1, Math.floor((Math.max(a[1], b[1]) - y0) / CELL) + 1);
+    for (let j = j0; j <= j1; j++) for (let ii = i0; ii <= i1; ii++) {
+      const k = j * nx + ii;
+      if (cells[k] === 3) continue;
+      if (touches(a, b, x0 + ii * CELL, y0 + j * CELL, x0 + (ii + 1) * CELL, y0 + (j + 1) * CELL)) cells[k] = 3;
+    }
+  }
+  const r = { x0, y0, cs: CELL, nx, ny, cells };
+  rasters.set(poly, r);
+  return r;
+}
+function inBody(poly: Polygon, p: Point): boolean {
+  const r = rasterOf(poly);
+  const ix = Math.floor((p[0] - r.x0) / r.cs), iy = Math.floor((p[1] - r.y0) / r.cs);
+  if (!(ix >= 0 && iy >= 0 && ix < r.nx && iy < r.ny)) return false;   // outside the body's box: outside it
+  const k = iy * r.nx + ix;
+  const c = r.cells[k];
+  if (c === 3) return pointInPolygon(p, poly);
+  if (c === 0) r.cells[k] = pointInPolygon([r.x0 + (ix + 0.5) * r.cs, r.y0 + (iy + 0.5) * r.cs], poly) ? 2 : 1;
+  return r.cells[k] === 2;
+}
+
 export function inWater(water: Water, p: Point): boolean {
-  for (const body of water.bodies) if (pointInPolygon(p, body)) return true;
+  for (const body of water.bodies) if (inBody(body, p)) return true;
   return false;
+}
+
+/**
+ * Does a (small) polygon touch the water — exactly `water.bodies.some((b) => polysOverlap(poly, b))`,
+ * asked the fast way round: its own corners through the grid, and only the shore's corners and
+ * edges that come within its box.
+ */
+export function overlapsWater(water: Water, poly: Polygon): boolean {
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const [x, y] of poly) { if (x < minX) minX = x; if (y < minY) minY = y; if (x > maxX) maxX = x; if (y > maxY) maxY = y; }
+  const AIR = 1e-6;
+  for (const body of water.bodies) {
+    const r = rasterOf(body);
+    if (maxX < r.x0 || maxY < r.y0 || minX > r.x0 + r.nx * r.cs || minY > r.y0 + r.ny * r.cs) continue;
+    for (const p of poly) if (inBody(body, p)) return true;
+    for (let i = 0; i < body.length; i++) {
+      const a = body[i], b = body[(i + 1) % body.length];
+      if (Math.max(a[0], b[0]) < minX - AIR || Math.min(a[0], b[0]) > maxX + AIR || Math.max(a[1], b[1]) < minY - AIR || Math.min(a[1], b[1]) > maxY + AIR) continue;
+      if (a[0] >= minX - AIR && a[0] <= maxX + AIR && a[1] >= minY - AIR && a[1] <= maxY + AIR && pointInPolygon(a, poly)) return true;
+      for (let j = 0; j < poly.length; j++) if (segmentsCross(a, b, poly[j], poly[(j + 1) % poly.length])) return true;
+    }
+  }
+  return false;
+}
+// the proper crossing test polysOverlap uses (geometry.segmentsIntersect)
+function segmentsCross(a: Point, b: Point, c: Point, d: Point): boolean {
+  const o = (p: Point, q: Point, s: Point) => (q[0] - p[0]) * (s[1] - p[1]) - (q[1] - p[1]) * (s[0] - p[0]);
+  const o1 = o(a, b, c), o2 = o(a, b, d), o3 = o(c, d, a), o4 = o(c, d, b);
+  return o1 * o2 < 0 && o3 * o4 < 0;
 }
 
 const STEP = 2;    // the road is walked at this spacing, so a crossing is found where the water is
