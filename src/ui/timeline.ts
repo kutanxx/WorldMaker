@@ -17,6 +17,9 @@ export function createTimeline(
   formatYear: (y: number) => string = (y) => `${y}년`,
   // what the button does when pressed, in each state — the glyph alone named nothing
   labels: { play: string; pause: string } = { play: "재생", pause: "일시정지" },
+  // How long the player should stay on frame `i`, in ms — the caption asks for time to be read on
+  // the big news. Never less than a step: a frame with nothing to read keeps the old pace.
+  dwellAt: (i: number) => number = () => 0,
 ): Timeline {
   const max = history.snapshots.length - 1;
 
@@ -69,7 +72,7 @@ export function createTimeline(
   track.append(slider, ticks);
   element.append(playBtn, track, year);
 
-  let timer: ReturnType<typeof setInterval> | null = null;
+  let timer: ReturnType<typeof setTimeout> | null = null;
   let index = 0;
 
   const readout = (i: number) => { year.textContent = formatYear(history.snapshots[i].year); };
@@ -82,17 +85,21 @@ export function createTimeline(
   }
 
   function stop(): void {
-    if (timer !== null) { clearInterval(timer); timer = null; }
+    if (timer !== null) { clearTimeout(timer); timer = null; }
     say("▶", labels.play);
   }
 
   function play(): void {
     if (index >= max) apply(0); // replay from the dawn
     say("⏸", labels.pause);
-    timer = setInterval(() => {
+    // one timeout per frame rather than an interval, so each frame can ask for its own time — and
+    // the frame it starts on too: pressed at year 0, the founding would otherwise go by unread
+    const next = () => {
       if (index >= max) { stop(); return; }
       apply(index + 1);
-    }, STEP_MS);
+      timer = setTimeout(next, Math.max(STEP_MS, dwellAt(index)));
+    };
+    timer = setTimeout(next, Math.max(STEP_MS, dwellAt(index)));
   }
 
   playBtn.addEventListener("click", () => { if (timer === null) play(); else stop(); });

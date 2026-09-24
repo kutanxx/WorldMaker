@@ -220,3 +220,21 @@ describe("the key stands under its heading's words", () => {
     expect(ruleIn(blocksOf("@media (max-width: 900px)"), ".stage.plate .legend-sheet")).toMatch(/margin-inline:\s*6px/);
   });
 });
+
+// Measured on a 390x844 phone, scrubbing twelve worlds: the caption stood 37px (one line) on 276
+// steps, 56 (two) on 329 and 77 (three) on 7 — its height changed on 168 of 600 steps, and the key
+// and the town list under it jumped 19-40px each time. Shortened to headlines the lines fit two, so
+// a narrow window keeps room for two and centres one in it.
+describe("the caption does not bounce the page under it", () => {
+  const narrow = () => blocksOf("@media (max-width: 900px)");
+  it("keeps room for two lines on a narrow window", () => {
+    const rule = ruleIn(narrow(), ".chronicle-caption");
+    const lh = Number(/line-height:\s*([\d.]+)/.exec(ruleIn(css(), ".chronicle-caption"))?.[1]);
+    const min = Number(/min-height:\s*([\d.]+)em/.exec(rule)?.[1]);
+    expect(min, "the caption keeps no room of its own").toBeCloseTo(2 * lh, 5);
+    expect(rule, "a one-line caption sits at the top of a two-line box").toMatch(/align-items:\s*center/);
+  });
+  it("still disappears when it has nothing to say", () => {
+    expect(css(), "a flex caption ignores the hidden attribute").toMatch(/\.chronicle-caption\[hidden\]\s*\{[^}]*display:\s*none/);
+  });
+});

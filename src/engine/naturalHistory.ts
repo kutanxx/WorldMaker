@@ -28,6 +28,8 @@ export interface NaturalEvent {
   rank: number;
   kind: NaturalKind;
   text: string;
+  /** the headline, where `text` carries a detail after it (see ChronicleLine.short) */
+  short?: string;
   /** the town it happened to, where it happened to one; famine is a realm's whole country */
   cityId?: number;
   polityId?: number;
@@ -107,11 +109,10 @@ export function naturalHistory(world: World, history: History, lang: ChronicleLa
       takenFamine.add(key);
       used.set("famine", used.get("famine")! + 1);
       const self = realmName(pid);
+      const head = ko ? `${year}년, ${withJosa(self, "이/가")} 기근을 겪다` : `Year ${year} — famine in ${self}`;
       out.push({
-        year, rank: 5, kind, polityId: pid,
-        text: ko
-          ? `${year}년, ${withJosa(self, "이/가")} 기근을 겪다 — 메마른 땅에 흉년이 겹치다`
-          : `Year ${year} — famine in ${self}, a lean year on hard ground`,
+        year, rank: 5, kind, polityId: pid, short: head,
+        text: ko ? `${head} — 메마른 땅에 흉년이 겹치다` : `${head}, a lean year on hard ground`,
       });
       continue;
     }

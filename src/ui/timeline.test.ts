@@ -37,6 +37,34 @@ describe("createTimeline", () => {
     expect(btn.textContent).toBe("▶");
   });
 
+  // ★ A step the caller asks to stay on is stayed on: the caption under the scrubber changed on 360
+  // of 612 steps when played — half a second a line — so the player stops on the big news for as
+  // long as it takes to read it. A step with nothing to read keeps the old pace.
+  it("stays on a step for as long as it is asked to, and no less than a step", () => {
+    const seen: number[] = [];
+    const dwell = (i: number) => (i === 1 ? 2000 : 0);
+    const t = createTimeline(fakeHistory(4), (i) => seen.push(i), undefined, undefined, dwell);
+    (t.element.querySelector("button") as HTMLButtonElement).click();
+    vi.advanceTimersByTime(300);
+    expect(seen, "the first step came late").toEqual([1]);
+    vi.advanceTimersByTime(1900);
+    expect(seen, "the player left the big news before it could be read").toEqual([1]);
+    vi.advanceTimersByTime(100);
+    expect(seen).toEqual([1, 2]);
+    vi.advanceTimersByTime(300);
+    expect(seen).toEqual([1, 2, 3]);
+  });
+
+  it("reads the frame it starts on too, so the first news is not passed over", () => {
+    const seen: number[] = [];
+    const t = createTimeline(fakeHistory(4), (i) => seen.push(i), undefined, undefined, (i) => (i === 0 ? 1500 : 0));
+    (t.element.querySelector("button") as HTMLButtonElement).click();
+    vi.advanceTimersByTime(1400);
+    expect(seen).toEqual([]);
+    vi.advanceTimersByTime(100);
+    expect(seen).toEqual([1]);
+  });
+
   it("destroy clears a running timer", () => {
     const seen: number[] = [];
     const t = createTimeline(fakeHistory(10), (i) => seen.push(i));

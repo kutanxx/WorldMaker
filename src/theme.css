@@ -307,6 +307,8 @@ svg.world.lang-en .nation-label { font-variant: small-caps; letter-spacing: 0.10
   font-family: 'EB Garamond', Georgia, serif; font-size: 15px; line-height: 1.4; text-align: center;
   color: #4a3f2f; background: #f6efdd; border: 1px solid #cbb784; border-radius: 6px;
 }
+/* `display: flex` on a narrow window would beat the [hidden] the caption sets when it has nothing to say */
+.chronicle-caption[hidden] { display: none; }
 .chronicle-caption.evt-conquer { color: #7a2f2f; }
 .chronicle-caption.evt-civilwar { color: #8a3a1a; }
 .chronicle-caption.evt-independence { color: #2f6f4a; }
@@ -775,6 +777,13 @@ svg.world.lang-en .nation-label { font-variant: small-caps; letter-spacing: 0.10
      the space above it — with the strip's margin on top, measured 36px under the map before the
      scrubber's own margin went, and 24 after. */
   .map-with-list > .timeline-strip { margin-top: 0; }
+  /* ★ Room for two lines, and one centred in it. Measured on a phone, scrubbing twelve worlds: the
+     caption stood one line (37px) on 276 steps, two (56) on 329 and three (77) on 7 — its height
+     changed on 168 of 600 steps, and the key and the town list under it jumped 19-40px each time.
+     Shortened to headlines (ChronicleLine.short) the lines fit two. 2 x the line-height of 1.4. */
+  .chronicle-caption {
+    min-height: 2.8em; display: flex; align-items: center; justify-content: center;
+  }
   /* The toolbar folds the way the panels do. Measured before this: title + toolbar 236px of an
      812px screen, over a 225px map — four rows, one of which held the language toggle alone. */
   .more-toggle { display: inline-flex; }

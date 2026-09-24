@@ -37,8 +37,14 @@ export type ChronicleKind =
   // the world's natural history: invented, but landed on towns the atlas drew (naturalHistory.ts)
   | "plague" | "fire" | "flood" | "winter" | "famine";
 
-/** `rank` only orders lines that share a year, so the output is stable. */
-export interface ChronicleLine { year: number; rank: number; kind: ChronicleKind; text: string }
+/**
+ * `rank` only orders lines that share a year, so the output is stable.
+ * `short` is the line's HEADLINE, where the line carries a detail after it — the realms a founding
+ * names, a fall's last holding, the reign it happened under, what a famine was like. The one-line
+ * caption under the scrubber reads it; the gazetteer reads `text`, which starts with it and is
+ * unchanged. Measured over 12 seeds the lines ran to 74 characters, up to four lines on a phone.
+ */
+export interface ChronicleLine { year: number; rank: number; kind: ChronicleKind; text: string; short?: string }
 
 /**
  * Whether a line is a MOMENT — something happened — or RECORD, a fact about the record itself.
@@ -114,11 +120,14 @@ function mined(world: World, history: History, lang: ChronicleLang,
         // Losing everything is a fall, not a percentage: "lost 100% of its land" is arithmetic
         // where the chronicle wants an ending.
         const share = Math.round(100 * (1 - b / a));
-        out.push({ year, rank: 3, kind: b === 0 ? "fall" : "loss", text: b === 0
-          ? (ko ? `${year}년, ${withJosa(nameOf(p), "이/가")} 멸망하다 — ${a}칸을 지키던 끝${underOf(p, year - 10)}`
-                : `Year ${year} — ${nameOf(p)} falls, holding ${a} tiles to the last${underOf(p, year - 10)}`)
+        const falls = b === 0;
+        const fallHead = ko ? `${year}년, ${withJosa(nameOf(p), "이/가")} 멸망하다` : `Year ${year} — ${nameOf(p)} falls`;
+        out.push({ year, rank: 3, kind: falls ? "fall" : "loss", text: falls
+          ? (ko ? `${fallHead} — ${a}칸을 지키던 끝${underOf(p, year - 10)}`
+                : `${fallHead}, holding ${a} tiles to the last${underOf(p, year - 10)}`)
           : (ko ? `${year}년, ${withJosa(nameOf(p), "이/가")} 한 세대 만에 영토의 ${share}%를 잃다 (${a} → ${b}칸)`
-                : `Year ${year} — ${nameOf(p)} loses ${share}% of its land in a generation (${a} → ${b} tiles)`) });
+                : `Year ${year} — ${nameOf(p)} loses ${share}% of its land in a generation (${a} → ${b} tiles)`),
+          ...(falls ? { short: fallHead } : {}) });
       } else if (a >= 10 && b >= a * 1.5 && t - lastGain[p] >= 3) {
         lastGain[p] = t;
         out.push({ year, rank: 3, kind: "surge", text: ko
@@ -165,9 +174,14 @@ function mined(world: World, history: History, lang: ChronicleLang,
       if (v > tv) { tv = v; top = q; }
     }
     if (alive === 0) continue;
-    out.push({ year, rank: -1, kind: "century", text: ko
-      ? `${year}년 현재 — ${alive}개 나라가 서 있고, 가장 큰 나라는 ${nameOf(top)}(${tv}칸). 사람의 땅은 ${held}칸.`
-      : `Year ${year} — ${alive} realms stand; the greatest is ${nameOf(top)} at ${tv} tiles, of ${held} tiles settled.` });
+    // the headline stops before the tile counts: with them this was the one line still three deep
+    // under a phone's map
+    const head = ko
+      ? `${year}년 현재 — ${alive}개 나라가 서 있고, 가장 큰 나라는 ${nameOf(top)}`
+      : `Year ${year} — ${alive} realms stand; the greatest is ${nameOf(top)}`;
+    out.push({ year, rank: -1, kind: "century", short: head, text: ko
+      ? `${head}(${tv}칸). 사람의 땅은 ${held}칸.`
+      : `${head} at ${tv} tiles, of ${held} tiles settled.` });
   }
 
   // Which peoples a realm comes to rule. The generator gives every world five cultures and the
@@ -198,9 +212,11 @@ function mined(world: World, history: History, lang: ChronicleLang,
       // One conquest can reach two peoples at once; that is one line, not two identical ones.
       if (!gained.length) continue;
       const year = snap.year;
-      out.push({ year, rank: 2, kind: "culture", text: ko
-        ? `${year}년, ${withJosa(nameOf(p), "이/가")} ${gained.join("·")} 민족의 땅을 다스리게 되다${underOf(p, year)}`
-        : `Year ${year} — ${nameOf(p)} comes to rule land of the ${gained.join(" and ")}${underOf(p, year)}` });
+      const head = ko
+        ? `${year}년, ${withJosa(nameOf(p), "이/가")} ${gained.join("·")} 민족의 땅을 다스리게 되다`
+        : `Year ${year} — ${nameOf(p)} comes to rule land of the ${gained.join(" and ")}`;
+      const reign = underOf(p, year);
+      out.push({ year, rank: 2, kind: "culture", text: head + reign, ...(reign ? { short: head } : {}) });
     }
   }
 
@@ -212,9 +228,11 @@ function mined(world: World, history: History, lang: ChronicleLang,
     const f = forms.get(p.id);
     if (!f || f.form !== "empire" || f.since === null || f.since <= p.foundedYear) continue;
     const year = f.since;
-    out.push({ year, rank: 2, kind: "empire", text: ko
-      ? `${year}년, ${withJosa(say(p.name), "이/가")} 여러 민족의 땅을 아울러 제국이 되다${underOf(p.id, year)}`
-      : `Year ${year} — ${p.name} becomes an empire, ruling peoples not its own${underOf(p.id, year)}` });
+    const head = ko
+      ? `${year}년, ${withJosa(say(p.name), "이/가")} 여러 민족의 땅을 아울러 제국이 되다`
+      : `Year ${year} — ${p.name} becomes an empire, ruling peoples not its own`;
+    const reign = underOf(p.id, year);
+    out.push({ year, rank: 2, kind: "empire", text: head + reign, ...(reign ? { short: head } : {}) });
   }
 
   // Accessions, but only where a realm is large enough for its succession to be news. Narrating
@@ -280,9 +298,9 @@ export function buildChronicle(world: World, history: History, lang: ChronicleLa
         .map((e) => history.polities.find((p) => p.id === e.polityId)?.name)
         .filter((n): n is string => !!n)
         .map((n) => properNoun(ko, n));
-      told.push({ year: ev.year, rank: 0, kind: "foundings", text: ko
-        ? `${ev.year}년, ${names.length}개 나라가 서다 — ${names.join(", ")}`
-        : `Year ${ev.year} — ${names.length} realms stand: ${names.join(", ")}` });
+      const head = ko ? `${ev.year}년, ${names.length}개 나라가 서다` : `Year ${ev.year} — ${names.length} realms stand`;
+      told.push({ year: ev.year, rank: 0, kind: "foundings", short: head,
+        text: ko ? `${head} — ${names.join(", ")}` : `${head}: ${names.join(", ")}` });
       continue;
     }
     told.push({ year: ev.year, rank: 0, kind: ev.type, text: eventText(ev, history.polities, lang) });

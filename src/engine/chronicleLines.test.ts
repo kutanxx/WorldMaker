@@ -213,3 +213,43 @@ describe("the year a realm becomes an empire", () => {
     for (const l of ko) expect(l.text).toContain("제국");
   });
 });
+
+// ★ The one-line caption under the scrubber reads a HEADLINE; the gazetteer reads the whole line.
+// Measured over 12 seeds: the lines ran to 74 characters (median 23, 167 of 724 over 40), which on a
+// phone is up to four lines under the map — the founding line alone lists every realm by name. A
+// line that carries a detail (the names, a fall's last holding, the reign it happened under, what a
+// famine was like) carries its headline beside it, so the caption can say what happened in a line
+// or two and the gazetteer keeps every word it had.
+describe("a line with a detail carries its headline too", () => {
+  // (a century's standing too: its tile counts made it the one line still three deep on a phone)
+  const DETAILED = ["foundings", "fall", "culture", "empire", "famine", "century"];
+  for (const lang of ["ko", "en"] as const) {
+    it(`in ${lang}`, () => {
+      let seen = 0;
+      for (const seed of [1, 2, 3, 4]) {
+        const { world, history } = build(seed);
+        for (const l of buildChronicle(world, history, lang).filter((x) => isMoment(x.kind))) {
+          if (!DETAILED.includes(l.kind)) continue;
+          // a reign note is the only detail a culture or empire line carries, and not every year has
+          // a ruler on record: such a line is its own headline
+          if (l.short === undefined && (l.kind === "culture" || l.kind === "empire")) {
+            expect(l.text, "a detail with no headline").not.toMatch(/치세|\(under /);
+            continue;
+          }
+          seen++;
+          expect(l.short, `${l.kind} has no headline: ${l.text}`).toBeDefined();
+          expect(l.text.startsWith(l.short!), `${l.short} is not the start of ${l.text}`).toBe(true);
+          expect([...l.short!].length).toBeLessThan([...l.text].length);
+          expect(l.short!, "a reign note in the headline").not.toMatch(/치세|\(under /);
+          if (l.kind === "foundings") expect(l.short!, "the founding headline still lists the realms").not.toMatch(/[,:—] \S+, /);
+        }
+      }
+      expect(seen, "no detailed line in four worlds").toBeGreaterThan(20);
+    });
+  }
+  it("leaves the gazetteer's words as they were", () => {
+    const { world, history } = build(1);
+    const founding = buildChronicle(world, history, "ko").find((l) => l.kind === "foundings")!;
+    expect(founding.text, "the names left the gazetteer's line too").toMatch(/ — .+, .+/);
+  });
+});

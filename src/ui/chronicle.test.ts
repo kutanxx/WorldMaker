@@ -5,7 +5,7 @@ import { DEFAULT_PARAMS } from "../types/world";
 import { simulateHistory } from "../engine/history";
 import { worldToGazetteer } from "../engine/gazetteer";
 import { buildChronicle, isMoment } from "../engine/chronicleLines";
-import { renderChronicleCaption } from "./chronicle";
+import { renderChronicleCaption, HEADLINE_ORDER, BIG_NEWS } from "./chronicle";
 
 const build = (seed: number) => {
   const { world } = generateWorld({ ...DEFAULT_PARAMS, seed });
@@ -21,6 +21,10 @@ const momentsOf = (seed: number, lang: "en" | "ko" = "en") => {
 // the screen keeps one line and the gazetteer keeps the list. What was worth holding was never the
 // DOM but the chronicle behind it, so the invariants moved onto the lines themselves.
 describe("the chronicle caption", () => {
+  // (It used to hold the caption to the LAST line of the year in sort order — which is the bug the
+  // next test closes: that order is not importance, and it put a free port over the founding of
+  // every realm in all twelve worlds measured. What it held is still the point: the latest year's
+  // news, and nothing from a year the map has not reached.)
   it("carries what had last happened, and never a line from the future", () => {
     const { world, history, moments } = momentsOf(1, "ko");
     const cap = renderChronicleCaption(world, history, "ko");
@@ -28,11 +32,73 @@ describe("the chronicle caption", () => {
       cap.setYear(year);
       const text = cap.element.textContent ?? "";
       expect(text.length, `blank at ${year}`).toBeGreaterThan(0);
-      const line = moments.filter((l) => l.year <= year).pop()!;
-      expect(text.startsWith(line.text), `at ${year} the caption is not the last line before it`).toBe(true);
+      const latest = moments.filter((l) => l.year <= year).pop()!.year;
+      const candidates = moments.filter((l) => l.year === latest).map((l) => l.short ?? l.text);
+      expect(candidates.some((c) => text.startsWith(c)), `at ${year} the caption is none of year ${latest}'s lines`).toBe(true);
       // nothing from after the year the map is drawn at
-      for (const l of moments.filter((m) => m.year > year)) expect(text).not.toContain(l.text);
+      for (const l of moments.filter((m) => m.year > year)) expect(text).not.toContain(l.short ?? l.text);
     }
+  });
+
+  // ★ Measured over 12 seeds: every world opened on "0년, <town> 자유무역항 지정 외 3건" — the
+  // founding of every realm hidden in the "3건" — and 72 of 187 busy years led with the smaller
+  // news (a new town over a conquest, a plague over an independence, a culture over a civil war).
+  it("leads with the biggest thing that happened that year", () => {
+    const rank = (k: string) => { const i = HEADLINE_ORDER.indexOf(k); return i < 0 ? HEADLINE_ORDER.length : i; };
+    for (const seed of [1, 2, 3, 4]) {
+      const { world, history, moments } = momentsOf(seed, "ko");
+      const cap = renderChronicleCaption(world, history, "ko");
+      for (const s of history.snapshots) {
+        const upTo = moments.filter((l) => l.year <= s.year);
+        if (!upTo.length) continue;
+        const latest = upTo[upTo.length - 1].year;
+        const best = Math.min(...moments.filter((l) => l.year === latest).map((l) => rank(l.kind)));
+        cap.setYear(s.year);
+        const kind = (cap.element.className.match(/evt-(\S+)/) ?? [])[1] ?? "";
+        expect(rank(kind), `seed ${seed} year ${s.year} led with ${kind}`).toBe(best);
+      }
+      cap.setYear(0);
+      expect(cap.element.className, `seed ${seed} does not open on its founding`).toContain("evt-foundings");
+    }
+  });
+
+  it("writes the headline and leaves the detail to the gazetteer", () => {
+    for (const lang of ["ko", "en"] as const) {
+      const { world, history } = build(1);
+      const cap = renderChronicleCaption(world, history, lang);
+      for (const s of history.snapshots) {
+        cap.setYear(s.year);
+        expect(cap.element.textContent ?? "", `${lang} ${s.year}`).not.toMatch(/치세|\(under /);
+      }
+      cap.setYear(0);
+      expect(cap.element.textContent ?? "", "the founding still lists every realm").not.toMatch(/[—:] \S+, /);
+    }
+  });
+
+  // ★ Played, the caption changed on 360 of 612 steps — about half a second a line, where a
+  // 25-character Korean line wants two (Netflix's Korean subtitle guide: 12 characters a second for
+  // adults). So the player stops on the big news for as long as it takes to read it, and lets the
+  // small news pass at the old pace.
+  it("asks the player to stay on the big news for as long as it takes to read", () => {
+    const { world, history } = build(1);
+    const cap = renderChronicleCaption(world, history, "ko");
+    const dwell0 = cap.dwellAt(0);
+    cap.setYear(history.snapshots[0].year);
+    const words = [...(cap.element.textContent ?? "")].length;
+    expect(dwell0, "the founding goes past unread").toBe(Math.min(3000, Math.round(words / 12 * 1000)));
+    let held = 0, quiet = 0;
+    for (let i = 1; i < history.snapshots.length; i++) {
+      const d = cap.dwellAt(i);
+      cap.setYear(history.snapshots[i - 1].year);
+      const before = cap.element.textContent;
+      cap.setYear(history.snapshots[i].year);
+      const changed = cap.element.textContent !== before;
+      const big = BIG_NEWS.has((cap.element.className.match(/evt-(\S+)/) ?? [])[1] ?? "");
+      if (changed && big) { held++; expect(d, `step ${i}`).toBeGreaterThan(0); }
+      else { quiet++; expect(d, `step ${i} holds for news that is not new, or not big`).toBe(0); }
+    }
+    expect(held, "nothing to stop for in a whole world").toBeGreaterThan(3);
+    expect(quiet).toBeGreaterThan(held);
   });
 
   // Measured over 12 seeds: 43.5 events on 51 scrub steps, 54% of steps empty, runs of 34 empty
