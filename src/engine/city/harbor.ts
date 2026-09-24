@@ -65,15 +65,6 @@ export function makeHarbor(
   const tan: Point = [-dir[1], dir[0]];
   const inSea = (p: Point) => inWater(water, p);
 
-  // breakwater: out along dir, then an elbow along the shore tangent to enclose a basin
-  const reach = 26 + rng() * 12;
-  const span = 16 + rng() * 10;
-  const side = rng() < 0.5 ? 1 : -1;
-  const start: Point = [anchor[0] + dir[0] * 3, anchor[1] + dir[1] * 3];
-  const mid: Point = [anchor[0] + dir[0] * reach, anchor[1] + dir[1] * reach];
-  const tip: Point = [mid[0] + tan[0] * side * span, mid[1] + tan[1] * side * span];
-  const breakwater: Polyline = [start, mid, tip];
-
   // march from a quay point outward until it meets the sea (bridges the small land gap where
   // the town edge stops short of the shore), returning the first water point.
   const reachWater = (from: Point): Point | null => {
@@ -83,6 +74,36 @@ export function makeHarbor(
     }
     return null;
   };
+
+  // Breakwater: out along dir, then an elbow along the shore tangent to enclose a basin.
+  // ★ From the SHORE, not from the town's edge: a port town stands up to a strand back from its
+  // water, and a mole started at the wall ran its first stretch across the beach — 128 of 139
+  // harbours over twelve worlds had a breakwater lying over dry land, and 12 had their lighthouse on
+  // it. It starts where the water does now, and its arm and head stand in the water: the other side
+  // if this one runs aground, a shorter arm if neither will.
+  const reach = 26 + rng() * 12;
+  const span = 16 + rng() * 10;
+  const side = rng() < 0.5 ? 1 : -1;
+  const shore = reachWater(anchor);
+  const from: Point = shore ?? [anchor[0] + dir[0] * 3, anchor[1] + dir[1] * 3];
+  const wet = (a: Point, b: Point) => {
+    for (let k = 1; k <= 8; k++) if (!inSea([a[0] + ((b[0] - a[0]) * k) / 8, a[1] + ((b[1] - a[1]) * k) / 8])) return false;
+    return true;
+  };
+  let breakwater: Polyline | null = null;
+  for (let f = 1; f >= 0.45 && !breakwater; f -= 0.15) {
+    const out = (shore ? reach - 3 : reach) * f;
+    const mid: Point = [from[0] + dir[0] * out, from[1] + dir[1] * out];
+    if (!wet(from, mid)) continue;
+    for (const sd of [side, -side]) {
+      const tip: Point = [mid[0] + tan[0] * sd * span * f, mid[1] + tan[1] * sd * span * f];
+      if (wet(mid, tip)) { breakwater = [from, mid, tip]; break; }
+    }
+  }
+  // no arm stands in the water at all (a shore too twisted to shelter): a short mole straight out
+  if (!breakwater) breakwater = [from, [from[0] + dir[0] * 12, from[1] + dir[1] * 12]];
+  const mid = breakwater[1];
+  const tip = breakwater[breakwater.length - 1];
 
   // piers: from quay points, cross the shore gap and jut into the sheltered water
   const piers: Polyline[] = [];
@@ -97,9 +118,10 @@ export function makeHarbor(
     piers.push([base, end]); // quay → across the gap → into the water
     boats.push({ at: [end[0] + tan[0] * 2.5, end[1] + tan[1] * 2.5], angle });
   }
-  // a couple of boats riding in the sheltered basin
+  // a couple of boats riding in the sheltered basin — on whichever side the arm was built
+  const bside = (tip[0] - mid[0]) * tan[0] + (tip[1] - mid[1]) * tan[1] >= 0 ? 1 : -1;
   for (let i = 0; i < 2; i++) {
-    const p: Point = [mid[0] - dir[0] * (4 + i * 6) + tan[0] * side * (4 + rng() * 4), mid[1] - dir[1] * (4 + i * 6) + tan[1] * side * (4 + rng() * 4)];
+    const p: Point = [mid[0] - dir[0] * (4 + i * 6) + tan[0] * bside * (4 + rng() * 4), mid[1] - dir[1] * (4 + i * 6) + tan[1] * bside * (4 + rng() * 4)];
     if (inSea(p)) boats.push({ at: p, angle: angle + (rng() - 0.5) * 0.6 });
   }
 

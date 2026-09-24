@@ -801,3 +801,12 @@ describe("the plate's name has a tablet and a rule of its own width", () => {
     expect(svg.querySelector(".city-name-rule")!.getAttribute("x1")).toBe(before);
   });
 });
+
+// The country keeps clear of the town's name wherever an exported plate centres it — on the town and
+// the key strip together — so the engine carries the strip's width too. The two must be one number.
+describe("the plate's furniture as the engine reserves it", () => {
+  it("knows the width of the key strip the renderer draws", async () => {
+    const { PLATE_KEY_STRIP } = await import("../engine/city");
+    expect(PLATE_KEY_STRIP).toBe(KEY_STRIP);
+  });
+});

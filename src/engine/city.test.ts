@@ -463,10 +463,22 @@ describe("parish churches", () => {
 describe("market square + inns", () => {
   it("puts the market cross on the plaza and inns outside the gate", () => {
     const l = generateCityLayout({ id: 7, name: "T", size: 4, coastal: false, isCapital: false, elevation: 0.4, biome: GRASSLAND }, 2);
-    const plaza = l.wards.find((w) => w.type === "plaza");
+    const plaza = l.wards.find((w) => w.type === "plaza")!;
+    expect(plaza).toBeDefined();
     expect(l.marketCross).not.toBeNull();
-    if (plaza) { const c = centroid(plaza.polygon); expect(Math.hypot(l.marketCross![0] - c[0], l.marketCross![1] - c[1])).toBeLessThan(0.01); }
     expect(l.well).not.toBeNull();
+    // on the square's open ground, not on a road crossing it (it stood at the square's centroid,
+    // which put the cross or the well on a road through it on four plates of twelve worlds)
+    const roads = [...l.mainRoads, ...l.minorRoads];
+    const toRoad = (p: [number, number]) => { let d = Infinity; for (const r of roads) for (let k = 0; k < r.length - 1; k++) d = Math.min(d, pointSegDist(p, r[k], r[k + 1])); return d; };
+    for (const p of [l.marketCross!, l.well!]) {
+      expect(pointInPolygon(p, plaza.polygon) && pointInPolygon(p, l.boundary)).toBe(true);
+      expect(inWater(l.water, p)).toBe(false);
+      expect(toRoad(p)).toBeGreaterThan(2.5);
+    }
+    // ...and near its middle
+    const c = centroid(plaza.polygon);
+    expect(Math.hypot(l.marketCross![0] - c[0], l.marketCross![1] - c[1])).toBeLessThan(20);
     expect(l.inns.length).toBeGreaterThanOrEqual(1);
     for (const p of l.inns) expect(pointInPolygon(p, l.boundary)).toBe(false);
   });
@@ -1383,6 +1395,118 @@ describe("water in a town", () => {
   });
 });
 
+// The smaller things a plate put in the wrong place, measured over twelve worlds before this: some
+// two hundred hamlets, farms, gallows, cemeteries, abbeys and mills under the town's name, the
+// compass or the scale; 128 of 139 breakwaters lying over the beach (12 lighthouses on land); 101
+// harbour names standing more than 30 from the water; 52 parish churches in the river and 18 on a
+// street; 55 gates at the end of a wall beside the water and 99 with no road out of them.
+describe("everything a plate draws stands where it belongs", () => {
+  const towns = (() => {
+    let memo: { where: string; l: ReturnType<typeof generateCityLayout> }[] | null = null;
+    return () => {
+      if (memo) return memo;
+      memo = [];
+      for (let seed = 1; seed <= 12; seed++) {
+        const w = generateWorld({ ...DEFAULT_PARAMS, seed }).world;
+        for (const c of w.cities) memo.push({ where: `${c.name} (seed ${seed}, ${c.id})`, l: generateCityLayout(cityContext(c), seed) });
+      }
+      return memo;
+    };
+  })();
+  const edgeDist = (p: [number, number], poly: [number, number][]) => {
+    let d = Infinity;
+    for (let i = 0; i < poly.length; i++) d = Math.min(d, pointSegDist(p, poly[i], poly[(i + 1) % poly.length]));
+    return d;
+  };
+
+  it("keeps the country clear of the plate's own name, compass and scale", () => {
+    let things = 0;
+    for (const { where, l } of towns()) {
+      const title = (p: [number, number]) => p[1] < 44 && Math.abs(p[0] - 230) < 55;          // the name's tablet
+      const compass = (p: [number, number]) => Math.hypot(p[0] - 428, p[1] - 425) < 22;        // the compass's disc
+      const scale = (p: [number, number]) => p[0] > 17 && p[0] < 113 && p[1] > 428;            // the scale's tablet
+      const cs = l.countryside;
+      const at: [string, [number, number]][] = [
+        ...cs.villages.map((v) => ["a hamlet", v.chapel] as [string, [number, number]]),
+        ...cs.farmsteads.map((f) => ["a farm", centroid(f.house)] as [string, [number, number]]),
+        ...(l.abbey ? [["the abbey", l.abbey.at] as [string, [number, number]]] : []),
+        ...(l.cemetery ? [["the cemetery", l.cemetery.at] as [string, [number, number]]] : []),
+        ...(l.gallows ? [["the gallows", l.gallows] as [string, [number, number]]] : []),
+        ...(l.leperHouse ? [["the lazar house", l.leperHouse.at] as [string, [number, number]]] : []),
+        ...(l.fairground ? [["the fair", l.fairground.at] as [string, [number, number]]] : []),
+        ...l.outworks.map((o) => ["a mill", o.at] as [string, [number, number]]),
+        ...l.inns.map((p) => ["an inn", p] as [string, [number, number]]),
+      ];
+      for (const [what, p] of at) {
+        things++;
+        expect(title(p) || compass(p) || scale(p), `${what} under the plate's furniture at ${where}`).toBe(false);
+      }
+    }
+    expect(things).toBeGreaterThan(2000);
+  });
+
+  it("starts a harbour's breakwater at the shore and stands it in the water", () => {
+    let harbours = 0;
+    for (const { where, l } of towns()) {
+      const h = l.harbor;
+      if (!h) continue;
+      harbours++;
+      expect(inWater(l.water, h.lighthouse), `the lighthouse of ${where}`).toBe(true);
+      const bw = h.breakwater;
+      for (let i = 0; i < bw.length - 1; i++) for (let k = 1; k <= 10; k++) {
+        const p: [number, number] = [bw[i][0] + ((bw[i + 1][0] - bw[i][0]) * k) / 10, bw[i][1] + ((bw[i + 1][1] - bw[i][1]) * k) / 10];
+        expect(inWater(l.water, p), `the breakwater of ${where} over dry land`).toBe(true);
+      }
+    }
+    expect(harbours).toBeGreaterThan(100);
+  });
+
+  it("names a port on its quayside", () => {
+    for (const { where, l } of towns()) {
+      const lab = l.labels.find((x) => x.type === "harbor");
+      if (!lab || !l.water.bodies.length) continue;
+      let d = Infinity;
+      for (const b of l.water.bodies) d = Math.min(d, edgeDist([lab.x, lab.y], b as [number, number][]));
+      expect(d, `the harbour's name at ${where}`).toBeLessThan(36);
+    }
+  });
+
+  it("stands every parish church on dry ground in the town", () => {
+    let churches = 0;
+    for (const { where, l } of towns()) for (const p of l.parishChurches) {
+      churches++;
+      expect(pointInPolygon(p, l.boundary) && !inWater(l.water, p), `a parish church at ${where}`).toBe(true);
+    }
+    expect(churches).toBeGreaterThan(900);
+  });
+
+  it("leads a road out of every gate, and puts no gate at the end of a wall beside the water", () => {
+    let gates = 0, wetEnds = 0;
+    for (const { where, l } of towns()) {
+      if (!l.wall) continue;
+      for (const g of l.wall.gates) {
+        gates++;
+        expect(l.suburbRoads.some((r) => Math.hypot(r[0][0] - g[0], r[0][1] - g[1]) < 0.5), `a gate to nowhere at ${where}`).toBe(true);
+        if (l.wall.seaGates.some((e) => Math.hypot(e[0] - g[0], e[1] - g[1]) < 10)) wetEnds++;
+      }
+    }
+    expect(gates).toBeGreaterThan(600);
+    // a town whose only way out is there keeps it (one of twelve worlds' 336)
+    expect(wetEnds).toBeLessThanOrEqual(2);
+  });
+
+  it("spaces the towers along a wall", () => {
+    for (const { where, l } of towns()) {
+      if (!l.wall) continue;
+      const t = l.wall.towers;
+      for (let i = 0; i < t.length; i++) for (let j = i + 1; j < t.length; j++) {
+        const d = Math.hypot(t[i][0] - t[j][0], t[i][1] - t[j][1]);
+        if (d > 1e-6) expect(d, `two towers shoulder to shoulder at ${where}`).toBeGreaterThan(6);
+      }
+    }
+  });
+});
+
 // A plate's numbers were keyed by (world seed XOR town id), so world 2's town 4 drew what world 3's
 // town 5 drew, and when the two were the same kind and size of town they were the same drawing
 // under another name — 16 of the 336 plates of worlds 1-12, 105 of 1,120 over worlds 1-40.
@@ -1429,6 +1553,10 @@ describe("a town in one world is not a copy of a town in another", () => {
 // And for the water: every river, loop, lake, marsh and oasis town and 103 of 139 ports moved (the
 // water comes out of the street network; the river runs the world's way; the bend wraps its town; the
 // lake stands beside it), and 4 mountain towns whose road out turned off the cliff. The other 116 held.
+//
+// And for everything else in its place: every plate moved — the country now keeps clear of the name,
+// the compass and the scale (every plate's rejection sampling moved), and gates, the breakwater, the
+// harbour's name, the parish churches and the market cross and well were set where they belong.
 describe("a plate is the same plate, byte for byte", () => {
   const fold = (h: number, c: number) => Math.imul(h ^ c, 16777619) >>> 0;
   const fnv = (s: string) => { let h = 2166136261 >>> 0; for (let i = 0; i < s.length; i++) h = fold(h, s.charCodeAt(i)); return h >>> 0; };
@@ -1439,9 +1567,9 @@ describe("a plate is the same plate, byte for byte", () => {
     return { h, n };
   };
   it("draws seed 1's twenty-eight towns exactly as it did", () => {
-    expect(worldHash(1)).toEqual({ h: 1872649511, n: 28 });
+    expect(worldHash(1)).toEqual({ h: 2575092816, n: 28 });
   });
   it("draws seed 12's twenty-eight towns exactly as it did", () => {
-    expect(worldHash(12)).toEqual({ h: 2218615901, n: 28 });
+    expect(worldHash(12)).toEqual({ h: 3161708744, n: 28 });
   });
 });

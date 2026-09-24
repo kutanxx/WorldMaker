@@ -16,6 +16,8 @@ export interface DefenseWall {
 // land gap where the city boundary stops short of the shoreline, small enough not to catch a
 // sea that is genuinely on the far side of the town.
 const SEA_PROBE = 36;
+// two towers on one run of wall stand at least this far apart
+const TOWER_GAP = 9;
 
 // nearest point on a polyline to p, with its squared distance
 function nearestOnPolyline(p: Point, line: Polyline): { pt: Point; d2: number } {
@@ -54,9 +56,18 @@ function reduceGates(gates: Point[], max: number): Point[] {
 
 // gates sit where a main road reaches the wall: snap each road endpoint onto the
 // nearest wall segment when it is close enough, merging gates that nearly coincide.
-function placeGates(segments: Polyline[], roads: Polyline[], maxGates: number): Point[] {
+// a gate this close to the end of a run of wall where the water takes over opens onto the shore
+const WET_END = 10;
+
+function placeGates(segments: Polyline[], roads: Polyline[], maxGates: number, seaGates: Point[], usable: (p: Point) => boolean): Point[] {
   const NEAR = 15, MERGE2 = 12 * 12;
   const gates: Point[] = [];
+  // ★ A gate is a way out to somewhere. A street node near the end of a run of wall snapped onto
+  // that end — beside the water, where the wall stops — on 55 plates of twelve worlds, and 99 gates
+  // had no road leaving them at all, their way out running straight into the river or the cliff.
+  // Such a spot is passed over while the town has a better one.
+  const good = (g: Point) => !seaGates.some((e) => Math.hypot(e[0] - g[0], e[1] - g[1]) < WET_END) && usable(g);
+  const spare: Point[] = [];
   let fallback: Point | null = null, fd2 = Infinity;   // nearest wall point to any street, however far
   for (const r of roads) {
     if (r.length < 2) continue;
@@ -67,8 +78,9 @@ function placeGates(segments: Polyline[], roads: Polyline[], maxGates: number): 
         if (d2 < bd2) { bd2 = d2; best = pt; }
         if (d2 < fd2) { fd2 = d2; fallback = pt; }
       }
-      if (best && !gates.some((g) => (g[0] - best![0]) ** 2 + (g[1] - best![1]) ** 2 < MERGE2)) {
-        gates.push(best);
+      if (best && !gates.some((g) => (g[0] - best![0]) ** 2 + (g[1] - best![1]) ** 2 < MERGE2)
+        && !spare.some((g) => (g[0] - best![0]) ** 2 + (g[1] - best![1]) ** 2 < MERGE2)) {
+        (good(best) ? gates : spare).push(best);
       }
     }
   }
@@ -83,6 +95,7 @@ function placeGates(segments: Polyline[], roads: Polyline[], maxGates: number): 
   // So when nothing is near enough, the town still takes ONE gate: the wall point closest to a
   // street, however far that is. It is a floor, not a retune — the 325 towns that had gates keep
   // exactly the gates they had.
+  if (gates.length === 0 && spare.length) return reduceGates(spare, 1);
   if (gates.length === 0 && fallback) return [fallback];
   return reduceGates(gates, maxGates);
 }
@@ -90,7 +103,7 @@ function placeGates(segments: Polyline[], roads: Polyline[], maxGates: number): 
 // barrier per boundary edge: 0 = none (walled), 1 = water, 2 = mountain
 export function wallFromDefenses(
   boundary: Polygon, water: Water, mountains: MountainMass[], mainRoads: Polyline[],
-  maxGates = Infinity,
+  maxGates = Infinity, usable: (gate: Point) => boolean = () => true,
 ): DefenseWall {
   const n = boundary.length;
   const c = centroid(boundary);
@@ -148,7 +161,22 @@ export function wallFromDefenses(
     closeRun(runLastEdge + 1);
   }
   const towers: Point[] = [];
-  for (const s of segments) for (const p of s) towers.push(p);
-  const gates = placeGates(segments, mainRoads, maxGates);
+  // Towers stand at the wall's corners, but not shoulder to shoulder: where two corners come within
+  // TOWER_GAP of each other the second is passed over (a run keeps both its ends). Every corner
+  // carried one, and a wall's corners come within six units of each other on 4 plates of twelve
+  // worlds (1.3 at the closest) — so far always on a stretch a castle then took over, which is the
+  // only reason no two towers stood there.
+  for (const s of segments) {
+    let last = -1;
+    s.forEach((p, i) => {
+      const end = i === s.length - 1;
+      const near = last >= 0 && Math.hypot(p[0] - s[last][0], p[1] - s[last][1]) < TOWER_GAP;
+      if (near && !end) return;
+      // the run's last corner takes the place of a middle one it crowds, never of the first
+      if (near && end && last > 0) towers.pop();
+      towers.push(p); last = i;
+    });
+  }
+  const gates = placeGates(segments, mainRoads, maxGates, seaGates, usable);
   return { segments, towers, gates, seaGates };
 }
