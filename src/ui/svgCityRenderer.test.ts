@@ -519,6 +519,14 @@ describe("the castle is the heaviest masonry on the plate", () => {
     expect(great.querySelector(".castle-gatehouse-block")).not.toBeNull();
     expect(plate(3, false).querySelector(".castle-gatehouse-block")).toBeNull();
   });
+
+  // the page sets the castle's name off the castle (`clearCastleName`), and finds it by this
+  it("marks the castle's name, and no other", () => {
+    const svg = plate(6, true);
+    const marked = [...svg.querySelectorAll(".castle-name")];
+    expect(marked.map((el) => el.textContent)).toEqual(["Castle"]);
+    expect(marked[0].classList.contains("ward-label")).toBe(true);
+  });
 });
 
 // The countryside generator lays out an abbey and its cloister, a cemetery, a gallows, a leper

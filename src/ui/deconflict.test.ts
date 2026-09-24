@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from "vitest";
-import { deconflictLabels, clearMarks } from "./deconflict";
+import { deconflictLabels, clearMarks, clearCastleName } from "./deconflict";
 
 const NS = "http://www.w3.org/2000/svg";
 type Box = { x: number; y: number; width: number; height: number };
@@ -375,5 +375,135 @@ describe("clearMarks", () => {
     svg.appendChild(p);
     expect(() => clearMarks(svg)).not.toThrow();
     expect(t.getAttribute("y")).toBe("5");
+  });
+});
+
+// ★ The castle's name lay on the castle: the engine names it at the most open spot of its yard, and a
+// yard seldom has a name's worth of open court once its donjon and halls stand in it — measured on
+// the page at 1440x900, the letters (with their halo) touched the castle's walls, towers or gates on
+// 96 of 122 castles of twelve worlds. The name moves, as little as it must, to where it touches none
+// of the castle: in the yard where there is room, beside the castle where there is none.
+describe("clearCastleName", () => {
+  type P = [number, number];
+  const el = (svg: Element, tag: string, attrs: Record<string, string | number>) => {
+    const e = document.createElementNS(NS, tag);
+    for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, String(v));
+    svg.appendChild(e);
+    return e;
+  };
+  const pts = (ps: P[]) => ps.map((p) => p.join(",")).join(" ");
+  const square = (x0: number, y0: number, x1: number, y1: number): P[] => [[x0, y0], [x1, y0], [x1, y1], [x0, y1]];
+  // a plate with a town outline and a castle: a ring of wall (drawn 4.4 wide), a tower on each corner
+  // and a donjon; `ring` is the enceinte's square, `keep` the donjon's
+  const plate = (ring: [number, number, number, number], keep: [number, number, number, number], town: P[] = square(0, 0, 400, 400)) => {
+    const svg = document.createElementNS(NS, "svg") as SVGSVGElement;
+    el(svg, "polygon", { class: "boundary", points: pts(town) });
+    const g = el(svg, "g", { class: "castle-inner" });
+    const r = square(...ring);
+    el(g, "polygon", { class: "castle-wall", points: pts(r), "stroke-width": 4.4 });
+    for (const [x, y] of r) el(g, "circle", { class: "castle-tower", cx: x, cy: y, r: 2.8, "stroke-width": 0.9 });
+    el(g, "polygon", { class: "castle-keep", points: pts(square(...keep)), "stroke-width": 1.4 });
+    return svg;
+  };
+  // the castle's name: its line box as the page measures it, anchored at its middle and baseline
+  const castleName = (svg: SVGSVGElement, x: number, y: number) => {
+    const t = mkLabel(svg, "ward-label ward-landmark castle-name", { x: x - 6.75, y: y - 6.9, width: 13.5, height: 8.8 });
+    t.setAttribute("x", String(x)); t.setAttribute("y", String(y));
+    t.setAttribute("font-size", "7"); t.setAttribute("stroke-width", "2.2");
+    return t;
+  };
+  // where the name's box (letters and halo) now stands
+  const boxNow = (t: SVGGraphicsElement, x: number, y: number) => {
+    const dx = Number(t.getAttribute("x")) - x, dy = Number(t.getAttribute("y")) - y;
+    return { x0: x - 6.75 - 1.1 + dx, y0: y - 6.9 - 1.1 + dy, x1: x + 6.75 + 1.1 + dx, y1: y + 1.9 + 1.1 + dy, moved: Math.hypot(dx, dy) };
+  };
+  // how near the box comes to a ring's line (0 where it crosses)
+  const toRing = (b: { x0: number; y0: number; x1: number; y1: number }, r: P[]) => {
+    let d = Infinity;
+    for (let i = 0; i < r.length; i++) {
+      const a = r[i], c = r[(i + 1) % r.length];
+      // the ring here is square to the plate, so each side is a horizontal or vertical run
+      if (a[1] === c[1]) {
+        const dx = Math.max(Math.min(a[0], c[0]) - b.x1, 0, b.x0 - Math.max(a[0], c[0]));
+        const dy = a[1] < b.y0 ? b.y0 - a[1] : a[1] > b.y1 ? a[1] - b.y1 : 0;
+        d = Math.min(d, Math.hypot(dx, dy));
+      } else {
+        const dy = Math.max(Math.min(a[1], c[1]) - b.y1, 0, b.y0 - Math.max(a[1], c[1]));
+        const dx = a[0] < b.x0 ? b.x0 - a[0] : a[0] > b.x1 ? a[0] - b.x1 : 0;
+        d = Math.min(d, Math.hypot(dx, dy));
+      }
+    }
+    return d;
+  };
+
+  it("takes the name off the wall into the yard, where the yard has room", () => {
+    const svg = plate([100, 100, 200, 200], [165, 140, 180, 155]);
+    const t = castleName(svg, 102, 150);                 // across the west wall
+    clearCastleName(svg);
+    const b = boxNow(t, 102, 150);
+    expect(toRing(b, square(100, 100, 200, 200)), "still on the wall").toBeGreaterThanOrEqual(2.2);
+    expect(b.x0 > 100 && b.x1 < 200 && b.y0 > 100 && b.y1 < 200, "left the yard it fits in").toBe(true);
+    expect(b.moved, "moved further than it had to").toBeLessThan(12);
+  });
+
+  it("sets the name beside a castle whose yard cannot hold it", () => {
+    const svg = plate([100, 100, 116, 116], [105, 105, 111, 111]);
+    const t = castleName(svg, 108, 112);
+    clearCastleName(svg);
+    const b = boxNow(t, 108, 112);
+    expect(toRing(b, square(100, 100, 116, 116)), "on the wall").toBeGreaterThanOrEqual(2.2);
+    expect(b.x1 < 100 || b.x0 > 116 || b.y1 < 100 || b.y0 > 116, "on the castle").toBe(true);
+    expect(b.moved, "wandered off from the castle").toBeLessThan(25);
+  });
+
+  it("keeps to the town when the nearest clear ground is over the town wall", () => {
+    // the town's wall runs along x = 100 with the castle against it on the inside, and the signs of
+    // the town hem the castle in above, below and to the east: the nearest open ground is the
+    // country across the wall, and the name stays in the town all the same
+    const svg = plate([100, 150, 116, 166], [105, 155, 111, 161], square(100, 0, 400, 400));
+    el(svg, "polyline", { class: "wall-seg", points: pts([[100, 0], [100, 400]]), "stroke-width": 4 });
+    mkLabel(svg, "landmark", { x: 118, y: 120, width: 22, height: 80 });
+    mkLabel(svg, "well", { x: 95, y: 100, width: 45, height: 48 });
+    mkLabel(svg, "well", { x: 95, y: 168, width: 45, height: 47 });
+    const t = castleName(svg, 108, 162);
+    clearCastleName(svg);
+    const b = boxNow(t, 108, 162);
+    expect(b.x0, "went over the town wall").toBeGreaterThan(102);
+    expect(toRing(b, square(100, 150, 116, 166))).toBeGreaterThanOrEqual(2.2);
+  });
+
+  it("keeps the air the cull needs from another name, so neither is taken", () => {
+    const svg = plate([100, 100, 116, 116], [105, 105, 111, 111]);
+    // a quarter's name just under the spot the castle's would otherwise take, below the castle —
+    // clear of it, but nearer than the air the cull keeps between two names
+    mkLabel(svg, "ward-label", { x: 95, y: 132, width: 26, height: 9 });
+    const t = castleName(svg, 108, 112);
+    clearCastleName(svg);
+    const b = boxNow(t, 108, 112);
+    const other = { x0: 95 - 4, y0: 132 - 4, x1: 121 + 4, y1: 141 + 4 };
+    const line = { x0: b.x0 + 1.1, y0: b.y0 + 1.1, x1: b.x1 - 1.1, y1: b.y1 - 1.1 };
+    expect(line.x0 < other.x1 && other.x0 < line.x1 && line.y0 < other.y1 && other.y0 < line.y1, "within the other name's air").toBe(false);
+  });
+
+  it("leaves a name that touches nothing where it is", () => {
+    const svg = plate([100, 100, 200, 200], [165, 165, 180, 180]);
+    const t = castleName(svg, 130, 140);
+    clearCastleName(svg);
+    expect(t.getAttribute("x")).toBe("130");
+    expect(t.getAttribute("y")).toBe("140");
+  });
+
+  it("does nothing where there is no castle, or nothing can be measured", () => {
+    const bare = document.createElementNS(NS, "svg") as SVGSVGElement;
+    const t = castleName(bare, 50, 50);
+    expect(() => clearCastleName(bare)).not.toThrow();
+    expect(t.getAttribute("x")).toBe("50");
+    const svg = plate([100, 100, 116, 116], [105, 105, 111, 111]);
+    const u = document.createElementNS(NS, "text");
+    u.setAttribute("class", "ward-label castle-name");
+    u.setAttribute("x", "108");
+    svg.appendChild(u);
+    expect(() => clearCastleName(svg)).not.toThrow();
+    expect(u.getAttribute("x")).toBe("108");
   });
 });

@@ -19,7 +19,7 @@ import { attachZoomPan, type ZoomPan } from "./zoomPan";
 import { politicalLayer } from "./politicalLayer";
 import { cultureLayer } from "./cultureLayer";
 import { provinceLayer, snapOwnersToProvinces } from "./provinceLayer";
-import { deconflictLabels, clearMarks } from "./deconflict";
+import { deconflictLabels, clearMarks, clearCastleName } from "./deconflict";
 import { applyLabelScale, applyMarkerScale, floorLabelSize } from "./labelScale";
 import { layOutLabelsForExport } from "./exportLabels";
 import { type Lang, t } from "./i18n";
@@ -916,8 +916,10 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     floorLabelSize(citySvg, ".compass-n", PLATE_SIGN_MIN_PX);
     floorScaleCaption(citySvg, PLATE_SIGN_MIN_PX);
     fitTitle(citySvg);
-    // ...and set beside the sign at their place rather than on it, at the size they will be read
+    // ...and set beside the sign at their place rather than on it, at the size they will be read —
+    // the castle's name off the castle it names
     clearMarks(citySvg);
+    clearCastleName(citySvg);
     deconflictLabels(citySvg);
     cityZoom = attachZoomPan(citySvg, frame, {
       labels: zoomLabels(),
@@ -960,7 +962,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
       const marker = generated.world.cities.find((c) => c.id === openCityId);
       if (marker) {
         const svg = renderCity(generateCityLayout(cityContext(marker), params.seed), lang);
-        layOutLabelsForExport(svg, (s) => { fitTitle(s); clearMarks(s); });
+        layOutLabelsForExport(svg, (s) => { fitTitle(s); clearMarks(s); clearCastleName(s); });
         const [, , w, h] = (svg.getAttribute("viewBox") || "0 0 1000 700").split(/[\s,]+/).map(Number);
         return {
           svg, name: marker.name.replace(/[^\w-]+/g, "_") || "city",
