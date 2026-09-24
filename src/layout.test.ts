@@ -120,7 +120,7 @@ describe("the plate's key stands beside the drawing where there is room", () => 
   });
 
   // ★ The number in the media query is not a taste. The plate is capped by the room its chrome
-  // leaves it — `(100vh - RESERVE) * 494/460` — and by the band it sits in, so a side column costs
+  // leaves it — `100vh - RESERVE`, the plate being square — and by the band it sits in, so a side column costs
   // the drawing NOTHING exactly while `band - (column + gap) >= that cap`. Anything else is width
   // taken off the drawing, which is what ㊾ refused. This reads all four numbers out of the
   // stylesheet, so changing the column's width, the gap, the plate's reserve or the ratio without
@@ -147,7 +147,7 @@ describe("the plate's key stands beside the drawing where there is room", () => 
       // the page measure only binds on windows far taller than this query admits, so the window
       // itself is what decides the band here
       const band = w - PAGE_CHROME;
-      const heightBound = ((h - reserve) * 494) / 460;
+      const heightBound = h - reserve;   // the plate is the town's own square
       expect(band - (col + gap), `at ${Math.round(w)}x${h} the column eats into the drawing`)
         .toBeGreaterThanOrEqual(heightBound);
     }

@@ -58,3 +58,29 @@ export function scaleBar(x: number, y: number, units: number, caption: string, s
   }
   return g;
 }
+
+/**
+ * Hold a scale bar's caption at a screen minimum — the bar is drawn in map units, and on a plate
+ * drawn small its "270 m" came out 4.6px on a 390px phone and 4.2px in a 1280x600 laptop window.
+ * The caption grows DOWN from under the bar (its top stays where it was, clear of the chain), and
+ * its tablet grows to hold it. A caption already big enough is left exactly as it was.
+ * `drawnPx` is the drawing's width on screen; unmeasured (jsdom, not mounted), nothing changes.
+ */
+export function floorScaleCaption(svg: SVGSVGElement, minPx: number, drawnPx: number = svg.getBoundingClientRect().width): void {
+  const vb = (svg.dataset.baseViewbox || svg.getAttribute("viewBox") || "").split(/[\s,]+/).map(Number);
+  if (!(drawnPx > 0) || !(vb[2] > 0)) return;
+  const pxPerUnit = drawnPx / vb[2];
+  for (const g of svg.querySelectorAll(".scale-bar")) {
+    const text = g.querySelector(".scale-bar-text");
+    const back = g.querySelector("rect");            // the first rect is the tablet
+    if (!text || !back) continue;
+    const fs = Number(text.getAttribute("font-size"));
+    const want = minPx / pxPerUnit;
+    if (!(fs > 0) || want <= fs) continue;
+    const baseline = Number(text.getAttribute("y")) + (want - fs) * 0.8;
+    text.setAttribute("font-size", want.toFixed(2));
+    text.setAttribute("y", baseline.toFixed(2));
+    const bottom = Math.max(Number(back.getAttribute("y")) + Number(back.getAttribute("height")), baseline + want * 0.3);
+    back.setAttribute("height", (bottom - Number(back.getAttribute("y"))).toFixed(2));
+  }
+}

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from "vitest";
 import { generateCityLayout, cityContext } from "../engine/city";
-import { renderCity, KEY_STRIP, COMPASS_STRIP } from "./svgCityRenderer";
+import { renderCity, KEY_STRIP, fitTitle } from "./svgCityRenderer";
 import { GRASSLAND, WETLAND, TAIGA, ALPINE, DESERT } from "../engine/biome";
 import { pointInPolygon } from "../engine/geometry";
 import type { Polygon } from "../engine/geometry";
@@ -655,21 +655,31 @@ describe("a plate whose key has gone to stand under it", () => {
     expect(svg.getAttribute("viewBox")).toBe(`0 0 ${460 + KEY_STRIP} 460`);
   });
 
-  it("shrinks the strip to the compass when the key is standing elsewhere", () => {
+  // ★ No strip at all once the key has gone: it kept 34 units for the compass alone, and the land
+  // stops where the town's 460 do — measured over 336 plates, the sea or a river ran into the strip's
+  // edge and stopped dead on 117 (35%), beside a bare parchment column.
+  it("draws the town's own square when the key is standing elsewhere", () => {
     const svg = renderCity(layout(), "en", { keyOutside: true });
-    expect(svg.getAttribute("viewBox")).toBe(`0 0 ${460 + COMPASS_STRIP} 460`);
-    expect(COMPASS_STRIP).toBeLessThan(KEY_STRIP);
+    expect(svg.getAttribute("viewBox")).toBe("0 0 460 460");
   });
 
-  // The strip's whole remaining job. A compass half outside the plate would be worse than the
-  // blank column this shrink exists to remove.
-  it("leaves the compass inside the strip it kept", () => {
+  // ...and the compass stands in the plate's own corner, inside the frame, on a disc of parchment
+  // that holds its "N" too — the way the scale bar opposite stands on its tablet.
+  it("stands the compass in the plate's own corner, on a disc", () => {
     const svg = renderCity(layout(), "en", { keyOutside: true });
     const dial = svg.querySelector(".compass circle");
     expect(dial, "the compass rose is not a circle any more; find its new geometry").not.toBeNull();
-    const cx = Number(dial!.getAttribute("cx")), r = Number(dial!.getAttribute("r"));
-    expect(cx - r).toBeGreaterThanOrEqual(460);          // clear of the town
-    expect(cx + r).toBeLessThanOrEqual(460 + COMPASS_STRIP); // and inside the plate
+    const cx = Number(dial!.getAttribute("cx")), cy = Number(dial!.getAttribute("cy")), r = Number(dial!.getAttribute("r"));
+    expect(cx - r, "the compass is still out in a strip").toBeGreaterThan(400);
+    expect(cx + r, "the compass runs into the frame").toBeLessThanOrEqual(460 - 10);
+    expect(cy + r, "the compass runs into the frame").toBeLessThanOrEqual(460 - 10);
+    const disc = svg.querySelector(".compass-plate");
+    expect(disc, "the compass stands bare on whatever is under it").not.toBeNull();
+    const all = [...svg.querySelectorAll("*")];
+    expect(all.indexOf(disc!), "the disc is drawn over the compass").toBeLessThan(all.indexOf(svg.querySelector(".compass")!));
+    const dr = Number(disc!.getAttribute("r")), dy = Number(disc!.getAttribute("cy"));
+    const n = svg.querySelector(".compass-n")!;
+    expect(dy - dr, "the disc does not reach the N").toBeLessThan(Number(n.getAttribute("y")) - 11);
   });
 
   // It still has to be DRAWN — moving it is what legendSheet does, and it cannot move what the
@@ -711,5 +721,65 @@ describe("the cathedral's cross stands in its cathedral", () => {
     }
     expect(crosses, "no cathedral crosses drawn at all").toBeGreaterThan(50);
     expect(outside).toEqual([]);
+  });
+});
+
+// ★ The plate's name was printed straight onto the countryside — over a hamlet, a windmill or an
+// abbey on 60 of 336 plates — and underlined by a fixed 92-unit rule: three times the width of a
+// two-syllable name, short of a long one. It stands on a tablet now, ruled to its own width.
+describe("the plate's name has a tablet and a rule of its own width", () => {
+  const named = (name: string) => {
+    const l = generateCityLayout(cityContext(marker), 7);
+    l.name = name;
+    return renderCity(l, "en", { keyOutside: true });
+  };
+  const width = (el: Element, a: string, b: string) => Number(el.getAttribute(b)) - Number(el.getAttribute(a));
+
+  it("puts a tablet under the name, drawn before it", () => {
+    const svg = named("Kug");
+    const plate = svg.querySelector(".city-name-plate");
+    expect(plate, "the name is printed straight onto the land").not.toBeNull();
+    const g = svg.querySelector(".city-name")!;
+    const kids = [...g.children];
+    expect(kids.indexOf(plate!)).toBeLessThan(kids.indexOf(g.querySelector(".city-name-text")!));
+  });
+
+  it("rules a long name longer than a short one", () => {
+    const short = named("Kug").querySelector(".city-name-rule")!;
+    const long = named("Gruogrgauth").querySelector(".city-name-rule")!;
+    expect(width(long, "x1", "x2")).toBeGreaterThan(width(short, "x1", "x2") * 2);
+  });
+
+  // measured where there is layout: the rule under the word's own box, the tablet around it
+  it("fits both to the name as it is drawn", () => {
+    const svg = named("Kug");
+    const text = svg.querySelector(".city-name-text") as SVGGraphicsElement;
+    (text as unknown as { getBBox: () => object }).getBBox = () => ({ x: 200, y: 16, width: 60, height: 20 });
+    fitTitle(svg);
+    const rule = svg.querySelector(".city-name-rule")!;
+    expect(Number(rule.getAttribute("x1"))).toBeCloseTo(196);
+    expect(Number(rule.getAttribute("x2"))).toBeCloseTo(264);
+    expect(Number(rule.getAttribute("y1"))).toBeGreaterThan(36);
+    const plate = svg.querySelector(".city-name-plate")!;
+    expect(Number(plate.getAttribute("x"))).toBeLessThan(196);
+    expect(Number(plate.getAttribute("x")) + Number(plate.getAttribute("width"))).toBeGreaterThan(264);
+    expect(Number(plate.getAttribute("y")) + Number(plate.getAttribute("height"))).toBeGreaterThan(Number(rule.getAttribute("y1")));
+  });
+
+  // a name floored large on a phone grows UP from its baseline, toward the frame; it is lowered
+  it("lowers a name grown too tall for the frame's top margin", () => {
+    const svg = named("Kug");
+    const text = svg.querySelector(".city-name-text") as SVGGraphicsElement;
+    const y0 = Number(text.getAttribute("y"));
+    (text as unknown as { getBBox: () => object }).getBBox = () => ({ x: 200, y: 6, width: 60, height: 30 });
+    fitTitle(svg);
+    expect(Number(text.getAttribute("y"))).toBeGreaterThan(y0);
+  });
+
+  it("leaves the estimate alone where nothing can be measured", () => {
+    const svg = named("Kug");
+    const before = svg.querySelector(".city-name-rule")!.getAttribute("x1");
+    fitTitle(svg);
+    expect(svg.querySelector(".city-name-rule")!.getAttribute("x1")).toBe(before);
   });
 });

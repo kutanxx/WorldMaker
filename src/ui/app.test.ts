@@ -2,7 +2,6 @@
 import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
 import { DEFAULT_PARAMS } from "../types/world";
 import { createApp } from "./app";
-import { COMPASS_STRIP } from "./svgCityRenderer";
 import { hashStringToSeed } from "../engine/rng";
 import { initialCity, decodeParams } from "./urlState";
 import { generateWorld } from "../engine/world";
@@ -620,6 +619,31 @@ describe("a plate tells you where you are and where you can go", () => {
       const units = Number((svg.getAttribute("viewBox") || "").split(/[\s,]+/)[2]);
       const onScreen = Number(label.getAttribute("font-size")) * (336 / units);
       expect(onScreen, "a name on a phone-sized plate is still a smudge").toBeGreaterThanOrEqual(8.9);
+    } finally {
+      Element.prototype.getBoundingClientRect = rect;
+      root.remove();
+    }
+  });
+
+  // The rest of what the plate WRITES is in map units too, and shrank the same way: measured on a
+  // 390px phone the compass's "북" stood 4.8px, the scale bar's "270 m" 4.6px, and the town's own
+  // name 12.2px — the one place a phone showed which town this is, smaller than the facts under it.
+  it("draws its title, its north and its scale big enough to read on a small plate", () => {
+    const root = document.createElement("div");
+    document.body.appendChild(root);
+    const rect = Element.prototype.getBoundingClientRect;
+    Element.prototype.getBoundingClientRect = function () {
+      return { width: 336, height: 336, top: 0, left: 0, right: 336, bottom: 336, x: 0, y: 0, toJSON: () => ({}) } as DOMRect;
+    };
+    try {
+      const app = createApp(root, small);
+      app.openCity(0);
+      const svg = root.querySelector("svg.city") as SVGSVGElement;
+      const units = Number((svg.getAttribute("viewBox") || "").split(/[\s,]+/)[2]);
+      const px = (sel: string) => Number(svg.querySelector(sel)!.getAttribute("font-size")) * (336 / units);
+      expect(px(".city-name-text"), "the town's name is smaller than the facts under it").toBeGreaterThanOrEqual(15.95);
+      expect(px(".compass-n"), "north is a smudge").toBeGreaterThanOrEqual(7.95);
+      expect(px(".scale-bar-text"), "the scale's caption is a smudge").toBeGreaterThanOrEqual(7.95);
     } finally {
       Element.prototype.getBoundingClientRect = rect;
       root.remove();
@@ -1297,7 +1321,7 @@ describe("a window too narrow to carry the map's furniture", () => {
     expect(plate.querySelector(".legend") === null, "the key is still on the plate").toBe(true);
     expect(root.querySelector(".legend-sheet .legend") !== null, "no key standing under the plate").toBe(true);
     const width = Number(plate.getAttribute("viewBox")!.split(" ")[2]);
-    expect(width).toBe(460 + COMPASS_STRIP);
+    expect(width, "the plate kept a strip beside the town").toBe(460);
   });
 
   // ⚠ This used to assert the opposite: a wide plate kept its key in a 108-unit strip of its own.
@@ -1312,7 +1336,7 @@ describe("a window too narrow to carry the map's furniture", () => {
     app.openCity(0);
     const plate = root.querySelector("svg.city") as SVGSVGElement;
     expect(plate.querySelector(".legend") === null, "the key is still in the drawing the zoom moves").toBe(true);
-    expect(Number(plate.getAttribute("viewBox")!.split(" ")[2])).toBe(460 + COMPASS_STRIP);
+    expect(Number(plate.getAttribute("viewBox")!.split(" ")[2]), "the plate kept a strip beside the town").toBe(460);
     expect(root.querySelector(".legend-sheet .legend") !== null, "no key standing under the plate").toBe(true);
   });
 

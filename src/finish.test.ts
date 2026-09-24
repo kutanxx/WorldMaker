@@ -302,12 +302,12 @@ describe("the page is sized by the window with the browser's own bars showing", 
     const at = c.indexOf("@supports (height: 100svh)");
     expect(at, "no small-viewport sizing").toBeGreaterThan(-1);
     const sup = c.slice(at, c.indexOf(BLOCK_END, at));
-    const sized = [...c.slice(0, at).matchAll(/calc\(\(100vh - [^;]+;/g)].map((m) => m[0]);
+    const sized = [...c.slice(0, at).matchAll(/calc\(\(?100vh - [^;]+;/g)].map((m) => m[0]);
     expect(sized.length, "nothing sized by the window's height").toBeGreaterThanOrEqual(4);
     for (const d of new Set(sized)) {
       expect(sup, `${d} has no svh twin`).toContain(d.replace("100vh", "100svh"));
     }
-    expect(c.slice(at + 1), "the vh sizing comes after its svh twin and wins").not.toMatch(/calc\(\(100vh - /);
+    expect(c.slice(at + 1), "the vh sizing comes after its svh twin and wins").not.toMatch(/calc\(\(?100vh - /);
   });
 });
 

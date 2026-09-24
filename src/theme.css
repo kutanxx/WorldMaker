@@ -225,18 +225,19 @@ body.map-focus .map-frame {
 }
 body.map-focus .timeline { margin: 0; }
 .stage svg { display: block; width: 100%; height: auto; }
-/* The plan is 494x460 — 460 of town and a 34-unit strip for the compass — and like the world map
-   it is sized by the vertical room the chrome leaves it rather than by a fixed number: 1008px was
-   derived from the old 1040px page and stopped following it, so the plate was both cut off at the
-   fold AND the one surface still measured against a page width that no longer exists.
+/* The plan is the town's own square, 460x460, and like the world map it is sized by the vertical
+   room the chrome leaves it rather than by a fixed number: 1008px was derived from the old 1040px
+   page and stopped following it, so the plate was both cut off at the fold AND the one surface
+   still measured against a page width that no longer exists.
    Whole-plan-at-once matters here: the town is what you orient by before leaning in, and there is
-   zoom for the leaning. ★ The key is no longer part of the plan — it stands under it at 1:1, so
-   the strip is the compass alone and the town has 15% more width than it had beside a key. */
+   zoom for the leaning. ★ Nothing stands beside the town any more — the key stands under the plan
+   at 1:1, and the compass in the plan's own corner — so there is no strip, no ratio in the cap,
+   and on a phone the town is 7% bigger than it was beside the compass's strip. */
 .stage svg.city {
-  max-width: min(100%, calc((100vh - var(--plate-chrome, 230px)) * 494 / 460));
+  max-width: min(100%, calc(100vh - var(--plate-chrome, 230px)));
   margin: 0 auto;
 }
-body.map-focus .stage svg.city { max-width: min(100%, calc((100vh - 40px) * 494 / 460)); }
+body.map-focus .stage svg.city { max-width: min(100%, calc(100vh - 40px)); }
 .timeline {
   display: flex; gap: 10px; padding: 10px 12px; align-items: center;
   background: #efe6cf; border: 1px solid #cbb784; border-radius: 6px;
@@ -731,7 +732,7 @@ svg.city .wall-seg, svg.city .wall-seg-inner, svg.city .tower, svg.city .gate { 
    frame's own margin, which a tall window does not have, so the key ended up over the drawing. A
    grid column takes its own room, so the only thing it can cost is the drawing's WIDTH — and the
    ratio is where that cost is nought. The plate is capped by the height its chrome leaves it
-   ((100vh - 230px) * 494/460), so the column is free exactly while `band - 222 >= that cap`;
+   (100vh - 230px), so the column is free exactly while `band - 222 >= that cap`;
    solving that at the narrowest window this admits gives 7/6, and 6/5 is the next simple ratio
    outside it, worth 24px of slack against a page chrome that is measured rather than declared.
    Below the ratio — a tall, narrow window — the key stays under the plate, where it costs height
@@ -802,11 +803,6 @@ svg.city .wall-seg, svg.city .wall-seg-inner, svg.city .tower, svg.city .gate { 
   /* the plate's key spans the room in two columns here (legendSheet.ts), so it stands at the
      heading's inset like the world's instead of centring */
   .stage.plate .legend-sheet { margin-inline: 6px; }
-  /* The plate's key has left it too, so the 108-unit strip it lived in is down to the compass's
-     own width (COMPASS_STRIP in svgCityRenderer.ts): the plate is 460 + 34 = 494 units across
-     here, not 568, and the cap that keeps a whole plan on screen has to say so or it lets the
-     plate run 15% past the fold. mobile.test.ts holds these two numbers together. */
-  .stage svg.city { max-width: min(100%, calc((100vh - var(--plate-chrome, 230px)) * 494 / 460)); }
   /* ★ The drawing comes before what is said about it. Measured on a 390x844 phone: 319px of chrome
      stood above a plate 313px tall — toolbar, way back, and a 134px five-row fact strip — so the
      controls outweighed the thing they control, the same arithmetic that folded the toolbar. The
@@ -905,7 +901,7 @@ svg.city .wall-seg, svg.city .wall-seg-inner, svg.city .tower, svg.city .gate { 
    it fails at computed time and drops to the property's initial value, not back to the `vh` line. */
 @supports (height: 100svh) {
   #app { --page: max(620px, calc((100svh - var(--chrome, 290px)) * 10 / 7 + 222px)); }
-  .stage svg.city { max-width: min(100%, calc((100svh - var(--plate-chrome, 230px)) * 494 / 460)); }
+  .stage svg.city { max-width: min(100%, calc(100svh - var(--plate-chrome, 230px))); }
   body.map-focus .map-frame { width: min(100%, calc((100svh - 90px) * 10 / 7)); }
-  body.map-focus .stage svg.city { max-width: min(100%, calc((100svh - 40px) * 494 / 460)); }
+  body.map-focus .stage svg.city { max-width: min(100%, calc(100svh - 40px)); }
 }

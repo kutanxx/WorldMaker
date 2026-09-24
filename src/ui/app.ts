@@ -2,10 +2,10 @@ import type { WorldParams, GeneratedWorld } from "../types/world";
 import { DEFAULT_PARAMS } from "../types/world";
 import { generateWorld } from "../engine/world";
 import { renderWorld, politicalOpts, type MapView } from "./svgWorldRenderer";
-import { renderCity, CITY_LEGEND_ROW } from "./svgCityRenderer";
+import { renderCity, CITY_LEGEND_ROW, fitTitle } from "./svgCityRenderer";
 import { generateCityLayout, cityContext } from "../engine/city";
 import { cityFacts } from "./cityFacts";
-import { KM_PER_UNIT } from "./scaleBar";
+import { KM_PER_UNIT, floorScaleCaption } from "./scaleBar";
 import { encodeParams, randomSeed, initialCity } from "./urlState";
 import { hashStringToSeed } from "../engine/rng";
 import { worldToJSON, svgToString, svgToPngBlob, downloadBlob } from "./export";
@@ -272,6 +272,11 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
   // 4.8px against 24.5% at 9px — and what it buys is that the ones left can be read. The survivors
   // are the landmarks (they outrank plain quarters in the cull), and the rest arrive on a pinch.
   const PLATE_NAME_MIN_PX = 9;
+  // The plate's own name is its heading — on a phone the ONLY place the town's name is shown — so it
+  // is never smaller than a heading: 16, over the facts' 13 (it measured 12.2px on a 390px phone).
+  // Its north and its scale caption are signs, held at the world map's 8.
+  const PLATE_TITLE_MIN_PX = 16;
+  const PLATE_SIGN_MIN_PX = 8;
   // ★ The world map's floor, which it never had: measured over 12 seeds on a 390x844 phone its
   // names stood at a median 4.4px (3.5 at the smallest) against 15 on a desktop. The floor is paid
   // for in names — the cull hides what no longer fits — and 8 was chosen from the measured trade:
@@ -882,6 +887,12 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     // under it. Floored first, culled after, so `deconflictLabels` measures the names as they will
     // be read. A desktop plate is already past the floor (10.2px at 720px), so it is untouched.
     floorLabelSize(citySvg, ".ward-label", PLATE_NAME_MIN_PX);
+    // The rest of what the plate writes shrank the same way: the town's own name 12.2px on a phone,
+    // its north 4.8px, its scale 4.6px. The name is the plate's heading, so it gets a heading's size.
+    floorLabelSize(citySvg, ".city-name-text", PLATE_TITLE_MIN_PX);
+    floorLabelSize(citySvg, ".compass-n", PLATE_SIGN_MIN_PX);
+    floorScaleCaption(citySvg, PLATE_SIGN_MIN_PX);
+    fitTitle(citySvg);
     // ...and set beside the sign at their place rather than on it, at the size they will be read
     clearMarks(citySvg);
     deconflictLabels(citySvg);
@@ -926,7 +937,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
       const marker = generated.world.cities.find((c) => c.id === openCityId);
       if (marker) {
         const svg = renderCity(generateCityLayout(cityContext(marker), params.seed), lang);
-        layOutLabelsForExport(svg, clearMarks);
+        layOutLabelsForExport(svg, (s) => { fitTitle(s); clearMarks(s); });
         const [, , w, h] = (svg.getAttribute("viewBox") || "0 0 1000 700").split(/[\s,]+/).map(Number);
         return {
           svg, name: marker.name.replace(/[^\w-]+/g, "_") || "city",

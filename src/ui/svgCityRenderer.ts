@@ -103,6 +103,48 @@ const TINT: Partial<Record<WardType, string>> = {
   park: "#b8d29a",       // green space
 };
 
+/**
+ * A guess at a name's drawn width, for a plate that cannot be measured (jsdom, a file never shown):
+ * a Hangul syllable is about a full em, a Latin letter in the display face about 0.72 of one.
+ * `fitTitle` replaces the guess with the measured box wherever there is layout.
+ */
+function estimateNameWidth(name: string, size: number): number {
+  let em = 0;
+  for (const ch of name) em += /[가-힣]/.test(ch) ? 1 : 0.72;
+  return em * size;
+}
+
+/**
+ * Fit the plate's title furniture to the name as it is actually drawn — after any floor has resized
+ * it: its tablet covers the word with a margin, its rule runs the word's width just under it, and a
+ * name grown too tall for the frame's top margin is lowered to clear it. Without layout it does
+ * nothing and the renderer's estimate stands.
+ */
+export function fitTitle(svg: SVGSVGElement): void {
+  const text = svg.querySelector<SVGTextElement>(".city-name-text");
+  const plate = svg.querySelector(".city-name-plate");
+  const rule = svg.querySelector(".city-name-rule");
+  if (!text || !plate || !rule) return;
+  let b: { x: number; y: number; width: number; height: number };
+  try { b = text.getBBox(); } catch { return; }
+  if (!b || !(b.width > 0)) return;
+  const TOP = 13;   // the frame's inner rule is at 8; the tablet starts 3 above the word
+  if (b.y < TOP) {
+    const dy = TOP - b.y;
+    text.setAttribute("y", (Number(text.getAttribute("y")) + dy).toFixed(2));
+    b = { x: b.x, y: b.y + dy, width: b.width, height: b.height };
+  }
+  const ruleY = b.y + b.height + 2;
+  rule.setAttribute("x1", (b.x - 4).toFixed(2));
+  rule.setAttribute("x2", (b.x + b.width + 4).toFixed(2));
+  rule.setAttribute("y1", ruleY.toFixed(2));
+  rule.setAttribute("y2", ruleY.toFixed(2));
+  plate.setAttribute("x", (b.x - 10).toFixed(2));
+  plate.setAttribute("y", (b.y - 3).toFixed(2));
+  plate.setAttribute("width", (b.width + 20).toFixed(2));
+  plate.setAttribute("height", (ruleY + 4 - (b.y - 3)).toFixed(2));
+}
+
 function pts(poly: Polygon | Polyline): string {
   return poly.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(" ");
 }
@@ -115,12 +157,13 @@ function avg(poly: Polygon): [number, number] {
 /** the right-hand strip that holds the district key, OUTSIDE the map so it never covers the city */
 export const KEY_STRIP = 108;
 /**
- * What the strip shrinks to once the key is standing somewhere else. The compass lives at the
- * bottom of that strip and is the only thing left in it, so the width is the compass's own: r=13
- * plus the room its "N" needs. A phone draws the plate at x0.565, and the 108-unit strip was 19%
- * of its width carrying, by then, one rose.
+ * ★ Once the key stands somewhere else the plate has NO strip. It kept 34 units for the compass
+ * alone, and the land stops where the town's 460 do: measured over 336 plates, the sea or a river
+ * ran into that strip's edge and stopped dead on 117 (35%), a bare parchment column beside cut-off
+ * water. The compass stands in the plate's own corner instead, on a parchment disc, the way the
+ * scale bar opposite it stands on a tablet — and a phone draws the town 7% bigger for the room.
  */
-export const COMPASS_STRIP = 34;
+const COMPASS_AT = 32;   // from the plate's right and bottom edges to the rose's centre
 /**
  * The plate's key is drawn smaller than the world map's because the plate is drawn BIGGER: at the
  * desktop's x1.554 an 11-unit row lands on 17.1px, which is where ㉗ put every key on this site.
@@ -144,7 +187,7 @@ export function renderCity(layout: CityLayout, lang: Lang = "en", opts: CityRend
   // common noun in it to translate.
   const townName = properName(lang, layout.name);
   const { w, h } = layout.bounds;
-  const LEGW = opts.keyOutside ? COMPASS_STRIP : KEY_STRIP;
+  const LEGW = opts.keyOutside ? 0 : KEY_STRIP;
   const root = svgEl("svg", { width: "100%", viewBox: `0 0 ${w + LEGW} ${h}`, class: "city", role: "img" }) as SVGSVGElement;
   // the plate announces itself as one thing rather than an untitled graphic (and both elements
   // travel into the exported file, which carries no stylesheet but does carry the document)
@@ -609,6 +652,17 @@ export function renderCity(layout: CityLayout, lang: Lang = "en", opts: CityRend
   root.appendChild(labelsG);
 
   const titleG = svgEl("g", { class: "city-name" });
+  // ★ The name stands on a tablet of parchment, and its rule is the name's own width. Printed
+  // straight onto the countryside it lay over a hamlet, a windmill or an abbey on 60 of 336 plates;
+  // and the rule was a fixed 92 units, three times a two-syllable name and short of a long one. The
+  // renderer can only estimate a word it cannot measure; `fitTitle` sets both to the name's measured
+  // box once it can be measured (the page at rest, and the export).
+  const est = estimateNameWidth(townName, 18);
+  const cx = (w + LEGW) / 2;
+  titleG.appendChild(svgEl("rect", {
+    class: "city-name-plate", x: cx - est / 2 - 10, y: 11, width: est + 20, height: 32,
+    rx: 2, fill: PARCHMENT, "fill-opacity": 0.88,
+  }));
   const title = svgEl("text", {
     class: "city-name-text", x: (w + LEGW) / 2, y: 30, "text-anchor": "middle",
     // the atlas's display face, as the world map's own name wears. Carried as an attribute rather
@@ -620,7 +674,7 @@ export function renderCity(layout: CityLayout, lang: Lang = "en", opts: CityRend
   title.textContent = townName;
   titleG.appendChild(title);
   titleG.appendChild(svgEl("line", {
-    x1: (w + LEGW) / 2 - 46, y1: 38, x2: (w + LEGW) / 2 + 46, y2: 38,
+    class: "city-name-rule", x1: cx - est / 2 - 4, y1: 38, x2: cx + est / 2 + 4, y2: 38,
     stroke: INK, "stroke-width": 0.9,
   }));
   root.appendChild(titleG);
@@ -652,8 +706,15 @@ export function renderCity(layout: CityLayout, lang: Lang = "en", opts: CityRend
   });
   root.appendChild(legend);
 
-  // Bottom of the key strip: the world map's top-right corner is already spoken for on this plan.
-  root.appendChild(compassRose(w + LEGW / 2, h - 34, 13, t(lang, "compassN")));
+  if (LEGW > 0) {
+    // Bottom of the key strip: the world map's top-right corner is already spoken for on this plan.
+    root.appendChild(compassRose(w + LEGW / 2, h - 34, 13, t(lang, "compassN")));
+  } else {
+    // No strip: the plate's own bottom-right corner, on a disc that also holds its "N"
+    const [ccx, ccy] = [w - COMPASS_AT, h - COMPASS_AT + 2];
+    root.appendChild(svgEl("circle", { class: "compass-plate", cx: ccx, cy: ccy - 5, r: 22, fill: PARCHMENT, "fill-opacity": 0.88 }));
+    root.appendChild(compassRose(ccx, ccy, 13, t(lang, "compassN")));
+  }
   {
     const units = 90;
     // the plate's legend lives in the right-hand strip, so the bottom-left corner is free here
