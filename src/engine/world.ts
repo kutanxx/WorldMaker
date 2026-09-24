@@ -2,7 +2,7 @@ import type { WorldParams, World, GeneratedWorld, CityMarker, Polity, RiverSegme
 import { mulberry32, deriveSeed, randInt } from "./rng";
 import { generateGrid } from "./grid";
 import { assignHeights } from "./heightmap";
-import { classifyTerrain, OCEAN } from "./terrain";
+import { classifyTerrain, OCEAN, MOUNTAIN } from "./terrain";
 import { classifyBiomes } from "./biome";
 import { makeNameGen, DEFAULT_PHON } from "./names";
 import { assignPolities } from "./polities";
@@ -95,6 +95,28 @@ export function generateWorld(params: WorldParams, nameOverride?: string): Gener
     return Math.atan2(out.y2 - fy, out.x2 - fx);
   };
 
+  // The high ground beside a town: the mountain cells next to its own, their directions (unit vectors,
+  // each weighted by how far that cell rises above the town, so the higher side wins where they close
+  // round it) and their share of its neighbours. The plate aimed its mountains on its own draw — 9 of
+  // the 15 mountain towns of twelve worlds had them more than 45 degrees off the world's — and drew
+  // none for the 38 towns at the foot of the world's mountains. Terrain and heights only: no rng.
+  const mountainsAt = (cell: number): { bearing: number; share: number } | undefined => {
+    const x = grid.points[cell * 2], y = grid.points[cell * 2 + 1];
+    const ns = grid.neighbors[cell];
+    let sx = 0, sy = 0, k = 0;
+    for (const n of ns) {
+      if (terrain[n] !== MOUNTAIN) continue;
+      const dx = grid.points[n * 2] - x, dy = grid.points[n * 2 + 1] - y, m = Math.hypot(dx, dy) || 1;
+      const rise = Math.max(0.01, heights[n] - heights[cell]);
+      sx += (dx / m) * rise; sy += (dy / m) * rise; k++;
+    }
+    return k ? { bearing: Math.atan2(sy, sx), share: k / ns.length } : undefined;
+  };
+  const siteOf = (cell: number) => {
+    const m = mountainsAt(cell);
+    return { mountainBearing: m?.bearing, mountainShare: m?.share, onMountain: terrain[cell] === MOUNTAIN };
+  };
+
   const cities: CityMarker[] = [];
   let cityId = 0;
   for (const p of polities) {
@@ -113,6 +135,7 @@ export function generateWorld(params: WorldParams, nameOverride?: string): Gener
       biome: biome[p.capital],
       river: riverCells.has(p.capital),
       riverBearing: riverBearingAt(p.capital),
+      ...siteOf(p.capital),
     });
   }
 
@@ -175,6 +198,7 @@ export function generateWorld(params: WorldParams, nameOverride?: string): Gener
       biome: biome[cell],
       river: riverCells.has(cell),
       riverBearing: riverBearingAt(cell),
+      ...siteOf(cell),
     });
   }
 

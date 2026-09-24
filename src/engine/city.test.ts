@@ -1756,6 +1756,31 @@ describe("everything a plate draws stands where it belongs", () => {
     expect(ports).toBeGreaterThan(120);
   });
 
+  it("raises the world's mountains on the plate, on the side the world has them", () => {
+    const off = (a: number, b: number) => { let d = Math.abs(a - b) % (2 * Math.PI); if (d > Math.PI) d = 2 * Math.PI - d; return d; };
+    let beside = 0, drawn = 0;
+    for (let seed = 1; seed <= 12; seed++) {
+      const w = generateWorld({ ...DEFAULT_PARAMS, seed }).world;
+      for (const c of w.cities) {
+        const where = `${c.name} (seed ${seed}, ${c.id})`;
+        const l = towns().find((t) => t.where === where)!.l;
+        for (const m of l.mountains) expect(overlapsWater(l.water, m.polygon), `a mountain on the water at ${where}`).toBe(false);
+        if (c.mountainBearing === undefined) continue;
+        beside++;
+        if (!l.mountains.length) continue;   // a river's loop can run through the whole of their arc
+        drawn++;
+        const facing = l.mountains.map((m) => {
+          let x = 0, y = 0;
+          for (const p of m.innerEdge) { x += p[0] - 230; y += p[1] - 230; }
+          return Math.atan2(y, x);
+        });
+        expect(Math.min(...facing.map((f) => off(f, c.mountainBearing!))), `mountains turned away from the world's at ${where}`).toBeLessThan(Math.PI / 3);
+      }
+    }
+    expect(beside).toBeGreaterThan(40);
+    expect(drawn / beside, "towns at the foot of the world's mountains that draw them").toBeGreaterThan(0.95);
+  });
+
   it("spaces the towers along a wall", () => {
     for (const { where, l } of towns()) {
       if (!l.wall) continue;
@@ -1846,6 +1871,12 @@ describe("a town in one world is not a copy of a town in another", () => {
 // their biome's moved — 123 ports and 44 river towns out of forest, marsh, desert and tundra, and 44
 // tundra, alpine and hill towns whose ground was the grassland's; the forest, marsh and oasis towns,
 // which always wore their biome, and the grassland towns hashed byte for byte the same.
+//
+// And for the world's mountains (mountainBearing/Share, onMountain): exactly the 52 towns with mountain
+// cells beside them moved — 14 flat plains towns the world draws in its mountains take a mountain form,
+// a mountain town a world river runs through (12:3) is drawn as its river crossing (with its mountains
+// round it), and 37 towns at the foot of the range have its foothills, or their masses turned the way
+// the world's mountains lie. The other 284 hashed byte for byte the same.
 describe("a plate is the same plate, byte for byte", () => {
   const fold = (h: number, c: number) => Math.imul(h ^ c, 16777619) >>> 0;
   const fnv = (s: string) => { let h = 2166136261 >>> 0; for (let i = 0; i < s.length; i++) h = fold(h, s.charCodeAt(i)); return h >>> 0; };
@@ -1856,9 +1887,9 @@ describe("a plate is the same plate, byte for byte", () => {
     return { h, n };
   };
   it("draws seed 1's twenty-eight towns exactly as it did", () => {
-    expect(worldHash(1)).toEqual({ h: 1346848510, n: 28 });
+    expect(worldHash(1)).toEqual({ h: 184864013, n: 28 });
   });
   it("draws seed 12's twenty-eight towns exactly as it did", () => {
-    expect(worldHash(12)).toEqual({ h: 3590053046, n: 28 });
+    expect(worldHash(12)).toEqual({ h: 1120259200, n: 28 });
   });
 });

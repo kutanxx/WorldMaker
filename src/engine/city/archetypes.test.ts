@@ -47,9 +47,11 @@ describe("selectArchetype", () => {
     }
     expect(river(WETLAND, 0.1)).toBe("marshStilt");
     expect(river(WETLAND, 0.9)).toBe("marshStilt");
-    // coast + elevation still win over the river branch
+    // the coast wins over the river branch — and the river over the high ground: a mountain town the
+    // world draws a river through keeps its river (the mountain kinds carry no water)
     expect(selectArchetype({ ...inland, coastal: true, biome: GRASSLAND, river: true }).id).toBe("coastalPort");
-    expect(selectArchetype({ ...inland, elevation: 0.9, biome: GRASSLAND, river: true }).id).toBe("hilltopFortress");
+    expect(selectArchetype({ ...inland, elevation: 0.9, biome: GRASSLAND, river: true, pick: 0.9 }).id).toBe("bridgeTown");
+    expect(selectArchetype({ ...inland, elevation: 0.9, biome: GRASSLAND, river: true, onMountain: true, pick: 0.9 }).id).toBe("bridgeTown");
     // both river kinds carry water; only which kind differs
     expect(selectArchetype({ ...inland, biome: GRASSLAND, river: true, pick: 0.9 }).water).toBe("river");
     // the town in the bend is wrapped by a loop of its river, not crossed by a wave of it
@@ -72,6 +74,12 @@ describe("selectArchetype", () => {
   it("gives the high ground its own kinds of town, at a height towns actually reach", () => {
     expect(selectArchetype({ ...inland, elevation: 0.60, biome: GRASSLAND, pick: 0 }).id).toBe("hilltopFortress");
     expect(selectArchetype({ ...inland, elevation: 0.59, biome: GRASSLAND, pick: 0 }).id).toBe("plainsMarket");
+  });
+  // ...but where the world can say, it decides: a town its map draws in the mountains is a mountain
+  // town, and one it draws below them is not, whatever the height alone would have said
+  it("takes the world's word for whether a town stands in its mountains", () => {
+    expect(selectArchetype({ ...inland, elevation: 0.56, biome: GRASSLAND, pick: 0, onMountain: true }).id).toBe("hilltopFortress");
+    expect(selectArchetype({ ...inland, elevation: 0.65, biome: GRASSLAND, pick: 0, onMountain: false }).id).toBe("plainsMarket");
   });
 });
 

@@ -47,22 +47,26 @@ const MOUNTAIN_ELEVATION = 0.6;
 const MEANDER_SHARE = 0.35;
 
 export function selectArchetype(
-  opts: { coastal: boolean; elevation: number; size: number; biome: number; pick?: number; river?: boolean }
+  opts: { coastal: boolean; elevation: number; size: number; biome: number; pick?: number; river?: boolean; onMountain?: boolean }
 ): Archetype {
   if (opts.coastal) return TABLE.coastalPort;
-  if (opts.elevation >= MOUNTAIN_ELEVATION) {
-    const i = Math.min(MOUNTAIN_VARIANTS.length - 1, Math.floor((opts.pick ?? 0) * MOUNTAIN_VARIANTS.length));
-    return TABLE[MOUNTAIN_VARIANTS[i]];
-  }
   // a world river runs through this cell → the drilldown must show it (world<->city coupling).
   // Wetlands keep their marsh meander; every other inland biome becomes a bridge town on the river.
   // A river town was always a bridge town. meanderDefense -- organic streets inside a riverbank
   // wall, in a loop of water -- is the other way a town uses a river: not crossed, but wrapped by
   // it, the way Toledo and Besançon sit in their meanders. About a third of them, off the same
   // separate-stream `pick` the mountain variants use, so no new draw enters the main rng.
+  // ★ Before the high ground: a mountain town the world draws a river through keeps its river. The
+  // mountain kinds carry no water, so a river town up in the hills was drawn dry.
   if (opts.river) {
     if (opts.biome === WETLAND) return TABLE.marshStilt;
     return (opts.pick ?? 0) < MEANDER_SHARE ? TABLE.meanderDefense : TABLE.bridgeTown;
+  }
+  // The world says where its mountains are (`onMountain`, its own terrain line); a height is the
+  // stand-in only where it cannot say.
+  if (opts.onMountain ?? opts.elevation >= MOUNTAIN_ELEVATION) {
+    const i = Math.min(MOUNTAIN_VARIANTS.length - 1, Math.floor((opts.pick ?? 0) * MOUNTAIN_VARIANTS.length));
+    return TABLE[MOUNTAIN_VARIANTS[i]];
   }
   switch (opts.biome) {
     case WETLAND: return TABLE.marshStilt;

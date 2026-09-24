@@ -33,6 +33,13 @@ export interface CityMarker {
   // which way the world's river runs through this town (atan2 radians, +x east, +y south), for river
   // towns only, so the plate's river runs where the world map draws it
   riverBearing?: number;
+  // the high ground beside the town: which way the mountain cells next to its own lie (weighted by how
+  // far they rise above it) and what share of its neighbours they are — only where some do — so the
+  // plate's mountains stand where the world map draws them
+  mountainBearing?: number;
+  mountainShare?: number;
+  // the town's own cell is mountain terrain: the world map draws it in the mountains
+  onMountain?: boolean;
 }
 
 export interface Polity {

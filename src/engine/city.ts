@@ -100,10 +100,17 @@ export interface CityContext {
   river?: boolean; // world river through the cell (optional so test fixtures can omit it → no river)
   seaBearing?: number; // which way the open sea lies, in world radians; absent → the plate picks
   riverBearing?: number; // which way the world's river runs through the town; absent → the plate picks
+  mountainBearing?: number; // which way the mountains beside the town lie; absent → none beside it
+  mountainShare?: number;   // ...and what share of the town's neighbours they are
+  onMountain?: boolean;     // the world draws the town in its mountains; absent → judged by elevation
 }
 
 export function cityContext(c: CityMarker): CityContext {
-  return { id: c.id, name: c.name, size: c.size, coastal: c.coastal, isCapital: c.isCapital, elevation: c.elevation, biome: c.biome, river: c.river, seaBearing: c.seaBearing, riverBearing: c.riverBearing };
+  return {
+    id: c.id, name: c.name, size: c.size, coastal: c.coastal, isCapital: c.isCapital, elevation: c.elevation, biome: c.biome,
+    river: c.river, seaBearing: c.seaBearing, riverBearing: c.riverBearing,
+    mountainBearing: c.mountainBearing, mountainShare: c.mountainShare, onMountain: c.onMountain,
+  };
 }
 
 /**
@@ -196,6 +203,8 @@ const CASTLE_SALT = 4500;
 const BUILDING_SALT = 4400;
 // ...and the river a port draws where the world's river reaches the sea
 const RIVER_MOUTH_SALT = 4600;
+// the foothills' own stream (see makeMountains)
+const MOUNTAIN_SALT = 4700;
 // the width of the key strip an exported plate carries beside the town (the renderer's KEY_STRIP;
 // a test holds the two equal), which moves the town's name right by half of it
 export const PLATE_KEY_STRIP = 108;
@@ -239,7 +248,7 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
   // mountain-variant pick uses a SEPARATE rng stream so the main stream (and thus every
   // existing non-mountain city) is byte-identical; only high-elevation form choice changes.
   const pick = mulberry32(plateSeed(worldSeed, ctx.id + 4200))();
-  const archetype = selectArchetype({ coastal: ctx.coastal, elevation: ctx.elevation, size: ctx.size, biome: ctx.biome, pick, river: ctx.river });
+  const archetype = selectArchetype({ coastal: ctx.coastal, elevation: ctx.elevation, size: ctx.size, biome: ctx.biome, pick, river: ctx.river, onMountain: ctx.onMountain });
   // ...and what it is built of, from the country it stands in (see textureOf)
   const texture = textureOf(ctx.biome);
 
@@ -262,7 +271,12 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
     water.bodies.push(oasisPoly);
   }
   const boundary = makeBoundary(rng, archetype, ctx.size, center, water);
-  const mountains = makeMountains(rng, archetype, boundary, [center[0], center[1]], bounds);
+  // the high ground where the world has it: toward its mountains, and for a town at their foot, rising
+  // past its fields on that side (from a stream of its own, so nothing else on the plate moves for it)
+  const mountains = makeMountains(rng, archetype, boundary, [center[0], center[1]], bounds, {
+    bearing: ctx.mountainBearing, share: ctx.mountainShare, rng: mulberry32(plateSeed(worldSeed, ctx.id + MOUNTAIN_SALT)),
+    wet: (p) => inWater(water, p),
+  });
 
   // BLOCK-CENTRIC: wards are the city blocks; streets are the gaps (shared ward edges).
   // The ward mesh is laid out to the town's ACTUAL reach, not to a nominal disc. Wards are Voronoi
