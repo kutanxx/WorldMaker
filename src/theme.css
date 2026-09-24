@@ -885,3 +885,18 @@ svg.world.lang-en .nation-label { font-variant: small-caps; letter-spacing: 0.10
      and the focus button owns the top-right. */
   .stage.plate .map-zoom-controls { top: 14px; bottom: auto; left: 14px; right: auto; }
 }
+
+/* ★ The window's height with the browser's own bars SHOWING. `100vh` is the large viewport on a
+   phone or tablet browser — its height with the address bar retracted — so on arrival, with the bar
+   showing, everything sized by it ran that bar's height (~50-60px) past what can be seen: a tablet
+   in landscape, a phone turned sideways. `svh` is the small viewport, the height with the bar
+   showing; on a desktop the two are the same. Last in the file, so each twin overrides its rule.
+   ⚠ An `@supports` block, not a second declaration under each rule: three of these carry a
+   `var()`, and a declaration with a `var()` is accepted at parse time — on a browser without `svh`
+   it fails at computed time and drops to the property's initial value, not back to the `vh` line. */
+@supports (height: 100svh) {
+  #app { --page: max(620px, calc((100svh - var(--chrome, 290px)) * 10 / 7 + 222px)); }
+  .stage svg.city { max-width: min(100%, calc((100svh - var(--plate-chrome, 230px)) * 494 / 460)); }
+  body.map-focus .map-frame { width: min(100%, calc((100svh - 90px) * 10 / 7)); }
+  body.map-focus .stage svg.city { max-width: min(100%, calc((100svh - 40px) * 494 / 460)); }
+}

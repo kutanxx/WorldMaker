@@ -287,3 +287,26 @@ describe("a touch screen of any width zooms like a phone", () => {
     expect(q, "the reach is still held to narrow windows").not.toContain("max-width");
   });
 });
+
+// ★ `100vh` is the LARGE viewport on a phone or tablet browser — its height with the address bar
+// retracted — so on arrival, with the bar showing, a page sized by it runs that bar's height
+// (~50-60px) past what can be seen: a tablet in landscape, a phone turned sideways. The page is
+// sized by the SMALL viewport, the height with the bar showing (`svh`), where the browser has it; on
+// a desktop the two are the same. ⚠ In an `@supports` block, not as a second declaration: three of
+// these carry a `var()`, and a declaration with a `var()` is accepted at parse time — on a browser
+// without `svh` it would fail at computed time and drop to the property's initial value, not back
+// to the `vh` line above it.
+describe("the page is sized by the window with the browser's own bars showing", () => {
+  it("gives every height it sizes by a small-viewport twin, where the browser has one", () => {
+    const c = css();
+    const at = c.indexOf("@supports (height: 100svh)");
+    expect(at, "no small-viewport sizing").toBeGreaterThan(-1);
+    const sup = c.slice(at, c.indexOf(BLOCK_END, at));
+    const sized = [...c.slice(0, at).matchAll(/calc\(\(100vh - [^;]+;/g)].map((m) => m[0]);
+    expect(sized.length, "nothing sized by the window's height").toBeGreaterThanOrEqual(4);
+    for (const d of new Set(sized)) {
+      expect(sup, `${d} has no svh twin`).toContain(d.replace("100vh", "100svh"));
+    }
+    expect(c.slice(at + 1), "the vh sizing comes after its svh twin and wins").not.toMatch(/calc\(\(100vh - /);
+  });
+});
