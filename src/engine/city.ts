@@ -120,18 +120,33 @@ const LORD_SEAT_MIN_SIZE = 3;
 const LORD_SEAT_ODDS = 1 / 3;
 // the castle's own rng stream, beside the lord-seat pick (+4300) and the mountain form pick (+4200)
 const CASTLE_SALT = 4500;
+
+/**
+ * The seed of one of a plate's streams: the town's id (plus the stream's salt) under a key that is
+ * the WORLD's seed mixed on its own first.
+ *
+ * ★ They were `deriveSeed(worldSeed, id)`, and deriveSeed mixes its two arguments by XOR before it
+ * multiplies — so a town's numbers were fixed by (world seed XOR town id). World 2's town 4 drew
+ * exactly what world 3's town 5 drew (2^4 = 3^5), and the same for every such pair: measured over
+ * worlds 1-12 all 336 plates shared their main stream with a plate in another world and 16 were
+ * the same drawing outright; over worlds 1-40, 105 of 1,120. Two worlds' keys now differ by a
+ * multiplied mixture, not a small number. (deriveSeed itself keys every world-level stream —
+ * cultures, biomes, history — and cannot change without changing every world.)
+ */
+const PLATE_KEY = 0x5ca1e;
+const plateSeed = (worldSeed: number, stream: number) => deriveSeed(deriveSeed(worldSeed, PLATE_KEY), stream);
 // the depth of ward a great seat looks for: an outer curtain, a bailey behind it, and an enceinte
 // that still holds its donjon (a lesser seat's is zoning's own default)
 const GREAT_CASTLE_ROOM = 22;
 
 export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLayout {
-  const rng: Rng = mulberry32(deriveSeed(worldSeed, ctx.id));
+  const rng: Rng = mulberry32(plateSeed(worldSeed, ctx.id));
   const bounds = { w: 460, h: 460 };
   const center: Point = [230, 230];
   const radius = 60 + ctx.size * 12;
   // mountain-variant pick uses a SEPARATE rng stream so the main stream (and thus every
   // existing non-mountain city) is byte-identical; only high-elevation form choice changes.
-  const pick = mulberry32(deriveSeed(worldSeed, ctx.id + 4200))();
+  const pick = mulberry32(plateSeed(worldSeed, ctx.id + 4200))();
   const archetype = selectArchetype({ coastal: ctx.coastal, elevation: ctx.elevation, size: ctx.size, biome: ctx.biome, pick, river: ctx.river });
 
   const water = buildWater(rng, archetype.water, bounds, ctx.seaBearing, radius);
@@ -252,7 +267,7 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
   // lord sits. Its own rng stream (the mountain-pick convention), so a town that keeps its castle
   // draws exactly what it drew before and its plan is byte-identical.
   const hasCastle = ctx.isCapital || archetype.id === "hilltopFortress"
-    || (ctx.size >= LORD_SEAT_MIN_SIZE && mulberry32(deriveSeed(worldSeed, ctx.id + 4300))() < LORD_SEAT_ODDS);
+    || (ctx.size >= LORD_SEAT_MIN_SIZE && mulberry32(plateSeed(worldSeed, ctx.id + 4300))() < LORD_SEAT_ODDS);
   let castleAnchor: Point | undefined;
   if (hasCastle && mountains.length) {
     let sx = 0, sy = 0, cnt = 0;
@@ -414,7 +429,7 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
   // how a castle is built can change without moving a single tree, hamlet or mill in the country.
   const castleWard = zoned.find((z) => z.type === "castle") ?? null;
   const castle = castleWard
-    ? makeCastle(mulberry32(deriveSeed(worldSeed, ctx.id + CASTLE_SALT)), castleWard.polygon, [center[0], center[1]], boundary, ctx.size, ctx.isCapital)
+    ? makeCastle(mulberry32(plateSeed(worldSeed, ctx.id + CASTLE_SALT)), castleWard.polygon, [center[0], center[1]], boundary, ctx.size, ctx.isCapital)
     : null;
 
   // Where the castle takes a stretch of the town's outline, that stretch is its wall and carries its

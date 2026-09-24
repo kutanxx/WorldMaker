@@ -451,9 +451,18 @@ describe("a bridge is not painted as a piece of road", () => {
 // turrets, wall towers and gate as a size-3 market town, and at this scale the furniture is what
 // the eye reads. It is all in units of the donjon now, and a great seat gets parts a lesser one
 // has not: an outer curtain around a bailey, and a gatehouse in place of a doorway.
+// A town that seats a lord, found by that property: a market town has a castle about one time in
+// three, by a stream of its own, so a fixed seed says nothing about whether this one does.
+function seatedTown(size: number, isCapital: boolean) {
+  for (let s = 3; s < 200; s++) {
+    const l = generateCityLayout({ id: 7, name: "T", size, coastal: false, isCapital, elevation: 0.4, biome: GRASSLAND }, s);
+    if (l.castle) return l;
+  }
+  throw new Error("no seat in two hundred worlds");
+}
+
 describe("a capital's castle is drawn as a great one", () => {
-  const town = (size: number, isCapital: boolean) =>
-    renderCity(generateCityLayout({ id: 7, name: "T", size, coastal: false, isCapital, elevation: 0.4, biome: GRASSLAND }, 3), "en");
+  const town = (size: number, isCapital: boolean) => renderCity(seatedTown(size, isCapital), "en");
   const radius = (svg: SVGSVGElement, sel: string) => {
     const el = svg.querySelector(sel);
     return el ? Number(el.getAttribute("r")) : 0;
@@ -484,8 +493,7 @@ describe("a capital's castle is drawn as a great one", () => {
 // drum towers in warm masonry; the lord's enceinte inside it was a 1.6 hairline with r2.1 grey
 // discs and a gate that was a 1.1 dot, so the castle receded instead of dominating.
 describe("the castle is the heaviest masonry on the plate", () => {
-  const plate = (size: number, isCapital: boolean) =>
-    renderCity(generateCityLayout({ id: 7, name: "T", size, coastal: false, isCapital, elevation: 0.4, biome: GRASSLAND }, 3), "en");
+  const plate = (size: number, isCapital: boolean) => renderCity(seatedTown(size, isCapital), "en");
   const w = (svg: SVGSVGElement, sel: string) => Number(svg.querySelector(sel)?.getAttribute("stroke-width") ?? 0);
   const r = (svg: SVGSVGElement, sel: string) => Number(svg.querySelector(sel)?.getAttribute("r") ?? 0);
 

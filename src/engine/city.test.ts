@@ -594,11 +594,16 @@ describe("the lord's castle", () => {
     expect(unseated).toBeGreaterThan(4);
   });
   it("always holds the hilltop fortress, which is a castle before it is a town", () => {
-    for (const s of [4, 14, 17, 21, 27]) { // seeds whose 0.85-elevation pick is hilltopFortress
+    // the high ground picks among its four kinds of town by a stream of its own: find the worlds
+    // in which this one is the fortress, rather than naming seeds that depend on that stream
+    let forts = 0;
+    for (let s = 1; s <= 60; s++) {
       const l = generateCityLayout(town({ isCapital: false, size: 2, elevation: 0.85 }), s);
-      expect(l.archetype.id).toBe("hilltopFortress");
-      expect(l.castle).not.toBeNull();
+      if (l.archetype.id !== "hilltopFortress") continue;
+      forts++;
+      expect(l.castle, `seed ${s}`).not.toBeNull();
     }
+    expect(forts, "no hilltop fortress in sixty worlds").toBeGreaterThan(5);
   });
 });
 
@@ -1155,6 +1160,30 @@ describe("the districts are places a town would have", () => {
   });
 });
 
+// A plate's numbers were keyed by (world seed XOR town id), so world 2's town 4 drew what world 3's
+// town 5 drew, and when the two were the same kind and size of town they were the same drawing
+// under another name — 16 of the 336 plates of worlds 1-12, 105 of 1,120 over worlds 1-40.
+describe("a town in one world is not a copy of a town in another", () => {
+  it("draws a different plan for the towns the old key paired up", () => {
+    const towns: { key: number; kind: string; size: number; where: string; wall: string }[] = [];
+    for (let seed = 1; seed <= 12; seed++) {
+      const w = generateWorld({ ...DEFAULT_PARAMS, seed }).world;
+      for (const c of w.cities) {
+        const l = generateCityLayout(cityContext(c), seed);
+        towns.push({ key: seed ^ c.id, kind: l.archetype.id, size: c.size, where: `${c.name} (seed ${seed})`, wall: JSON.stringify(l.boundary) });
+      }
+    }
+    let pairs = 0;
+    for (let i = 0; i < towns.length; i++) for (let j = i + 1; j < towns.length; j++) {
+      const a = towns[i], b = towns[j];
+      if (a.key !== b.key || a.kind !== b.kind || a.size !== b.size) continue;
+      pairs++;
+      expect(a.wall === b.wall, `${a.where} and ${b.where} are one town`).toBe(false);
+    }
+    expect(pairs, "no pair of towns the old key would have made twins").toBeGreaterThan(10);
+  });
+});
+
 // ★ A lock on the plates themselves, byte for byte. Nothing pinned a city layout (the world and the
 // history have golden hashes; a plate had only "is deterministic"), so a change meant only to make
 // the generator FASTER could have moved a building and nobody would know. Opening a capital's
@@ -1166,6 +1195,10 @@ describe("the districts are places a town would have", () => {
 // 336) that seat a lord moved — the castle, the ward it stands in, the zoning that follows from it,
 // the town's towers on the stretch the castle took, and, since the castle now draws from a stream
 // of its own, the country around those towns. The other 211 plates hashed byte for byte the same.
+//
+// Re-pinned again the same day for the plate key (see plateSeed): EVERY plate moved, by design — a
+// town's streams were keyed by (world seed XOR town id), which made towns of neighbouring worlds
+// each other's copies. Nothing outside the plate reads those streams; the world is untouched.
 describe("a plate is the same plate, byte for byte", () => {
   const fold = (h: number, c: number) => Math.imul(h ^ c, 16777619) >>> 0;
   const fnv = (s: string) => { let h = 2166136261 >>> 0; for (let i = 0; i < s.length; i++) h = fold(h, s.charCodeAt(i)); return h >>> 0; };
@@ -1176,9 +1209,9 @@ describe("a plate is the same plate, byte for byte", () => {
     return { h, n };
   };
   it("draws seed 1's twenty-eight towns exactly as it did", () => {
-    expect(worldHash(1)).toEqual({ h: 1019451898, n: 28 });
+    expect(worldHash(1)).toEqual({ h: 3559719564, n: 28 });
   });
   it("draws seed 12's twenty-eight towns exactly as it did", () => {
-    expect(worldHash(12)).toEqual({ h: 2244569766, n: 28 });
+    expect(worldHash(12)).toEqual({ h: 974286404, n: 28 });
   });
 });
