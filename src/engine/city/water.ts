@@ -53,11 +53,31 @@ const SPRING_AT = 0.5, SPRING_POOL = 1.8;
 // was — the world map's own proportions, 0.9, 1.5 and 2.1.
 const SIZE_WIDTH = [0.6, 1, 1.4];
 
+// A straight coast half a world cell off a port fills this much of the compass two cells out (see
+// seaArc); a port's shore runs straight across its bearing where the world's sea fills as much as that.
+export const SEA_ARC_STRAIGHT = 0.84 * Math.PI;
+// ...and opens no narrower than this into a bay, nor wider round a headland than the whole less this;
+// the head of a bay, or a headland's nose, is rounded over this share of the town's reach
+const SEA_OPEN_MIN = Math.PI / 3, BAY_ROUND = 0.5;
+
 /**
- * What the world's river does at a town: how far it turns there, whether it rises there, and how big
- * the world map draws it there (0 a stream, 1 a river, 2 a great river; a river where it does not say).
+ * How the shore runs off a port's flanks (see buildWater): out along its bearing at this slope on both
+ * sides into a bay, back past the town at a negative one round a headland; 0 straight across. The sea
+ * opens from the town as the world's does, scaled so a straight coast opens a half circle.
  */
-export interface RiverCourse { turn?: number; rises?: boolean; size?: 0 | 1 | 2 }
+function shoreBend(seaArc?: number): number {
+  if (seaArc === undefined) return 0;
+  const open = Math.max(SEA_OPEN_MIN, Math.min(2 * Math.PI - SEA_OPEN_MIN, (Math.PI * seaArc) / SEA_ARC_STRAIGHT));
+  const bend = 1 / Math.tan(open / 2);
+  return Math.abs(bend) < 1e-9 ? 0 : bend;
+}
+
+/**
+ * What the world says of the water at a town: how far its river turns there, whether it rises there,
+ * and how big the world map draws it there (0 a stream, 1 a river, 2 a great river; a river where it
+ * does not say); and for a port, how much of the compass round it is sea (see seaArc).
+ */
+export interface WaterSite { turn?: number; rises?: boolean; size?: 0 | 1 | 2; seaArc?: number }
 
 /**
  * @param seaBearing which way the open water lies, in the world's own frame (atan2, +x east,
@@ -79,7 +99,7 @@ export interface RiverCourse { turn?: number; rises?: boolean; size?: 0 | 1 | 2 
  */
 export function buildWater(
   rng: Rng, kind: WaterKind, bounds: { w: number; h: number }, seaBearing?: number, townReach?: number, riverBearing?: number,
-  course: RiverCourse = {},
+  course: WaterSite = {},
 ): Water {
   const { w, h } = bounds;
   if (kind === "none") return { kind, bodies: [], bridges: [] };
@@ -120,6 +140,10 @@ export function buildWater(
       const reach = Math.hypot(w, h);           // enough to cross the plate at any angle
       const inland = shoreAt(R / 2 - depth);  // where the waterline sits
       const stretch = (2 * reach) / R;          // keep the waves the size they were on a plate edge
+      // ...and runs the way the world's coast runs: out to sea on both flanks round a bay, back past the
+      // town round a headland, straight across where the world's sea fills as much as a straight coast's
+      const bend = shoreBend(course.seaArc), round = (townReach ?? 90) * BAY_ROUND;
+      const far = reach * 2;
       const shore: Point[] = [];
       for (let i = 0; i <= K * 2; i++) {
         const u01 = i / (K * 2);
@@ -128,10 +152,9 @@ export function buildWater(
         for (let o = 0; o < OCTAVES.length; o++) {
           n += noise(u01 * OCTAVES[o][0] * stretch, seaBearing * 1.7 + o * 37.3) * amp * OCTAVES[o][1];
         }
-        const off = inland + n;
+        const off = bend ? Math.min(far * 0.95, inland + n + bend * (Math.hypot(along, round) - round)) : inland + n;
         shore.push([cx + ux * off + vx * along, cy + uy * off + vy * along]);
       }
-      const far = reach * 2;
       const open: Polygon = [
         ...shore,
         [cx + ux * far + vx * reach, cy + uy * far + vy * reach],

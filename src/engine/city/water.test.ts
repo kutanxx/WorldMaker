@@ -2,7 +2,8 @@ import { describe, it, expect } from "vitest";
 import { mulberry32 } from "../rng";
 import { area, pointSegDist } from "../geometry";
 import type { Point, Polyline } from "../geometry";
-import { buildWater, inWater, waterBridges } from "./water";
+import { buildWater, inWater, waterBridges, SEA_ARC_STRAIGHT } from "./water";
+import type { Water } from "./water";
 
 const B = { w: 300, h: 300 };
 
@@ -220,6 +221,26 @@ describe("the sea lies where the world says it lies", () => {
         expect(p[1]).toBeLessThanOrEqual(bounds.h + 0.01);
       }
     }
+  });
+
+  // ...and its shore runs the way the world's coast runs there: a port at the head of a bay has land on
+  // both its flanks, one on a headland has the sea round them. Every port's shore was drawn straight.
+  it("bends the shore the way the world's coast runs: into a bay, straight, or round a headland", () => {
+    const R = 90, bearing = 0.7;
+    const at = (u: number, v: number): Point => [centre[0] + Math.cos(bearing) * u - Math.sin(bearing) * v, centre[1] + Math.sin(bearing) * u + Math.cos(bearing) * v];
+    const sea = (seaArc?: number) => buildWater(mulberry32(7), "sea", bounds, bearing, R, undefined, { seaArc });
+    const share = (w: Water) => w.bodies.reduce((t, b) => t + Math.abs(area(b)), 0) / (bounds.w * bounds.h);
+    const bay = sea(0.3 * Math.PI), straight = sea(SEA_ARC_STRAIGHT), headland = sea(1.3 * Math.PI);
+    // the town's flanks, a reach and a third to either side of it and a little seaward
+    for (const v of [-1.3 * R, 1.3 * R]) {
+      expect(inWater(bay, at(0.3 * R, v)), "a bay's flank").toBe(false);
+      expect(inWater(headland, at(0.3 * R, v)), "a headland's flank").toBe(true);
+    }
+    expect(inWater(bay, at(1.2 * R, 0)), "the sea in front of a town in a bay").toBe(true);
+    expect(share(bay)).toBeLessThan(share(straight));
+    expect(share(headland)).toBeGreaterThan(share(straight));
+    // ...and a port on a straight coast, or one the world has not measured, keeps the shore it had
+    expect(straight).toEqual(sea(undefined));
   });
 
   it("falls back to a drawn side when the world has not said which way", () => {

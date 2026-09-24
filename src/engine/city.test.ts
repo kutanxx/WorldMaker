@@ -1384,6 +1384,30 @@ describe("water in a town", () => {
     expect(median(bySize[2])).toBeGreaterThan(median(bySize[1]) * 1.2);
   });
 
+  // A port's shore runs the way the world's coast runs there: into a bay where the world has little sea
+  // round it, round a headland where it has most. Every port's shore was drawn straight across its bearing.
+  it("lays a port's shore the way the world's coast runs there", () => {
+    const arcs: { world: number; plate: number }[] = [];
+    for (const { c, l } of towns()) {
+      if (!c.coastal || c.seaArc === undefined || l.water.kind !== "sea") continue;
+      const sea = { ...l.water, bodies: l.water.bodies.slice(0, 1) };
+      // the share of the compass the sea fills on the plate, from the town's middle out to its edge
+      let wet = 0;
+      for (let i = 0; i < 72; i++) {
+        const a = (i / 72) * 2 * Math.PI;
+        for (let r = 20; r <= 225; r += 5) if (inWater(sea, [230 + Math.cos(a) * r, 230 + Math.sin(a) * r])) { wet++; break; }
+      }
+      arcs.push({ world: c.seaArc, plate: wet / 72 });
+    }
+    expect(arcs.length).toBeGreaterThan(120);
+    arcs.sort((p, q) => p.world - q.world);
+    const third = Math.floor(arcs.length / 3);
+    const median = (a: number[]) => [...a].sort((x, y) => x - y)[a.length >> 1];
+    const [bays, coasts, heads] = [arcs.slice(0, third), arcs.slice(third, 2 * third), arcs.slice(2 * third)].map((g) => median(g.map((x) => x.plate)));
+    expect(coasts, "the plate's sea round a port on a straight coast").toBeGreaterThan(bays + 0.05);
+    expect(heads, "...and round one on a headland").toBeGreaterThan(coasts + 0.05);
+  });
+
   // 22 of the 80 river towns of twelve worlds stand where the world's river reaches the sea, and
   // their plates drew the sea with no river in it at all
   it("draws the river of a port where the world's river reaches the sea, and keeps its harbour on the sea", () => {
@@ -1982,6 +2006,10 @@ describe("a town in one world is not a copy of a town in another", () => {
 // moved — 22 inland towns and 11 ports on a stream, 9 inland towns and 4 ports on a great river, their
 // rivers narrower or wider — one of them (6:16) now leading its one gate out where a road can leave. The
 // 34 towns on a river of the middle size, and every other plate, hashed byte for byte the same.
+//
+// And for the run of the coast (seaArc): exactly the 139 ports moved — each shore bends the way the
+// world's coast runs at its port, into a bay, round a headland, or hardly at all on a straight coast
+// (the world's arc is measured, so almost none is exactly straight). No other plate moved.
 describe("a plate is the same plate, byte for byte", () => {
   const fold = (h: number, c: number) => Math.imul(h ^ c, 16777619) >>> 0;
   const fnv = (s: string) => { let h = 2166136261 >>> 0; for (let i = 0; i < s.length; i++) h = fold(h, s.charCodeAt(i)); return h >>> 0; };
@@ -1992,9 +2020,9 @@ describe("a plate is the same plate, byte for byte", () => {
     return { h, n };
   };
   it("draws seed 1's twenty-eight towns exactly as it did", () => {
-    expect(worldHash(1)).toEqual({ h: 1901003033, n: 28 });
+    expect(worldHash(1)).toEqual({ h: 2692617470, n: 28 });
   });
   it("draws seed 12's twenty-eight towns exactly as it did", () => {
-    expect(worldHash(12)).toEqual({ h: 46323080, n: 28 });
+    expect(worldHash(12)).toEqual({ h: 396956493, n: 28 });
   });
 });

@@ -100,6 +100,7 @@ export interface CityContext {
   biome: number;
   river?: boolean; // world river through the cell (optional so test fixtures can omit it → no river)
   seaBearing?: number; // which way the open sea lies, in world radians; absent → the plate picks
+  seaArc?: number;     // ...and how much of the compass round the port is sea; absent → a straight coast
   riverBearing?: number; // which way the world's river runs through the town; absent → the plate picks
   riverTurn?: number;    // ...how far it turns there; absent → the plate picks whether it wraps the town
   riverRises?: boolean;  // ...and whether it rises there, rather than running in from upstream
@@ -114,7 +115,7 @@ export interface CityContext {
 export function cityContext(c: CityMarker): CityContext {
   return {
     id: c.id, name: c.name, size: c.size, coastal: c.coastal, isCapital: c.isCapital, elevation: c.elevation, biome: c.biome,
-    river: c.river, seaBearing: c.seaBearing, riverBearing: c.riverBearing, riverTurn: c.riverTurn, riverRises: c.riverRises, riverSize: c.riverSize,
+    river: c.river, seaBearing: c.seaBearing, seaArc: c.seaArc, riverBearing: c.riverBearing, riverTurn: c.riverTurn, riverRises: c.riverRises, riverSize: c.riverSize,
     mountainBearing: c.mountainBearing, mountainShare: c.mountainShare, onMountain: c.onMountain,
     relief: c.relief, reliefBearing: c.reliefBearing,
   };
@@ -261,7 +262,7 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
   // ...and what it is built of, from the country it stands in (see textureOf)
   const texture = textureOf(ctx.biome);
 
-  const course = { turn: ctx.riverTurn, rises: ctx.riverRises, size: ctx.riverSize };
+  const course = { turn: ctx.riverTurn, rises: ctx.riverRises, size: ctx.riverSize, seaArc: ctx.seaArc };
   const water = buildWater(rng, archetype.water, bounds, ctx.seaBearing, radius, ctx.riverBearing, course);
   // The sea on its own: what a port's harbour, docks and seaward side are measured against, whatever
   // else runs into it.

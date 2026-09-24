@@ -72,6 +72,32 @@ export function generateWorld(params: WorldParams, nameOverride?: string): Gener
     return found > 0 ? Math.atan2(sy, sx) : undefined;
   };
 
+  // How much of the compass round a port is sea, two cells out: the nearest cell in each ten degrees of
+  // it, sea or land (a direction no cell lies in takes the nearest one that does). A port at the head of
+  // a bay sees a little of the sea, one on a headland most of it; a straight coast, half a cell off,
+  // fills some 150 degrees. The plate drew every port's shore straight across its bearing. Terrain only.
+  const SEA_BINS = 36;
+  const seaArcAt = (cell: number): number | undefined => {
+    if (!isCoastal(cell)) return undefined;
+    const x = grid.points[cell * 2], y = grid.points[cell * 2 + 1];
+    const near = new Set<number>(grid.neighbors[cell]);
+    for (const n of grid.neighbors[cell]) for (const m of grid.neighbors[n]) near.add(m);
+    near.delete(cell);
+    const dist = new Array<number>(SEA_BINS).fill(Infinity), sea = new Array<boolean>(SEA_BINS).fill(false);
+    for (const n of near) {
+      const dx = grid.points[n * 2] - x, dy = grid.points[n * 2 + 1] - y, d = Math.hypot(dx, dy);
+      const b = Math.floor(((Math.atan2(dy, dx) + Math.PI) / (2 * Math.PI)) * SEA_BINS) % SEA_BINS;
+      if (d < dist[b]) { dist[b] = d; sea[b] = terrain[n] === OCEAN; }
+    }
+    const wetAt = (b: number) => {
+      for (let s = 0; s < SEA_BINS; s++) for (const k of [(b + s) % SEA_BINS, (b - s + SEA_BINS) % SEA_BINS]) if (dist[k] < Infinity) return sea[k];
+      return false;
+    };
+    let wet = 0;
+    for (let b = 0; b < SEA_BINS; b++) if (wetAt(b)) wet++;
+    return (wet / SEA_BINS) * 2 * Math.PI;
+  };
+
   // The way the river runs through a river town: from where its biggest feeder comes in to where it
   // leaves, in world radians. The plate drew its river north-south or east-west on a coin toss —
   // measured over twelve worlds, 30 of 57 river towns had it more than 45 degrees off the river the
@@ -150,6 +176,7 @@ export function generateWorld(params: WorldParams, nameOverride?: string): Gener
       size: randInt(rng, 3, 6),
       coastal: isCoastal(p.capital),
       seaBearing: seaBearingAt(p.capital),
+      seaArc: seaArcAt(p.capital),
       elevation: heights[p.capital],
       biome: biome[p.capital],
       river: riverCells.has(p.capital),
@@ -214,6 +241,7 @@ export function generateWorld(params: WorldParams, nameOverride?: string): Gener
       size: randInt(rng, 1, 3),
       coastal: isCoastal(cell),
       seaBearing: seaBearingAt(cell),
+      seaArc: seaArcAt(cell),
       elevation: heights[cell],
       biome: biome[cell],
       river: riverCells.has(cell),

@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { generateWorld } from "./world";
 import { DEFAULT_PARAMS } from "../types/world";
 import { riverSize } from "./rivers";
+import { OCEAN } from "./terrain";
 
 // Towns used to be thrown at the claimed land uniformly, and the measurement said exactly that: the
 // pool was 26.8% coastal and the towns came out 27% coastal — statistically indistinguishable from
@@ -98,5 +99,21 @@ describe("how big the river is at a river town", () => {
       }
     }
     expect([...seen].sort()).toEqual([0, 1, 2]);
+  });
+});
+
+// How much of the compass round a port is sea, two cells out: a port at the head of a bay sees a little
+// of it, one on a headland most of it. The plate drew every port's shore straight across its bearing.
+describe("how much of the compass round a port is sea", () => {
+  it("is measured for every port and no other town, and is wider the more of its neighbours are sea", () => {
+    const byOcean: number[][] = [[], [], [], []];
+    for (const w of worlds) for (const c of w.cities) {
+      if (!c.coastal) { expect(c.seaArc, `${c.name} is no port`).toBeUndefined(); continue; }
+      expect(c.seaArc!).toBeGreaterThan(0);
+      expect(c.seaArc!).toBeLessThan(2 * Math.PI);
+      byOcean[Math.min(3, w.grid.neighbors[c.cell].filter((n) => w.terrain[n] === OCEAN).length)].push(c.seaArc!);
+    }
+    const mean = (a: number[]) => a.reduce((t, v) => t + v, 0) / a.length;
+    expect(mean(byOcean[3])).toBeGreaterThan(mean(byOcean[1]) * 1.3);
   });
 });
