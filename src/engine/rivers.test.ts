@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { traceRivers, nameRivers, RIVER_NOUNS } from "./rivers";
+import { traceRivers, nameRivers, RIVER_NOUNS, riverSize } from "./rivers";
 import { generateWorld } from "./world";
 import { DEFAULT_PARAMS } from "../types/world";
 import { mulberry32 } from "./rng";
@@ -134,5 +134,17 @@ describe("a map does not name two rivers the same thing", () => {
   it("has no noun that reads as something other than water", () => {
     expect(RIVER_NOUNS).not.toContain("Race");
     expect(RIVER_NOUNS).toContain("Beck");
+  });
+});
+
+// How big the map draws a river, against the world's largest: the world map drew three widths and the
+// town plate one, so a great river and a stream ran through their towns alike. One rule for both.
+describe("how big a river is", () => {
+  it("is a stream under 15% of the world's largest river, a river under half of it, else a great river", () => {
+    expect(riverSize(14, 100)).toBe(0);
+    expect(riverSize(15, 100)).toBe(1);
+    expect(riverSize(49, 100)).toBe(1);
+    expect(riverSize(50, 100)).toBe(2);
+    expect(riverSize(100, 100)).toBe(2);
   });
 });

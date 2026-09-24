@@ -38,6 +38,8 @@ export interface CityMarker {
   // where the world map first draws it, no feeder coming in
   riverTurn?: number;
   riverRises?: boolean;
+  // ...and how big the world map draws it there: 0 a stream, 1 a river, 2 a great river (see riverSize)
+  riverSize?: 0 | 1 | 2;
   // the high ground beside the town: which way the mountain cells next to its own lie (weighted by how
   // far they rise above it) and what share of its neighbours they are — only where some do — so the
   // plate's mountains stand where the world map draws them

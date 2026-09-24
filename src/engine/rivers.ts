@@ -25,6 +25,16 @@ const DRAW_FRAC = 0.1;
 const NAME_FRAC = 0.25;
 const MAX_NAMED = 5;
 
+/**
+ * How big the map draws a river of this flow, against the world's largest: a stream under 15% of it, a
+ * river under half of it, a great river from there. The world map's three widths, and a town plate's:
+ * the plate drew every river the one width, a great river's town and a stream's alike.
+ */
+export type RiverSize = 0 | 1 | 2;
+export function riverSize(flow: number, largest: number): RiverSize {
+  return flow < 0.15 * largest ? 0 : flow < 0.5 * largest ? 1 : 2;
+}
+
 // rainfall by biome — wetter biomes and snowmelt uplands feed bigger rivers
 const RAIN: Record<number, number> = {
   [DESERT]: 0.3, [TUNDRA]: 0.5, [GRASSLAND]: 0.7, [TAIGA]: 1.0,

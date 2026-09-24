@@ -1364,6 +1364,26 @@ describe("water in a town", () => {
     expect(bends).toBeGreaterThan(6);
   });
 
+  // ...and it runs as wide as the world map draws it: a stream, a river or a great river. Every river on
+  // a plate was the one width, a great river's town and a stream's alike.
+  it("runs a river town's river as wide as the world map draws it", () => {
+    const bySize: number[][] = [[], [], []];
+    for (const { where, c, l } of towns()) {
+      // (where it rises its spring is wider than its stream, as it should be)
+      if (!c.river || c.coastal || c.riverRises || l.archetype.id !== "bridgeTown") continue;
+      const b = l.water.bodies[0] as [number, number][];
+      const edge = (p: [number, number]) => { let d = Infinity; for (let i = 0; i < b.length; i++) d = Math.min(d, pointSegDist(p, b[i], b[(i + 1) % b.length])); return d; };
+      let m = 0;
+      for (let x = 0; x <= 460; x += 3) for (let y = 0; y <= 460; y += 3) if (inWater(l.water, [x, y])) m = Math.max(m, edge([x, y]));
+      expect(m, `the river of ${where}`).toBeGreaterThan(0);
+      bySize[c.riverSize!].push(m);
+    }
+    const median = (a: number[]) => [...a].sort((x, y) => x - y)[a.length >> 1];
+    for (const a of bySize) expect(a.length).toBeGreaterThan(2);
+    expect(median(bySize[1])).toBeGreaterThan(median(bySize[0]) * 1.4);
+    expect(median(bySize[2])).toBeGreaterThan(median(bySize[1]) * 1.2);
+  });
+
   // 22 of the 80 river towns of twelve worlds stand where the world's river reaches the sea, and
   // their plates drew the sea with no river in it at all
   it("draws the river of a port where the world's river reaches the sea, and keeps its harbour on the sea", () => {
@@ -1430,10 +1450,12 @@ describe("water in a town", () => {
 
   it("crosses the water square, one bridge to a crossing", () => {
     let bridges = 0;
-    for (const { where, l } of towns()) {
+    for (const { where, c, l } of towns()) {
       const br = l.water.bridges;
       bridges += br.length;
-      for (const [a, b] of br) expect(Math.hypot(b[0] - a[0], b[1] - a[1]), `a bridge along the river at ${where}`).toBeLessThan(50);
+      // (a bridge laid along the river ran up to 115; a great river is 1.4 times as wide as a river)
+      const along = c.riverSize === 2 ? 70 : 50;
+      for (const [a, b] of br) expect(Math.hypot(b[0] - a[0], b[1] - a[1]), `a bridge along the river at ${where}`).toBeLessThan(along);
       for (let i = 0; i < br.length; i++) for (let j = i + 1; j < br.length; j++) {
         const m1 = [(br[i][0][0] + br[i][1][0]) / 2, (br[i][0][1] + br[i][1][1]) / 2], m2 = [(br[j][0][0] + br[j][1][0]) / 2, (br[j][0][1] + br[j][1][1]) / 2];
         expect(Math.hypot(m1[0] - m2[0], m1[1] - m2[1]), `two bridges on one crossing at ${where}`).toBeGreaterThan(25);
@@ -1955,6 +1977,11 @@ describe("a town in one world is not a copy of a town in another", () => {
 // loop towns are bridge towns (7 where the river rises, 9 on a straight reach); 20 towns where it rises
 // have it rise there (11 bridge towns, a marsh and 8 ports). Every loop swings the way the world's river
 // turns: the one loop town that stays one (2:10) already did. The other 292 hashed byte for byte the same.
+//
+// And for how big the world draws a river (riverSize): exactly the 46 towns on a stream or a great river
+// moved — 22 inland towns and 11 ports on a stream, 9 inland towns and 4 ports on a great river, their
+// rivers narrower or wider — one of them (6:16) now leading its one gate out where a road can leave. The
+// 34 towns on a river of the middle size, and every other plate, hashed byte for byte the same.
 describe("a plate is the same plate, byte for byte", () => {
   const fold = (h: number, c: number) => Math.imul(h ^ c, 16777619) >>> 0;
   const fnv = (s: string) => { let h = 2166136261 >>> 0; for (let i = 0; i < s.length; i++) h = fold(h, s.charCodeAt(i)); return h >>> 0; };
@@ -1965,9 +1992,9 @@ describe("a plate is the same plate, byte for byte", () => {
     return { h, n };
   };
   it("draws seed 1's twenty-eight towns exactly as it did", () => {
-    expect(worldHash(1)).toEqual({ h: 1120411161, n: 28 });
+    expect(worldHash(1)).toEqual({ h: 1901003033, n: 28 });
   });
   it("draws seed 12's twenty-eight towns exactly as it did", () => {
-    expect(worldHash(12)).toEqual({ h: 511797427, n: 28 });
+    expect(worldHash(12)).toEqual({ h: 46323080, n: 28 });
   });
 });

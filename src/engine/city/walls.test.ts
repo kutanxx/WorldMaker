@@ -63,6 +63,19 @@ describe("wallFromDefenses", () => {
     expect(wall.gates.length).toBe(1);
     expect(wall.gates[0][1]).toBeLessThan(100); // gate sits on the top of the wall, not at centre (y=150)
   });
+  // Every walled town has a gate, and a gate is a way out. Where no street reached a stretch of wall a
+  // road could leave by, the town took the wall point nearest a street whether a road could leave by it
+  // or not: a mountain town where its stream rises had its one gate facing its foothills, no road out.
+  it("puts a town's one gate where a road can leave, when no street reaches such a spot", () => {
+    const street: Polyline = [[150, 100], [150, 91]];   // reaches only the top of the wall
+    const wall = wallFromDefenses(ring, noWater, noMountains, [street], Infinity, (g) => g[1] > 150);
+    expect(wall.gates.length).toBe(1);
+    expect(wall.gates[0][1], "a gate a road can leave by").toBeGreaterThan(150);
+    expect(wall.gates[0][1], "...the nearest of them to the street").toBeLessThan(170);
+    // ...and a town whose nearest gate a road can leave by keeps it
+    const kept = wallFromDefenses(ring, noWater, noMountains, [street], Infinity, () => true);
+    expect(kept.gates[0][1]).toBeLessThan(100);
+  });
   it("caps the gate count to a few well-spread main gates", () => {
     const roads: Polyline[] = [];
     for (let i = 0; i < 12; i++) { const a = (i / 12) * Math.PI * 2; roads.push([[150, 150], [150 + Math.cos(a) * 61, 150 + Math.sin(a) * 61]]); }

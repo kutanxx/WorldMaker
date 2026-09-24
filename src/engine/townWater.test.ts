@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { generateWorld } from "./world";
 import { DEFAULT_PARAMS } from "../types/world";
+import { riverSize } from "./rivers";
 
 // Towns used to be thrown at the claimed land uniformly, and the measurement said exactly that: the
 // pool was 26.8% coastal and the towns came out 27% coastal — statistically indistinguishable from
@@ -81,5 +82,21 @@ describe("what the river does at a river town", () => {
     }
     expect(rises).toBeGreaterThan(15);
     expect(turns).toBeGreaterThan(40);
+  });
+});
+
+describe("how big the river is at a river town", () => {
+  it("is the size the world map draws the river leaving it", () => {
+    const seen = new Set<number>();
+    for (const w of worlds) {
+      const largest = w.riverNet.reduce((m, g) => Math.max(m, g.f), 0);
+      for (const c of w.cities) {
+        if (!c.river) { expect(c.riverSize, `${c.name} has no river`).toBeUndefined(); continue; }
+        const out = w.riverNet.find((g) => g.x1 === c.x && g.y1 === c.y)!;
+        expect(c.riverSize, `the river at ${c.name}`).toBe(riverSize(out.f, largest));
+        seen.add(c.riverSize!);
+      }
+    }
+    expect([...seen].sort()).toEqual([0, 1, 2]);
   });
 });

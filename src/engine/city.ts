@@ -103,6 +103,7 @@ export interface CityContext {
   riverBearing?: number; // which way the world's river runs through the town; absent → the plate picks
   riverTurn?: number;    // ...how far it turns there; absent → the plate picks whether it wraps the town
   riverRises?: boolean;  // ...and whether it rises there, rather than running in from upstream
+  riverSize?: 0 | 1 | 2; // ...and how big the world map draws it there; absent → a river
   mountainBearing?: number; // which way the mountains beside the town lie; absent → none beside it
   mountainShare?: number;   // ...and what share of the town's neighbours they are
   onMountain?: boolean;     // the world draws the town in its mountains; absent → judged by elevation
@@ -113,7 +114,7 @@ export interface CityContext {
 export function cityContext(c: CityMarker): CityContext {
   return {
     id: c.id, name: c.name, size: c.size, coastal: c.coastal, isCapital: c.isCapital, elevation: c.elevation, biome: c.biome,
-    river: c.river, seaBearing: c.seaBearing, riverBearing: c.riverBearing, riverTurn: c.riverTurn, riverRises: c.riverRises,
+    river: c.river, seaBearing: c.seaBearing, riverBearing: c.riverBearing, riverTurn: c.riverTurn, riverRises: c.riverRises, riverSize: c.riverSize,
     mountainBearing: c.mountainBearing, mountainShare: c.mountainShare, onMountain: c.onMountain,
     relief: c.relief, reliefBearing: c.reliefBearing,
   };
@@ -260,7 +261,7 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
   // ...and what it is built of, from the country it stands in (see textureOf)
   const texture = textureOf(ctx.biome);
 
-  const course = { turn: ctx.riverTurn, rises: ctx.riverRises };
+  const course = { turn: ctx.riverTurn, rises: ctx.riverRises, size: ctx.riverSize };
   const water = buildWater(rng, archetype.water, bounds, ctx.seaBearing, radius, ctx.riverBearing, course);
   // The sea on its own: what a port's harbour, docks and seaward side are measured against, whatever
   // else runs into it.

@@ -106,9 +106,33 @@ function placeGates(segments: Polyline[], roads: Polyline[], maxGates: number, s
   // So when nothing is near enough, the town still takes ONE gate: the wall point closest to a
   // street, however far that is. It is a floor, not a retune — the 325 towns that had gates keep
   // exactly the gates they had.
-  if (gates.length === 0 && spare.length) return reduceGates(spare, 1);
-  if (gates.length === 0 && fallback) return [fallback];
+  if (gates.length === 0) {
+    const kept = spare.length ? reduceGates(spare, 1) : fallback ? [fallback] : [];
+    // ...and it is a way out: where the wall point nearest a street leads nowhere — a mountain town
+    // where its stream rises had its one gate facing its foothills — the nearest one that does
+    if (kept.length && !usable(kept[0])) {
+      const out = nearestWayOut(segments, roads, good) ?? nearestWayOut(segments, roads, usable);
+      if (out) return [out];
+    }
+    return kept;
+  }
   return reduceGates(gates, maxGates);
+}
+
+// the point of the wall nearest the end of a street that `ok` accepts, if the wall has one
+function nearestWayOut(segments: Polyline[], roads: Polyline[], ok: (p: Point) => boolean): Point | null {
+  const ends = roads.filter((r) => r.length >= 2).flatMap((r) => [r[0], r[r.length - 1]]);
+  if (!ends.length) return null;
+  const spots: { p: Point; d2: number }[] = [];
+  for (const s of segments) for (let i = 0; i + 1 < s.length; i++) {
+    const a = s[i], b = s[i + 1], k = Math.max(1, Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) / 4));
+    for (let j = 0; j < k; j++) {
+      const p: Point = [a[0] + ((b[0] - a[0]) * j) / k, a[1] + ((b[1] - a[1]) * j) / k];
+      spots.push({ p, d2: Math.min(...ends.map((e) => (e[0] - p[0]) ** 2 + (e[1] - p[1]) ** 2)) });
+    }
+  }
+  spots.sort((x, y) => x.d2 - y.d2);
+  return spots.find((sp) => ok(sp.p))?.p ?? null;
 }
 
 // barrier per boundary edge: 0 = none (walled), 1 = water, 2 = mountain

@@ -8,7 +8,7 @@ import { makeNameGen, DEFAULT_PHON } from "./names";
 import { assignPolities } from "./polities";
 import { detectRegions, nameGeography, worldName } from "./geography";
 import { assignCultures } from "./culture";
-import { traceRivers, nameRivers } from "./rivers";
+import { traceRivers, nameRivers, riverSize } from "./rivers";
 import { buildProvinces, PROVINCE_SALT } from "./provinces";
 import { reliefAt } from "./relief";
 
@@ -99,15 +99,18 @@ export function generateWorld(params: WorldParams, nameOverride?: string): Gener
   // coming in) and otherwise how far it turns, from the way its biggest feeder comes in to the way it
   // leaves. The plate put a town in a loop of its river on a coin toss — 7 of the 17 loop towns of
   // twelve worlds stood where the river rises, and the rest mostly on a straight reach of it.
-  const riverCourseAt = (cell: number): { riverTurn?: number; riverRises?: boolean } => {
+  // ...and how big the world map draws it there, by the flow leaving the town (see riverSize)
+  const largestFlow = segments.reduce((m, sg) => Math.max(m, sg.f), 0);
+  const riverCourseAt = (cell: number): { riverTurn?: number; riverRises?: boolean; riverSize?: 0 | 1 | 2 } => {
     if (!riverCells.has(cell)) return {};
     const x = grid.points[cell * 2], y = grid.points[cell * 2 + 1];
     const out = outflow.get(pointKey(x, y));
     if (!out) return {};
+    const size = riverSize(out.f, largestFlow);
     const main = (inflows.get(pointKey(x, y)) ?? []).reduce<RiverSegment | null>((best, sg) => (!best || sg.f > best.f ? sg : best), null);
-    if (!main) return { riverRises: true };
+    if (!main) return { riverRises: true, riverSize: size };
     const turn = Math.atan2(out.y2 - out.y1, out.x2 - out.x1) - Math.atan2(main.y2 - main.y1, main.x2 - main.x1);
-    return { riverTurn: Math.atan2(Math.sin(turn), Math.cos(turn)), riverRises: false };
+    return { riverTurn: Math.atan2(Math.sin(turn), Math.cos(turn)), riverRises: false, riverSize: size };
   };
 
   // The high ground beside a town: the mountain cells next to its own, their directions (unit vectors,

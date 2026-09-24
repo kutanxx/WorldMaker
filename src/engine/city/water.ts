@@ -49,8 +49,15 @@ const SHORE_IN = 0.8;
 // share of the town's reach upstream of its middle, a pool this much wider than the stream it gives.
 const SPRING_AT = 0.5, SPRING_POOL = 1.8;
 
-/** What the world's river does at a town: how far it turns there, and whether it rises there. */
-export interface RiverCourse { turn?: number; rises?: boolean }
+// A stream, a river and a great river (see riverSize) are drawn this much as wide as a river always
+// was — the world map's own proportions, 0.9, 1.5 and 2.1.
+const SIZE_WIDTH = [0.6, 1, 1.4];
+
+/**
+ * What the world's river does at a town: how far it turns there, whether it rises there, and how big
+ * the world map draws it there (0 a stream, 1 a river, 2 a great river; a river where it does not say).
+ */
+export interface RiverCourse { turn?: number; rises?: boolean; size?: 0 | 1 | 2 }
 
 /**
  * @param seaBearing which way the open water lies, in the world's own frame (atan2, +x east,
@@ -169,6 +176,7 @@ export function buildWater(
 
   // river / meander / loop: a winding centre line crossing the plate, turned into a ribbon. The
   // draws are the ones the river always made, in the order it made them.
+  const wide = SIZE_WIDTH[course.size ?? 1];
   const vertical = kind === "river" ? rng() < 0.5 : true;
   const baseDraw = rng();
   const jit: number[] = [];
@@ -205,12 +213,12 @@ export function buildWater(
       next.push(path[path.length - 1]);
       path = next;
     }
-    return { kind, bodies: onPlate(ribbon(path, 14)), bridges: [] };
+    return { kind, bodies: onPlate(ribbon(path, 14 * wide)), bridges: [] };
   }
 
   // A river (or a marsh's channel) runs the way the world's river runs, crossing the plate at any
   // angle: laid along the flow, carried past the plate's corners, cut back to the plate.
-  const amp = kind === "meander" ? 70 : 40, waves = kind === "meander" ? 3 : 2, half = kind === "meander" ? 16 : 11;
+  const amp = kind === "meander" ? 70 : 40, waves = kind === "meander" ? 3 : 2, half = (kind === "meander" ? 16 : 11) * wide;
   const vx = -uy, vy = ux;
   const side = Math.min(w, h), far = Math.hypot(w, h) / 2 + 24;
   const v0 = (baseDraw - 0.5) * 0.2 * side;          // where it passes the middle: 0.4..0.6 of the plate

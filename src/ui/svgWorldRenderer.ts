@@ -10,6 +10,7 @@ import { cellPath, segPath } from "./svgPaths";
 import { politicalLayer, type PoliticalOpts } from "./politicalLayer";
 import { properName, polityLabeller } from "./properName";
 import { featureLabel, worldNameIn } from "../engine/featureLabel";
+import { riverSize } from "../engine/rivers";
 import { cultureLayer } from "./cultureLayer";
 import { provinceLayer, snapOwnersToProvinces } from "./provinceLayer";
 
@@ -159,7 +160,7 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
     const tierSegs: Segment[][] = [[], [], []];
     const tierW = [0.9, 1.5, 2.1];
     for (const s of world.riverNet) {
-      const t = s.f < 0.15 * maxF ? 0 : s.f < 0.5 * maxF ? 1 : 2;
+      const t = riverSize(s.f, maxF);
       tierSegs[t].push([[s.x1, s.y1], [s.x2, s.y2]]);
     }
     const rivers = svgEl("g", { class: "rivers" });

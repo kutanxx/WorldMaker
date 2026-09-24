@@ -281,3 +281,27 @@ describe("the river at a town does what the world's does", () => {
     expect(widest(head, head + 30)).toBeGreaterThan(widest(head + 60, head + 150) * 1.5);
   });
 });
+
+// A river is as wide on the plate as the world map draws it — a stream, a river or a great river, at the
+// world map's own proportions (0.9, 1.5 and 2.1). Every river on a plate was the one width.
+describe("a river as wide as the world draws it", () => {
+  // the largest circle that fits in the water: its half-width where it is widest
+  const widest = (w: ReturnType<typeof buildWater>) => {
+    const b = w.bodies[0];
+    const edge = (p: Point) => { let d = Infinity; for (let i = 0; i < b.length; i++) d = Math.min(d, pointSegDist(p, b[i], b[(i + 1) % b.length])); return d; };
+    let m = 0;
+    for (let x = 0; x <= B.w; x++) for (let y = 0; y <= B.h; y++) if (inWater(w, [x, y])) m = Math.max(m, edge([x, y]));
+    return m;
+  };
+  it("draws a stream narrower and a great river wider than a river, in the world map's proportions", () => {
+    for (const kind of ["river", "loop", "meander"] as const) {
+      const [stream, river, great] = ([0, 1, 2] as const).map((size) => widest(buildWater(mulberry32(6), kind, B, undefined, 80, 0.4, { size })));
+      expect(stream / river, `${kind}: a stream`).toBeGreaterThan(0.5);
+      expect(stream / river, `${kind}: a stream`).toBeLessThan(0.7);
+      expect(great / river, `${kind}: a great river`).toBeGreaterThan(1.3);
+      expect(great / river, `${kind}: a great river`).toBeLessThan(1.5);
+      // ...and a river the world has not sized is drawn the width a river always was
+      expect(widest(buildWater(mulberry32(6), kind, B, undefined, 80, 0.4)), kind).toBeCloseTo(river, 5);
+    }
+  });
+});
