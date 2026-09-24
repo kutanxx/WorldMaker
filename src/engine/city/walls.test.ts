@@ -29,15 +29,27 @@ describe("wallFromDefenses", () => {
     const totalVerts = wall.segments.reduce((n, s) => n + s.length, 0);
     expect(totalVerts).toBeLessThan(ring.length + 1); // less than the full closed ring
   });
-  it("opens the sea-facing side even when the boundary stops short of the water (no walled-off harbour)", () => {
-    // a small ring (radius 40, right edge ~x=190) with the sea starting at x=210 — a ~20px land gap
-    const gappedRing: Polygon = [];
-    for (let i = 0; i < 16; i++) { const a = (i / 16) * Math.PI * 2; gappedRing.push([150 + Math.cos(a) * 40, 150 + Math.sin(a) * 40]); }
-    const farSea: Water = { kind: "sea", bodies: [[[210, 0], [300, 0], [300, 300], [210, 300]]], bridges: [] };
-    const wall = wallFromDefenses(gappedRing, farSea, noMountains, noRoads);
+  // A port comes down to its water (the shore runs through the edge of the town's reach), so the
+  // side that stands on the water is open and a town that stands back from it is walled all round:
+  // the wall used to open across up to 36 of beach, and left a median 42 units of a port's landward
+  // edge without a wall.
+  const smallRing: Polygon = [];
+  for (let i = 0; i < 16; i++) { const a = (i / 16) * Math.PI * 2; smallRing.push([150 + Math.cos(a) * 40, 150 + Math.sin(a) * 40]); }
+  it("opens the side of the town that stands on the water (no walled-off harbour)", () => {
+    // the ring's right edge is at x = 190, the sea begins two units beyond it
+    const nearSea: Water = { kind: "sea", bodies: [[[192, 0], [300, 0], [300, 300], [192, 300]]], bridges: [] };
+    const wall = wallFromDefenses(smallRing, nearSea, noMountains, noRoads);
     expect(wall.seaGates.length).toBeGreaterThan(0);                       // sea side is open
     const totalVerts = wall.segments.reduce((n, s) => n + s.length, 0);
-    expect(totalVerts).toBeLessThan(gappedRing.length + 1);                // not a full closed ring
+    expect(totalVerts).toBeLessThan(smallRing.length + 1);                 // not a full closed ring
+  });
+  it("walls a town that stands back from the water across dry ground", () => {
+    // the same ring with 20 of beach between it and the sea
+    const farSea: Water = { kind: "sea", bodies: [[[210, 0], [300, 0], [300, 300], [210, 300]]], bridges: [] };
+    const wall = wallFromDefenses(smallRing, farSea, noMountains, noRoads);
+    expect(wall.seaGates.length).toBe(0);
+    expect(wall.segments.length).toBe(1);
+    expect(wall.segments[0].length).toBe(smallRing.length + 1);            // a closed ring
   });
   it("leaves the mountain-facing side open but with NO gates (cliff is closed)", () => {
     const wall = wallFromDefenses(ring, noWater, leftMountain, noRoads);

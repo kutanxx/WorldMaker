@@ -12,10 +12,12 @@ export interface DefenseWall {
   seaGates: Point[];
 }
 
-// how far outward (px) a boundary edge probes for the sea; large enough to bridge the small
-// land gap where the city boundary stops short of the shoreline, small enough not to catch a
-// sea that is genuinely on the far side of the town.
-const SEA_PROBE = 36;
+// how far outward a boundary edge probes for the sea: the waterfront itself. It was 36, to bridge
+// the beach a port town used to stand back from its shore by — which also opened every edge of the
+// town within 36 of the sea, on dry land: over twelve worlds 124 of 139 ports had a median 42 units
+// of their landward edge with no wall at all. A port now comes down to its water (see SHORE_IN), so
+// only the stretch that stands on it goes unwalled.
+const SEA_PROBE = 8;
 // two towers on one run of wall stand at least this far apart
 const TOWER_GAP = 9;
 // ...and none where it would be drawn on a gate. A gate is drawn as a 6-wide block, square to the
@@ -127,7 +129,7 @@ export function wallFromDefenses(
       // boundary stops a few px short of the shoreline — otherwise the wall seals off the
       // harbour and only a tiny stretch that literally touches the water stays open.
       const dx = m[0] - c[0], dy = m[1] - c[1], dl = Math.hypot(dx, dy) || 1;
-      for (let d = 2; d <= SEA_PROBE; d += 4) {
+      for (let d = 2; d <= SEA_PROBE; d += 2) {
         if (inWater(water, [m[0] + (dx / dl) * d, m[1] + (dy / dl) * d])) { bar = 1; break; }
       }
     } else if (inWater(water, out)) {

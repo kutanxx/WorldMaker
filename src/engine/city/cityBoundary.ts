@@ -5,6 +5,9 @@ import type { Archetype } from "./archetypes";
 import type { Water } from "./water";
 import { inWater } from "./water";
 
+// a port's wall within this of the sea runs down to it, and stands this far up the bank from it
+const SHORE_REACH = 16, ON_BANK = 3;
+
 // nearest point on any water body's edge, and the direction from p toward it (outward, since p is
 // inside the water). Used to lift a boundary vertex to the closest BANK.
 function nearestShore(water: Water, p: Point): Point | null {
@@ -31,6 +34,7 @@ export function makeBoundary(
   const N = 22;
   const axis = rng() * Math.PI;
   const poly: Polygon = [];
+  const sea: Water | null = water.kind === "sea" && water.bodies.length ? { kind: "sea", bodies: [water.bodies[0]], bridges: [] } : null;
   for (let i = 0; i < N; i++) {
     const a = (i / N) * Math.PI * 2;
     let r = base * (0.8 + 0.34 * (noise(Math.cos(a) * 1.5, Math.sin(a) * 1.5) * 0.5 + 0.5));
@@ -49,6 +53,17 @@ export function makeBoundary(
         let q: Point = [s[0] + ux * 3, s[1] + uy * 3];
         for (let g = 0; g < 8 && inWater(water, q); g++) q = [q[0] + ux * 3, q[1] + uy * 3];
         p = q;
+      }
+    }
+    // ...and a port's wall that stops just short of the sea runs down to it: its quay IS the shore
+    // (the sea only — the first body; a river running into it keeps its own banks)
+    else if (sea) {
+      const dx = p[0] - center[0], dy = p[1] - center[1], dl = Math.hypot(dx, dy) || 1;
+      for (let t = 1; t <= SHORE_REACH; t++) {
+        if (!inWater(sea, [p[0] + (dx / dl) * t, p[1] + (dy / dl) * t])) continue;
+        const out = Math.max(0, t - ON_BANK);
+        p = [p[0] + (dx / dl) * out, p[1] + (dy / dl) * out];
+        break;
       }
     }
     poly.push(p);

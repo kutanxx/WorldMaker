@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { generateCityLayout, cityContext } from "./city";
-import { centroid, area, pointInPolygon, polysOverlap, polygonSelfIntersects, pointSegDist, bbox, segmentsIntersect } from "./geometry";
+import { centroid, area, pointInPolygon, polysOverlap, polygonSelfIntersects, pointSegDist, bbox, segmentsIntersect, clipToConvex } from "./geometry";
 import { inWater, overlapsWater } from "./city/water";
 import { inMountains } from "./city/mountain";
 import { GRASSLAND } from "./biome";
@@ -1111,12 +1111,6 @@ describe("the districts are places a town would have", () => {
       for (const c of world.cities) yield { c, seed, l: generateCityLayout(cityContext(c), seed) };
     }
   };
-  const underwater = (poly: [number, number][], l: { water: { bodies: [number, number][][] } }) => {
-    const pts = [...poly, centroid(poly)];
-    const wet = pts.filter((p) => l.water.bodies.some((b) => pointInPolygon(p, b))).length;
-    return wet / pts.length;
-  };
-
   // The rule is about the NAME, not the ward. A harbour is mostly water by definition and keeps
   // its name — on the quayside. A ward the lake swallowed has no quayside, and goes unnamed.
   it("never floats a district name on open water", () => {
@@ -1149,11 +1143,23 @@ describe("the districts are places a town would have", () => {
     expect(outside).toEqual([]);
   });
 
+  // Measured on the ward as the plate draws it — its part inside the town — not on its whole cell: a
+  // port's quarter whose cell runs out into the sea is a dry district in the town, and is named.
   it("leaves a swallowed district unnamed rather than naming the lake", () => {
     let drowned = 0, named = 0;
     for (const { l } of layouts()) {
       for (const w of l.wards) {
-        if (w.type === "harbor" || underwater(w.polygon, l) < 0.85) continue;
+        if (w.type === "harbor") continue;
+        const cut = clipToConvex(l.boundary as [number, number][], w.polygon as [number, number][]);
+        if (cut.length < 3) continue;
+        const b = bbox(cut);
+        let n = 0, dry = 0;
+        for (let y = b.minY; y <= b.maxY; y += 1.5) for (let x = b.minX; x <= b.maxX; x += 1.5) {
+          if (!pointInPolygon([x, y], cut)) continue;
+          n++;
+          if (!inWater(l.water, [x, y])) dry++;
+        }
+        if (!n || dry / n >= 0.15) continue;
         drowned++;
         if (l.labels.some((lb) => pointInPolygon([lb.x, lb.y], w.polygon))) named++;
       }
@@ -1669,6 +1675,70 @@ describe("everything a plate draws stands where it belongs", () => {
     expect(near, "towers still flank the gates they clear").toBeGreaterThan(100);
   });
 
+  // ---- a port stands on its water. Its shore used to run a strand BEYOND the town's nominal reach
+  // while the wall wanders inside it: 82 of 139 ports touched their sea nowhere, the quay stood a
+  // median 14 off the water, and the piers ran a median 60% of their length over the beach.
+  const portsOf = () => towns().filter(({ l }) => l.harbor && l.water.kind === "sea");
+  const seaGap = (p: P, sea: P[]) => (pointInPolygon(p, sea) ? 0 : edgeDist(p, sea));
+
+  it("brings a port down to its water: the quay on the shore, the warehouses on the quay", () => {
+    let ports = 0;
+    for (const { where, l } of portsOf()) {
+      ports++;
+      const sea = l.water.bodies[0] as P[];
+      expect(l.boundary.some((p) => seaGap(p as P, sea) < 3), `a port that touches its sea nowhere: ${where}`).toBe(true);
+      const q = l.harbor!.quay as P[];
+      const gaps: number[] = [];
+      for (let i = 0; i + 1 < q.length; i++) for (let t = 0; t <= 4; t++) gaps.push(seaGap([q[i][0] + ((q[i + 1][0] - q[i][0]) * t) / 4, q[i][1] + ((q[i + 1][1] - q[i][1]) * t) / 4], sea));
+      gaps.sort((a, b) => a - b);
+      expect(gaps[gaps.length >> 1], `a quay off the water at ${where}`).toBeLessThanOrEqual(4);
+      for (const wf of l.harbor!.wharves) expect(Math.min(...wf.map((p) => seaGap(p as P, sea))), `a warehouse off the water at ${where}`).toBeLessThanOrEqual(1.5);
+    }
+    expect(ports).toBeGreaterThan(120);
+  });
+
+  it("runs a pier from the quay over no more than its bank, and keeps the harbour's pieces apart", () => {
+    for (const { where, l } of portsOf()) {
+      const H = l.harbor!;
+      const sea = { ...l.water, bodies: l.water.bodies.slice(0, 1) };
+      for (const pr of H.piers as P[][]) {
+        let dry = 0;
+        for (let i = 0; i + 1 < pr.length; i++) {
+          const n = Math.max(1, Math.ceil(Math.hypot(pr[i + 1][0] - pr[i][0], pr[i + 1][1] - pr[i][1])));
+          for (let k = 0; k < n; k++) if (!inWater(sea, [pr[i][0] + ((pr[i + 1][0] - pr[i][0]) * k) / n, pr[i][1] + ((pr[i + 1][1] - pr[i][1]) * k) / n])) dry++;
+        }
+        expect(dry, `a pier run over the beach at ${where}`).toBeLessThanOrEqual(10);
+        expect(nearLine(H.breakwater as P[], pr) >= 3.5 || nearLine(pr, H.breakwater as P[]) >= 3.5, `a pier on the mole at ${where}`).toBe(true);
+      }
+      const runs = [...H.piers, H.breakwater] as P[][];
+      for (const wf of H.wharves as P[][]) for (const r of runs) expect(nearLine(wf, r), `a warehouse on a pier or the mole at ${where}`).toBeGreaterThanOrEqual(1.2);
+      for (const bt of H.boats) {
+        for (const r of runs) for (let i = 0; i + 1 < r.length; i++) expect(pointSegDist(bt.at as P, r[i], r[i + 1]), `a boat on a pier or the mole at ${where}`).toBeGreaterThanOrEqual(1.8);
+        expect(H.wharves.some((wf) => pointInPolygon(bt.at as P, wf as P[])), `a boat in a warehouse at ${where}`).toBe(false);
+      }
+    }
+  });
+
+  it("walls every stretch of a town that stands on dry ground", () => {
+    for (const { where, l } of towns()) {
+      if (!l.wall) continue;
+      const walled = new Set<string>();
+      for (const seg of l.wall.segments) for (let i = 0; i + 1 < seg.length; i++) {
+        walled.add(`${seg[i][0].toFixed(3)},${seg[i][1].toFixed(3)}>${seg[i + 1][0].toFixed(3)},${seg[i + 1][1].toFixed(3)}`);
+        walled.add(`${seg[i + 1][0].toFixed(3)},${seg[i + 1][1].toFixed(3)}>${seg[i][0].toFixed(3)},${seg[i][1].toFixed(3)}`);
+      }
+      const B = l.boundary as P[];
+      for (let i = 0; i < B.length; i++) {
+        const a = B[i], b = B[(i + 1) % B.length];
+        if (walled.has(`${a[0].toFixed(3)},${a[1].toFixed(3)}>${b[0].toFixed(3)},${b[1].toFixed(3)}`)) continue;
+        const m: P = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+        const toWater = Math.min(...l.water.bodies.map((w) => seaGap(m, w as P[])));
+        const onRock = inMountains(l.mountains, [m[0] + (m[0] - 230) * 0.06, m[1] + (m[1] - 230) * 0.06]);
+        expect(toWater <= 8 || onRock, `an unwalled stretch of dry ground at ${where}`).toBe(true);
+      }
+    }
+  });
+
   it("spaces the towers along a wall", () => {
     for (const { where, l } of towns()) {
       if (!l.wall) continue;
@@ -1749,6 +1819,11 @@ describe("a town in one world is not a copy of a town in another", () => {
 // And for the towers beside a gate, measured to the gate block as drawn rather than to its middle:
 // exactly the 52 plates where a tower stood on a gate's corner or ran its outline into it moved (a
 // tower went); the other 284 hashed byte for byte the same.
+//
+// And for the ports: every one of the 139 moved — the town comes down to its water, the harbour is laid
+// out on the quay (piers in the mole's basin, warehouses clear of them), and the landward side is walled
+// — and 42 other plates, where a gate house stood on a later gate's road (and the country round it
+// moved with it), a waterfront plot stood on the wall line, or a district mostly water was named.
 describe("a plate is the same plate, byte for byte", () => {
   const fold = (h: number, c: number) => Math.imul(h ^ c, 16777619) >>> 0;
   const fnv = (s: string) => { let h = 2166136261 >>> 0; for (let i = 0; i < s.length; i++) h = fold(h, s.charCodeAt(i)); return h >>> 0; };
@@ -1759,9 +1834,9 @@ describe("a plate is the same plate, byte for byte", () => {
     return { h, n };
   };
   it("draws seed 1's twenty-eight towns exactly as it did", () => {
-    expect(worldHash(1)).toEqual({ h: 638198415, n: 28 });
+    expect(worldHash(1)).toEqual({ h: 1156543626, n: 28 });
   });
   it("draws seed 12's twenty-eight towns exactly as it did", () => {
-    expect(worldHash(12)).toEqual({ h: 762570575, n: 28 });
+    expect(worldHash(12)).toEqual({ h: 845795580, n: 28 });
   });
 });

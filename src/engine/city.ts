@@ -226,6 +226,10 @@ const GREAT_CASTLE_REACH = 100;
 // a castle's ward keeps a town gate this far off its own stretch of wall: the gate block is 6 wide and
 // the castle's corner tower stands on the wall beside it (at 0.5, 5 towers stood on gates)
 const CASTLE_GATE_GAP = 3;
+// a gate house's walls stand this far off a road out of town's centre line (the road is drawn 1.6 wide)
+const HOUSE_ROAD_CLEAR = 1.4;
+// a district is named only if at least this much of it, inside the town, is dry ground
+const DRY_TO_NAME = 0.15;
 
 export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLayout {
   const rng: Rng = mulberry32(plateSeed(worldSeed, ctx.id));
@@ -514,9 +518,12 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
         // A lot the shore runs through is cut again, smaller, and its dry pieces kept: dropped whole,
         // a ward a river runs through lost its whole bank to the water's edge (a cathedral ward at
         // Grukdruth, seed 7, all of its houses) — where a waterfront is lined with the smallest plots.
+        // (the smaller plots keep off the wall line as a whole lot does: cut along a lot whose edge ran
+        // past a corner of the wall, one stood 2.5 from its line)
         const pieces = dry(b) ? [b]
           : b.some((p) => !inWater(water, p)) && area(b) > minArea * 0.4
-            ? lots(brng, b, { minArea: minArea * 0.35, chaos: 0, sizeChaos: 0.3, emptyProb: 0, margin: 0.2 }).filter(dry)
+            ? lots(brng, b, { minArea: minArea * 0.35, chaos: 0, sizeChaos: 0.3, emptyProb: 0, margin: 0.2 })
+              .filter((piece) => dry(piece) && piece.every((p) => wallDist(p) >= WALL_SETBACK - 0.8))
             : [];
         for (const piece of pieces) {
           // the close round a cathedral, the yard in front of a hall
@@ -587,6 +594,21 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
   // this also picks up the market, the merchant quarter and the harbour, which are one place in most
   // cities and went unnamed under the old fixed list of five.
   const LANDMARKS: WardType[] = ["plaza", "castle", "cathedral", "guildhall", "harbor"];
+  // how much of a shape is dry ground, sampled on a grid 1.5 apart (a shape the water does not reach
+  // at all is all dry, and is not sampled: the same answer)
+  const dryShare = (poly: Polygon): number => {
+    if (!water.bodies.length || !overlapsWater(water, poly)) return 1;
+    const b = bbox(poly);
+    const step = 1.5;
+    let n = 0, dryN = 0;
+    for (let y = b.minY; y <= b.maxY; y += step) for (let x = b.minX; x <= b.maxX; x += step) {
+      const p: Point = [x, y];
+      if (!pointInPolygon(p, poly)) continue;
+      n++;
+      if (!inWater(water, p)) dryN++;
+    }
+    return n ? dryN / n : 1;
+  };
   const count = new Map<WardType, number>();
   for (const z of zoned) count.set(z.type, (count.get(z.type) ?? 0) + 1);
   const labels: { x: number; y: number; type: WardType; landmark: boolean }[] = [];
@@ -604,6 +626,11 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
     // lopsided for its own middle to fall inside the town, the ward's site does, by construction.
     const cut = clipToConvex(boundary, z.polygon);
     const shape = cut.length >= 3 && Math.abs(area(cut)) > 1 ? cut : z.polygon;
+    // ...and a district the water has taken is not named, measured on the ward as the plate draws it
+    // (its part in the town): measured on the whole cell, a quarter whose cell runs out into a port's
+    // sea while all of its streets are dry would have gone unnamed, and a marsh town's park, 86% water
+    // inside the wall, was named. The harbour is mostly water by nature, and is named on its quay.
+    if (z.type !== "harbor" && dryShare(shape) < DRY_TO_NAME) continue;
     let c = centroid(shape);
     if (!pointInPolygon(c, boundary)) c = z.site;
     let at: Point | null = inWater(water, c) ? null : c;
@@ -776,8 +803,7 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
         const cy = start[1] + uy * d + ny * side * off;
         if (pointInPolygon([cx, cy], boundary) || inWater(water, [cx, cy]) || inMountains(mountains, [cx, cy]) || !inCanvas([cx, cy])) continue;
         if (suburbs.some((b) => { const c = centroid(b); return Math.hypot(c[0] - cx, c[1] - cy) < 6; })) continue;
-        // keep the house off OTHER gate roads crossing this faubourg (own road is ≥4 away by construction)
-        if (suburbRoads.some((r) => { for (let si = 0; si < r.length - 1; si++) if (pointSegDist([cx, cy], r[si], r[si + 1]) < 3.8) return true; return false; })) continue;
+
         // and off the moat ring (blue water line just outside the wall); 6 clears the house
         // half-diagonal (~3.2) plus the moat's half stroke so no corner touches the water line
         if (moat && moat.some((seg) => { for (let si = 0; si < seg.length - 1; si++) if (pointSegDist([cx, cy], seg[si], seg[si + 1]) < 6) return true; return false; })) continue;
@@ -791,9 +817,21 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
         // the whole house, not its middle: a gate house stood with a corner in the river on 10 plates
         // of twelve worlds, and on the mountain's rock on 7
         if (house.some((q) => pointInPolygon(q, boundary) || inMountains(mountains, q) || !inCanvas(q)) || overlapsWater(water, house)) continue;
+
         suburbs.push(house);
       }
     }
+  }
+  // A gate house stands off every road out of town — by its walls, not its middle, and against the
+  // roads of the gates laid out after its own as well: kept 3.8 from the other roads by its middle,
+  // and blind to the ones not yet laid, a corner of a 5-by-4 house stood on a road drawn 1.6 wide.
+  for (let i = suburbs.length - 1; i >= 0; i--) {
+    const house = suburbs[i];
+    const onRoad = suburbRoads.some((r) => r.some((q, si) => si + 1 < r.length && house.some((h, hi) => {
+      const h2 = house[(hi + 1) % house.length];
+      return pointSegDist(h, q, r[si + 1]) < HOUSE_ROAD_CLEAR || pointSegDist(q, h, h2) < HOUSE_ROAD_CLEAR || pointSegDist(r[si + 1], h, h2) < HOUSE_ROAD_CLEAR;
+    })));
+    if (onRoad) suburbs.splice(i, 1);
   }
   // A road out of a gate that crosses the water on its way to the edge of the plate crosses it on a
   // bridge: it used to be drawn straight over the river (11 plates of twelve worlds).
