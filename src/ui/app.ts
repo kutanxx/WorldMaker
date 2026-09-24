@@ -226,7 +226,9 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     lang = lang === "en" ? "ko" : "en";
     saveLang(lang);
     applyLang();
-    if (openCityId !== null) openCity(openCityId); else showWorld(); // re-render the live screen
+    // re-render the live screen — in place: a language is not a place to go back to, and a push
+    // here gave Back one more stop per press, at the same plate in the other language
+    if (openCityId !== null) openCity(openCityId, "replace"); else showWorld();
   });
 
   function setView(v: MapView): void {
@@ -706,6 +708,24 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
       : encodeParams(params).slice(1);
   }
 
+  /** How many plate entries the one showing sits on top of (0 on the world, or on a linked plate). */
+  function plateDepth(): number {
+    const d = (window.history.state as { depth?: unknown } | null)?.depth;
+    return typeof d === "number" && d > 0 ? d : 0;
+  }
+
+  /**
+   * The way off a plate goes to the WORLD, in one step. It used to walk the history back one entry,
+   * and every town reached through the neighbour chips is an entry: measured live, A → B → A and
+   * then the button went to B, and again to A. The browser's own Back still walks plate by plate.
+   * A plate opened straight from a link has nothing behind it here, and simply shows the world.
+   */
+  function backToWorld(): void {
+    const depth = plateDepth();
+    if (depth > 0) window.history.go(-depth);
+    else showWorld();
+  }
+
   /**
    * @param record how the address should follow. "push" for a reader opening a plate — it is a
    * place, so it goes on the history stack and Back returns to the world map instead of leaving
@@ -725,18 +745,17 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     stage.classList.add("plate");
     dropWidthWatch?.();   // the world screen's sections are about to be thrown away
     const url = "#" + worldHash() + "&city=" + cityId;
-    if (record === "push") window.history.pushState({ city: cityId }, "", url);
-    else if (record === "replace") window.history.replaceState({ city: cityId }, "", url);
+    // ★ How many plates this one stands on top of, counted in the entry itself: the town next door
+    // is a history entry too, so "back to the world" is that many steps, not one (see backToWorld).
+    const depth = plateDepth();
+    if (record === "push") window.history.pushState({ city: cityId, depth: depth + 1 }, "", url);
+    else if (record === "replace") window.history.replaceState({ city: cityId, depth }, "", url);
     timeline?.destroy();
     stage.innerHTML = "";
     const back = document.createElement("button");
+    back.className = "plate-back";
     back.textContent = "← " + t(lang, "backToWorld");
-    // walk the history back when we made an entry to walk back to; a plate opened straight from a
-    // shared link has none, and simply shows the world
-    back.addEventListener("click", () => {
-      if ((window.history.state as { city?: number } | null)?.city !== undefined) window.history.back();
-      else showWorld();
-    });
+    back.addEventListener("click", backToWorld);
     // The plate's key never stood ON the drawing — it has a 108-unit strip of its own — so the
     // trouble here was size, not room: 568 units drawn 321px wide is x0.565, and the district key
     // measured 7.0px type and a 4.5px swatch on a real phone, for quarters that are told apart by
@@ -790,7 +809,17 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     // atlas never draws (19 of 19 on seed 1), which is its own bug and not something to paper over.
     // The plate answers for the year the reader scrubbed to, and says which year that was: the
     // world map has a scrubber to carry that, and a plate does not.
-    const snapNow = history.snapshots[currentYearIndex];
+    // ★ ...unless the town was not there yet. The list offers every town at every year while the
+    // map hides the ones not founded, and measured over 336 towns at year 0 — where every world
+    // starts — 170 plates said "Realm — X · 0 AY" over "Founded — 360 AY". Such a plate answers for
+    // the first year its town stood; the realm line says which year that is.
+    const founded = history.cityFoundings.find((f) => f.cityId === cityId)?.year;
+    let factIndex = currentYearIndex;
+    if (founded !== undefined && history.snapshots[factIndex].year < founded) {
+      const standing = history.snapshots.findIndex((s) => s.year >= founded);
+      if (standing >= 0) factIndex = standing;
+    }
+    const snapNow = history.snapshots[factIndex];
     const facts = cityFacts(generated.world, marker, layout, lang, KM_PER_UNIT, history.cityFoundings,
       { owner: snapNow.owner, polities: history.polities, year: snapNow.year }, governmentForms);
     const panel = document.createElement("div");

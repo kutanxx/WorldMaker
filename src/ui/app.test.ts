@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, it, expect, afterEach, beforeEach } from "vitest";
+import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
 import { DEFAULT_PARAMS } from "../types/world";
 import { createApp } from "./app";
 import { COMPASS_STRIP } from "./svgCityRenderer";
@@ -414,6 +414,65 @@ describe("a city is a place you can come back to", () => {
     expect(root.querySelector(".city-name-text"), "a shared city link opened the world map").not.toBeNull();
     root.remove();
   });
+
+  // ★ "← Back to world" walked the history back ONE entry, and the town next door is an entry too:
+  // measured live, A → B → A through the neighbour chips, then the button went to B, and again to A
+  // — a button named for the map that led through every plate on the way. The browser's own Back
+  // may walk plate by plate; the button goes to the map.
+  it("goes back to the map in one step, however many towns were walked through", async () => {
+    const root = document.createElement("div");
+    document.body.appendChild(root);
+    createApp(root, { ...DEFAULT_PARAMS, seed: 5 });
+    await new Promise((r) => setTimeout(r, 0));
+    (root.querySelector(".marker-hit") as SVGElement).dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    (root.querySelector(".city-facts .neighbour") as HTMLButtonElement).click();
+    (root.querySelector(".city-facts .neighbour") as HTMLButtonElement).click();
+    const go = vi.spyOn(window.history, "go").mockImplementation(() => {});
+    try {
+      (root.querySelector(".plate-back") as HTMLButtonElement).click();
+      expect(go, "the way back to the map walks through the towns").toHaveBeenCalledWith(-3);
+    } finally {
+      go.mockRestore();
+      root.remove();
+    }
+  });
+
+  it("shows the world from a plate that was opened from a link, with nothing behind it", async () => {
+    const root = document.createElement("div");
+    document.body.appendChild(root);
+    location.hash = "seed=5&city=2";
+    createApp(root, { ...DEFAULT_PARAMS, seed: 5 });
+    await new Promise((r) => setTimeout(r, 0));
+    const go = vi.spyOn(window.history, "go").mockImplementation(() => {});
+    const back = vi.spyOn(window.history, "back").mockImplementation(() => {});
+    try {
+      (root.querySelector(".plate-back") as HTMLButtonElement).click();
+      expect(go, "left the site").not.toHaveBeenCalled();
+      expect(back, "left the site").not.toHaveBeenCalled();
+      expect(root.querySelector("svg.world"), "the world map did not come back").not.toBeNull();
+    } finally {
+      go.mockRestore();
+      back.mockRestore();
+      root.remove();
+    }
+  });
+
+  // Switching the language redraws the plate that is showing, and it did so as if a reader had
+  // opened it: one more entry for every press, so Back went to the same plate in the other language.
+  it("does not make a history entry of changing the language", async () => {
+    const root = document.createElement("div");
+    document.body.appendChild(root);
+    const app = createApp(root, { ...DEFAULT_PARAMS, seed: 5 });
+    await new Promise((r) => setTimeout(r, 0));
+    app.openCity(1);
+    const before = window.history.length;
+    const lang = root.querySelector(".lang-toggle") as HTMLButtonElement;
+    lang.click();
+    lang.click();
+    expect(window.history.length, "each language press is a place to go back to").toBe(before);
+    expect(root.querySelector("svg.city"), "the plate did not stay open").not.toBeNull();
+    root.remove();
+  });
 });
 
 // The timeline was created without a formatYear, so it fell back to the Korean default and an
@@ -676,6 +735,26 @@ describe("a plate tells you where you are and where you can go", () => {
     expect(more.textContent, "the label is the same open as shut").not.toBe(shut);
     more.click();
     expect(more.textContent).toBe(shut);
+  });
+
+  // Measured over 336 towns (12 worlds): opened at year 0 — where every world starts — 170 of them
+  // said "Realm — X · 0 AY" over "Founded — 360 AY", a town answering for a year before it stood.
+  // The town list offers every town at every year while the map hides the ones not founded yet, so
+  // the plate is where the two meet; it answers for the first year its town was there.
+  it("answers for a year its town stood in, never one before it was founded", () => {
+    const params = { ...DEFAULT_PARAMS, seed: 5 };
+    const history = simulateHistory(generateWorld(params).world, params.seed);
+    const late = history.cityFoundings.find((f) => f.year > 0);
+    expect(late, "no town in this world is founded after year 0").toBeTruthy();
+    const standing = history.snapshots.find((s) => s.year >= late!.year)!.year;
+    const root = document.createElement("div");
+    const app = createApp(root, params);
+    app.openCity(late!.cityId);
+    // the rows: kind, realm, people, founded, neighbours
+    const values = [...root.querySelectorAll(".city-fact-value")].map((v) => v.textContent ?? "");
+    const year = (s: string) => Number(/(\d+)\D*$/.exec(s)?.[1]);
+    expect(year(values[3]), "the founded row is not the founding").toBe(late!.year);
+    expect(year(values[1]), "the realm is dated before its town stood").toBe(standing);
   });
 
   it("walks from one town to the town next door", async () => {

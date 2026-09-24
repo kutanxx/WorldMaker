@@ -99,4 +99,15 @@ describe("a city in the address", () => {
     // ...and a link with no city is left exactly as it was
     expect(withoutCity(world)).toBe(world);
   });
+  // ★ The page itself never called `withoutCity`: main.ts handed the whole address to these two, and
+  // `atob` chokes on the `&` — so the address bar of every plate, the link a reader copies to share
+  // it, and a reload of it, opened DEFAULT_PARAMS (world 1) and drew town N of the wrong world.
+  // Measured live: seed 2's `…&city=5` opened 사인카이시 of seed 1. They take the city off themselves.
+  it("reads the world out of a plate's own address", () => {
+    const world = encodeParams({ ...DEFAULT_PARAMS, seed: 9, seaLevel: 0.4 });
+    expect(initialParams(world + "&city=3")).toEqual({ ...DEFAULT_PARAMS, seed: 9, seaLevel: 0.4 });
+    expect(initialParams("#seed=Avalon&city=3").seed).toBe(hashStringToSeed("Avalon"));
+    expect(initialSeedName("#seed=Avalon&city=3")).toBe("Avalon");
+    expect(initialSeedName(world + "&city=3")).toBeNull();
+  });
 });

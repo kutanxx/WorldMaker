@@ -55,8 +55,11 @@ export function withoutCity(hash: string): string {
   return lead + raw;
 }
 
+// ⚠ Both readers below take the city off the address themselves. The page handed them the whole of
+// it, and a plate's address is the world PLUS `&city=N`: `atob` choked on the `&`, so every plate's
+// own link — copied to share, or reloaded — opened DEFAULT_PARAMS and drew town N of world 1.
 export function initialSeedName(hash: string): string | null {
-  const raw = hash.replace(/^#/, "");
+  const raw = withoutCity(hash).replace(/^#/, "");
   if (raw.length === 0) return null;
   const v = new URLSearchParams(raw).get("seed");
   if (v === null) return null;
@@ -71,11 +74,12 @@ export function initialSeedName(hash: string): string | null {
 }
 
 export function initialParams(hash: string): WorldParams {
-  const raw = hash.replace(/^#/, "");
+  const world = withoutCity(hash);
+  const raw = world.replace(/^#/, "");
   if (raw.length === 0) return { ...DEFAULT_PARAMS, seed: randomSeed() };
   const named = parseSeedValue(new URLSearchParams(raw).get("seed"));
   if (named !== null) return { ...DEFAULT_PARAMS, seed: named };
-  return decodeParams(hash);
+  return decodeParams(world);
 }
 
 export function decodeParams(hash: string): WorldParams {
