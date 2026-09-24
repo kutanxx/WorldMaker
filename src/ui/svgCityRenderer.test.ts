@@ -683,3 +683,33 @@ describe("a plate whose key has gone to stand under it", () => {
     expect(key!.querySelectorAll("rect.legend-item").length).toBeGreaterThan(2);
   });
 });
+
+// ★ The cathedral's cross was drawn at the average of its ward's CORNERS — and a ward is a Voronoi
+// cell cut by a disc, not by the town's wall, so an outer cathedral's corners run out into the
+// fields. Measured over 12 worlds: 25 of 336 crosses stood outside the town, 13 of them plainly
+// (up to 21 units — on the river beyond the wall at 드루르 and 지아시다르). It stands where the
+// cathedral's own name is placed now, which the engine keeps inside the town.
+describe("the cathedral's cross stands in its cathedral", () => {
+  it("draws the cross inside the town, at the place the cathedral is named", () => {
+    const outside: string[] = [];
+    let crosses = 0;
+    for (let seed = 1; seed <= 4; seed++) {
+      const { world } = generateWorld({ ...DEFAULT_PARAMS, seed });
+      for (const c of world.cities) {
+        const layout = generateCityLayout(cityContext(c), seed);
+        const svg = renderCity(layout, "en", { keyOutside: true });
+        const name = layout.labels.find((l) => l.type === "cathedral");
+        for (const p of svg.querySelectorAll(".landmark")) {
+          crosses++;
+          const m = /M([\d.-]+) ([\d.-]+)/.exec(p.getAttribute("d") ?? "")!;
+          const at: [number, number] = [Number(m[1]), Number(m[2]) + 7];
+          if (!pointInPolygon(at, layout.boundary)) outside.push(`${c.name} (seed ${seed})`);
+          expect(name, `${c.name}: a cross for a cathedral that is not named`).toBeDefined();
+          expect(Math.hypot(at[0] - name!.x, at[1] - name!.y), `${c.name}: the cross is not at its name`).toBeLessThan(0.01);
+        }
+      }
+    }
+    expect(crosses, "no cathedral crosses drawn at all").toBeGreaterThan(50);
+    expect(outside).toEqual([]);
+  });
+});

@@ -17,7 +17,12 @@ const EVERY_TIER = Number.MAX_SAFE_INTEGER;
  * side where nobody sees it, then take it back. It must be positioned away rather than hidden with
  * `display: none`, which would leave it with no layout and no getBBox all over again.
  */
-export function layOutLabelsForExport(svg: SVGSVGElement): void {
+export function layOutLabelsForExport(
+  svg: SVGSVGElement,
+  // the drawing's own arrangement of its names, run while the file is measurable, at the size it
+  // is read at, and before the cull — a plate sets its districts' names beside their signs
+  beforeCull?: (svg: SVGSVGElement) => void,
+): void {
   const vb = (svg.getAttribute("viewBox") || "0 0 1000 700").split(/[\s,]+/).map(Number);
   const holder = document.createElement("div");
   holder.setAttribute(
@@ -30,6 +35,7 @@ export function layOutLabelsForExport(svg: SVGSVGElement): void {
     // the sizes a reader sees when they lean in far enough to be shown these names at all
     applyLabelScale(svg, 1);
     applyMarkerScale(svg, 1);
+    beforeCull?.(svg);
     deconflictLabels(svg, EVERY_TIER);
   } finally {
     svg.remove();

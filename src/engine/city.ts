@@ -1,7 +1,7 @@
 import { mulberry32, deriveSeed } from "./rng";
 import type { Rng } from "./rng";
 import type { Point, Polygon, Polyline } from "./geometry";
-import { centroid, area, pointInPolygon, bbox, pointSegDist, insetConvex, polysOverlap, segmentsIntersect } from "./geometry";
+import { centroid, area, pointInPolygon, bbox, pointSegDist, insetConvex, polysOverlap, segmentsIntersect, clipToConvex } from "./geometry";
 import { selectArchetype } from "./city/archetypes";
 import type { Archetype } from "./city/archetypes";
 import { extractStreets, classifyStreets } from "./city/blockStreets";
@@ -363,16 +363,24 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
     // be mostly water (that is what a harbour is), but its name belongs on the quayside, so the
     // label walks in from the ward's middle toward the town until it finds land. A ward with no dry
     // ground at all is not named.
-    const c = centroid(z.polygon);
+    // ★ The ward as the plate draws it: the Voronoi cell is cut by a DISC, and the plate clips it
+    // again to the town's wall, which is not one. Named at the middle of the uncut cell, an outer
+    // ward's name stood on the wall or out in the fields — measured over 12 worlds, 69 names in 60
+    // towns. The cell is convex, so it can clip the (irregular) wall; where what is left is too
+    // lopsided for its own middle to fall inside the town, the ward's site does, by construction.
+    const cut = clipToConvex(boundary, z.polygon);
+    const shape = cut.length >= 3 && Math.abs(area(cut)) > 1 ? cut : z.polygon;
+    let c = centroid(shape);
+    if (!pointInPolygon(c, boundary)) c = z.site;
     let at: Point | null = inWater(water, c) ? null : c;
     if (at === null) {
       // pull in toward each corner in turn and take the nearest dry stand. A ward that straddles a
       // river has its centroid in the channel while half of it is good dry bank, and a single walk
       // toward the town centre misses that whenever the bank lies the other way.
       let best = Infinity;
-      for (const v of z.polygon) for (const f of [0.35, 0.55, 0.75]) {
+      for (const v of shape) for (const f of [0.35, 0.55, 0.75]) {
         const p: Point = [c[0] + (v[0] - c[0]) * f, c[1] + (v[1] - c[1]) * f];
-        if (inWater(water, p) || !pointInPolygon(p, z.polygon)) continue;
+        if (inWater(water, p) || !pointInPolygon(p, shape) || !pointInPolygon(p, boundary)) continue;
         const d = Math.hypot(p[0] - c[0], p[1] - c[1]);
         if (d < best) { best = d; at = p; }
       }

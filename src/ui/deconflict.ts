@@ -1,3 +1,4 @@
+import { pointInPolygon, type Point } from "../engine/geometry";
 // Hide any label whose bounding box overlaps a higher-priority one (player nation > other nation >
 // capital > region > river > town), so nation names and place names don't collide. Runs post-mount
 // because it needs getBBox (real layout); jsdom lacks getBBox, so it's a no-op in tests unless
@@ -138,3 +139,57 @@ export function deconflictLabels(svg: SVGSVGElement, scale = 1): void {
     else kept.push(l.box);
   }
 }
+
+/** The signs a city plate draws at a district's own place: the cathedral's cross, the market's
+ *  cross and well, a parish church's steeple, the castle's keep. */
+const SIGNS = ".landmark, .market-cross-base, .market-cross, .well, .parish-church, .castle-keep";
+
+/**
+ * Set each district's name BESIDE the sign at its place, not on it.
+ *
+ * The engine names a district at its middle and draws the district's sign there too, so the name
+ * lay on the sign: measured over 336 plates, "대성당" covered the cathedral's cross on 266 of 318
+ * and "시장 광장" the market cross and well on 321 of 336 — 39% of all the names on the plates sat
+ * on a sign. Imhof's rule for a point's name is that the reader can tell which name is which
+ * sign's, above by preference. The name moves, since the sign marks the place: up until its box
+ * clears every sign it covered, or down if that would land it on another sign.
+ *
+ * Run it on the names at the size they will be READ (after any floor), before the cull. Zooming in
+ * afterwards only shrinks a name toward its baseline against the drawing, which keeps it clear.
+ * ⚠ A DOMRect's fields are prototype getters, so a moved box is built field by field, never spread.
+ */
+export function clearMarks(svg: SVGSVGElement, labels = ".ward-label", signs = SIGNS, air = 1.5): void {
+  const hit = (a: Box, b: Box) => a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
+  // a district's name belongs inside its town: of two clear places, the one in the town wins (a
+  // steeple under a name by the wall sent 8 of 1,783 names over it, measured at 1440x900)
+  const outline = (svg.querySelector(".boundary")?.getAttribute("points") ?? "").trim();
+  const town: Point[] = outline ? outline.split(/\s+/).map((q) => q.split(",").map(Number) as Point) : [];
+  const inTown = (b: Box) => town.length < 3 || pointInPolygon([b.x + b.width / 2, b.y + b.height / 2], town);
+  let marks: Box[];
+  try {
+    marks = [...svg.querySelectorAll<SVGGraphicsElement>(signs)]
+      .map((m) => m.getBBox())
+      .filter((b) => b && (b.width > 0 || b.height > 0));
+  } catch {
+    return; // no layout (jsdom): nothing to measure, nothing moved
+  }
+  if (marks.length === 0) return;
+  for (const el of svg.querySelectorAll<SVGGraphicsElement>(labels)) {
+    let b: Box;
+    try { b = el.getBBox(); } catch { return; }
+    if (!b || !(b.width > 0)) continue;
+    const grown = { x: b.x - air, y: b.y - air, width: b.width + air * 2, height: b.height + air * 2 };
+    const under = marks.filter((m) => hit(grown, m));
+    if (under.length === 0) continue;
+    const top = Math.min(...under.map((m) => m.y));
+    const bottom = Math.max(...under.map((m) => m.y + m.height));
+    const up = top - air - (b.y + b.height);
+    const down = bottom + air - b.y;
+    const at = (dy: number): Box => ({ x: b.x, y: b.y + dy, width: b.width, height: b.height });
+    const clear = (dy: number) => !marks.some((m) => hit(at(dy), m));
+    const dy = [up, down].find((d) => clear(d) && inTown(at(d))) ?? [up, down].find(clear) ?? up;
+    el.setAttribute("y", (Number(el.getAttribute("y") || 0) + dy).toFixed(2));
+  }
+}
+
+type Box = { x: number; y: number; width: number; height: number };

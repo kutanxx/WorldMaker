@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from "vitest";
-import { deconflictLabels } from "./deconflict";
+import { deconflictLabels, clearMarks } from "./deconflict";
 
 const NS = "http://www.w3.org/2000/svg";
 type Box = { x: number; y: number; width: number; height: number };
@@ -296,5 +296,84 @@ describe("the capitals are named on arrival", () => {
     deconflictLabels(svg, 1);
     expect(capital.style.visibility, "a capital is named at rest").not.toBe("hidden");
     expect(town.style.visibility, "a town still waits for the reader to lean in").toBe("hidden");
+  });
+});
+
+// ★ A district's name was set exactly on its district's sign: measured over 336 plates, "대성당"
+// lay over the cathedral's cross on 266 of 318 and "시장 광장" over the market cross and well on
+// 321 of 336 — 39% of the names on the plates covered a sign. A map sets a name BESIDE its sign
+// (Imhof's first rule of point labels is that the reader can tell which is which), above by
+// preference; the name is what moves, since the sign marks the place.
+describe("clearMarks", () => {
+  const svgWith = () => document.createElementNS(NS, "svg") as SVGSVGElement;
+  const mark = (svg: SVGSVGElement, cls: string, box: Box) => mkLabel(svg, cls, box);
+  const label = (svg: SVGSVGElement, box: Box, y: number) => {
+    const t = mkLabel(svg, "ward-label ward-landmark", box);
+    t.setAttribute("y", String(y));
+    return t;
+  };
+
+  it("lifts a name off its sign, above it", () => {
+    const svg = svgWith();
+    mark(svg, "landmark", { x: 96, y: 93, width: 8, height: 14 });          // a cross, 93..107
+    const name = label(svg, { x: 85, y: 94, width: 30, height: 9 }, 100);  // the word, 94..103
+    clearMarks(svg);
+    const y = Number(name.getAttribute("y"));
+    // the word's box bottom (103) must end above the cross's top (93), with air between
+    expect(103 + (y - 100)).toBeLessThan(93);
+    expect(y - 100, "moved further than it had to").toBeGreaterThan(-13);
+  });
+
+  it("leaves a name alone when no sign is under it", () => {
+    const svg = svgWith();
+    mark(svg, "well", { x: 300, y: 300, width: 3, height: 3 });
+    const name = label(svg, { x: 85, y: 94, width: 30, height: 9 }, 100);
+    clearMarks(svg);
+    expect(name.getAttribute("y")).toBe("100");
+  });
+
+  it("goes below when there is another sign above", () => {
+    const svg = svgWith();
+    mark(svg, "market-cross-base", { x: 98, y: 96, width: 3, height: 3 });   // under the word
+    mark(svg, "parish-church", { x: 96, y: 80, width: 4, height: 6 });       // right where "above" would land
+    const name = label(svg, { x: 85, y: 92, width: 30, height: 9 }, 99);
+    clearMarks(svg);
+    const dy = Number(name.getAttribute("y")) - 99;
+    expect(dy, "it went up onto the church").toBeGreaterThan(0);
+    expect(92 + dy, "it did not clear the sign below").toBeGreaterThan(99);
+  });
+
+  it("keeps a name inside its town when the town has room on the other side", () => {
+    const svg = svgWith();
+    const town = document.createElementNS(NS, "polygon");
+    town.setAttribute("class", "boundary");
+    town.setAttribute("points", "50,90 150,90 150,200 50,200");   // the wall runs along y = 90
+    svg.appendChild(town);
+    mark(svg, "parish-church", { x: 96, y: 93, width: 8, height: 14 });
+    const name = label(svg, { x: 85, y: 94, width: 30, height: 9 }, 100);
+    clearMarks(svg);
+    expect(Number(name.getAttribute("y")) - 100, "it went up over the wall").toBeGreaterThan(0);
+  });
+
+  it("moves district names only, never the plate's title", () => {
+    const svg = svgWith();
+    mark(svg, "landmark", { x: 96, y: 93, width: 8, height: 14 });
+    const title = mkLabel(svg, "city-name-text", { x: 80, y: 94, width: 40, height: 12 });
+    title.setAttribute("y", "104");
+    clearMarks(svg);
+    expect(title.getAttribute("y")).toBe("104");
+  });
+
+  it("does nothing where nothing can be measured", () => {
+    const svg = svgWith();
+    const t = document.createElementNS(NS, "text");
+    t.setAttribute("class", "ward-label");
+    t.setAttribute("y", "5");
+    svg.appendChild(t);
+    const p = document.createElementNS(NS, "path");
+    p.setAttribute("class", "landmark");
+    svg.appendChild(p);
+    expect(() => clearMarks(svg)).not.toThrow();
+    expect(t.getAttribute("y")).toBe("5");
   });
 });

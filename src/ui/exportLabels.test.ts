@@ -67,3 +67,19 @@ describe("layOutLabelsForExport", () => {
     expect(document.body.children.length).toBe(0);
   });
 });
+
+// A plate's names step off their signs before they are culled (clearMarks), on the screen and in
+// the file alike — so the export takes the plate's own pass, run at the size the file is read at.
+describe("a drawing's own pass before the cull", () => {
+  it("runs after the names are sized and before any is hidden", () => {
+    const { svg, town } = build();
+    const seen: string[] = [];
+    layOutLabelsForExport(svg, (s) => {
+      expect(s).toBe(svg);
+      expect(s.isConnected, "measured off the page, where nothing can be measured").toBe(true);
+      seen.push(town.style.visibility);
+    });
+    expect(seen, "the pass never ran").toEqual([""]);   // before the cull hid the town
+    expect(town.style.visibility).toBe("hidden");
+  });
+});

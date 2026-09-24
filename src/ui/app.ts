@@ -19,7 +19,7 @@ import { attachZoomPan, type ZoomPan } from "./zoomPan";
 import { politicalLayer } from "./politicalLayer";
 import { cultureLayer } from "./cultureLayer";
 import { provinceLayer, snapOwnersToProvinces } from "./provinceLayer";
-import { deconflictLabels } from "./deconflict";
+import { deconflictLabels, clearMarks } from "./deconflict";
 import { applyLabelScale, applyMarkerScale, floorLabelSize } from "./labelScale";
 import { layOutLabelsForExport } from "./exportLabels";
 import { type Lang, t } from "./i18n";
@@ -882,6 +882,8 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     // under it. Floored first, culled after, so `deconflictLabels` measures the names as they will
     // be read. A desktop plate is already past the floor (10.2px at 720px), so it is untouched.
     floorLabelSize(citySvg, ".ward-label", PLATE_NAME_MIN_PX);
+    // ...and set beside the sign at their place rather than on it, at the size they will be read
+    clearMarks(citySvg);
     deconflictLabels(citySvg);
     cityZoom = attachZoomPan(citySvg, frame, {
       labels: zoomLabels(),
@@ -924,7 +926,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
       const marker = generated.world.cities.find((c) => c.id === openCityId);
       if (marker) {
         const svg = renderCity(generateCityLayout(cityContext(marker), params.seed), lang);
-        layOutLabelsForExport(svg);
+        layOutLabelsForExport(svg, clearMarks);
         const [, , w, h] = (svg.getAttribute("viewBox") || "0 0 1000 700").split(/[\s,]+/).map(Number);
         return {
           svg, name: marker.name.replace(/[^\w-]+/g, "_") || "city",

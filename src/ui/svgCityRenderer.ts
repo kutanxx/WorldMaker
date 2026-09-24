@@ -584,11 +584,15 @@ export function renderCity(layout: CityLayout, lang: Lang = "en", opts: CityRend
   }
   if (castleG) root.appendChild(castleG);
 
-  for (const ward of layout.wards) {
-    if (ward.type === "cathedral") {
-      const c = avg(ward.polygon);
-      root.appendChild(svgEl("path", { class: "landmark", d: `M${c[0]} ${c[1] - 7} v14 M${c[0] - 4} ${c[1] - 2} h8`, stroke: "#7a5a86", "stroke-width": 2, fill: "none" }));
-    }
+  // The cathedral's cross stands where the cathedral is named. It used to stand at the average of
+  // its ward's corners — and a ward is a Voronoi cell cut by a disc, not by the wall, so an outer
+  // cathedral's corners run out into the fields: measured over 12 worlds, 25 of 336 crosses stood
+  // outside the town (up to 21 units, on the river beyond the wall). The engine keeps the name
+  // inside the town, and a cathedral too drowned to be named gets no cross in the water either.
+  // (The name then steps off its cross — see `clearMarks` — as a map sets a name beside its sign.)
+  for (const l of layout.labels) {
+    if (l.type !== "cathedral") continue;
+    root.appendChild(svgEl("path", { class: "landmark", d: `M${l.x} ${l.y - 7} v14 M${l.x - 4} ${l.y - 2} h8`, stroke: "#7a5a86", "stroke-width": 2, fill: "none" }));
   }
 
   const labelsG = svgEl("g", { class: "labels" });

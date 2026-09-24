@@ -1027,6 +1027,23 @@ describe("the districts are places a town would have", () => {
     expect(floating).toEqual([]);
   });
 
+  // ★ A ward is a Voronoi cell cut by a DISC, and the town's wall is not a disc: the plate clips the
+  // outer wards to the wall, but their names were placed at the middle of the UNclipped cell. Measured
+  // over 12 worlds, 69 names in 60 towns stood on the wall or outside it — barracks and harbours
+  // mostly on the wall line, a few cathedrals and craftsmen 10-19 units out in the fields.
+  it("names every district inside the town it is a district of", () => {
+    const outside: string[] = [];
+    let checked = 0;
+    for (const { c, seed, l } of layouts()) {
+      for (const lb of l.labels) {
+        checked++;
+        if (!pointInPolygon([lb.x, lb.y], l.boundary)) outside.push(`${lb.type} of ${c.name} (seed ${seed})`);
+      }
+    }
+    expect(checked).toBeGreaterThan(200);
+    expect(outside).toEqual([]);
+  });
+
   it("leaves a swallowed district unnamed rather than naming the lake", () => {
     let drowned = 0, named = 0;
     for (const { l } of layouts()) {
