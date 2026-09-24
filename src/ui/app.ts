@@ -25,6 +25,7 @@ import { layOutLabelsForExport } from "./exportLabels";
 import { type Lang, t } from "./i18n";
 import { makeFold, readFoldPref, writeFoldPref } from "./fold";
 import { legendSheet, placeLegend } from "./legendSheet";
+import { measureChrome, fitChrome } from "./chromeBudget";
 import { LEGEND_ROW } from "./renderer";
 import { detectLang, saveLang } from "./lang";
 import { properName, polityLabeller } from "./properName";
@@ -288,6 +289,50 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
   // A key standing UNDER its drawing on a narrow window has the width for two columns; one standing
   // in the 210px column beside a wide window's map does not (see legendSheet.ts).
   const keyColumns = (): number => (isNarrowWindow() ? 2 : 1);
+
+  /**
+   * ★ What the page spends around the drawing, MEASURED and handed to the stylesheet (see
+   * chromeBudget.ts): the world map's `--chrome`, the plan's `--plate-chrome`, both on #app. The fixed
+   * 290 and 230 were right at 1440x900 with a mouse and a one-row toolbar and wrong on a two-row
+   * toolbar (Korean on a 1366x650 laptop window, English at 1366x768) and on a tablet's 44px
+   * controls — the card ran past the window and the chronicle's line, or the plan's bottom, was cut.
+   */
+  // The plan's side column is proved against this reserve (layout.test): the chrome above a plate
+  // always holds the title, the bar, the way back and the facts, and it is never let under it.
+  const PLATE_RESERVE_FLOOR = 230;
+  const fitWorldChrome = (): void => {
+    const frame = stage.querySelector<HTMLElement>(".map-with-list > .map-frame");
+    // A narrow window stacks the key and the town list under the map, and there the map is sized
+    // by the window's width anyway; focus mode sizes itself. Both get the stylesheet's own number.
+    if (!frame || isNarrowWindow() || document.body.classList.contains("map-focus")) {
+      root.style.removeProperty("--chrome");
+      return;
+    }
+    fitChrome(root, "--chrome", () => measureChrome(frame, stage));
+  };
+  const fitPlateChrome = (): void => {
+    const plate = stage.querySelector<SVGSVGElement>("svg.city");
+    if (!plate || document.body.classList.contains("map-focus")) return;
+    // what counts under a plan is only its card's own edge: its facts and key may run on below it
+    // where the window is tall, as they always have
+    const cs = getComputedStyle(stage);
+    const edge = (parseFloat(cs.paddingBottom) || 0) + (parseFloat(cs.borderBottomWidth) || 0);
+    fitChrome(root, "--plate-chrome", () => measureChrome(plate, stage, window.scrollY, edge), 3, PLATE_RESERVE_FLOOR);
+  };
+  // the screen that is showing lays its names out again for its new size (set by showWorld)
+  let relayoutLabels: (() => void) | null = null;
+  const refitChrome = (): void => {
+    if (openCityId !== null) fitPlateChrome(); else fitWorldChrome();
+    relayoutLabels?.();
+  };
+  // Once, for the app: a window that is resized, and the web fonts arriving (the title's Cinzel sets
+  // the height of the row above the bar), both change what the page spends.
+  let refitFrame = 0;
+  window.addEventListener("resize", () => {
+    cancelAnimationFrame(refitFrame);
+    refitFrame = requestAnimationFrame(refitChrome);
+  });
+  void document.fonts?.ready.then(() => refitChrome());
   /** drops the world screen's width watcher; see the listener leak note in showWorld */
   let dropWidthWatch: (() => void) | null = null;
   function readLegendPref(): boolean {
@@ -309,7 +354,11 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
    */
   let focusBtn: HTMLButtonElement | null = null;
   function applyFocus(on: boolean): void {
+    const was = document.body.classList.contains("map-focus");
     document.body.classList.toggle("map-focus", on);
+    // leaving it, the page's chrome is back — measure it again (every render also calls this, to
+    // start out of focus, and measures for itself once it is built)
+    if (was && !on) refitChrome();
     if (!focusBtn) return;
     focusBtn.setAttribute("aria-pressed", String(on));
     focusBtn.textContent = t(lang, on ? "focusExit" : "focusEnter");
@@ -625,6 +674,16 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     timelineStrip.append(timeline.element, caption.element);
     stage.append(timelineStrip);
     applyWidth();                       // before the first year, so the key starts where it belongs
+    // measured with the caption holding its line, and before the year is drawn: the names' 8px
+    // floor is worked out from the size the drawing ends up
+    caption.setYear(history.snapshots[currentYearIndex].year);
+    fitWorldChrome();
+    relayoutLabels = () => {
+      const z = worldZoom?.scale() ?? 1;
+      applyLabelScale(svg, z, WORLD_LABEL_FLOOR);
+      applyMarkerScale(svg, z);
+      deconflictLabels(svg, z);
+    };
     timeline.setIndex(currentYearIndex); // renders the current year in the current view
     // replaceState, not location.hash: re-rendering the same world is not a place to come back to,
     // and every view switch used to push one
@@ -777,6 +836,9 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     // the document, with no room to measure, so the plate's key came out a compact block (271px of
     // a 324px measure on a phone) where the world's spans its panel.
     placeLegend(citySvg, keySheet, true, LEGEND_ROW / CITY_LEGEND_ROW, keyColumns());
+    // and sized by what the page actually spends around it, before its names are floored
+    relayoutLabels = null;
+    fitPlateChrome();
     worldZoom?.destroy(); worldZoom = null;
     cityZoom?.destroy();
     // the ward names hold their size here for the same reason the world's names do

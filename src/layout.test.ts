@@ -135,7 +135,10 @@ describe("the plate's key stands beside the drawing where there is room", () => 
     const minW = Number(/min-width:\s*(\d+)px/.exec(block)![1]);
     const col = Number(/grid-template-columns:[^;]*?(\d+)px/.exec(block)![1]);
     const gap = Number(/\.stage\.plate\s*\{[^}]*gap:\s*(\d+)px/.exec(block)![1]);
-    const reserve = Number(/\.stage svg\.city \{[^}]*\(100vh - (\d+)px\)/.exec(c)![1]);
+    // the plate's reserve is measured at run time now (chromeBudget.ts), never under this floor —
+    // the chrome above a plate always holds the title, the bar, the way back and the facts — so the
+    // floor is the tightest case the arithmetic has to hold for
+    const reserve = Number(/\.stage svg\.city \{[^}]*\(100vh - var\(--plate-chrome, (\d+)px\)\)/.exec(c)![1]);
     // What the page spends before the card's content box begins: 37px of margin on each side and
     // the card's own 22px of padding and border. Measured on the live page at three widths.
     const PAGE_CHROME = 96;

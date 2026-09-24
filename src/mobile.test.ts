@@ -220,11 +220,17 @@ describe("a narrow window folds the toolbar too", () => {
 // With pinch working, `+` and `−` are a mouse's way of doing what two fingers already do — and the
 // three of them together covered 19% of a 321px-wide map. The reset stays: a pinch can leave you
 // somewhere you cannot pinch your way back from.
+// (The rules live in the block for "a narrow window OR a touch screen" now — a tablet zooms with two
+// fingers too — so the block is found by what it holds, and its query must still cover a narrow one.)
+const zoomBlock = (css: string) => {
+  const i = css.indexOf("@media (max-width: 900px), (pointer: coarse)");
+  expect(i, "the phone's zoom rules have no block of their own").toBeGreaterThan(-1);
+  return css.slice(i, css.indexOf("\n}", i));
+};
 describe("a narrow map keeps the zoom out of the drawing", () => {
   it("hides the buttons two fingers replace, and only those", () => {
     const css = read("src/theme.css");
-    const i = css.indexOf("@media (max-width: 900px)");
-    const block = css.slice(i, css.indexOf("\n}", i));
+    const block = zoomBlock(css);
     expect(block).toContain(".map-zoom-controls .zoom-in, .map-zoom-controls .zoom-out { display: none");
     expect(block, "the reset went with them").not.toContain(".zoom-reset { display: none");
   });
@@ -236,8 +242,7 @@ describe("a narrow map keeps the zoom out of the drawing", () => {
 describe("hiding the zoom buttons is not a dead end", () => {
   it("brings them back when pinch turns out to be unavailable", () => {
     const css = read("src/theme.css");
-    const i = css.indexOf("@media (max-width: 900px)");
-    const block = css.slice(i, css.indexOf("\n}", i));
+    const block = zoomBlock(css);
     expect(block).toContain(".map-zoom-controls.pinch-unavailable .zoom-in");
     expect(block).toContain(".map-zoom-controls.pinch-unavailable .zoom-out");
     // and the class has to be one zoomPan actually sets

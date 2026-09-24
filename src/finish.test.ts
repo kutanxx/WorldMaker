@@ -139,7 +139,8 @@ describe("the scrubber sits one gap under the map", () => {
 // 132px below it (gap, scrubber, caption, card's bottom edge) — 277, and 12 of air under the card.
 describe("the whole card fits the window it was sized for", () => {
   it("budgets the chrome that is actually on the page, caption included", () => {
-    const budget = Number(/--page:\s*max\(\d+px,\s*calc\(\(100vh - (\d+)px\)/.exec(css())?.[1]);
+    // (measured at run time now — see the next describe — and this is its fallback)
+    const budget = Number(/--page:\s*max\(\d+px,\s*calc\(\(100vh - (?:var\(--chrome,\s*)?(\d+)px\)/.exec(css())?.[1]);
     expect(Number.isFinite(budget), "the page measure no longer reads the window's height").toBe(true);
     expect(budget, "the caption under the scrubber is left below the fold again").toBeGreaterThanOrEqual(277 + 12);
   });
@@ -236,5 +237,53 @@ describe("the caption does not bounce the page under it", () => {
   });
   it("still disappears when it has nothing to say", () => {
     expect(css(), "a flex caption ignores the hidden attribute").toMatch(/\.chronicle-caption\[hidden\]\s*\{[^}]*display:\s*none/);
+  });
+});
+
+// ★ ...and the budget is MEASURED now, not declared. 290 was right at 1440x900 with a mouse and a
+// one-row toolbar, and wrong everywhere else it was measured: a Korean toolbar wraps on a 1366x650
+// laptop window and an English one at 1366x768 (the card 25px past the window, the chronicle's line
+// cut), a tablet's 44px controls add 24px, and a tablet in landscape cut the city plan's bottom 60px.
+// The page measures what it spends and hands it to the stylesheet; the numbers stay as the fallback.
+describe("the page measures what it spends around the drawing", () => {
+  it("sizes the world map by a measured budget, with the old one as its fallback", () => {
+    const m = /--page:\s*max\(\d+px,\s*calc\(\(100vh - var\(--chrome,\s*(\d+)px\)\)/.exec(css());
+    expect(m, "the page measure is a fixed number again").not.toBeNull();
+    expect(Number(m![1]), "the fallback forgets the caption under the scrubber").toBeGreaterThanOrEqual(277 + 12);
+  });
+  it("sizes the city plan the same way, every place it is capped", () => {
+    // the rules whose WHOLE selector is `.stage svg.city` — focus mode's own cap is 100vh less the
+    // scrubber's strip, and it is not a budget
+    const resting = css().match(/(?:^|\n)[ \t]*\.stage svg\.city \{[^}]*\}/g) ?? [];
+    expect(resting.length, "no plate cap").toBeGreaterThan(0);
+    for (const r of resting) expect(r, "a plate cap still reads a fixed number").toContain("var(--plate-chrome, 230px)");
+  });
+});
+
+// ★ A tablet is a touch screen too: two fingers zoom it, as they do a phone. Measured at 1024x768
+// with the touch rules on: +, − and ↺ stood on the map at 48x44 each (a 60x152 mount, 2.8% of the
+// map), where a phone shows nothing at rest and the "전체 보기" chip once zoomed.
+describe("a touch screen of any width zooms like a phone", () => {
+  const blockWith = (needle: string) => {
+    const c = css();
+    const i = c.indexOf(needle);
+    const at = c.lastIndexOf("@media", i);
+    return c.slice(at, c.indexOf("{", at));
+  };
+  it("hides the buttons two fingers replace on any touch screen", () => {
+    const q = blockWith(".map-zoom-controls .zoom-in, .map-zoom-controls .zoom-out { display: none");
+    expect(q).toContain("max-width: 900px");
+    expect(q, "a tablet still carries + and −").toContain("pointer: coarse");
+  });
+  it("puts the reset away at rest and makes it the chip on any touch screen", () => {
+    for (const needle of [".map-zoom-controls.at-rest:not(.pinch-unavailable) { display: none",
+                          ".map-zoom-controls:not(.pinch-unavailable) .zoom-reset {"]) {
+      expect(blockWith(needle), needle).toContain("pointer: coarse");
+    }
+  });
+  it("gives the chip its reach on any touch screen, not only a narrow one", () => {
+    const q = blockWith(".map-zoom-controls:not(.pinch-unavailable) .zoom-reset::after");
+    expect(q).toContain("pointer: coarse");
+    expect(q, "the reach is still held to narrow windows").not.toContain("max-width");
   });
 });

@@ -37,7 +37,7 @@ body {
    counted before the chronicle became a caption under the scrubber, so the caption was never paid
    for: at 1440x900, 1366x768 and 1920x945 alike it ended 16-17px under the window's edge. */
 #app {
-  --page: max(620px, calc((100vh - 290px) * 10 / 7 + 222px));
+  --page: max(620px, calc((100vh - var(--chrome, 290px)) * 10 / 7 + 222px));
   max-width: min(1320px, 100vw - 32px); margin: 0 auto; padding: 0 16px 32px;
 }
 /* ⚠ No global `box-sizing: border-box` in this stylesheet, so these three say it themselves: the
@@ -233,7 +233,7 @@ body.map-focus .timeline { margin: 0; }
    zoom for the leaning. ★ The key is no longer part of the plan — it stands under it at 1:1, so
    the strip is the compass alone and the town has 15% more width than it had beside a key. */
 .stage svg.city {
-  max-width: min(100%, calc((100vh - 230px) * 494 / 460));
+  max-width: min(100%, calc((100vh - var(--plate-chrome, 230px)) * 494 / 460));
   margin: 0 auto;
 }
 body.map-focus .stage svg.city { max-width: min(100%, calc((100vh - 40px) * 494 / 460)); }
@@ -790,6 +790,36 @@ svg.world.lang-en .nation-label { font-variant: small-caps; letter-spacing: 0.10
   .controls:not(.more-open) .secondary { display: none; }
   /* and a plate is not the world map: these two act on a map that is not on screen */
   .controls.plate .world-only { display: none; }
+  /* the plate's key spans the room in two columns here (legendSheet.ts), so it stands at the
+     heading's inset like the world's instead of centring */
+  .stage.plate .legend-sheet { margin-inline: 6px; }
+  /* The plate's key has left it too, so the 108-unit strip it lived in is down to the compass's
+     own width (COMPASS_STRIP in svgCityRenderer.ts): the plate is 460 + 34 = 494 units across
+     here, not 568, and the cap that keeps a whole plan on screen has to say so or it lets the
+     plate run 15% past the fold. mobile.test.ts holds these two numbers together. */
+  .stage svg.city { max-width: min(100%, calc((100vh - var(--plate-chrome, 230px)) * 494 / 460)); }
+  /* ★ The drawing comes before what is said about it. Measured on a 390x844 phone: 319px of chrome
+     stood above a plate 313px tall — toolbar, way back, and a 134px five-row fact strip — so the
+     controls outweighed the thing they control, the same arithmetic that folded the toolbar. The
+     strip is a caption (the chronicle became one for this reason), and a caption goes under its
+     picture; the key keeps its place under the caption. Only the plate's card becomes a column:
+     the world map's holds a grid and a scrubber that are laid out as blocks. */
+  .stage.plate { display: flex; flex-direction: column; }
+  .stage.plate > .city-facts { order: 1; }
+  .stage.plate > .legend-fold { order: 2; }
+  /* A narrow strip wraps, and wrapped it had a ragged second column — 27 / 176 / 219 — so the eye
+     had no column to follow and the whole thing read as one sentence. One fact per row, labels in
+     a column and answers in a column: a gazetteer entry. `display: contents` is what makes that
+     possible without touching the markup — it drops each fact's box so its label and its answer
+     become items of the SAME grid, which is the only way the columns line up ACROSS facts. */
+  .city-facts { display: grid; grid-template-columns: max-content 1fr; gap: 6px 12px; }
+  .city-fact { display: contents; }
+}
+/* ★ Zooming the way a phone does: on a narrow window, and on any touch screen whatever its width. A
+   tablet is zoomed with two fingers too — measured at 1024x768 with the touch rules on, +, − and ↺
+   stood on the map at 48x44 each (a 60x152 mount, 2.8% of the map) where a phone shows nothing at
+   rest and the "전체 보기" chip once zoomed. */
+@media (max-width: 900px), (pointer: coarse) {
   /* Two fingers do this now (see zoomPan), and the three buttons covered 19% of a 321px map. The
      reset stays: a pinch can leave you somewhere you cannot pinch your way back from. */
   .map-zoom-controls .zoom-in, .map-zoom-controls .zoom-out { display: none; }
@@ -808,9 +838,6 @@ svg.world.lang-en .nation-label { font-variant: small-caps; letter-spacing: 0.10
     background: none; border: 0; padding: 0; box-shadow: none;
   }
   .map-zoom-controls.at-rest:not(.pinch-unavailable) { display: none; }
-  /* the plate's key spans the room in two columns here (legendSheet.ts), so it stands at the
-     heading's inset like the world's instead of centring */
-  .stage.plate .legend-sheet { margin-inline: 6px; }
   .map-zoom-controls:not(.pinch-unavailable) .zoom-reset {
     width: auto; height: auto; min-width: 0; min-height: 0; gap: 5px;
     padding: 4px 10px; font-size: 12px; letter-spacing: .04em; line-height: 1.4;
@@ -821,27 +848,6 @@ svg.world.lang-en .nation-label { font-variant: small-caps; letter-spacing: 0.10
   .map-zoom-controls:not(.pinch-unavailable) .zoom-reset:hover { background: #e7d9b6; }
   .map-zoom-controls:not(.pinch-unavailable) .zoom-reset .zoom-reset-label { display: inline; }
   .map-zoom-controls:not(.pinch-unavailable) .zoom-reset .zoom-reset-icon { width: 12px; height: 12px; }
-  /* The plate's key has left it too, so the 108-unit strip it lived in is down to the compass's
-     own width (COMPASS_STRIP in svgCityRenderer.ts): the plate is 460 + 34 = 494 units across
-     here, not 568, and the cap that keeps a whole plan on screen has to say so or it lets the
-     plate run 15% past the fold. mobile.test.ts holds these two numbers together. */
-  .stage svg.city { max-width: min(100%, calc((100vh - 230px) * 494 / 460)); }
-  /* ★ The drawing comes before what is said about it. Measured on a 390x844 phone: 319px of chrome
-     stood above a plate 313px tall — toolbar, way back, and a 134px five-row fact strip — so the
-     controls outweighed the thing they control, the same arithmetic that folded the toolbar. The
-     strip is a caption (the chronicle became one for this reason), and a caption goes under its
-     picture; the key keeps its place under the caption. Only the plate's card becomes a column:
-     the world map's holds a grid and a scrubber that are laid out as blocks. */
-  .stage.plate { display: flex; flex-direction: column; }
-  .stage.plate > .city-facts { order: 1; }
-  .stage.plate > .legend-fold { order: 2; }
-  /* A narrow strip wraps, and wrapped it had a ragged second column — 27 / 176 / 219 — so the eye
-     had no column to follow and the whole thing read as one sentence. One fact per row, labels in
-     a column and answers in a column: a gazetteer entry. `display: contents` is what makes that
-     possible without touching the markup — it drops each fact's box so its label and its answer
-     become items of the SAME grid, which is the only way the columns line up ACROSS facts. */
-  .city-facts { display: grid; grid-template-columns: max-content 1fr; gap: 6px 12px; }
-  .city-fact { display: contents; }
 }
 /* ★ The reset chip's reach: 27px of ink, 44 for a finger — grown AWAY from the map, the way the focus
    chip's is. A target over the map is a target over a town, and an invisible one that takes a
@@ -851,7 +857,7 @@ svg.world.lang-en .nation-label { font-variant: small-caps; letter-spacing: 0.10
    begins — measured 173 and 173 on a phone — so a reach past the frame's top edge takes the bottom
    of that button. It reaches up only to the edge (the controls' own 14px) and makes up the rest
    downward, over a drawing that has nothing in it to press. */
-@media (max-width: 900px) and (pointer: coarse) {
+@media (pointer: coarse) {
   .map-zoom-controls:not(.pinch-unavailable) .zoom-reset { position: relative; }
   .map-zoom-controls:not(.pinch-unavailable) .zoom-reset::after {
     content: ""; position: absolute; inset: 0 -8px -17px 0;

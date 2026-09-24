@@ -1355,3 +1355,40 @@ describe("a window too narrow to carry the map's furniture", () => {
     expect(cities.closest(".fold")!.classList.contains("is-open"), "it will not fold").toBe(false);
   });
 });
+
+// ★ The page measures what it spends around the drawing and hands it to the stylesheet (see
+// chromeBudget.ts): a fixed 290 was wrong on a two-row toolbar and on a tablet's 44px controls. jsdom
+// lays nothing out, so the boxes say where they are: the map at 145..795 in a card ending at 927 is
+// the 1440x900 page, whose chrome is 145 above and 132 below.
+describe("the page measures its chrome", () => {
+  const real = Element.prototype.getBoundingClientRect;
+  const rect = (top: number, bottom: number) =>
+    ({ top, bottom, height: bottom - top, left: 0, right: 900, width: 900, x: 0, y: top, toJSON() {} }) as DOMRect;
+  beforeEach(() => {
+    Element.prototype.getBoundingClientRect = function (this: Element) {
+      if (this.classList.contains("map-frame")) return rect(145, 795);
+      if (this.classList.contains("stage")) return rect(134, 927);
+      if (this.tagName.toLowerCase() === "svg" && this.classList.contains("city")) return rect(230, 830);
+      return real.call(this);
+    };
+  });
+  afterEach(() => { Element.prototype.getBoundingClientRect = real; });
+
+  it("sizes the world map by what it measured", () => {
+    const root = document.createElement("div");
+    document.body.appendChild(root);
+    createApp(root, small);
+    expect(root.style.getPropertyValue("--chrome")).toBe(`${145 + (927 - 795) + 12}px`);
+    root.remove();
+  });
+
+  it("sizes a city's plan by what it measured, never under the floor the side column counts on", () => {
+    const root = document.createElement("div");
+    document.body.appendChild(root);
+    const app = createApp(root, small);
+    app.openCity(0);
+    const v = parseFloat(root.style.getPropertyValue("--plate-chrome"));
+    expect(v, "the plate kept the stylesheet's fixed number").toBeGreaterThanOrEqual(230 + 12);
+    root.remove();
+  });
+});
