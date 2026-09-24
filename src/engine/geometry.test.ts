@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { signedArea, area, centroid, bbox, perimeter, pointInPolygon } from "./geometry";
-import { convexHull, clipToConvex, splitByLine, insetPolygon, insetConvex } from "./geometry";
+import { convexHull, clipToConvex, splitByLine, insetPolygon, insetConvex, insetEdges } from "./geometry";
 import { pointSegDist, segmentsIntersect, polysOverlap, polygonSelfIntersects } from "./geometry";
 import type { Polygon } from "./geometry";
 
@@ -118,5 +118,41 @@ describe("geometry ops", () => {
     expect(polygonSelfIntersects(thin)).toBe(false);
     expect(thin.length).toBeGreaterThanOrEqual(3);
     expect(clearance(thin, sliver)).toBeGreaterThanOrEqual(0.5 - 1e-6);
+  });
+});
+
+describe("insetEdges — the exact offset of a convex polygon", () => {
+  const edgeDist = (p: [number, number], poly: Polygon) => {
+    let d = Infinity;
+    for (let i = 0; i < poly.length; i++) d = Math.min(d, pointSegDist(p, poly[i], poly[(i + 1) % poly.length]));
+    return d;
+  };
+  it("moves every edge of a square in by the distance asked", () => {
+    const out = insetEdges(square, 2);
+    const b = bbox(out);
+    expect([b.minX, b.minY, b.maxX, b.maxY].map((v) => +v.toFixed(9))).toEqual([2, 2, 8, 8]);
+  });
+  it("takes a distance per edge, in the polygon's order", () => {
+    const b = bbox(insetEdges(square, [0, 3, 0, 1]));
+    expect([b.minX, b.minY, b.maxX, b.maxY].map((v) => +v.toFixed(9))).toEqual([1, 0, 7, 10]);
+  });
+  // A deep offset swallows the short edges of a Voronoi ward. `insetConvex` mitres each corner from
+  // its own two edges, finds the result flipped, and falls back to a shrink that does not keep its
+  // distance: on this castle ward (Luor, seed 6) an 18-unit offset came back 5.2 from the ward's
+  // edge — which put a great seat's enceinte 3.9 from its curtain, asked for 8 — and at 20 and 22
+  // it came back empty although the ward has that much room.
+  it("keeps its distance where a deep offset swallows the short edges", () => {
+    const ward: Polygon = [[261.754, 201.689], [226.75, 202.677], [156.88, 136.789], [157.834, 135.952], [170.728, 127.337], [173.088, 126.173], [285.078, 173.778]];
+    for (const d of [10, 18, 22]) {
+      const out = insetEdges(ward, d);
+      expect(out.length, `offset ${d}`).toBeGreaterThanOrEqual(3);
+      for (const p of out) expect(edgeDist(p, ward), `offset ${d}`).toBeGreaterThanOrEqual(d - 1e-9);
+    }
+    // ...and two offsets stand exactly the difference apart
+    const outer = insetEdges(ward, 2), inner = insetEdges(ward, 18);
+    for (const p of inner) expect(edgeDist(p, outer)).toBeGreaterThanOrEqual(16 - 1e-9);
+  });
+  it("is empty where nothing is that far inside", () => {
+    expect(insetEdges(square, 5.5)).toEqual([]);
   });
 });

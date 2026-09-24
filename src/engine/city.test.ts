@@ -759,28 +759,114 @@ describe("the lord's castle stands on dry land", () => {
   });
 });
 
-// The plan names each ward at its own centre, and a castle's centre is its donjon — so the word
-// "Castle" was printed straight across the keep, the halls and the gatehouse of the very thing it
-// named, on every plate that had one.
-describe("the castle's name stands beside the castle, not on it", () => {
-  it("steps the label off the enceinte wherever the ward has ground to spare", () => {
-    let checked = 0, onTop = 0;
-    for (let seed = 1; seed <= 10; seed++) {
-      const w = generateWorld({ ...DEFAULT_PARAMS, seed }).world;
-      for (const c of w.cities) {
-        const l = generateCityLayout(cityContext(c), seed);
-        const lab = l.labels.find((x) => x.type === "castle");
-        if (!l.castle || !lab) continue;
-        const ward = l.wards.find((x) => x.type === "castle")!;
-        // is there anywhere in the ward outside the walls for the name to go?
-        const room = ward.polygon.some((p) => !pointInPolygon(p, l.castle!.innerWall));
-        if (!room) continue;
-        checked++;
-        if (pointInPolygon([lab.x, lab.y], l.castle.innerWall)) onTop++;
+// ★ A castle is built inside the town it guards. It used to be built from its whole Voronoi cell —
+// which is cut by a disc, not by the wall, and stood a median 29% outside the town — and was then
+// drawn through a clip to the wall: over 12 worlds 102 of 125 enceintes were cut open, 51 keeps
+// lost corners (two entirely), and in 90 castles the town wall ran straight through the yard. The
+// ward is cut to the town first now, and where it meets the town's outline the castle's wall IS
+// the town wall.
+describe("the castle stands inside the town it guards", () => {
+  const castles = (() => {
+    let memo: { where: string; l: ReturnType<typeof generateCityLayout> }[] | null = null;
+    return () => {
+      if (memo) return memo;
+      memo = [];
+      for (let seed = 1; seed <= 12; seed++) {
+        const w = generateWorld({ ...DEFAULT_PARAMS, seed }).world;
+        for (const c of w.cities) {
+          const l = generateCityLayout(cityContext(c), seed);
+          if (l.castle) memo.push({ where: `${c.name} (seed ${seed}, ${l.archetype.id})`, l });
+        }
+      }
+      return memo;
+    };
+  })();
+  const edgeDist = (p: [number, number], poly: [number, number][]) => {
+    let d = Infinity;
+    for (let i = 0; i < poly.length; i++) d = Math.min(d, pointSegDist(p, poly[i], poly[(i + 1) % poly.length]));
+    return d;
+  };
+  // inside the town, or on its outline: where the castle's wall is the town's
+  const inTown = (p: [number, number], l: ReturnType<typeof generateCityLayout>) =>
+    pointInPolygon(p, l.boundary) || edgeDist(p, l.boundary) <= 0.5;
+
+  it("builds no part of a castle beyond the town wall", () => {
+    expect(castles().length, "no castles in twelve worlds").toBeGreaterThan(100);
+    for (const { where, l } of castles()) {
+      const ca = l.castle!;
+      const parts: [string, [number, number][]][] = [["enceinte", ca.innerWall], ["keep", ca.keep], ...ca.annexes.map((a, i) => [`hall ${i}`, a] as [string, [number, number][]])];
+      if (ca.outerWall) parts.push(["outer curtain", ca.outerWall]);
+      for (const [what, poly] of parts) for (const p of poly) expect(inTown(p, l), `${what} of ${where}`).toBe(true);
+      expect(inTown(ca.gate, l), `gate of ${where}`).toBe(true);
+    }
+  });
+
+  it("keeps the town wall out of the castle's yard", () => {
+    for (const { where, l } of castles()) {
+      const ca = l.castle!;
+      for (const s of l.wall!.segments) for (let i = 0; i < s.length - 1; i++) {
+        for (let k = 0; k <= 10; k++) {
+          const p: [number, number] = [s[i][0] + ((s[i + 1][0] - s[i][0]) * k) / 10, s[i][1] + ((s[i + 1][1] - s[i][1]) * k) / 10];
+          const deep = pointInPolygon(p, ca.innerWall) && edgeDist(p, ca.innerWall) > 3;
+          expect(deep, `the town wall crosses the yard of ${where}`).toBe(false);
+        }
       }
     }
-    expect(checked, "no castle with room beside it in ten seeds").toBeGreaterThan(20);
-    expect(onTop, `${onTop} of ${checked} names printed inside the walls`).toBe(0);
+  });
+
+  it("stands the donjon clear of its own rampart", () => {
+    for (const { where, l } of castles()) {
+      for (const p of l.castle!.keep) {
+        expect(pointInPolygon(p, l.castle!.innerWall), `keep of ${where}`).toBe(true);
+        expect(edgeDist(p, l.castle!.innerWall), `keep of ${where}`).toBeGreaterThanOrEqual(3);
+      }
+    }
+  });
+
+  // measured before this: 71 of 96 great seats had the curtain and the enceinte under six units
+  // apart — two walls drawn nearly on top of each other, not a castle with a bailey
+  it("gives a great seat a bailey you could muster in, on the town side", () => {
+    let great = 0;
+    for (const { where, l } of castles()) {
+      const ca = l.castle!;
+      if (!ca.outerWall) continue;
+      great++;
+      const townSide = (a: [number, number], b: [number, number]) => edgeDist([(a[0] + b[0]) / 2, (a[1] + b[1]) / 2], l.boundary) > 0.5;
+      const ow = ca.outerWall;
+      for (let i = 0; i < ca.innerWall.length; i++) {
+        const a = ca.innerWall[i], b = ca.innerWall[(i + 1) % ca.innerWall.length];
+        if (!townSide(a, b)) continue;
+        const m: [number, number] = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+        let gap = Infinity;
+        for (let j = 0; j < ow.length; j++) if (townSide(ow[j], ow[(j + 1) % ow.length])) gap = Math.min(gap, pointSegDist(m, ow[j], ow[(j + 1) % ow.length]));
+        // the rings are parallel offsets 8 apart; a short edge where the town's outline cuts both
+        // can sit a little nearer its neighbour's counterpart (7.5 at worst over twelve worlds)
+        expect(gap, `bailey of ${where}`).toBeGreaterThanOrEqual(7);
+      }
+    }
+    expect(great, "no great seat with a curtain in twelve worlds").toBeGreaterThan(40);
+  });
+
+  it("stands no town-wall tower beside a castle tower on the stretch they share", () => {
+    for (const { where, l } of castles()) {
+      const ca = l.castle!;
+      const rings = [ca.innerWall, ...(ca.outerWall ? [ca.outerWall] : [])];
+      for (const t of l.wall!.towers) for (const r of rings) expect(edgeDist(t, r), `a doubled tower at ${where}`).toBeGreaterThanOrEqual(2);
+    }
+  });
+
+  // The plan names each ward at its own centre, and a castle's centre is its donjon — so the word
+  // "Castle" was printed straight across the keep; then it was walked out of the yard until it had
+  // just left the enceinte, which stood it ON the wall of all 125 castles.
+  it("puts the castle's name on the castle's own ground, never on its donjon", () => {
+    for (const { where, l } of castles()) {
+      const lab = l.labels.find((x) => x.type === "castle");
+      if (!lab) continue;
+      const ward = l.wards.find((x) => x.type === "castle")!;
+      expect(pointInPolygon([lab.x, lab.y], ward.polygon) && inTown([lab.x, lab.y], l), `name of ${where}`).toBe(true);
+      // the name's middle, and a Korean name's width either side of it, stand off the donjon
+      for (const dx of [-7, 0, 7]) expect(pointInPolygon([lab.x + dx, lab.y - 1.5], l.castle!.keep), `name on the keep of ${where}`).toBe(false);
+    }
   });
 });
 
@@ -1075,6 +1161,11 @@ describe("the districts are places a town would have", () => {
 // plate took 274ms of the 293 its screen cost (measured in the page, 2026-09-24) — a mid-range
 // phone runs that about four times slower — and 62% of the generator's time was one filter.
 // Whatever speeds it up must reproduce these exactly. Two whole worlds, every kind of town.
+//
+// Re-pinned 2026-09-24 for the castle built inside its town: exactly the 125 towns (of 12 worlds'
+// 336) that seat a lord moved — the castle, the ward it stands in, the zoning that follows from it,
+// the town's towers on the stretch the castle took, and, since the castle now draws from a stream
+// of its own, the country around those towns. The other 211 plates hashed byte for byte the same.
 describe("a plate is the same plate, byte for byte", () => {
   const fold = (h: number, c: number) => Math.imul(h ^ c, 16777619) >>> 0;
   const fnv = (s: string) => { let h = 2166136261 >>> 0; for (let i = 0; i < s.length; i++) h = fold(h, s.charCodeAt(i)); return h >>> 0; };
@@ -1085,9 +1176,9 @@ describe("a plate is the same plate, byte for byte", () => {
     return { h, n };
   };
   it("draws seed 1's twenty-eight towns exactly as it did", () => {
-    expect(worldHash(1)).toEqual({ h: 2780561046, n: 28 });
+    expect(worldHash(1)).toEqual({ h: 1019451898, n: 28 });
   });
   it("draws seed 12's twenty-eight towns exactly as it did", () => {
-    expect(worldHash(12)).toEqual({ h: 2875279024, n: 28 });
+    expect(worldHash(12)).toEqual({ h: 2244569766, n: 28 });
   });
 });

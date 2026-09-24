@@ -486,24 +486,45 @@ export function renderCity(layout: CityLayout, lang: Lang = "en", opts: CityRend
   let castleG: SVGGElement | null = null;
   if (layout.castle) {
     const ca = layout.castle;
-    const cg = named(svgEl("g", { class: "castle-inner", "clip-path": `url(#${clipId})` }), fn("castle")) as SVGGElement;
+    // ★ Not clipped to the town any more. The castle used to be built from its whole Voronoi cell
+    // and trimmed to the wall by this group's clip, which is what cut enceintes open, took keeps
+    // away and let the town wall run through the yard. It is built inside the town now, its wall
+    // side ON the town's outline, so it is drawn whole — astride that wall, as the wall itself is.
+    const cg = named(svgEl("g", { class: "castle-inner" }), fn("castle")) as SVGGElement;
     // Every part below used to be drawn at a constant size, so a royal seat wore a market town's
     // furniture -- turrets r1.6, towers r2.1, a gate r1.1, the same on a size-6 capital as on a
     // size-3 market town, and at this scale the furniture is what the eye reads. It is in units of
     // the donjon now (ca.scale), and a great seat has parts a lesser one does not.
     const S = ca.scale;
+    // ...but a wall tower does not grow as fast as its donjon: at a capital's x1.4 a tower drawn
+    // x1.4 came out 4.4 units across the radius, a row of balls along an enceinte that is itself
+    // smaller now it stands inside the town. S^0.7 keeps a great seat's towers a quarter greater
+    // than a manor's, and both no smaller than the town wall's own.
+    const TS = Math.pow(S, 0.7);
+    // the lane from the gate out to the street, under everything else the castle draws
+    if (ca.approach) {
+      cg.appendChild(svgEl("polyline", { class: "castle-approach-casing", points: pts(ca.approach), fill: "none", stroke: "#a07c3e", "stroke-width": 3.6, "stroke-linecap": "round" }));
+      cg.appendChild(svgEl("polyline", { class: "castle-approach", points: pts(ca.approach), fill: "none", stroke: "#d8b65e", "stroke-width": 2.2, "stroke-linecap": "round" }));
+    }
     // outer curtain of a great castle, with the bailey between it and the enceinte
     if (ca.outerWall) {
       cg.appendChild(svgEl("polygon", { class: "castle-bailey", points: pts(ca.outerWall), fill: "#c8cdd8", "fill-opacity": 0.55 }));
+    }
+    // the inner ward is a paved court, paler than the grounds around it, so the enceinte reads as
+    // an enclosure rather than as a line drawn across one colour
+    cg.appendChild(svgEl("polygon", { class: "castle-yard", points: pts(ca.innerWall), fill: "#e2e1dc" }));
+    if (ca.outerWall) {
       cg.appendChild(svgEl("polygon", { class: "castle-outer-wall", points: pts(ca.outerWall), fill: "none", stroke: CASTLE_STONE, "stroke-width": 3.4, "stroke-linejoin": "round" }));
       cg.appendChild(svgEl("polygon", { class: "castle-outer-wall-inner", points: pts(ca.outerWall), fill: "none", stroke: "#8a7a60", "stroke-width": 0.8, "stroke-linejoin": "round" }));
-      for (const t2 of spacedTowers(ca.outerWall, 5 * S)) cg.appendChild(svgEl("circle", { class: "castle-outer-tower", cx: t2[0], cy: t2[1], r: 2.4 * S, fill: CASTLE_TOWER, stroke: CASTLE_STONE, "stroke-width": 0.8 }));
+      for (const t2 of spacedTowers(ca.outerWall, 5 * S)) cg.appendChild(svgEl("circle", { class: "castle-outer-tower", cx: t2[0], cy: t2[1], r: 2.2 * TS, fill: CASTLE_TOWER, stroke: CASTLE_STONE, "stroke-width": 0.8 }));
     }
-    for (const an of ca.annexes) cg.appendChild(svgEl("polygon", { class: "castle-annex", points: pts(an), fill: "#cfd4dd", stroke: "#5a6272", "stroke-width": 0.4 }));
+    // the household's halls are roofed buildings standing against the curtain — solid, like every
+    // other building on the plate; drawn as pale outlines they read as empty plots
+    for (const an of ca.annexes) cg.appendChild(svgEl("polygon", { class: "castle-annex", points: pts(an), fill: "#9aa1ae", stroke: "#4a5160", "stroke-width": 0.5 }));
     // inner wall: town-wall-style double stroke
     cg.appendChild(svgEl("polygon", { class: "castle-wall", points: pts(ca.innerWall), fill: "none", stroke: CASTLE_STONE, "stroke-width": 4.4, "stroke-linejoin": "round" }));
     cg.appendChild(svgEl("polygon", { class: "castle-wall-inner", points: pts(ca.innerWall), fill: "none", stroke: "#9a8a68", "stroke-width": 1.1, "stroke-linejoin": "round" }));
-    for (const t2 of spacedTowers(ca.towers, 6 * S)) cg.appendChild(svgEl("circle", { class: "castle-tower", cx: t2[0], cy: t2[1], r: 3.1 * S, fill: CASTLE_TOWER, stroke: CASTLE_STONE, "stroke-width": 0.9 }));
+    for (const t2 of spacedTowers(ca.towers, 6 * S)) cg.appendChild(svgEl("circle", { class: "castle-tower", cx: t2[0], cy: t2[1], r: 2.8 * TS, fill: CASTLE_TOWER, stroke: CASTLE_STONE, "stroke-width": 0.9 }));
     // A gatehouse is a BUILDING astride the wall, not two dots beside a hole: a block spanning the
     // opening, carried a little way out over the ditch and back into the yard, with a drum tower on
     // each of its outer corners and the passage through the middle.
@@ -524,6 +545,7 @@ export function renderCity(layout: CityLayout, lang: Lang = "en", opts: CityRend
       }
     }
     cg.appendChild(svgEl("rect", { class: "castle-gate", x: ca.gate[0] - 1.2 * S, y: ca.gate[1] - 1.2 * S, width: 2.4 * S, height: 2.4 * S, rx: 0.4, fill: "#efe7d2", stroke: CASTLE_STONE, "stroke-width": 0.7 }));
+    if (ca.innerGate) cg.appendChild(svgEl("rect", { class: "castle-gate castle-inner-gate", x: ca.innerGate[0] - 1.1 * S, y: ca.innerGate[1] - 1.1 * S, width: 2.2 * S, height: 2.2 * S, rx: 0.4, fill: "#efe7d2", stroke: CASTLE_STONE, "stroke-width": 0.7 }));
     if (ca.postern) cg.appendChild(svgEl("circle", { class: "castle-postern", cx: ca.postern[0], cy: ca.postern[1], r: 1.1 * S, fill: "#efe7d2", stroke: "#7a2f2f", "stroke-width": 0.6 }));
     // donjon: shadow + body + inner great-tower square + corner turrets (concentric-square, top-down)
     const kctr = avg(ca.keep);

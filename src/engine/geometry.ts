@@ -303,6 +303,45 @@ export function insetConvex(poly: Polygon, d: number): Polygon {
   return out;
 }
 
+/**
+ * The exact inward offset of a CONVEX polygon: every edge moved in by its own distance (one number
+ * for all of them, or one per edge, in the polygon's order), as the intersection of the half-planes
+ * those edges now bound. Where an offset swallows a short edge whole, that edge simply stops
+ * bounding anything — which is what `insetConvex`'s mitring cannot see, and why it falls back to a
+ * shrink toward the centroid whose sides are no longer parallel to the edges they came from
+ * (measured: a castle's curtain and enceinte, asked to stand 8 apart, came out 3.9 apart on one
+ * side). Empty when nothing is that far inside.
+ */
+export function insetEdges(poly: Polygon, d: number | number[]): Polygon {
+  const n = poly.length;
+  if (n < 3) return [];
+  const c = centroid(poly);
+  let out: Polygon = poly.slice();
+  for (let i = 0; i < n; i++) {
+    const a = poly[i], b = poly[(i + 1) % n];
+    const L = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    if (L < 1e-9) continue;
+    let nx = -(b[1] - a[1]) / L, ny = (b[0] - a[0]) / L;
+    if ((c[0] - a[0]) * nx + (c[1] - a[1]) * ny < 0) { nx = -nx; ny = -ny; } // point inward
+    const off = typeof d === "number" ? d : d[i] ?? 0;
+    const side = (p: Point) => (p[0] - a[0]) * nx + (p[1] - a[1]) * ny - off;
+    const next: Polygon = [];
+    for (let j = 0; j < out.length; j++) {
+      const cur = out[j], prev = out[(j + out.length - 1) % out.length];
+      const sc = side(cur), sp = side(prev);
+      if (sc >= 0) {
+        if (sp < 0) { const t = sp / (sp - sc); next.push([prev[0] + (cur[0] - prev[0]) * t, prev[1] + (cur[1] - prev[1]) * t]); }
+        next.push(cur);
+      } else if (sp >= 0) {
+        const t = sp / (sp - sc); next.push([prev[0] + (cur[0] - prev[0]) * t, prev[1] + (cur[1] - prev[1]) * t]);
+      }
+    }
+    out = next;
+    if (out.length < 3) return [];
+  }
+  return Math.abs(area(out)) < 1e-6 ? [] : out;
+}
+
 function shrinkToClear(poly: Polygon, d: number): Polygon {
   const c = centroid(poly);
   const at = (t: number): Polygon => poly.map((v) => [c[0] + (v[0] - c[0]) * t, c[1] + (v[1] - c[1]) * t] as Point);

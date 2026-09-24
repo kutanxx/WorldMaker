@@ -21,7 +21,7 @@ import type { WardType } from "./city/zoning";
 import { subdivide } from "./city/buildings";
 import { generateCountryside } from "./city/countryside";
 import type { Countryside } from "./city/countryside";
-import { makeCastle } from "./city/castle";
+import { makeCastle, castleLabelAt, deepest } from "./city/castle";
 import type { Castle } from "./city/castle";
 import type { CityMarker } from "../types/world";
 
@@ -118,6 +118,11 @@ const MOAT_ARCHETYPES = new Set(["coastalPort", "plainsMarket"]);
 // in three answers to a resident lord — often enough to be unremarkable, rare enough to mean something.
 const LORD_SEAT_MIN_SIZE = 3;
 const LORD_SEAT_ODDS = 1 / 3;
+// the castle's own rng stream, beside the lord-seat pick (+4300) and the mountain form pick (+4200)
+const CASTLE_SALT = 4500;
+// the depth of ward a great seat looks for: an outer curtain, a bailey behind it, and an enceinte
+// that still holds its donjon (a lesser seat's is zoning's own default)
+const GREAT_CASTLE_ROOM = 22;
 
 export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLayout {
   const rng: Rng = mulberry32(deriveSeed(worldSeed, ctx.id));
@@ -306,7 +311,9 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
       return d;
     },
     drowned: isDrowned,
-    walledArea: Math.abs(area(boundary)) });
+    walledArea: Math.abs(area(boundary)),
+    room: (poly) => { const cut = clipToConvex(boundary, poly); return cut.length >= 3 ? deepest(cut).depth : 0; },
+    castleRoom: ctx.isCapital || ctx.size >= 5 ? GREAT_CASTLE_ROOM : undefined });
 
   const parks: Polygon[] = [];
   const wards: Ward[] = zoned.map((z) => {
@@ -402,19 +409,34 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
     labels.push({ x: at[0], y: at[1], type: z.type, landmark: LANDMARKS.includes(z.type) });
   }
 
-  // the lord's castle: built from the zoned castle ward polygon, right after wards/labels
-  // and before features/extramural work (its rng draws are part of the main stream tail here).
+  // the lord's castle: built from the zoned castle ward polygon, right after wards/labels and before
+  // features/extramural work. It draws from a stream of its own (the mountain-pick convention), so
+  // how a castle is built can change without moving a single tree, hamlet or mill in the country.
   const castleWard = zoned.find((z) => z.type === "castle") ?? null;
-  const castle = castleWard ? makeCastle(rng, castleWard.polygon, [center[0], center[1]], boundary, ctx.size, ctx.isCapital) : null;
+  const castle = castleWard
+    ? makeCastle(mulberry32(deriveSeed(worldSeed, ctx.id + CASTLE_SALT)), castleWard.polygon, [center[0], center[1]], boundary, ctx.size, ctx.isCapital)
+    : null;
+
+  // Where the castle takes a stretch of the town's outline, that stretch is its wall and carries its
+  // towers: the town's own towers on it stood beside the castle's in pairs.
+  if (castle) {
+    const rings = [castle.innerWall, ...(castle.outerWall ? [castle.outerWall] : [])];
+    const onCastle = (p: Point) => rings.some((r) => {
+      for (let i = 0; i < r.length; i++) if (pointSegDist(p, r[i], r[(i + 1) % r.length]) < 2) return true;
+      return false;
+    });
+    wall.towers = wall.towers.filter((t) => !onCastle(t));
+  }
 
   // Every ward is named at its own centre, which for a castle is the donjon: the word "Castle" was
-  // laid straight across the keep, the halls and the gatehouse of the thing it was naming. So the
-  // castle's name steps off the enceinte toward the town — the side its gate faces, and the side
-  // where the ward still has open ground, since the seat itself stands against the wall. A great
-  // seat whose yard fills its ward finds nowhere to stand and keeps the middle.
+  // laid straight across the keep, the halls and the gatehouse of the thing it was naming. The name
+  // takes the most open ground the castle has, its yard first (see castleLabelAt).
   if (castle && castleWard) {
     const lab = labels.find((l) => l.type === "castle");
-    if (lab) {
+    const cut = clipToConvex(boundary, castleWard.polygon);
+    const at = lab ? castleLabelAt(castle, cut.length >= 3 ? cut : castleWard.polygon, (p) => inWater(water, p)) : null;
+    if (lab && at) { lab.x = at[0]; lab.y = at[1]; }
+    else if (lab) {
       const yc = centroid(castle.innerWall);
       const dx = center[0] - yc[0], dy = center[1] - yc[1];
       const m = Math.hypot(dx, dy) || 1;

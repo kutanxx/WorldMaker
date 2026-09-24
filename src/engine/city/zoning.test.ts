@@ -90,6 +90,23 @@ describe("zoning.assignZones", () => {
       expect(dCastle).toBeLessThanOrEqual(Math.hypot(w.site[0] - anchor[0], w.site[1] - anchor[1]) + 1e-6);
     }
   });
+  it("passes over a sliver for a ward nearby with room for a yard", () => {
+    const wards = ringWards(14);
+    const anchor: Point = [40, 150];
+    const dry = () => false;
+    const nearest = assignZones(mulberry32(5), wards, [150, 150], 100, { hasCastle: true, coastal: false, castleAnchor: anchor, wet: dry })
+      .find((w) => w.type === "castle")!;
+    // the nearest ward is a sliver; every other has room
+    const room = (poly: Point[]) => (poly === nearest.polygon ? 4 : 30);
+    const chosen = assignZones(mulberry32(5), wards, [150, 150], 100, { hasCastle: true, coastal: false, castleAnchor: anchor, wet: dry, room })
+      .find((w) => w.type === "castle")!;
+    expect(chosen.polygon).not.toBe(nearest.polygon);
+    // ...but not for one across the town: it stays within reach of the anchor
+    const far = (poly: Point[]) => (Math.hypot(poly[0][0] - anchor[0], poly[0][1] - anchor[1]) > 150 ? 30 : 4);
+    const stays = assignZones(mulberry32(5), wards, [150, 150], 100, { hasCastle: true, coastal: false, castleAnchor: anchor, wet: dry, room: far })
+      .find((w) => w.type === "castle")!;
+    expect(stays.polygon).toBe(nearest.polygon);
+  });
   it("reserves a castle even when there are fewer wards than civic slots", () => {
     const rng = mulberry32(2);
     const cells = ringWards(14).slice(0, 3);

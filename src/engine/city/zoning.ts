@@ -8,6 +8,12 @@ export type WardType =
   | "market" | "merchant" | "patriciate" | "craftsmen"
   | "gate" | "slum" | "harbor" | "military" | "park";
 
+// A castle's ward needs this much depth (units from its deepest point to its edge) to hold a yard
+// with a donjon in it — the depth a size-4 seat's enceinte asks for, with its set-back — and the
+// lord will walk this much further from his anchor to find it.
+const CASTLE_ROOM = 16;
+const CASTLE_REACH = 40;
+
 export interface ZonedWard {
   polygon: Polygon;
   site: Point;
@@ -43,7 +49,14 @@ export function assignZones(
     // the area inside the wall, which is what a reader sees. Wards run past the wall (the mesh is
     // laid to the town's reach and the plate clips it), so their own total is the wrong yardstick
     // for "how much of this town is parkland".
-    walledArea?: number }
+    walledArea?: number;
+    // how much room a ward has for a castle: the depth of the deepest point of the ward as the plate
+    // draws it (cut to the wall). The seat used to go to the nearest dry ward to its anchor, whatever
+    // its shape, and 14 of 125 castles were built in slivers — an enceinte half as round as a
+    // square, a donjon squeezed into one end of it.
+    room?: (poly: Polygon) => number;
+    // the depth this lord's castle asks for; a great seat's two rings need more than a manor's one
+    castleRoom?: number }
 ): ZonedWard[] {
   if (wards.length === 0) return [];
   const ranked = wards
@@ -121,13 +134,26 @@ export function assignZones(
       // keep sits on the high ground: swap the ward nearest the anchor into the castle slot
       let bi = idx, bd = Infinity;        // nearest of any ward
       let dry = -1, dryD = Infinity;      // nearest ward standing clear of the water
+      const dryOnes: { j: number; d: number }[] = [];
       for (let j = idx; j < out.length; j++) {
         if (out[j] === harborWard) continue; // don't consume the harbor ward
         const d = Math.hypot(out[j].site[0] - anchor[0], out[j].site[1] - anchor[1]);
         if (d < bd) { bd = d; bi = j; }
-        if (opts.wet && !opts.wet(out[j].polygon) && d < dryD) { dryD = d; dry = j; }
+        if (opts.wet && !opts.wet(out[j].polygon)) {
+          dryOnes.push({ j, d });
+          if (d < dryD) { dryD = d; dry = j; }
+        }
       }
       if (dry >= 0) bi = dry;
+      // ...and a lord passes over a sliver for a ward nearby with room for a yard: the nearest dry
+      // ward that has CASTLE_ROOM of depth, if one stands within CASTLE_REACH further than the
+      // nearest. No rng — the same wards are ranked the same way every time.
+      const wanted = opts.castleRoom ?? CASTLE_ROOM;
+      if (opts.room && dry >= 0 && opts.room(out[dry].polygon) < wanted) {
+        const roomy = dryOnes.sort((a, b) => a.d - b.d)
+          .find((c) => c.d <= dryD + CASTLE_REACH && opts.room!(out[c.j].polygon) >= wanted);
+        if (roomy) bi = roomy.j;
+      }
       if (bi !== idx) { const t = out[idx]; out[idx] = out[bi]; out[bi] = t; }
     }
     setType("castle");

@@ -497,6 +497,15 @@ describe("the castle is the heaviest masonry on the plate", () => {
     }
   });
 
+  // It was drawn through the town's clip, which is what cut enceintes open and took keeps away; it
+  // is built inside the town now and drawn whole, with its court paler than the grounds around it.
+  it("draws the castle whole, not through the town's clip, around a court of its own", () => {
+    const svg = plate(6, true);
+    const g = svg.querySelector(".castle-inner")!;
+    expect(g.hasAttribute("clip-path")).toBe(false);
+    expect(g.querySelector(".castle-yard")?.getAttribute("points")).toBe(g.querySelector(".castle-wall")?.getAttribute("points"));
+  });
+
   it("draws the gatehouse as a building, not two dots", () => {
     const great = plate(6, true);
     expect(great.querySelector(".castle-gatehouse-block")).not.toBeNull();
