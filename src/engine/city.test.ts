@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { generateCityLayout, cityContext } from "./city";
 import { centroid, area, pointInPolygon, polysOverlap, polygonSelfIntersects, pointSegDist, bbox, segmentsIntersect } from "./geometry";
-import { inWater } from "./city/water";
+import { inWater, overlapsWater } from "./city/water";
 import { inMountains } from "./city/mountain";
 import { GRASSLAND } from "./biome";
 import type { CityMarker } from "../types/world";
@@ -1520,6 +1520,144 @@ describe("everything a plate draws stands where it belongs", () => {
     expect(wetEnds).toBeLessThanOrEqual(2);
   });
 
+  // ---- nothing a plate draws lies on anything else, as it is drawn (the widths are the renderer's)
+  type P = [number, number];
+  // how near a polygon comes to a line (0 where the line enters or crosses it)
+  const nearLine = (poly: P[], line: P[]) => {
+    let d = Infinity;
+    for (let i = 0; i + 1 < line.length; i++) {
+      if (pointInPolygon(line[i], poly) || pointInPolygon(line[i + 1], poly)) return 0;
+      for (let j = 0; j < poly.length; j++) {
+        const a = poly[j], b = poly[(j + 1) % poly.length];
+        if (segmentsIntersect(line[i], line[i + 1], a, b)) return 0;
+        d = Math.min(d, pointSegDist(a, line[i], line[i + 1]), pointSegDist(line[i], a, b), pointSegDist(line[i + 1], a, b));
+      }
+    }
+    return d;
+  };
+  const disc = (c: P, r: number): P[] => Array.from({ length: 12 }, (_, i) => [c[0] + Math.cos((i / 12) * Math.PI * 2) * r, c[1] + Math.sin((i / 12) * Math.PI * 2) * r] as P);
+  const box = (c: P, hw: number, hh: number): P[] => [[c[0] - hw, c[1] - hh], [c[0] + hw, c[1] - hh], [c[0] + hw, c[1] + hh], [c[0] - hw, c[1] + hh]];
+
+  it("keeps a castle's walls off every street drawn round it", () => {
+    let castles = 0;
+    for (const { where, l } of towns()) {
+      const ca = l.castle;
+      if (!ca) continue;
+      castles++;
+      // a main street is drawn 4.6 wide and a lane 2.6; the enceinte 4.4 and the outer curtain 3.4
+      for (const [ring, half] of [[ca.innerWall, 2.2], ...(ca.outerWall ? [[ca.outerWall, 1.7]] : [])] as [P[], number][]) {
+        for (const r of l.mainRoads) expect(nearLine(ring, r as P[]), `a main street on the castle's wall at ${where}`).toBeGreaterThanOrEqual(2.3 + half);
+        for (const r of l.minorRoads) expect(nearLine(ring, r as P[]), `a lane on the castle's wall at ${where}`).toBeGreaterThanOrEqual(1.3 + half);
+      }
+    }
+    expect(castles).toBeGreaterThan(100);
+  });
+
+  it("opens no town gate into a castle, and stands no castle tower on one", () => {
+    for (const { where, l } of towns()) {
+      const ca = l.castle;
+      if (!ca || !l.wall) continue;
+      const TS = Math.pow(ca.scale, 0.7);
+      for (const g of l.wall.gates) for (const ring of [ca.innerWall, ...(ca.outerWall ? [ca.outerWall] : [])] as P[][]) {
+        expect(pointInPolygon(g, ring), `a town gate inside the castle at ${where}`).toBe(false);
+        // the gate block is 6 wide; a castle tower is drawn 2.8 across the radius, in the castle's units
+        for (const t of ring) expect(Math.hypot(t[0] - g[0], t[1] - g[1]), `a castle tower on a town gate at ${where}`).toBeGreaterThanOrEqual(3 + 2.8 * TS);
+      }
+    }
+  });
+
+  it("keeps the quay's warehouses off the castle", () => {
+    for (const { where, l } of towns()) {
+      if (!l.castle || !l.harbor) continue;
+      const walls = (l.castle.outerWall ?? l.castle.innerWall) as P[];
+      for (const wf of l.harbor.wharves) expect(polysOverlap(wf as P[], walls), `a warehouse on the castle at ${where}`).toBe(false);
+    }
+  });
+
+  it("stands the gate hamlet's houses on dry ground, off the rock and clear of the barbican", () => {
+    let houses = 0;
+    for (const { where, l } of towns()) {
+      const towers = l.barbicans.flatMap((b) => b.towers.map((t) => disc(t as P, 2.6)));
+      for (const h of l.suburbs as P[][]) {
+        houses++;
+        expect(overlapsWater(l.water, h), `a gate house in the water at ${where}`).toBe(false);
+        expect(h.some((q) => inMountains(l.mountains, q)), `a gate house on the rock at ${where}`).toBe(false);
+        expect(towers.some((t) => polysOverlap(h, t)), `a gate house under the barbican at ${where}`).toBe(false);
+      }
+    }
+    expect(houses).toBeGreaterThan(1000);
+  });
+
+  it("stands a farm's buildings off the road out of town", () => {
+    let farms = 0;
+    for (const { where, l } of towns()) for (const f of l.countryside.farmsteads) {
+      farms++;
+      // the road is drawn 1.6 wide
+      for (const b of [f.house, f.barn] as P[][]) for (const r of l.suburbRoads) expect(nearLine(b, r as P[]), `a farm building on the road at ${where}`).toBeGreaterThanOrEqual(0.8);
+    }
+    expect(farms).toBeGreaterThan(300);
+  });
+
+  it("stands what is built out in the country on ground of its own", () => {
+    let things = 0;
+    for (const { where, l } of towns()) {
+      // each as big as it is drawn
+      const built: [string, P[]][] = [];
+      if (l.abbey) built.push(["the abbey", disc(l.abbey.at as P, 8.5)]);
+      if (l.cemetery) built.push(["the cemetery", box(l.cemetery.at as P, 6, 6.5)]);
+      if (l.leperHouse) built.push(["the lazar house", disc(l.leperHouse.at as P, 7.8)]);
+      if (l.fairground) built.push(["the fair", disc(l.fairground.at as P, 9)]);
+      if (l.gallows) built.push(["the gallows", box([l.gallows[0] + 2.5, l.gallows[1] - 1], 3, 5)]);
+      for (const o of l.outworks) built.push([`a ${o.type}`, disc(o.at as P, o.type === "windmill" ? 4 : 3.2)]);
+      for (const p of l.inns) built.push(["an inn", box([p[0] + 1.4, p[1] - 0.3], 4.4, 2.8)]);
+      for (const t of l.riversideTrades) built.push([`a ${t.kind}`, box(t.at as P, 2, 1.6)]);
+      const cs = l.countryside;
+      const ground: [string, P[]][] = [
+        ...cs.fields.map((f) => ["a field", f.polygon] as [string, P[]]),
+        ...cs.pastures.map((p) => ["a pasture", p.fence] as [string, P[]]),
+        ...cs.orchards.map((o) => ["an orchard", o.polygon] as [string, P[]]),
+        ...cs.gardens.map((g) => ["a garden", g] as [string, P[]]),
+        ...cs.villages.flatMap((v) => [["a hamlet's green", v.green] as [string, P[]], ...v.houses.map((h) => ["a cottage", h] as [string, P[]])]),
+        ...cs.farmsteads.flatMap((f) => [["a farmhouse", f.house] as [string, P[]], ["a barn", f.barn] as [string, P[]]]),
+        ...(l.suburbs as P[][]).map((h) => ["a gate house", h] as [string, P[]]),
+      ];
+      for (let i = 0; i < built.length; i++) {
+        things++;
+        const [what, fp] = built[i];
+        for (const [on, g] of ground) expect(polysOverlap(fp, g), `${what} on ${on} at ${where}`).toBe(false);
+        for (const r of l.suburbRoads) expect(nearLine(fp, r as P[]), `${what} on a road out of town at ${where}`).toBeGreaterThanOrEqual(0.8);
+        for (let j = i + 1; j < built.length; j++) expect(polysOverlap(fp, built[j][1]), `${what} on ${built[j][0]} at ${where}`).toBe(false);
+      }
+    }
+    expect(things).toBeGreaterThan(2000);
+  });
+
+  it("keeps the trees and the parish steeples off the great buildings, the square and the castle", () => {
+    for (const { where, l } of towns()) {
+      const great = l.landmarks.map((m) => m.outline as P[]);
+      const plaza = l.wards.find((w) => w.type === "plaza")?.polygon as P[] | undefined;
+      const castle = l.castle ? (l.castle.outerWall ?? l.castle.innerWall) as P[] : null;
+      for (const t of l.features.trees as P[]) {
+        for (const g of great) expect(pointInPolygon(t, g) || edgeDist(t, g) < 2.2, `a tree on a great building at ${where}`).toBe(false);
+        if (plaza) expect(pointInPolygon(t, plaza), `a tree on the market square at ${where}`).toBe(false);
+        if (castle) expect(pointInPolygon(t, castle), `a tree in the castle at ${where}`).toBe(false);
+      }
+      for (const p of l.parishChurches as P[]) {
+        for (const g of great) expect(pointInPolygon(p, g) || edgeDist(p, g) < 3, `a steeple on a great building at ${where}`).toBe(false);
+        // the steeple is drawn 6 tall; a street's centre line stays off it
+        for (const r of [...l.mainRoads, ...l.minorRoads] as P[][]) for (let i = 0; i + 1 < r.length; i++)
+          expect(pointSegDist(p, r[i], r[i + 1]), `a steeple in the street at ${where}`).toBeGreaterThanOrEqual(2);
+      }
+    }
+  });
+
+  it("stands no wall tower on a gate", () => {
+    for (const { where, l } of towns()) {
+      if (!l.wall) continue;
+      for (const g of l.wall.gates) for (const t of l.wall.towers) expect(Math.hypot(t[0] - g[0], t[1] - g[1]), `a tower on a gate at ${where}`).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+
   it("spaces the towers along a wall", () => {
     for (const { where, l } of towns()) {
       if (!l.wall) continue;
@@ -1591,6 +1729,11 @@ describe("a town in one world is not a copy of a town in another", () => {
 // And for the river mouths: the 22 ports where the world's river reaches the sea draw it now, and a lot
 // the shore runs through is cut again into waterfront plots — 69 plates moved (35 river towns, 31 ports,
 // a lake town and 2 oasis towns); 267 hold.
+//
+// And for nothing lying on anything else: every plate moved — each thing drawn out in the country has
+// a footprint the size it is drawn and the country is laid round them (every plate's rejection sampling
+// moved), the gate hamlet makes way for the barbican and keeps out of the water, and a castle stands
+// off the streets as they are drawn, on a ward no town gate opens into (122 castles).
 describe("a plate is the same plate, byte for byte", () => {
   const fold = (h: number, c: number) => Math.imul(h ^ c, 16777619) >>> 0;
   const fnv = (s: string) => { let h = 2166136261 >>> 0; for (let i = 0; i < s.length; i++) h = fold(h, s.charCodeAt(i)); return h >>> 0; };
@@ -1601,9 +1744,9 @@ describe("a plate is the same plate, byte for byte", () => {
     return { h, n };
   };
   it("draws seed 1's twenty-eight towns exactly as it did", () => {
-    expect(worldHash(1)).toEqual({ h: 2344518269, n: 28 });
+    expect(worldHash(1)).toEqual({ h: 1593100724, n: 28 });
   });
   it("draws seed 12's twenty-eight towns exactly as it did", () => {
-    expect(worldHash(12)).toEqual({ h: 3941486733, n: 28 });
+    expect(worldHash(12)).toEqual({ h: 1871962794, n: 28 });
   });
 });

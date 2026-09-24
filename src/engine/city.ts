@@ -216,7 +216,16 @@ const PLATE_KEY = 0x5ca1e;
 const plateSeed = (worldSeed: number, stream: number) => deriveSeed(deriveSeed(worldSeed, PLATE_KEY), stream);
 // the depth of ward a great seat looks for: an outer curtain, a bailey behind it, and an enceinte
 // that still holds its donjon (a lesser seat's is zoning's own default)
-const GREAT_CASTLE_ROOM = 22;
+const GREAT_CASTLE_ROOM = 26;
+// A great seat will look this much further from its anchor than the nearest dry ward for the room its
+// two rings need. Its anchor is only a stretch of wall — a random one inland, the one farthest from the
+// sea on a coast — and at zoning's own 40 a capital whose nearby wards were gate wards or slivers lost
+// its outer curtain (69 of 96 great seats had one, against 81 at 100). A seat anchored to a mountain
+// keeps to its high ground.
+const GREAT_CASTLE_REACH = 100;
+// a castle's ward keeps a town gate this far off its own stretch of wall: the gate block is 6 wide and
+// the castle's corner tower stands on the wall beside it (at 0.5, 5 towers stood on gates)
+const CASTLE_GATE_GAP = 3;
 
 export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLayout {
   const rng: Rng = mulberry32(plateSeed(worldSeed, ctx.id));
@@ -417,7 +426,17 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
     drowned: isDrowned,
     walledArea: Math.abs(area(boundary)),
     room: (poly) => { const cut = clipToConvex(boundary, poly); return cut.length >= 3 ? deepest(cut).depth : 0; },
-    castleRoom: ctx.isCapital || ctx.size >= 5 ? GREAT_CASTLE_ROOM : undefined });
+    castleRoom: ctx.isCapital || ctx.size >= 5 ? GREAT_CASTLE_ROOM : undefined,
+    castleReach: (ctx.isCapital || ctx.size >= 5) && !mountains.length ? GREAT_CASTLE_REACH : undefined,
+    atWall: (poly) => poly.some((q) => !pointInPolygon(q, boundary)),
+    // (measured to the ward as the town has it, cut to the wall: the whole cell ran on outside the wall
+    // and across the streets round it, and a gate on a neighbour's stretch took great seats off the
+    // ground they were built for — 18 of them lost their second ring for it)
+    castleOk: (poly) => {
+      const cut = clipToConvex(boundary, poly);
+      const own = cut.length >= 3 ? cut : poly;
+      return !wall.gates.some((g) => pointInPolygon(g, own) || own.some((_, i) => pointSegDist(g, own[i], own[(i + 1) % own.length]) < CASTLE_GATE_GAP));
+    } });
 
   // ★ The town's buildings draw from a stream of their own, so how a block is built can change
   // without moving a single tree, hamlet or mill in the country around it (the castle's convention).
@@ -615,7 +634,8 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
   // how a castle is built can change without moving a single tree, hamlet or mill in the country.
   const castleWard = zoned.find((z) => z.type === "castle") ?? null;
   const castle = castleWard
-    ? makeCastle(mulberry32(plateSeed(worldSeed, ctx.id + CASTLE_SALT)), castleWard.polygon, [center[0], center[1]], boundary, ctx.size, ctx.isCapital)
+    ? makeCastle(mulberry32(plateSeed(worldSeed, ctx.id + CASTLE_SALT)), castleWard.polygon, [center[0], center[1]], boundary, ctx.size, ctx.isCapital,
+      { main: mainRoads, minor: minorRoads })
     : null;
 
   // Where the castle takes a stretch of the town's outline, that stretch is its wall and carries its
@@ -683,6 +703,29 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
     for (const r of allRoads) for (const q of r) if (Math.hypot(q[0] - p[0], q[1] - p[1]) < 3.5) return true;
     return false;
   };
+  // A tree is drawn 2.2 across the radius: its middle outside a house or off a road's centre line is
+  // not enough. And it keeps off what a town keeps open or builds large — the market square, the
+  // cathedral, the guild hall, the castle — where a forest town's trees stood on 65, 42, 36 and 32
+  // plates of twelve worlds.
+  const TREE_R = 2.2;
+  const keepOff: Polygon[] = [
+    ...landmarks.map((m) => m.outline),
+    ...(castle ? [castle.outerWall ?? castle.innerWall] : []),
+    ...zoned.filter((z) => z.type === "plaza").map((z) => z.polygon),
+  ];
+  // a point on (or within r of) any of a set of shapes; each shape's box is taken once per set
+  const boxesOf = new WeakMap<Polygon[], ReturnType<typeof bbox>[]>();
+  const onShape = (p: Point, shapes: Polygon[], r: number) => {
+    let boxes = boxesOf.get(shapes);
+    if (!boxes || boxes.length !== shapes.length) { boxes = shapes.map(bbox); boxesOf.set(shapes, boxes); }
+    return shapes.some((sh, k) => {
+      const b = boxes![k];
+      if (p[0] < b.minX - r || p[0] > b.maxX + r || p[1] < b.minY - r || p[1] > b.maxY + r) return false;
+      if (pointInPolygon(p, sh)) return true;
+      for (let i = 0; i < sh.length; i++) if (pointSegDist(p, sh[i], sh[(i + 1) % sh.length]) < r) return true;
+      return false;
+    });
+  };
   const scatterTrees = (n: number): Point[] => {
     const out: Point[] = [];
     const bb = bbox(boundary);
@@ -691,7 +734,8 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
       tries++;
       const p: Point = [bb.minX + rng() * (bb.maxX - bb.minX), bb.minY + rng() * (bb.maxY - bb.minY)];
       if (!pointInPolygon(p, boundary) || inWater(water, p) || nearRoad(p)) continue;
-      if (allBuildings.some((b) => pointInPolygon(p, b))) continue;
+      if (roadSegs.some((sg) => pointSegDist(p, sg.a, sg.c) < sg.clear + TREE_R)) continue;
+      if (onShape(p, allBuildings, TREE_R) || onShape(p, keepOff, TREE_R + 0.5)) continue;
       if (out.some((t) => Math.hypot(t[0] - p[0], t[1] - p[1]) < 6)) continue;
       out.push(p);
     }
@@ -738,12 +782,16 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
         // half-diagonal (~3.2) plus the moat's half stroke so no corner touches the water line
         if (moat && moat.some((seg) => { for (let si = 0; si < seg.length - 1; si++) if (pointSegDist([cx, cy], seg[si], seg[si + 1]) < 6) return true; return false; })) continue;
         const hw = 2.5, hh = 2;
-        suburbs.push([
+        const house: Polygon = [
           [cx - ux * hw - nx * hh, cy - uy * hw - ny * hh],
           [cx + ux * hw - nx * hh, cy + uy * hw - ny * hh],
           [cx + ux * hw + nx * hh, cy + uy * hw + ny * hh],
           [cx - ux * hw + nx * hh, cy - uy * hw + ny * hh],
-        ]);
+        ];
+        // the whole house, not its middle: a gate house stood with a corner in the river on 10 plates
+        // of twelve worlds, and on the mountain's rock on 7
+        if (house.some((q) => pointInPolygon(q, boundary) || inMountains(mountains, q) || !inCanvas(q)) || overlapsWater(water, house)) continue;
+        suburbs.push(house);
       }
     }
   }
@@ -763,11 +811,40 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
     Array.from({ length: 16 }, (_, k) => [bounds.w - 32 + Math.cos((k / 16) * Math.PI * 2) * 27, bounds.h - 35 + Math.sin((k / 16) * Math.PI * 2) * 27] as Point),
     [[10, bounds.h - 38], [122, bounds.h - 38], [122, bounds.h], [10, bounds.h]],
   ];
-  const underFurniture = (p: Point, pad = 0) => furniture.some((f) => {
+  const furnitureBoxes = furniture.map(bbox);
+  const underFurniture = (p: Point, pad = 0) => furniture.some((f, i) => {
+    const b = furnitureBoxes[i];   // (nowhere near its box: neither under it nor within pad of it)
+    if (p[0] < b.minX - pad || p[0] > b.maxX + pad || p[1] < b.minY - pad || p[1] > b.maxY + pad) return false;
     if (pointInPolygon(p, f)) return true;
     if (pad > 0) for (let i = 0; i < f.length; i++) if (pointSegDist(p, f[i], f[(i + 1) % f.length]) < pad) return true;
     return false;
   });
+
+  // ★ Everything drawn out in the country stands on ground of its own. Each piece was placed by its
+  // middle alone — kept off the town, the water and the other pieces' middles — so its drawing lay
+  // across a road out of town, a gate house or a field: over twelve worlds an inn stood on the gate
+  // hamlet on 377 plates and on its road on 174, and some 150 abbeys, cemeteries, gallows, lazar
+  // houses, fairs and mills lay on a road or a field. Each now has a footprint the size it is drawn,
+  // placed only where that footprint is clear, and the fields are laid round the footprints exactly.
+  const drawnOut: Polygon[] = [...suburbs];
+  const disc = (c: Point, r: number): Polygon => Array.from({ length: 12 }, (_, i) => [c[0] + Math.cos((i / 12) * Math.PI * 2) * r, c[1] + Math.sin((i / 12) * Math.PI * 2) * r] as Point);
+  const box = (c: Point, hw: number, hh: number): Polygon => [[c[0] - hw, c[1] - hh], [c[0] + hw, c[1] - hh], [c[0] + hw, c[1] + hh], [c[0] - hw, c[1] + hh]];
+  const nearLine = (fp: Polygon, line: Polyline, d: number) => {
+    for (let i = 0; i < line.length - 1; i++) {
+      const a = line[i], b = line[i + 1];
+      if (pointInPolygon(a, fp) || pointInPolygon(b, fp)) return true;
+      for (let j = 0; j < fp.length; j++) {
+        const q = fp[j], r = fp[(j + 1) % fp.length];
+        if (segmentsIntersect(a, b, q, r) || pointSegDist(q, a, b) < d) return true;
+      }
+    }
+    return false;
+  };
+  const standsClear = (fp: Polygon) =>
+    fp.every((q) => inCanvas(q) && !pointInPolygon(q, boundary) && !inMountains(mountains, q) && !underFurniture(q))
+    && !overlapsWater(water, fp)
+    && !drawnOut.some((o) => polysOverlap(fp, o))
+    && !suburbRoads.some((r) => nearLine(fp, r, 1.5));
 
   const outworks: Outwork[] = [];
   const nearWater = (p: Point) =>
@@ -787,7 +864,7 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
   for (let tries = 0; tries < 80 && outworks.length === 0; tries++) {
     const p: Point = [3 + rng() * (bounds.w - 6), 3 + rng() * (bounds.h - 6)];
     if (pointInPolygon(p, boundary) || inWater(water, p) || inMountains(mountains, p) || !inCanvas(p) || underFurniture(p, 6)) continue;
-    if (nearWater(p)) { const r = raceEnd(p); outworks.push({ type: "watermill", at: p, angle: rng() * Math.PI * 2, race: r ? [p, r] : undefined }); }
+    if (nearWater(p) && standsClear(disc(p, 3.2))) { const r = raceEnd(p); outworks.push({ type: "watermill", at: p, angle: rng() * Math.PI * 2, race: r ? [p, r] : undefined }); drawnOut.push(disc(p, 3.2)); }
   }
   // windmill on exposed high ground: phase 0 insists on open country well past the wall,
   // phase 1 falls back to any valid spot so a cramped canvas still yields a mill
@@ -797,12 +874,17 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
       if (pointInPolygon(p, boundary) || inWater(water, p) || inMountains(mountains, p) || !inCanvas(p) || underFurniture(p, 6)) continue;
       if (suburbs.some((b) => { const c = centroid(b); return Math.hypot(c[0] - p[0], c[1] - p[1]) < 10; })) continue;
       if (phase === 0 && Math.hypot(p[0] - center[0], p[1] - center[1]) < radius + 22) continue; // exposed, on a rise
+      if (!standsClear(disc(p, 4.5))) continue;              // its sails turn 4 out
       outworks.push({ type: "windmill", at: p, angle: rng() * Math.PI * 2 });
+      drawnOut.push(disc(p, 4.5));
     }
   }
 
   // harbor: generated LAST of the intramural/water features (its rng draws don't perturb the layout above); sea cities only
   const harbor = makeHarbor(rng, seaOnly, boundary, [center[0], center[1]]);
+  // The quay is the whole seaward run of the wall and its warehouses line all of it, so where the
+  // castle stands on that run a warehouse stood on the castle; the lord's stretch has none.
+  if (harbor && castleWard) harbor.wharves = harbor.wharves.filter((wf) => !polysOverlap(wf, castleWard.polygon));
   // the wharves ARE the dockside warehouses; drop any intramural house they cover so the quay
   // buildings don't visually overlap the town blocks (user-reported "buildings overlapping").
   if (harbor && harbor.wharves.length) {
@@ -815,32 +897,36 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
   // extramural landmarks: an empty spot OUTSIDE the wall (not in the town/water/mountains, in the
   // canvas margin, clear of suburbs/mills). Generated after the harbor so coastal layouts are unchanged.
   const occupied: Point[] = [...suburbs.map((b) => centroid(b)), ...outworks.map((o) => o.at)];
-  const findSpot = (minGap: number): Point | null => {
+  // (the footprint each is drawn to: the abbey's spire reaches 11 from its middle, a fair's green 9)
+  const findSpot = (minGap: number, footprint: (p: Point) => Polygon): Point | null => {
     for (let tries = 0; tries < 120; tries++) {
       const p: Point = [3 + rng() * (bounds.w - 6), 3 + rng() * (bounds.h - 6)];
       if (pointInPolygon(p, boundary) || inWater(water, p) || inMountains(mountains, p) || !inCanvas(p) || underFurniture(p, 10)) continue;
       if (occupied.some((c) => Math.hypot(c[0] - p[0], c[1] - p[1]) < minGap)) continue;
+      const fp = footprint(p);
+      if (!standsClear(fp)) continue;
       occupied.push(p);
+      drawnOut.push(fp);
       return p;
     }
     return null;
   };
   let abbey: Abbey | null = null;
-  if (ctx.size >= 3) { const s = findSpot(20); if (s) abbey = { at: s, angle: rng() * Math.PI * 2 }; }
+  if (ctx.size >= 3) { const s = findSpot(20, (p) => disc(p, 11)); if (s) abbey = { at: s, angle: rng() * Math.PI * 2 }; }
   let cemetery: Cemetery | null = null;
-  { const s = findSpot(13); if (s) { const graves: Point[] = []; for (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++) graves.push([s[0] + (c - 1) * 3, s[1] + (r - 1) * 3.2]); cemetery = { at: s, graves }; } }
-  const gallows: Point | null = ctx.size >= 2 ? findSpot(10) : null;
+  { const s = findSpot(13, (p) => box(p, 6.2, 6.7)); if (s) { const graves: Point[] = []; for (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++) graves.push([s[0] + (c - 1) * 3, s[1] + (r - 1) * 3.2]); cemetery = { at: s, graves }; } }
+  const gallows: Point | null = ctx.size >= 2 ? findSpot(10, (p) => box([p[0] + 2.5, p[1] - 1], 3.2, 5.6)) : null;
 
   // leper house (lazar house): a chapel + a couple of huts kept OUTSIDE the town at a distance
   // (research: leprosaria were sited beyond the walls, along a road, to isolate the afflicted).
   let leperHouse: { at: Point; angle: number } | null = null;
-  if (ctx.size >= 2) { const s = findSpot(16); if (s) leperHouse = { at: s, angle: rng() * Math.PI * 2 }; }
+  if (ctx.size >= 2) { const s = findSpot(16, (p) => disc(p, 8)); if (s) leperHouse = { at: s, angle: rng() * Math.PI * 2 }; }
 
   // fairground: an open green outside the walls where the periodic fair sets up its stall rows
   // (research: fairs were held on commons/fields beyond the gates, not inside the market square).
   let fairground: { at: Point; angle: number; stalls: Polygon[] } | null = null;
   if (ctx.size >= 3) {
-    const s = findSpot(20);
+    const s = findSpot(20, (p) => disc(p, 9.5));
     if (s) {
       const angle = rng() * Math.PI * 2;
       const ux = Math.cos(angle), uy = Math.sin(angle), nx = -uy, ny = ux;
@@ -864,6 +950,7 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
   // happened to fall — 52 parish churches in the river and 18 on a street over twelve worlds, a
   // market cross and three wells on a road through the square.
   const roadDist = (p: Point) => { let d = Infinity; for (const sg of roadSegs) d = Math.min(d, pointSegDist(p, sg.a, sg.c) - sg.clear); return d; };
+  const landmarkOutlines = landmarks.map((m) => m.outline);
   const openSpot = (poly: Polygon, prefer: Point, clear: number): Point | null => {
     // the grid's points nearest first (a stable sort, so a tie keeps its place in the scan), and the
     // first that is open ground is the answer — the nearest, found without testing the rest
@@ -871,7 +958,11 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
     const pts: { q: Point; d: number }[] = [];
     for (let y = b.minY + 1.25; y < b.maxY; y += 2.5) for (let x = b.minX + 1.25; x < b.maxX; x += 2.5) pts.push({ q: [x, y], d: Math.hypot(x - prefer[0], y - prefer[1]) });
     pts.sort((u, v) => u.d - v.d);
-    for (const { q } of pts) if (pointInPolygon(q, poly) && inTown(q) && !inWater(water, q) && roadDist(q) >= clear) return q;
+    // ...and a sign stands off the great buildings and the trees (a parish cross stood on the guild
+    // hall on 62 plates of twelve worlds: the hall is built at the middle of its ward, the ward's
+    // own site, which is where a parish church was looked for first)
+    const open = (q: Point) => !onShape(q, landmarkOutlines, 3.5) && !features.trees.some((t) => Math.hypot(t[0] - q[0], t[1] - q[1]) < 4);
+    for (const { q } of pts) if (pointInPolygon(q, poly) && inTown(q) && !inWater(water, q) && roadDist(q) >= clear && open(q)) return q;
     return null;
   };
 
@@ -885,7 +976,10 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
     for (let k = 0; k < want; k++) {
       const idx = Math.floor(rng() * pool.length);
       const z = pool.splice(idx, 1)[0];
-      const at = openSpot(z.polygon, z.site, 3.5) ?? (inTown(z.site) && !inWater(water, z.site) ? z.site : null);
+      // (the ward's own site, where nothing is open, still stands off the streets: taken as it was,
+      // a steeple stood in the road on 3 plates of twelve worlds)
+      const at = openSpot(z.polygon, z.site, 3.5)
+        ?? (inTown(z.site) && !inWater(water, z.site) && roadDist(z.site) >= 3.5 && !onShape(z.site, landmarkOutlines, 3.5) ? z.site : null);
       if (at) parishChurches.push(at);   // a ward with no dry open ground has no church to show
     }
   }
@@ -911,12 +1005,25 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
     for (let k = 0; k < want; k++) {
       const road = suburbRoads[k];
       if (road.length < 2) continue;
-      const a = road[0], b = road[1];
-      const dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy) || 1;
-      const ux = dx / L, uy = dy / L, nx = -uy, ny = ux;
-      const p: Point = [a[0] + ux * 20 + nx * 5, a[1] + uy * 20 + ny * 5];
-      if (pointInPolygon(p, boundary) || inWater(water, p) || inMountains(mountains, p) || underFurniture(p, 5)) continue;
-      inns.push(p); occupied.push(p);
+      // By the road a little way past the gate hamlet, on whichever side has room: it stood 20 out
+      // and 5 off the road, in the middle of the hamlet's houses, with its sign across the road.
+      const footprint = (q: Point) => box([q[0] + 1.4, q[1] - 0.3], 4.4, 2.8);   // the house and its sign
+      let placed: Point | null = null;
+      for (const along of [30, 36, 24, 42, 48]) {
+        let at = along, i = 0;
+        while (i < road.length - 2 && at > Math.hypot(road[i + 1][0] - road[i][0], road[i + 1][1] - road[i][1])) { at -= Math.hypot(road[i + 1][0] - road[i][0], road[i + 1][1] - road[i][1]); i++; }
+        const a = road[i], b = road[i + 1];
+        const L = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1, ux = (b[0] - a[0]) / L, uy = (b[1] - a[1]) / L;
+        for (const side of [1, -1]) {
+          const q: Point = [a[0] + ux * at - uy * side * 7, a[1] + uy * at + ux * side * 7];
+          if (inWater(water, q) || underFurniture(q, 5) || !standsClear(footprint(q))) continue;
+          placed = q;
+          break;
+        }
+        if (placed) break;
+      }
+      if (!placed) continue;
+      inns.push(placed); occupied.push(placed); drawnOut.push(footprint(placed));
     }
   }
 
@@ -942,7 +1049,14 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
       const wallB: Polyline = [[gate[0] - nx * 3, gate[1] - ny * 3], t2];
       barbicans.push({ at: front, towers: [t1, t2], walls: [wallA, wallB] });
       occupied.push(front, t1, t2);
+      drawnOut.push(disc(t1, 3), disc(t2, 3));
     }
+    // The barbican stands where the gate hamlet's first houses were: its towers, 11 out, were drawn
+    // on top of them on 513 barbicans of twelve worlds. A forward gate-work is built in front of the
+    // gate, and the houses it stands on make way for it.
+    const onBarbican = (h: Polygon) => barbicans.some((bb) =>
+      bb.towers.some((t) => polysOverlap(h, disc(t, 3))) || bb.walls.some((wl) => nearLine(h, wl, 1.8)));
+    for (let i = suburbs.length - 1; i >= 0; i--) if (onBarbican(suburbs[i])) suburbs.splice(i, 1);
   }
 
   // waterside trades: tanners/dyers pushed to the water's edge outside the walls (stench/effluent).
@@ -956,8 +1070,9 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
       if (pointInPolygon(p, boundary) || inWater(water, p) || inMountains(mountains, p) || underFurniture(p, 4)) continue;
       if (!nearW(p)) continue;
       if (occupied.some((o) => Math.hypot(o[0] - p[0], o[1] - p[1]) < 8)) continue;
+      if (!standsClear(box(p, 2.4, 2.8))) continue;   // the workshop and the dyer's rack below it
       const kind: "tanner" | "dyer" = rng() < 0.5 ? "tanner" : "dyer";
-      riversideTrades.push({ at: p, kind }); occupied.push(p);
+      riversideTrades.push({ at: p, kind }); occupied.push(p); drawnOut.push(box(p, 2.4, 2.8));
     }
   }
 
@@ -970,7 +1085,7 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
     obstacles: [...occupied],
     // faubourg house footprints: patches must not overlap them (centre-gap missed big blocks) — nor the
     // plate's furniture
-    obstaclePolys: [...suburbs, ...furniture],
+    obstaclePolys: [...drawnOut, ...furniture],
     size: ctx.size, biome: ctx.biome, oasis: archetype.oasis,
   });
 

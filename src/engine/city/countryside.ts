@@ -97,6 +97,10 @@ function orientedRect(c: Point, ux: number, uy: number, hl: number, hw: number):
   ];
 }
 
+// how far a building's walls stand off a road's centre line: the road is drawn 1.6 wide, and a
+// little ground shows between them
+const BUILDING_ROAD_CLEAR = 1.6;
+
 // true if a polyline's centreline passes inside a polygon (a road running through a building)
 function polyCrossedByLine(poly: Polygon, line: Polyline): boolean {
   for (let i = 0; i < line.length - 1; i++) {
@@ -119,6 +123,7 @@ export function generateCountryside(rng: Rng, opts: CountrysideOpts): Countrysid
   // cut through them when only centre distances were checked (user-reported overlaps). Seed with
   // the faubourg house footprints so patches never sit on a gate-hamlet house (centre-gap missed it).
   const claimedPolys: Polygon[] = [...(opts.obstaclePolys ?? [])];
+  const claimedBoxes = claimedPolys.map(bbox);
   const roadThrough = (poly: Polygon) => {
     // a segment whose box misses the patch's box can neither sample inside it nor cross an edge
     // (exact tests), so it is skipped unsampled — the same answer, without walking every road
@@ -162,11 +167,33 @@ export function generateCountryside(rng: Rng, opts: CountrysideOpts): Countrysid
     // has coves that narrow (seed 25 put a field across one).
     if (overlapsWater(water, poly)) return false;
     if (obstacles.some((o) => Math.hypot(o[0] - c[0], o[1] - c[1]) < gap)) return false;
-    if (claimedPolys.some((cp) => polysOverlap(poly, cp))) return false;
+    // (each claimed patch's box, kept beside it, first: two shapes whose boxes miss cannot overlap —
+    // missed by polysOverlap's own margin, so the answer is exactly its answer)
+    const pb = bbox(poly), AIR = 1e-6;
+    if (claimedPolys.some((cp, i) => {
+      const b = claimedBoxes[i];
+      return !(pb.maxX < b.minX - AIR || b.maxX < pb.minX - AIR || pb.maxY < b.minY - AIR || b.maxY < pb.minY - AIR) && polysOverlap(poly, cp);
+    })) return false;
     if (roadThrough(poly) || nearMoat(poly)) return false;
     return true;
   };
-  const claim = (poly: Polygon) => { obstacles.push(centroid(poly)); claimedPolys.push(poly); };
+  const claim = (poly: Polygon) => { obstacles.push(centroid(poly)); claimedPolys.push(poly); claimedBoxes.push(bbox(poly)); };
+  // A building stands off the road's drawn width, not just off its centre line: a farmhouse or its
+  // barn lay on the highway out of town on 18 plates of twelve worlds. (A field is laid UNDER the
+  // road and may run up to it; a building is drawn beside it.)
+  const offRoads = (poly: Polygon, clear: number) => {
+    const pb = bbox(poly);
+    for (const road of roads) for (let i = 0; i < road.length - 1; i++) {
+      const a: Point = road[i], b: Point = road[i + 1];
+      if (Math.max(a[0], b[0]) < pb.minX - clear || Math.min(a[0], b[0]) > pb.maxX + clear
+        || Math.max(a[1], b[1]) < pb.minY - clear || Math.min(a[1], b[1]) > pb.maxY + clear) continue;
+      for (let j = 0; j < poly.length; j++) {
+        const q = poly[j], r = poly[(j + 1) % poly.length];
+        if (segmentsIntersect(a, b, q, r) || pointSegDist(q, a, b) < clear || pointSegDist(a, q, r) < clear || pointSegDist(b, q, r) < clear) return false;
+      }
+    }
+    return true;
+  };
 
   // ring 1: kitchen gardens + orchards against the wall, between the gate roads
   const gardens: Polygon[] = [];
@@ -317,7 +344,7 @@ export function generateCountryside(rng: Rng, opts: CountrysideOpts): Countrysid
     const barn = inn
       ? orientedRect([hc[0] + hux * 7.4, hc[1] + huy * 7.4], hux, huy, 1.4, 3.2)
       : orientedRect([hc[0] + hux * 6, hc[1] + huy * 6], hux, huy, 3.4, 2.4);
-    if (!polyOk(house, 9) || !polyOk(barn, 0)) continue;
+    if (!polyOk(house, 9) || !polyOk(barn, 0) || !offRoads(house, BUILDING_ROAD_CLEAR) || !offRoads(barn, BUILDING_ROAD_CLEAR)) continue;
     // The court is drawn from the same draw the farmyard used, so the stream stays aligned; a
     // caravanserai always has its court, which is the whole point of the building.
     const open = rng() < 0.6;
@@ -380,8 +407,11 @@ export function generateCountryside(rng: Rng, opts: CountrysideOpts): Countrysid
 
     // the CLUSTER (green + cottages) must fit intact — that's what makes a village. The lane must
     // also thread the gaps (never cut through a cottage), else reject and retry.
+    // (the chapel with them: it stands off the green on the road side, and it stood under the plate's
+    // title while its green and cottages were clear)
+    const chapelBox: Polygon = [[chapel[0] - 1.6, chapel[1] - 3.2], [chapel[0] + 1.6, chapel[1] - 3.2], [chapel[0] + 1.6, chapel[1] + 1.3], [chapel[0] - 1.6, chapel[1] + 1.3]];   // the chapel and its cross
     const core = [green, ...houses];
-    if (core.some((poly) => !polyOk(poly, 5))) continue;
+    if (core.some((poly) => !polyOk(poly, 5)) || !polyOk(chapelBox, 0)) continue;
     let selfBad = false;
     for (let a = 0; a < houses.length && !selfBad; a++) for (let b = a + 1; b < houses.length; b++) if (polysOverlap(houses[a], houses[b])) selfBad = true;
     if (selfBad) continue;
@@ -393,12 +423,18 @@ export function generateCountryside(rng: Rng, opts: CountrysideOpts): Countrysid
     const crofts: Polygon[] = [];
     for (const cr of croftCand) if (polyOk(cr, 3) && clearOfHouses(cr) && !crofts.some((c) => polysOverlap(cr, c))) crofts.push(cr);
     const pond = pondCand && polyOk(pondCand, 3) && clearOfHouses(pondCand) && !crofts.some((c) => polysOverlap(pondCand!, c)) ? pondCand : null;
-    [...core, ...crofts, ...(pond ? [pond] : [])].forEach(claim); // now reserve the whole hamlet
+    [...core, chapelBox, ...crofts, ...(pond ? [pond] : [])].forEach(claim); // now reserve the whole hamlet
     villages.push({ green, chapel, houses, lane, crofts, pond });
   }
 
   // woodland fringe: tree points along the outer margin (the world continues into forest)
   const woods: Point[] = [];
+  // (each claimed patch's box first: a point outside it cannot be inside the patch — the same
+  // answer, without testing a few hundred candidate trees against every field on the plate)
+  const onClaimed = (p: Point) => claimedPolys.some((cp, i) => {
+    const b = claimedBoxes[i];
+    return p[0] >= b.minX && p[0] <= b.maxX && p[1] >= b.minY && p[1] <= b.maxY && pointInPolygon(p, cp);
+  });
   for (let tries = 0; tries < prof.woods * 8 && woods.length < prof.woods; tries++) {
     const edge = Math.floor(rng() * 4);
     const t = rng() * (edge < 2 ? bounds.w : bounds.h);
@@ -407,7 +443,7 @@ export function generateCountryside(rng: Rng, opts: CountrysideOpts): Countrysid
     if (blocked(p)) continue;
     if (obstacles.some((o) => Math.hypot(o[0] - p[0], o[1] - p[1]) < 7)) continue;
     if (woods.some((w2) => Math.hypot(w2[0] - p[0], w2[1] - p[1]) < 5)) continue;
-    if (claimedPolys.some((cp) => pointInPolygon(p, cp)) || distToRoads(p) < 3) continue;
+    if (onClaimed(p) || distToRoads(p) < 3) continue;
     woods.push(p);
   }
 

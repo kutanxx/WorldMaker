@@ -1,8 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { mulberry32 } from "../rng";
 import { makeCastle } from "./castle";
-import { pointInPolygon, centroid, polysOverlap, area } from "../geometry";
-import type { Polygon, Point } from "../geometry";
+import { pointInPolygon, centroid, polysOverlap, area, pointSegDist, segmentsIntersect } from "../geometry";
+import type { Polygon, Point, Polyline } from "../geometry";
 
 const ward: Polygon = [[300, 180], [340, 200], [345, 250], [310, 275], [275, 240], [278, 200]];
 const boundary: Polygon = (() => { const b: Polygon = []; for (let k = 0; k < 24; k++) { const a = (k / 24) * Math.PI * 2; b.push([230 + Math.cos(a) * 115, 230 + Math.sin(a) * 115]); } return b; })();
@@ -131,5 +131,49 @@ describe("a great castle is a bigger thing, not the same thing drawn larger", ()
     expect(Math.abs(d(gh[0]) - d(gh[1]))).toBeLessThan(0.01);
     expect(d(gh[0])).toBeGreaterThan(1.5);
     expect(Math.hypot(gh[0][0] - gh[1][0], gh[0][1] - gh[1][1])).toBeGreaterThan(d(gh[0]));
+  });
+});
+
+// A castle's walls are drawn wide — the enceinte 4.4, the outer curtain 3.4 — and so are the streets
+// round its ward: a main street 4.6, a lane 2.6. Each wall stands back from each side of its ward by
+// what the street drawn along that side needs, and from a street as it is drawn, corners eased.
+describe("a castle stands off the streets round it", () => {
+  // how near a ring comes to a street's centre line (0 where it crosses it)
+  const nearest = (ring: Polygon, line: Polyline) => {
+    let d = Infinity;
+    for (let i = 0; i + 1 < line.length; i++) for (let j = 0; j < ring.length; j++) {
+      const p = ring[j], q = ring[(j + 1) % ring.length];
+      if (segmentsIntersect(line[i], line[i + 1], p, q)) return 0;
+      d = Math.min(d, pointSegDist(p, line[i], line[i + 1]), pointSegDist(line[i], p, q), pointSegDist(line[i + 1], p, q));
+    }
+    return d;
+  };
+  // a square ward too small for the yard a market town's lord is owed, so the enceinte stands as near
+  // its streets as it may — well inside a town whose wall is far off
+  const square: Polygon = [[100, 100], [136, 100], [136, 136], [100, 136]];
+  const farWall: Polygon = Array.from({ length: 24 }, (_, k) => [118 + Math.cos((k / 24) * Math.PI * 2) * 200, 118 + Math.sin((k / 24) * Math.PI * 2) * 200] as Point);
+  const top: Polyline = [[100, 100], [136, 100]], bottom: Polyline = [[136, 136], [100, 136]];
+
+  it("stands back from a main street by a main street's width, and from a lane by a lane's", () => {
+    const c = makeCastle(mulberry32(3), square, [118, 60], farWall, 3, false, { main: [top], minor: [bottom] })!;
+    // half the street, half the enceinte, and a little air
+    expect(nearest(c.innerWall, top)).toBeGreaterThanOrEqual(2.3 + 2.2 + 0.3 - 1e-6);
+    expect(nearest(c.innerWall, bottom)).toBeGreaterThanOrEqual(1.3 + 2.2 + 0.3 - 1e-6);
+    // ...and a lane does not cost the yard a main street's setback
+    expect(nearest(c.innerWall, bottom)).toBeLessThan(4.5);
+  });
+
+  it("keeps its walls off a main street eased across its ward's corner", () => {
+    // the main street runs along the top and down the right, cutting the corner between them
+    const eased: Polyline = [[100, 100], [130, 100], [136, 106], [136, 136]];
+    for (const size of [3, 5]) {
+      const c = makeCastle(mulberry32(3), square.map(([x, y]) => [x * 1.4 - 40, y * 1.4 - 40] as Point), [118, 60], farWall, size, false,
+        { main: [eased.map(([x, y]) => [x * 1.4 - 40, y * 1.4 - 40] as Point)], minor: [] })!;
+      const chord: Polyline = [[130 * 1.4 - 40, 100 * 1.4 - 40], [136 * 1.4 - 40, 106 * 1.4 - 40]];
+      for (const ring of [c.innerWall, ...(c.outerWall ? [c.outerWall] : [])]) {
+        const half = ring === c.innerWall ? 2.2 : 1.7;
+        expect(nearest(ring, chord), `size ${size}`).toBeGreaterThanOrEqual(2.3 + half + 0.3 - 1e-6);
+      }
+    }
   });
 });

@@ -107,6 +107,58 @@ describe("zoning.assignZones", () => {
       .find((w) => w.type === "castle")!;
     expect(stays.polygon).toBe(nearest.polygon);
   });
+  it("takes the roomiest ward within reach when none has all the room the lord asks for", () => {
+    const wards = ringWards(14);
+    const anchor: Point = [40, 150];
+    const dry = () => false;
+    const nearest = assignZones(mulberry32(5), wards, [150, 150], 100, { hasCastle: true, coastal: false, castleAnchor: anchor, wet: dry })
+      .find((w) => w.type === "castle")!;
+    // every ward within reach falls short of the 16 asked for; one of them falls less short
+    const near = wards.filter((w) => w.polygon !== nearest.polygon
+      && Math.hypot(w.site[0] - anchor[0], w.site[1] - anchor[1]) < Math.hypot(nearest.site[0] - anchor[0], nearest.site[1] - anchor[1]) + 30);
+    expect(near.length).toBeGreaterThan(0);
+    const best = near[near.length - 1].polygon;
+    const room = (poly: Point[]) => (poly === best ? 12 : 5);
+    const chosen = assignZones(mulberry32(5), wards, [150, 150], 100, { hasCastle: true, coastal: false, castleAnchor: anchor, wet: dry, room })
+      .find((w) => w.type === "castle")!;
+    expect(chosen.polygon).toBe(best);
+  });
+  it("lets a great seat look further for its room, but only along the town wall", () => {
+    const wards = ringWards(14);
+    const anchor: Point = [40, 150];
+    const dry = () => false;
+    const plain = assignZones(mulberry32(5), wards, [150, 150], 100, { hasCastle: true, coastal: false, castleAnchor: anchor, wet: dry });
+    const nearest = plain.find((w) => w.type === "castle")!;
+    const dn = Math.hypot(nearest.site[0] - anchor[0], nearest.site[1] - anchor[1]);
+    // the only roomy wards stand between 40 and 100 further off than the nearest: one at the wall, one
+    // inside (neither of them a ward the plaza, the cathedral or the guildhall took first)
+    const civic = new Set(plain.filter((w) => ["plaza", "cathedral", "guildhall"].includes(w.type)).map((w) => w.polygon));
+    const band = wards.filter((w) => {
+      const d = Math.hypot(w.site[0] - anchor[0], w.site[1] - anchor[1]);
+      return d > dn + 40 && d < dn + 100 && !civic.has(w.polygon);
+    });
+    expect(band.length).toBeGreaterThan(1);
+    // the one inside is the nearer of the two, so only the wall rule passes it over
+    band.sort((a, b) => Math.hypot(a.site[0] - anchor[0], a.site[1] - anchor[1]) - Math.hypot(b.site[0] - anchor[0], b.site[1] - anchor[1]));
+    const inside = band[0], atWall = band[band.length - 1];
+    const room = (poly: Point[]) => (poly === atWall.polygon || poly === inside.polygon ? 30 : 4);
+    const opts = { hasCastle: true, coastal: false, castleAnchor: anchor, wet: dry, room, castleRoom: 26 };
+    const lesser = assignZones(mulberry32(5), wards, [150, 150], 100, opts).find((w) => w.type === "castle")!;
+    expect(lesser.polygon, "zoning's own reach stops short of them").toBe(nearest.polygon);
+    const great = assignZones(mulberry32(5), wards, [150, 150], 100, { ...opts, castleReach: 100, atWall: (poly: Point[]) => poly === atWall.polygon })
+      .find((w) => w.type === "castle")!;
+    expect(great.polygon).toBe(atWall.polygon);
+  });
+  it("gives the castle no ward that a town gate opens into", () => {
+    const wards = ringWards(14);
+    const anchor: Point = [40, 150];
+    const dry = () => false;
+    const nearest = assignZones(mulberry32(5), wards, [150, 150], 100, { hasCastle: true, coastal: false, castleAnchor: anchor, wet: dry })
+      .find((w) => w.type === "castle")!;
+    const chosen = assignZones(mulberry32(5), wards, [150, 150], 100, { hasCastle: true, coastal: false, castleAnchor: anchor, wet: dry,
+      castleOk: (poly: Point[]) => poly !== nearest.polygon }).find((w) => w.type === "castle")!;
+    expect(chosen.polygon).not.toBe(nearest.polygon);
+  });
   it("reserves a castle even when there are fewer wards than civic slots", () => {
     const rng = mulberry32(2);
     const cells = ringWards(14).slice(0, 3);

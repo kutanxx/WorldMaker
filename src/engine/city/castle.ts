@@ -2,7 +2,7 @@
 // a gate to the town and a postern to the countryside (research: Wikipedia "Urban castle").
 import type { Rng } from "../rng";
 import type { Point, Polygon, Polyline } from "../geometry";
-import { insetEdges, centroid, pointInPolygon, polysOverlap, area, clipToConvex, pointSegDist, segmentsIntersect, bbox } from "../geometry";
+import { insetEdges, centroid, pointInPolygon, polysOverlap, area, clipToConvex, pointSegDist, segmentsIntersect, bbox, splitByLine } from "../geometry";
 
 export interface Castle {
   innerWall: Polygon;      // the enceinte: the inner ward's ring of wall
@@ -23,8 +23,15 @@ const GREAT_SIZE = 5;  // a lord's seat this big, or a capital's at any size, is
 const BASE_KR = 4.3;   // the donjon half-width of a size-3 market town: the unit the ornament is in
 const KEEP_OFFSET = 0.35; // how far the donjon sits from the yard's middle toward its refuge corner
 const WALL_CLEAR = 3.4;   // buildings stand this far off the enceinte -- it is drawn 4.4 wide
-const OUTER_INSET = 2;    // a great seat's outer curtain stands this far back from its streets
+// A castle's walls stand back from the street along each side of its ward by half that street's
+// drawn width, half their own, and a little air: a main street is drawn 4.6 wide and a lane 2.6, the
+// enceinte 4.4 and the outer curtain 3.4. They stood a flat 3 and 2 back, and the lines lay on the
+// street's edge — the curtain on 56 of 80 great seats. (A flat 4.8, the main street's figure, cleared
+// them all but cost 19 great seats their second ring, when most sides of a castle are lanes.)
+const MAIN_HALF = 2.3, LANE_HALF = 1.3, AIR = 0.3;
+const ENCEINTE_HALF = 2.2, CURTAIN_HALF = 1.7;
 const BAILEY_MIN = 8;     // ...and the enceinte at least this far behind the curtain: a yard, not a seam
+const HALL_SIZES = [1, 0.75]; // a household building at full size, or a lesser one where that does not fit
 const ON_WALL = 0.5;      // an edge of the castle whose middle is this close to the town's outline IS the town wall
 
 const dist = (a: Point, b: Point) => Math.hypot(a[0] - b[0], a[1] - b[1]);
@@ -59,11 +66,60 @@ function tidy(poly: Polygon): Polygon {
  * outline are not pulled in at all: there the castle's wall IS the town wall, which is what an
  * urban castle is.
  */
-function ringOf(ward: Polygon, boundary: Polygon, d: number): Polygon {
-  const pulled = d > 0 ? insetEdges(ward, d) : ward;
+function ringOf(ward: Polygon, boundary: Polygon, d: number | number[]): Polygon {
+  const pulled = (typeof d === "number" ? d > 0 : d.some((x) => x > 0)) ? insetEdges(ward, d) : ward;
   if (pulled.length < 3) return [];
   const cut = tidy(clipToConvex(boundary, pulled));
   return cut.length >= 3 && area(cut) > 1 ? cut : [];
+}
+
+// a street this far inside the ward runs through it, not along its edge
+const ON_EDGE = 0.25;
+
+/**
+ * The ward as its streets are DRAWN. A main street is eased round every corner it turns
+ * (`chainRoads`), and where it turns round the castle's own ward the eased corner is a chord across
+ * that ward's corner: an enceinte kept its distance from the ward's edges stood as little as 3.8 off
+ * the street itself, its 4.4-wide wall on the road's edge, on 7 castles of twelve worlds. Each stretch
+ * of drawn street that runs inside the ward cuts the ward back to it — the larger side is the castle's.
+ */
+function wardOfStreets(ward: Polygon, streets: Polyline[]): Polygon {
+  let out = ward;
+  const b = bbox(ward);
+  const runsInside = (a: Point, c: Point) => {
+    const n = Math.max(2, Math.ceil(dist(a, c)));   // a sample every unit
+    for (let k = 0; k <= n; k++) {
+      const p: Point = [a[0] + ((c[0] - a[0]) * k) / n, a[1] + ((c[1] - a[1]) * k) / n];
+      if (pointInPolygon(p, out) && edgeDist(p, out) > ON_EDGE) return true;
+    }
+    return false;
+  };
+  for (const r of streets) for (let i = 0; i + 1 < r.length; i++) {
+    const a = r[i], c = r[i + 1];
+    if (Math.max(a[0], c[0]) < b.minX || Math.min(a[0], c[0]) > b.maxX
+      || Math.max(a[1], c[1]) < b.minY || Math.min(a[1], c[1]) > b.maxY) continue;
+    if (!runsInside(a, c)) continue;
+    const parts = splitByLine(out, a, c).map(tidy).filter((p) => p.length >= 3);
+    if (parts.length === 2) out = area(parts[0]) >= area(parts[1]) ? parts[0] : parts[1];
+  }
+  return out;
+}
+
+// a street this close to a side of the ward is drawn along it
+const ON_SIDE = 0.6;
+
+/** the half-width of the street drawn along each side of the ward: a main street's, or a lane's
+ *  where only a lane runs there — or where none does, which asks the same of a wall. A side is a main
+ *  street's too where one comes in to either of its ends: the castle's corner there stands off it. */
+function sideStreets(ward: Polygon, main: Polyline[]): number[] {
+  const nearMain = (p: Point) =>
+    main.some((r) => { for (let k = 0; k + 1 < r.length; k++) if (pointSegDist(p, r[k], r[k + 1]) < ON_SIDE) return true; return false; });
+  const atCorner = ward.map(nearMain);
+  return ward.map((a, i) => {
+    const j = (i + 1) % ward.length, b = ward[j];
+    const along = [0.25, 0.5, 0.75].some((t) => nearMain([a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]));
+    return along || atCorner[i] || atCorner[j] ? MAIN_HALF : LANE_HALF;
+  });
 }
 
 const onWall = (a: Point, b: Point, boundary: Polygon) =>
@@ -118,8 +174,14 @@ function nearestEdge(poly: Polygon, target: Point, ok: (a: Point, b: Point) => b
 }
 
 export function makeCastle(
-  rng: Rng, ward: Polygon, townCenter: Point, boundary: Polygon, size: number, isCapital = false,
+  rng: Rng, cell: Polygon, townCenter: Point, boundary: Polygon, size: number, isCapital = false,
+  streets: { main: Polyline[]; minor: Polyline[] } = { main: [], minor: [] },
 ): Castle | null {
+  const ward = wardOfStreets(cell, [...streets.main, ...streets.minor]);
+  // how far each wall must stand off each side of the ward, for the street drawn along it
+  const halves = sideStreets(ward, streets.main);
+  const encFloor = halves.map((h) => h + ENCEINTE_HALF + AIR);
+  const curtain = halves.map((h) => h + CURTAIN_HALF + AIR);
   // A great seat is set back behind TWO walls: the ward's own edge becomes an outer curtain and the
   // enceinte withdraws, leaving an outer bailey between them. A lesser seat keeps its single ring.
   const great = isCapital || size >= GREAT_SIZE;
@@ -137,7 +199,9 @@ export function makeCastle(
   const wardR = Math.sqrt(area(site) / Math.PI);
   const minYard = (kr0 * Math.SQRT2 + WALL_CLEAR) / (1 - KEEP_OFFSET);
   const yardR = Math.min(Math.max(5 + size * 3.7, minYard), Math.max(6, wardR - (great ? BAILEY_MIN : 3)));
-  const floor = Math.max(1.5, Math.min(size >= 3 ? 3 : 4, wardR * 0.18));
+  // the enceinte withdrawn by d, but never nearer a street than that street's drawn edge allows
+  const at = (d: number) => encFloor.map((f) => Math.max(f, d));
+  const floor = Math.min(...encFloor);
   // the yard has to hold the donjon with its set-back from the rampart all round
   const holdsKeep = (ring: Polygon) => reaches(ring, WALL_CLEAR + kr0 * Math.SQRT2);
   // How far the enceinte stands back from the streets. Its area falls as it withdraws, so this is a
@@ -148,14 +212,14 @@ export function makeCastle(
   let lo = floor, hi = Math.max(floor, wardR);
   for (let k = 0; k < 18; k++) {
     const mid = (lo + hi) / 2;
-    const r = ringOf(ward, boundary, mid);
+    const r = ringOf(ward, boundary, at(mid));
     if (r.length >= 3 && area(r) >= want && holdsKeep(r)) lo = mid; else hi = mid;
   }
   let d = lo;
-  let inner = ringOf(ward, boundary, d);
+  let inner = ringOf(ward, boundary, at(d));
   if (!holdsKeep(inner)) {
     // nothing withdrawn holds the keep: stand the enceinte as close to the streets as it may
-    inner = ringOf(ward, boundary, floor);
+    inner = ringOf(ward, boundary, encFloor);
     d = floor;
   }
   if (inner.length < 3) return null;
@@ -167,11 +231,12 @@ export function makeCastle(
   // and against the ward as the town actually draws it that took it from a third of great seats).
   let outerWall: Polygon | null = null;
   if (great) {
-    const back = OUTER_INSET + BAILEY_MIN;
-    const deeper = d >= back ? inner : ringOf(ward, boundary, back);
-    const outer = ringOf(ward, boundary, OUTER_INSET);
+    const back = curtain.map((c) => c + BAILEY_MIN);
+    const withdrawn = at(d);
+    const deeper = withdrawn.every((w, i) => w >= back[i]) ? inner : ringOf(ward, boundary, withdrawn.map((w, i) => Math.max(w, back[i])));
+    const outer = ringOf(ward, boundary, curtain);
     const holdsSmallerKeep = reaches(deeper, WALL_CLEAR + 0.75 * kr0 * Math.SQRT2);
-    if (outer.length >= 3 && holdsSmallerKeep) { inner = deeper; d = Math.max(d, back); outerWall = outer; }
+    if (outer.length >= 3 && holdsSmallerKeep) { inner = deeper; outerWall = outer; }
   }
   const wc = centroid(inner);
   if (!pointInPolygon(wc, site) && !pointInPolygon(deepest(inner).at, site)) return null;
@@ -270,19 +335,24 @@ export function makeCastle(
       // whichever normal points into the yard
       const probe: Point = [st.at[0] - st.uy * 1.5, st.at[1] + st.ux * 1.5];
       const [nx, ny] = pointInPolygon(probe, inner) ? [-st.uy, st.ux] : [st.uy, -st.ux];
-      const half = lengths[annexes.length];
       const base: Point = [st.at[0] + nx * WALL_CLEAR, st.at[1] + ny * WALL_CLEAR];
-      const rect: Polygon = [
-        [base[0] - st.ux * half, base[1] - st.uy * half],
-        [base[0] + st.ux * half, base[1] + st.uy * half],
-        [base[0] + st.ux * half + nx * depth, base[1] + st.uy * half + ny * depth],
-        [base[0] - st.ux * half + nx * depth, base[1] - st.uy * half + ny * depth],
-      ];
-      if (!rect.every((p) => clearInside(p, inner, WALL_CLEAR - 0.6))) continue;
-      if (polysOverlap(rect, keep) || annexes.some((an) => polysOverlap(rect, an))) continue;
-      // the way in stays open
-      if (rect.some((p) => dist(p, door) < 4 * scale)) continue;
-      annexes.push(rect);
+      // A lesser building where the hall does not fit: a size-6 seat's donjon, 12 across, left no
+      // stretch of its yard a full-sized hall could stand on, and the greatest seat had none at all.
+      for (const f of HALL_SIZES) {
+        const half = lengths[annexes.length] * f, deep = depth * f;
+        const rect: Polygon = [
+          [base[0] - st.ux * half, base[1] - st.uy * half],
+          [base[0] + st.ux * half, base[1] + st.uy * half],
+          [base[0] + st.ux * half + nx * deep, base[1] + st.uy * half + ny * deep],
+          [base[0] - st.ux * half + nx * deep, base[1] - st.uy * half + ny * deep],
+        ];
+        if (!rect.every((p) => clearInside(p, inner, WALL_CLEAR - 0.6))) continue;
+        if (polysOverlap(rect, keep) || annexes.some((an) => polysOverlap(rect, an))) continue;
+        // the way in stays open
+        if (rect.some((p) => dist(p, door) < 4 * scale)) continue;
+        annexes.push(rect);
+        break;
+      }
     }
   }
 
@@ -311,6 +381,9 @@ export function makeCastle(
   return { innerWall: inner, towers: [...inner], gate, innerGate, postern, keep, annexes, scale, outerWall, gatehouse, approach };
 }
 
+// the middle of a name's line, above its baseline (see castleLabelAt)
+const MID = 2.5;
+
 function segDist(a: Point, b: Point, c: Point, d: Point): number {
   if (segmentsIntersect(a, b, c, d)) return 0;
   return Math.min(pointSegDist(a, c, d), pointSegDist(b, c, d), pointSegDist(c, a, b), pointSegDist(d, a, b));
@@ -321,6 +394,9 @@ function segDist(a: Point, b: Point, c: Point, d: Point): number {
  * donjon always and of its walls, halls and gate as far as the ground allows. A name is modelled as
  * the capsule its glyphs fill — `hw` either side of the point along the baseline (between a Korean
  * "성채" and an English "Castle" at the plate's 7 units), `hh` above and below the middle of the line.
+ * The middle of the line is MID above the baseline the point gives: measured on the page, "성채" at 7
+ * units stands 7.1 above its baseline and 2.1 below it, and a middle taken 1.5 up let the tops of the
+ * glyphs onto a wall above them.
  *
  * It used to walk out from the yard until it had just left the enceinte — so it stood ON the wall,
  * 2 units off its line against a 4.4-wide stroke, on all 125 castles of twelve worlds. A yard rarely
@@ -328,7 +404,7 @@ function segDist(a: Point, b: Point, c: Point, d: Point): number {
  * some 30 units across), so this does not demand a perfectly clear spot: it takes the clearest one,
  * with the yard preferred by a little — a name inside the enceinte says "this enclosure".
  */
-export function castleLabelAt(c: Castle, ground: Polygon, blocked: (p: Point) => boolean, hw = 9, hh = 4): Point | null {
+export function castleLabelAt(c: Castle, ground: Polygon, blocked: (p: Point) => boolean, hw = 9, hh = 4.6): Point | null {
   const rings: [Polygon, number][] = [[c.innerWall, 2.4]];
   if (c.outerWall) rings.push([c.outerWall, 1.9]);
   const solids: Polygon[] = [c.keep, ...c.annexes];
@@ -337,7 +413,7 @@ export function castleLabelAt(c: Castle, ground: Polygon, blocked: (p: Point) =>
   // how far the capsule stands clear of everything but the donjon (negative: it overlaps), or null
   // where it may not stand at all — on the donjon, or out of the castle's ground
   const clearance = (p: Point): number | null => {
-    const a: Point = [p[0] - hw + hh, p[1] - 1.5], b: Point = [p[0] + hw - hh, p[1] - 1.5];
+    const a: Point = [p[0] - hw + hh, p[1] - MID], b: Point = [p[0] + hw - hh, p[1] - MID];
     if (!pointInPolygon(a, ground) || !pointInPolygon(b, ground)) return null;
     if (pointInPolygon(a, keep) || pointInPolygon(b, keep)) return null;
     for (let i = 0; i < keep.length; i++) if (segDist(a, b, keep[i], keep[(i + 1) % keep.length]) < hh + 1.5) return null;

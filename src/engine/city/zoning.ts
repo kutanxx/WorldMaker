@@ -56,7 +56,13 @@ export function assignZones(
     // square, a donjon squeezed into one end of it.
     room?: (poly: Polygon) => number;
     // the depth this lord's castle asks for; a great seat's two rings need more than a manor's one
-    castleRoom?: number }
+    castleRoom?: number;
+    // ...and how much further than the nearest dry ward from its anchor it will look for that room,
+    // among the wards that stand at the town wall (an urban castle is built into the wall)
+    castleReach?: number;
+    atWall?: (poly: Polygon) => boolean;
+    // whether a ward may hold the castle at all (no town gate on its stretch of wall)
+    castleOk?: (poly: Polygon) => boolean }
 ): ZonedWard[] {
   if (wards.length === 0) return [];
   const ranked = wards
@@ -139,7 +145,9 @@ export function assignZones(
         if (out[j] === harborWard) continue; // don't consume the harbor ward
         const d = Math.hypot(out[j].site[0] - anchor[0], out[j].site[1] - anchor[1]);
         if (d < bd) { bd = d; bi = j; }
-        if (opts.wet && !opts.wet(out[j].polygon)) {
+        // (a ward whose stretch of the town wall holds a town gate is no castle's: the gate would open
+        // into the lord's yard and the town's road run through it — 7 castles of twelve worlds)
+        if (opts.wet && !opts.wet(out[j].polygon) && (opts.castleOk?.(out[j].polygon) ?? true)) {
           dryOnes.push({ j, d });
           if (d < dryD) { dryD = d; dry = j; }
         }
@@ -149,10 +157,18 @@ export function assignZones(
       // ward that has CASTLE_ROOM of depth, if one stands within CASTLE_REACH further than the
       // nearest. No rng — the same wards are ranked the same way every time.
       const wanted = opts.castleRoom ?? CASTLE_ROOM;
+      // Where none nearby has that much, the lord takes the roomiest of them rather than the nearest:
+      // a capital left with a 7-deep triangle for its seat stood its donjon on its own rampart.
       if (opts.room && dry >= 0 && opts.room(out[dry].polygon) < wanted) {
-        const roomy = dryOnes.sort((a, b) => a.d - b.d)
-          .find((c) => c.d <= dryD + CASTLE_REACH && opts.room!(out[c.j].polygon) >= wanted);
-        if (roomy) bi = roomy.j;
+        const near = dryOnes.sort((a, b) => a.d - b.d).filter((c) => c.d <= dryD + CASTLE_REACH
+          || (opts.castleReach !== undefined && c.d <= dryD + opts.castleReach && (opts.atWall?.(out[c.j].polygon) ?? true)));
+        let full = -1, most = 0, mostRoom = -Infinity;
+        for (let i = 0; i < near.length; i++) {
+          const r = opts.room(out[near[i].j].polygon);
+          if (r >= wanted) { full = i; break; }
+          if (r > mostRoom) { mostRoom = r; most = i; }
+        }
+        if (near.length) bi = near[full >= 0 ? full : most].j;
       }
       if (bi !== idx) { const t = out[idx]; out[idx] = out[bi]; out[bi] = t; }
     }

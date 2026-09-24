@@ -18,6 +18,8 @@ export interface DefenseWall {
 const SEA_PROBE = 36;
 // two towers on one run of wall stand at least this far apart
 const TOWER_GAP = 9;
+// ...and no tower this close to a gate (a 6-wide gate block and a 2.6-radius tower touch inside it)
+const GATE_CLEAR = 6;
 
 // nearest point on a polyline to p, with its squared distance
 function nearestOnPolyline(p: Point, line: Polyline): { pt: Point; d2: number } {
@@ -178,5 +180,8 @@ export function wallFromDefenses(
     });
   }
   const gates = placeGates(segments, mainRoads, maxGates, seaGates, usable);
-  return { segments, towers, gates, seaGates };
+  // A gate is its own tower: the square gate block stands where the wall is opened, and a drum tower
+  // on the corner beside it was drawn on top of it — on 213 of 336 plates of twelve worlds.
+  const clearOfGates = towers.filter((t) => !gates.some((g) => Math.hypot(t[0] - g[0], t[1] - g[1]) < GATE_CLEAR));
+  return { segments, towers: clearOfGates, gates, seaGates };
 }
