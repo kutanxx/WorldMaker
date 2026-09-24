@@ -10,6 +10,7 @@ import { detectRegions, nameGeography, worldName } from "./geography";
 import { assignCultures } from "./culture";
 import { traceRivers, nameRivers } from "./rivers";
 import { buildProvinces, PROVINCE_SALT } from "./provinces";
+import { reliefAt } from "./relief";
 
 /**
  * @param nameOverride what to call this world, when the reader asked for a name. The draw for the
@@ -112,9 +113,10 @@ export function generateWorld(params: WorldParams, nameOverride?: string): Gener
     }
     return k ? { bearing: Math.atan2(sy, sx), share: k / ns.length } : undefined;
   };
+  // ...and for a town in the mountains, the lie of the land it stands on (see relief.ts)
   const siteOf = (cell: number) => {
-    const m = mountainsAt(cell);
-    return { mountainBearing: m?.bearing, mountainShare: m?.share, onMountain: terrain[cell] === MOUNTAIN };
+    const m = mountainsAt(cell), r = reliefAt(grid, heights, terrain, cell);
+    return { mountainBearing: m?.bearing, mountainShare: m?.share, onMountain: terrain[cell] === MOUNTAIN, relief: r?.relief, reliefBearing: r?.bearing };
   };
 
   const cities: CityMarker[] = [];

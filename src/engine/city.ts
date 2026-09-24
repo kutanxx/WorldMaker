@@ -25,6 +25,7 @@ import type { Countryside } from "./city/countryside";
 import { makeCastle, castleLabelAt, deepest } from "./city/castle";
 import type { Castle } from "./city/castle";
 import type { CityMarker } from "../types/world";
+import type { ReliefKind } from "./relief";
 
 export interface Ward {
   polygon: Polygon;
@@ -103,6 +104,8 @@ export interface CityContext {
   mountainBearing?: number; // which way the mountains beside the town lie; absent → none beside it
   mountainShare?: number;   // ...and what share of the town's neighbours they are
   onMountain?: boolean;     // the world draws the town in its mountains; absent → judged by elevation
+  relief?: ReliefKind;      // ...and the lie of the land it stands on there; absent → the plate picks
+  reliefBearing?: number;   // ...and which way that ground rises (a valley's: the line its walls stand on)
 }
 
 export function cityContext(c: CityMarker): CityContext {
@@ -110,6 +113,7 @@ export function cityContext(c: CityMarker): CityContext {
     id: c.id, name: c.name, size: c.size, coastal: c.coastal, isCapital: c.isCapital, elevation: c.elevation, biome: c.biome,
     river: c.river, seaBearing: c.seaBearing, riverBearing: c.riverBearing,
     mountainBearing: c.mountainBearing, mountainShare: c.mountainShare, onMountain: c.onMountain,
+    relief: c.relief, reliefBearing: c.reliefBearing,
   };
 }
 
@@ -248,7 +252,7 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
   // mountain-variant pick uses a SEPARATE rng stream so the main stream (and thus every
   // existing non-mountain city) is byte-identical; only high-elevation form choice changes.
   const pick = mulberry32(plateSeed(worldSeed, ctx.id + 4200))();
-  const archetype = selectArchetype({ coastal: ctx.coastal, elevation: ctx.elevation, size: ctx.size, biome: ctx.biome, pick, river: ctx.river, onMountain: ctx.onMountain });
+  const archetype = selectArchetype({ coastal: ctx.coastal, elevation: ctx.elevation, size: ctx.size, biome: ctx.biome, pick, river: ctx.river, onMountain: ctx.onMountain, relief: ctx.relief });
   // ...and what it is built of, from the country it stands in (see textureOf)
   const texture = textureOf(ctx.biome);
 
@@ -270,12 +274,17 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
     for (let k = 0; k < 16; k++) { const a = (k / 16) * Math.PI * 2; oasisPoly.push([center[0] + Math.cos(a) * or, center[1] + Math.sin(a) * or]); }
     water.bodies.push(oasisPoly);
   }
-  const boundary = makeBoundary(rng, archetype, ctx.size, center, water);
+  // the way the town runs, where its ground gives it one: along its valley, between the walls, or out
+  // along its spur from the high ground behind it
+  const along = ctx.reliefBearing === undefined ? undefined
+    : archetype.id === "valleyPass" ? ctx.reliefBearing + Math.PI / 2
+    : archetype.id === "spur" ? ctx.reliefBearing : undefined;
+  const boundary = makeBoundary(rng, archetype, ctx.size, center, water, along);
   // the high ground where the world has it: toward its mountains, and for a town at their foot, rising
   // past its fields on that side (from a stream of its own, so nothing else on the plate moves for it)
   const mountains = makeMountains(rng, archetype, boundary, [center[0], center[1]], bounds, {
     bearing: ctx.mountainBearing, share: ctx.mountainShare, rng: mulberry32(plateSeed(worldSeed, ctx.id + MOUNTAIN_SALT)),
-    wet: (p) => inWater(water, p),
+    wet: (p) => inWater(water, p), facing: ctx.reliefBearing,
   });
 
   // BLOCK-CENTRIC: wards are the city blocks; streets are the gaps (shared ward edges).

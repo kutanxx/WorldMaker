@@ -81,6 +81,17 @@ describe("selectArchetype", () => {
     expect(selectArchetype({ ...inland, elevation: 0.56, biome: GRASSLAND, pick: 0, onMountain: true }).id).toBe("hilltopFortress");
     expect(selectArchetype({ ...inland, elevation: 0.65, biome: GRASSLAND, pick: 0, onMountain: false }).id).toBe("plainsMarket");
   });
+  // ...and for the lie of the land it stands on there (see relief.ts). Its form was a draw of dice: over
+  // twelve worlds 8 of 28 mountain towns drew the form their ground has, about what chance gives.
+  it("takes the form of the ground a mountain town stands on, where the world says what it is", () => {
+    const mtn = { ...inland, elevation: 0.6, biome: GRASSLAND, onMountain: true };
+    const forms = { summit: "hilltopFortress", valley: "valleyPass", spur: "spur", slope: "hillside" } as const;
+    for (const [relief, id] of Object.entries(forms) as [keyof typeof forms, string][]) {
+      for (let pick = 0; pick < 1; pick += 0.1) expect(selectArchetype({ ...mtn, pick, relief }).id, `${relief} at pick ${pick.toFixed(1)}`).toBe(id);
+    }
+    // a river through it still wins: the mountain kinds carry no water
+    expect(selectArchetype({ ...mtn, relief: "valley", river: true, pick: 0.9 }).id).toBe("bridgeTown");
+  });
 });
 
 // A census of 840 town plans turned up two archetypes that had never been drawn. They did not turn

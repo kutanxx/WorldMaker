@@ -40,6 +40,12 @@ export interface CityMarker {
   mountainShare?: number;
   // the town's own cell is mountain terrain: the world map draws it in the mountains
   onMountain?: boolean;
+  // the lie of the land at a town in the mountains — on a SUMMIT (nothing round it higher), in a
+  // VALLEY (higher ground on both sides), on a SPUR (higher ground behind only, falling away on the
+  // rest) or on a SLOPE — and which way the high ground runs from it: the ridge on from a summit, the
+  // walls of a valley, the rise behind a spur or a slope
+  relief?: "summit" | "valley" | "spur" | "slope";
+  reliefBearing?: number;
 }
 
 export interface Polity {

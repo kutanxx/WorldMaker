@@ -26,7 +26,7 @@ describe("makeMountains", () => {
   // means spur" breaks for a reason that has nothing to do with what it is checking.
   it("gives each kind of high ground the number of masses its shape needs", () => {
     expect(makeMountains(mulberry32(3), TABLE.hillside, ring, center, bounds).length).toBe(1);
-    expect(makeMountains(mulberry32(3), TABLE.spur, ring, center, bounds).length).toBe(3);
+    expect(makeMountains(mulberry32(3), TABLE.spur, ring, center, bounds).length).toBe(1);
     expect(makeMountains(mulberry32(3), TABLE.valleyPass, ring, center, bounds).length).toBe(2);
     expect(makeMountains(mulberry32(3), TABLE.hilltopFortress, ring, center, bounds).length).toBe(1);
   });
@@ -97,6 +97,34 @@ describe("the world's mountains on the plate", () => {
         expect(off(facing(m), bearing), `${kind.id} toward ${bearing}`).toBeLessThan(0.3);
       }
     }
+  });
+
+  // A spur hangs off the high ground behind it. It was drawn as three wedges spaced round the town,
+  // which read as mountains on every side of it.
+  it("hangs a spur town off one narrow ridge behind it", () => {
+    for (const dir of [-2, 0.5, 2.8]) {
+      const masses = makeMountains(mulberry32(3), TABLE.spur, ring, center, bounds, { facing: dir });
+      expect(masses.length).toBe(1);
+      expect(masses[0].steep).toBe(true);
+      expect(off(facing(masses[0]), dir)).toBeLessThan(0.2);
+      const rel = masses[0].innerEdge.map((p) => { const a = Math.atan2(p[1] - center[1], p[0] - center[0]) - dir; return Math.atan2(Math.sin(a), Math.cos(a)); });
+      expect(Math.max(...rel) - Math.min(...rel), "a ridge, not a massif").toBeLessThan(Math.PI / 2);
+    }
+  });
+
+  // Where the world says how the ground a mountain town stands on lies (see relief.ts), its high ground
+  // faces that way rather than toward the mountain cells beside it: on a summit those lie all round,
+  // lower than the town, and its ridge runs one way.
+  it("faces a mountain town's high ground the way its own ground rises", () => {
+    for (const kind of [TABLE.hilltopFortress, TABLE.hillside, TABLE.spur]) {
+      const [m] = makeMountains(mulberry32(3), kind, ring, center, bounds, { bearing: 0, facing: 2.2 });
+      expect(off(facing(m), 2.2), kind.id).toBeLessThan(0.3);
+    }
+    // a valley's two walls stand one each side of it, on the line its relief gives
+    const walls = makeMountains(mulberry32(3), TABLE.valleyPass, ring, center, bounds, { bearing: 0, facing: 1.2 });
+    expect(walls.length).toBe(2);
+    for (const w of walls) expect(Math.min(off(facing(w), 1.2), off(facing(w), 1.2 + Math.PI))).toBeLessThan(0.3);
+    expect(off(facing(walls[0]), facing(walls[1]))).toBeGreaterThan(Math.PI - 0.3);
   });
 
   it("raises foothills past a town's fields on the side the world's mountains are", () => {

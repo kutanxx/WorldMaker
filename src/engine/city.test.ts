@@ -1769,6 +1769,7 @@ describe("everything a plate draws stands where it belongs", () => {
         beside++;
         if (!l.mountains.length) continue;   // a river's loop can run through the whole of their arc
         drawn++;
+        if (c.relief && !c.river) continue;  // built to the ground it stands on: the next test
         const facing = l.mountains.map((m) => {
           let x = 0, y = 0;
           for (const p of m.innerEdge) { x += p[0] - 230; y += p[1] - 230; }
@@ -1779,6 +1780,41 @@ describe("everything a plate draws stands where it belongs", () => {
     }
     expect(beside).toBeGreaterThan(40);
     expect(drawn / beside, "towns at the foot of the world's mountains that draw them").toBeGreaterThan(0.95);
+  });
+
+  // ...and a town in the mountains is built to the form of the ground it stands on (see relief.ts): a
+  // hill fortress on a summit, its broad shoulder the way its ridge runs on; a town in a valley between
+  // its two walls, running along it; a spur town hung off one ridge behind it; a hillside town below
+  // the rise. Its form was a draw of dice and its high ground pointed wherever the draw fell: 8 of the
+  // 28 dry mountain towns of twelve worlds drew the form their ground has.
+  it("builds a town in the mountains to the form of the ground it stands on", () => {
+    const off = (a: number, b: number) => Math.abs(Math.atan2(Math.sin(a - b), Math.cos(a - b)));
+    const axisOff = (a: number, b: number) => Math.min(off(a, b), off(a, b + Math.PI));
+    const forms = { summit: "hilltopFortress", valley: "valleyPass", spur: "spur", slope: "hillside" } as const;
+    const facing = (m: { innerEdge: P[] }) => { let x = 0, y = 0; for (const p of m.innerEdge) { x += p[0] - 230; y += p[1] - 230; } return Math.atan2(y, x); };
+    const extent = (b: P[], a: number) => { const t = b.map((p) => (p[0] - 230) * Math.cos(a) + (p[1] - 230) * Math.sin(a)); return Math.max(...t) - Math.min(...t); };
+    const seen = new Set<string>();
+    for (let seed = 1; seed <= 12; seed++) {
+      const w = generateWorld({ ...DEFAULT_PARAMS, seed }).world;
+      for (const c of w.cities) {
+        if (!c.relief || c.river || c.coastal) continue;
+        const where = `${c.name} (seed ${seed}, ${c.id})`;
+        const l = towns().find((t) => t.where === where)!.l;
+        const rb = c.reliefBearing!, f = l.mountains.map(facing), B = l.boundary as P[];
+        seen.add(c.relief);
+        expect(l.archetype.id, `the form of ${where}`).toBe(forms[c.relief]);
+        if (c.relief === "valley") {
+          expect(f.length, `the walls of ${where}`).toBe(2);
+          for (const a of f) expect(axisOff(a, rb), `a wall of ${where} off its valley's side`).toBeLessThan(Math.PI / 6);
+          expect(off(f[0], f[1]), `both walls of ${where} on one side`).toBeGreaterThan((5 * Math.PI) / 6);
+          expect(extent(B, rb + Math.PI / 2), `${where} across its valley`).toBeGreaterThan(extent(B, rb) * 1.1);
+        } else {
+          expect(f.length, `the high ground of ${where}`).toBe(1);
+          expect(off(f[0], rb), `the high ground of ${where} turned from its ground`).toBeLessThan(Math.PI / 6);
+        }
+      }
+    }
+    expect(seen).toEqual(new Set(["summit", "valley", "spur", "slope"]));
   });
 
   it("spaces the towers along a wall", () => {
@@ -1877,6 +1913,12 @@ describe("a town in one world is not a copy of a town in another", () => {
 // a mountain town a world river runs through (12:3) is drawn as its river crossing (with its mountains
 // round it), and 37 towns at the foot of the range have its foothills, or their masses turned the way
 // the world's mountains lie. The other 284 hashed byte for byte the same.
+//
+// And for the lie of the land in the mountains (relief.ts): exactly the 26 dry mountain towns whose form
+// or high ground moved — 16 take the form of the ground they stand on (a summit's hill fortress, a
+// valley's pass, a spur, a slope's hillside) and 10 turned theirs to it (a valley town running along its
+// valley, a spur town out along its one ridge, a summit's shoulder and a slope's rise where the ground
+// rises). Seed 1 has none of them. The other 310 hashed byte for byte the same.
 describe("a plate is the same plate, byte for byte", () => {
   const fold = (h: number, c: number) => Math.imul(h ^ c, 16777619) >>> 0;
   const fnv = (s: string) => { let h = 2166136261 >>> 0; for (let i = 0; i < s.length; i++) h = fold(h, s.charCodeAt(i)); return h >>> 0; };
@@ -1890,6 +1932,6 @@ describe("a plate is the same plate, byte for byte", () => {
     expect(worldHash(1)).toEqual({ h: 184864013, n: 28 });
   });
   it("draws seed 12's twenty-eight towns exactly as it did", () => {
-    expect(worldHash(12)).toEqual({ h: 1120259200, n: 28 });
+    expect(worldHash(12)).toEqual({ h: 211413890, n: 28 });
   });
 });

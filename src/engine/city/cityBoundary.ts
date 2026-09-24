@@ -7,6 +7,9 @@ import { inWater } from "./water";
 
 // a port's wall within this of the sea runs down to it, and stands this far up the bank from it
 const SHORE_REACH = 16, ON_BANK = 3;
+// a spur town runs out along its ridge this much longer than it is across — narrower across it, not
+// bigger (the mean of |cos| round the compass is 2/pi): a capital stretched out filled its plate
+const SPUR_STRETCH = 0.35, SPUR_MEAN = 1 + (SPUR_STRETCH * 2) / Math.PI;
 
 // nearest point on any water body's edge, and the direction from p toward it (outward, since p is
 // inside the water). Used to lift a boundary vertex to the closest BANK.
@@ -26,19 +29,27 @@ function nearestShore(water: Water, p: Point): Point | null {
   return best;
 }
 
+/**
+ * @param along the way the town runs where its ground gives it one (see relief.ts): a valley town along
+ * its valley, a spur town out along its ridge. A linear town's axis was otherwise a draw of dice, and
+ * a spur town is round without it.
+ */
 export function makeBoundary(
-  rng: Rng, archetype: Archetype, size: number, center: Point, water: Water
+  rng: Rng, archetype: Archetype, size: number, center: Point, water: Water, along?: number,
 ): Polygon {
   const noise = createNoise2D(rng);
   const base = 58 + size * 12;
   const N = 22;
-  const axis = rng() * Math.PI;
+  // (drawn whether or not the ground sets it, so the stream behind it does not move)
+  const drawn = rng() * Math.PI;
+  const axis = along ?? drawn;
   const poly: Polygon = [];
   const sea: Water | null = water.kind === "sea" && water.bodies.length ? { kind: "sea", bodies: [water.bodies[0]], bridges: [] } : null;
   for (let i = 0; i < N; i++) {
     const a = (i / N) * Math.PI * 2;
     let r = base * (0.8 + 0.34 * (noise(Math.cos(a) * 1.5, Math.sin(a) * 1.5) * 0.5 + 0.5));
     if (archetype.streetField === "linear") r *= 1 + 0.55 * Math.abs(Math.cos(a - axis));
+    else if (archetype.id === "spur" && along !== undefined) r *= (1 + SPUR_STRETCH * Math.abs(Math.cos(a - axis))) / SPUR_MEAN;
     else if (archetype.wallShape === "contour") r *= 0.82;
     let p: Point = [center[0] + Math.cos(a) * r, center[1] + Math.sin(a) * r];
     // lift a vertex that lands in the water out to the NEAREST BANK, not radially toward the centre:

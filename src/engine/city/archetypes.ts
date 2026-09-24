@@ -1,4 +1,5 @@
 import { TUNDRA, TAIGA, TEMPERATE_FOREST, GRASSLAND, TROPICAL, DESERT, WETLAND, ALPINE } from "../biome";
+import type { ReliefKind } from "../relief";
 
 export type ArchetypeId =
   | "coastalPort" | "bridgeTown" | "hilltopFortress"
@@ -39,6 +40,8 @@ export const TABLE: Record<ArchetypeId, Archetype> = {
 };
 
 const MOUNTAIN_VARIANTS: ArchetypeId[] = ["hilltopFortress", "hillside", "spur", "valleyPass"];
+// ...and the one the ground a town stands on makes (see relief.ts)
+const RELIEF_FORM: Record<ReliefKind, ArchetypeId> = { summit: "hilltopFortress", valley: "valleyPass", spur: "spur", slope: "hillside" };
 // The gate stood at 0.70, and across 840 towns the highest measured 0.741: mountain towns arrived
 // 0.2 times per world of 28, so the four kinds above split seven towns and most worlds had none.
 // 0.60 gives ~1.8 a world -- met once or twice, still rare -- and stays clear of the world map's
@@ -47,7 +50,7 @@ const MOUNTAIN_ELEVATION = 0.6;
 const MEANDER_SHARE = 0.35;
 
 export function selectArchetype(
-  opts: { coastal: boolean; elevation: number; size: number; biome: number; pick?: number; river?: boolean; onMountain?: boolean }
+  opts: { coastal: boolean; elevation: number; size: number; biome: number; pick?: number; river?: boolean; onMountain?: boolean; relief?: ReliefKind }
 ): Archetype {
   if (opts.coastal) return TABLE.coastalPort;
   // a world river runs through this cell → the drilldown must show it (world<->city coupling).
@@ -65,6 +68,8 @@ export function selectArchetype(
   // The world says where its mountains are (`onMountain`, its own terrain line); a height is the
   // stand-in only where it cannot say.
   if (opts.onMountain ?? opts.elevation >= MOUNTAIN_ELEVATION) {
+    // the form of the ground it stands on, where the world says what that is; a draw where it cannot
+    if (opts.relief) return TABLE[RELIEF_FORM[opts.relief]];
     const i = Math.min(MOUNTAIN_VARIANTS.length - 1, Math.floor((opts.pick ?? 0) * MOUNTAIN_VARIANTS.length));
     return TABLE[MOUNTAIN_VARIANTS[i]];
   }

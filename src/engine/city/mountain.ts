@@ -22,6 +22,9 @@ function wrap(a: number): number {
 // is how the one kind named for its hill ended up as a walled town on a flat plain.
 const MOUNTAIN_SHAPED = new Set<Archetype["id"]>(["hilltopFortress", "hillside", "spur", "valleyPass"]);
 
+// the half-width of a spur's ridge, round the town
+const SPUR_PHI = 0.55;
+
 function massSpecs(rng: Rng, id: Archetype["id"], toward?: number): MassSpec[] {
   // (drawn whether or not the world says, so the stream behind it does not move)
   const drawn = rng() * Math.PI * 2;
@@ -31,7 +34,9 @@ function massSpecs(rng: Rng, id: Archetype["id"], toward?: number): MassSpec[] {
   // a fortress holding the end of a ridge and leaves the rest of the ground open.
   if (id === "hilltopFortress") return [{ dir: base, phi: 1.5, steep: true }];
   if (id === "hillside") return [{ dir: base, phi: 0.9, steep: false }];
-  if (id === "spur") return [0, 1, 2].map((k) => ({ dir: base + (k * 2 * Math.PI) / 3 + (rng() - 0.5) * 0.3, phi: 0.7, steep: true }));
+  // A spur hangs off the high ground behind it: one narrow ridge running back into the mountains. It
+  // was three wedges spaced round the town, which read as mountains on every side of it.
+  if (id === "spur") return [{ dir: base, phi: SPUR_PHI, steep: true }];
   // valleyPass: two opposite valley walls
   return [{ dir: base, phi: 0.7, steep: true }, { dir: base + Math.PI, phi: 0.7, steep: true }];
 }
@@ -41,8 +46,11 @@ function massSpecs(rng: Rng, id: Archetype["id"], toward?: number): MassSpec[] {
  * the town's own lie, their share of its neighbours, and a stream of its own for the foothills'
  * outline. A mountain town's masses face that way; a town at the foot of mountains has them rise past
  * its fields on that side. Without a site, a mountain town draws its own direction as it always did.
+ * `facing` is the way the ground a mountain town stands on rises (see relief.ts) — a valley's the
+ * line its walls stand on — and where it is given, a mountain town's masses face it instead: the
+ * mountain cells beside a town on a summit lie all round it, lower than it, and its ridge runs one way.
  */
-export interface MountainSite { bearing?: number; share?: number; rng?: Rng; wet?: (p: Point) => boolean }
+export interface MountainSite { bearing?: number; share?: number; rng?: Rng; wet?: (p: Point) => boolean; facing?: number }
 
 export function makeMountains(
   rng: Rng, archetype: Archetype, boundary: Polygon, center: Point, bounds: { w: number; h: number },
@@ -51,7 +59,7 @@ export function makeMountains(
   if (!MOUNTAIN_SHAPED.has(archetype.id)) {
     return site.bearing !== undefined && site.share && site.rng ? foothills(site.rng, boundary, center, bounds, site.bearing, site.share, site.wet ?? (() => false)) : [];
   }
-  const specs = massSpecs(rng, archetype.id, site.bearing);
+  const specs = massSpecs(rng, archetype.id, site.facing ?? site.bearing);
   const noise = createNoise2D(rng);
   const vAng = boundary.map((p) => Math.atan2(p[1] - center[1], p[0] - center[0]));
 
