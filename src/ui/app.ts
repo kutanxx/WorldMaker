@@ -480,7 +480,15 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
       : `${world} — WorldMaker`;
   }
 
+  // Whether the keyboard has lost its place: focus on <body>, or on an element the screen change
+  // just threw away. `hidden` names one more that is still in the document but no longer shown.
+  function focusLost(hidden?: Element): boolean {
+    const a = document.activeElement;
+    return !a || a === document.body || !a.isConnected || a === hidden;
+  }
+
   function showWorld(): void {
+    const was = openCityId;
     openCityId = null;
     setTitle();
     controls.classList.remove("plate");
@@ -729,6 +737,14 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     // replaceState, not location.hash: re-rendering the same world is not a place to come back to,
     // and every view switch used to push one
     window.history.replaceState(null, "", "#" + worldHash());
+    // ...and the keyboard comes back to where the reader left for the plate: the town's own row,
+    // or the list's head if the row is folded away or not founded in this year. The way back it
+    // was on is hidden on the world, so focus had fallen to <body> (see openCity).
+    if (was !== null && focusLost(backBtn)) {
+      const row = listRows.get(was);
+      const shown = row && !row.hidden && listFold?.section.classList.contains("is-open");
+      ((shown ? row.querySelector("button") : null) ?? listFold?.head)?.focus({ preventScroll: true });
+    }
   }
 
   // (window.history, not history — the chronicle is called `history` in this scope)
@@ -955,6 +971,11 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
         });
       },
     });
+    // ★ The keyboard goes with the reader. Opening a plate throws away the screen they were on — the
+    // list row, the dot or the neighbour chip they pressed — and focus fell to <body>, so the next
+    // Tab started over at the top of the page (measured live, 2026-09-25). It lands on the way back,
+    // the plate's first control. A plate a link opened at load leaves focus where the page put it.
+    if (record !== "replace" && focusLost()) backBtn.focus({ preventScroll: true });
   }
 
   function regenerate(p: WorldParams): void {

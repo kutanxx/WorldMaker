@@ -414,6 +414,42 @@ describe("a city is a place you can come back to", () => {
     root.remove();
   });
 
+  // The keyboard went nowhere: opening a plate throws away the row that was pressed, and focus fell
+  // to <body> — the next Tab started over at the top of the page (measured live, 2026-09-25). The
+  // same on the way back: the way back is hidden on the world, so focus fell there too.
+  it("takes the keyboard to the way back on a plate, and back to the town's row on the map", async () => {
+    const root = document.createElement("div");
+    document.body.appendChild(root);
+    createApp(root, { ...DEFAULT_PARAMS, seed: 5 });
+    await new Promise((r) => setTimeout(r, 0));
+    const worldHash = location.hash;
+    const row = root.querySelector(".city-list li:not([hidden]) .city-list-item") as HTMLButtonElement;
+    const id = row.getAttribute("data-city");
+    row.focus();
+    row.click();
+    await new Promise((r) => setTimeout(r, 0));
+    expect(document.activeElement, "the keyboard fell off the page").toBe(root.querySelector(".plate-back"));
+    location.hash = worldHash;                       // what the browser does on Back
+    window.dispatchEvent(new PopStateEvent("popstate", { state: null }));
+    await new Promise((r) => setTimeout(r, 0));
+    const again = document.activeElement as HTMLElement;
+    expect(again.classList.contains("city-list-item"), `focus on ${again.tagName}.${again.className}`).toBe(true);
+    expect(again.getAttribute("data-city")).toBe(id);
+    root.remove();
+  });
+
+  it("leaves the focus where the page put it when a link opens a plate", async () => {
+    const root = document.createElement("div");
+    document.body.appendChild(root);
+    location.hash = "seed=5&city=2";
+    (document.activeElement as HTMLElement | null)?.blur();
+    createApp(root, { ...DEFAULT_PARAMS, seed: 5 });
+    await new Promise((r) => setTimeout(r, 0));
+    expect(root.querySelector(".city-name-text")).not.toBeNull();
+    expect(document.activeElement).toBe(document.body);
+    root.remove();
+  });
+
   // ★ "← Back to world" walked the history back ONE entry, and the town next door is an entry too:
   // measured live, A → B → A through the neighbour chips, then the button went to B, and again to A
   // — a button named for the map that led through every plate on the way. The browser's own Back
