@@ -1031,6 +1031,31 @@ describe("the towns arrive as the chronicle founds them", () => {
     expect(listed().length, "and every town stands by year 500").toBe(28);
     root.remove();
   });
+
+  // ...and the roads between them. The screen draws every road once and the scrubber shows the
+  // year's: those on the cheapest way between two towns standing then (worldRoads.ts roadsInUse).
+  // World 1 opens on fifteen roads between its eight capitals, and by the end every road the plates'
+  // gates face is on the map.
+  it("draws the roads in use in the scrubbed year, each with its casing", async () => {
+    const root = document.createElement("div");
+    document.body.appendChild(root);
+    createApp(root, { ...DEFAULT_PARAMS, seed: 1 });
+    await new Promise((r) => setTimeout(r, 0));
+    const slider = root.querySelector(".timeline input[type=range]") as HTMLInputElement;
+    const at = (v: string) => { slider.value = v; slider.dispatchEvent(new Event("input")); };
+    const shown = (cls: string) => [...root.querySelectorAll<SVGElement>(`.roads path.${cls}`)]
+      .filter((e) => e.style.display !== "none").length;
+    const all = root.querySelectorAll(".roads path.road").length;
+    expect(all).toBe(generateWorld({ ...DEFAULT_PARAMS, seed: 1 }).world.roads.length);
+    at("0");
+    expect(shown("road"), "world 1 at year 0").toBe(15);
+    expect(shown("road-casing"), "a casing without its road, or a road without its casing").toBe(15);
+    at(slider.max);
+    expect(shown("road"), "every road by the end").toBe(all);
+    at("0");
+    expect(shown("road"), "back at the dawn, as ▶ goes from the end").toBe(15);
+    root.remove();
+  });
 });
 
 // The political view drew id 12 in exactly the colour of id 0, so two realms with a border between

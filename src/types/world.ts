@@ -79,6 +79,18 @@ export interface Region {
   cells: number;
 }
 
+// A road between two towns (see worldRoads.ts), once for the pair: `a` < `b` are the towns' ids,
+// `cells` the land cells it runs through from a's cell to b's, `length` how long it is along them
+// (map units), and `effort` what travelling it costs — its length, made dearer over the mountains
+// and up the hills — the measure the network was built by and a traveller's way is chosen by.
+export interface Road {
+  a: number;
+  b: number;
+  cells: number[];
+  length: number;
+  effort: number;
+}
+
 export interface RiverSegment {
   x1: number; y1: number; x2: number; y2: number; f: number;
 }
@@ -119,6 +131,7 @@ export interface World {
   provinceOf: number[];
   provinces: Province[];
   cities: CityMarker[];
+  roads: Road[];
   rivers: River[];
   riverNet: RiverSegment[];
 }

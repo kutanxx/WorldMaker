@@ -1,6 +1,7 @@
 import type { WorldParams, GeneratedWorld } from "../types/world";
 import { DEFAULT_PARAMS } from "../types/world";
 import { generateWorld } from "../engine/world";
+import { roadsInUse } from "../engine/worldRoads";
 import { renderWorld, politicalOpts, type MapView } from "./svgWorldRenderer";
 import { renderCity, CITY_LEGEND_ROW, fitTitle } from "./svgCityRenderer";
 import { generateCityLayout, cityContext } from "../engine/city";
@@ -434,6 +435,13 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     for (const el of svg.querySelectorAll<SVGElement>(".markers [data-city]")) {
       const id = Number(el.getAttribute("data-city"));
       el.style.display = hidden.has(id) ? "none" : "";
+    }
+    // ...and the roads between them: the ones on the cheapest way between two towns standing this
+    // year, through the sites of towns still to come (roadsInUse). renderWorld drew every road once
+    // for the screen; the exported map is drawn for its year by the same rule.
+    const inUse = roadsInUse(generated.world.roads, (id) => !hidden.has(id));
+    for (const el of svg.querySelectorAll<SVGElement>(".roads [data-road]")) {
+      el.style.display = inUse[Number(el.getAttribute("data-road"))] ? "" : "none";
     }
     // ★ ...and the list beside it. It offered every town at every year while the map hid the ones
     // not founded: world 1 opens at year 0 with its 8 capitals on the map and 28 towns in the list,

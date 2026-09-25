@@ -10,6 +10,8 @@ import { displayBiomes } from "./displayBiome";
 import { OCEAN } from "../engine/terrain";
 import { BIOME_COLORS } from "../engine/biome";
 import { LEGEND_ROW, LEGEND_TEXT, LEGEND_SWATCH } from "./renderer";
+import { simulateHistory } from "../engine/history";
+import { KM_PER_UNIT } from "./scaleBar";
 
 describe("renderWorld biomes", () => {
   const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });
@@ -230,7 +232,7 @@ describe("renderWorld line weights (legible at the fitted view, stable under zoo
   it("draws the coast as the heaviest line on the map", () => {
     const coast = w(svg.querySelector(".coastline"));
     expect(coast).toBeGreaterThanOrEqual(2);
-    for (const sel of [".relief", ".river", ".nation-border"]) {
+    for (const sel of [".relief", ".river", ".nation-border", ".road", ".road-casing"]) {
       for (const other of widths(sel)) expect(other).toBeLessThanOrEqual(coast);
     }
   });
@@ -247,7 +249,7 @@ describe("renderWorld line weights (legible at the fitted view, stable under zoo
   });
 
   it("leaves no line below one screen pixel at the fitted view", () => {
-    for (const sel of [".coastline", ".river", ".nation-border"]) {
+    for (const sel of [".coastline", ".river", ".nation-border", ".road"]) {
       for (const width of widths(sel)) expect(width).toBeGreaterThanOrEqual(0.9);
     }
   });
@@ -255,7 +257,7 @@ describe("renderWorld line weights (legible at the fitted view, stable under zoo
   // vector-effect is an ATTRIBUTE, not a stylesheet rule: the SVG and PNG exports carry no external
   // CSS, so a line pinned only in theme.css would come back hairline in an exported file.
   it("pins every map line to the screen so zooming does not fatten it", () => {
-    for (const sel of [".coastline", ".relief", ".river"]) {
+    for (const sel of [".coastline", ".relief", ".river", ".road", ".road-casing"]) {
       const els = [...svg.querySelectorAll(sel)];
       expect(els.length).toBeGreaterThan(0);
       for (const el of els) expect(el.getAttribute("vector-effect")).toBe("non-scaling-stroke");
@@ -373,18 +375,20 @@ describe("renderWorld draws the smoothed biomes, not the raw ones", () => {
 // almost no value contrast: #e0a83a measured 1.13:1 against grassland and 1.15:1 against wetland,
 // where a graphical mark wants 3:1. A gold body can never win that on parchment either — so the
 // shape is carried by its outline, and a halo lifts it off the darker biomes.
+// WCAG contrast between two #rrggbb colours
+const lin = (c: number) => { c /= 255; return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); };
+const lum = (hex: string) => {
+  const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+  return 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
+};
+const ratio = (a: string, b: string) => {
+  const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p);
+  return (x + 0.05) / (y + 0.05);
+};
+
 describe("renderWorld free-port badge", () => {
   const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });
   const svg = renderWorld(world, "terrain", [world.cities[0].cell, world.cities[1].cell]);
-  const lin = (c: number) => { c /= 255; return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); };
-  const lum = (hex: string) => {
-    const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
-    return 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
-  };
-  const ratio = (a: string, b: string) => {
-    const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p);
-    return (x + 0.05) / (y + 0.05);
-  };
 
   it("carries a parchment halo, like every name on the map", () => {
     const halo = svg.querySelector(".econ-zone-halo");
@@ -412,6 +416,69 @@ describe("renderWorld free-port badge", () => {
       const best = Math.max(ratio(outline, colour as string), ratio(halo, colour as string));
       expect(best, `biome ${bm} (${colour})`).toBeGreaterThanOrEqual(3);
     }
+  });
+});
+
+// The world kept the way of every road between its towns and the map drew none of them: 344 roads
+// over twelve worlds, and a reader met them only as the name on a plate's gate.
+describe("renderWorld roads", () => {
+  const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });
+  const svg = renderWorld(world);
+  const layer = (cls: string) => [...svg.children].findIndex((c) => c.getAttribute("class") === cls);
+
+  it("draws every road between the towns, over the rivers and under every name and mark", () => {
+    expect(svg.querySelectorAll(".roads path.road").length).toBe(world.roads.length);
+    expect(world.roads.length).toBeGreaterThan(20);
+    expect(layer("roads")).toBeGreaterThan(layer("rivers"));
+    expect(layer("roads")).toBeLessThan(layer("region-labels"));
+    expect(layer("roads")).toBeLessThan(layer("markers"));
+  });
+
+  it("runs each road from one of its towns to the other", () => {
+    const drawn = svg.querySelectorAll(".roads path.road");
+    expect(drawn.length).toBeGreaterThan(0);
+    for (const el of drawn) {
+      const r = world.roads[Number(el.getAttribute("data-road"))];
+      const n = (el.getAttribute("d") ?? "").match(/-?\d+(?:\.\d+)?/g)!.map(Number);
+      const a = world.cities[r.a], b = world.cities[r.b];
+      expect([n[0], n[1]]).toEqual([Number(a.x.toFixed(1)), Number(a.y.toFixed(1))]);
+      expect([n[n.length - 2], n[n.length - 1]]).toEqual([Number(b.x.toFixed(1)), Number(b.y.toFixed(1))]);
+    }
+  });
+
+  // An exported map is drawn for the year on the scrubber, and carries that year's roads: in world 1
+  // at year 0 the eight capitals stand, joined by fifteen roads (worldRoads.test).
+  it("draws, for a year, only the roads in use in it", () => {
+    const h = simulateHistory(world, 1);
+    const unfounded = new Set(h.cityFoundings.filter((f) => f.year > 0).map((f) => f.cityId));
+    const early = renderWorld(world, "terrain", [], "en", unfounded);
+    expect(early.querySelectorAll(".roads path.road").length).toBe(15);
+    expect(early.querySelectorAll(".roads path.road-casing").length).toBe(15);
+  });
+
+  // No one colour clears 3:1 against both the palest tundra and the darkest taiga — the rivers go as
+  // low as 1.09 — so a road is cased, the way the map haloes its names and its badges: the dark line
+  // carries it over the pale ground, the parchment casing over the dark.
+  it("reads on every biome the map paints, by its line or by its casing", () => {
+    const line = svg.querySelector(".road")!.getAttribute("stroke")!;
+    const casing = svg.querySelector(".road-casing")!.getAttribute("stroke")!;
+    expect(ratio(line, casing)).toBeGreaterThanOrEqual(3);
+    for (const [bm, colour] of Object.entries(BIOME_COLORS)) {
+      expect(Math.max(ratio(line, colour), ratio(casing, colour)), `biome ${bm} (${colour})`).toBeGreaterThanOrEqual(3);
+    }
+  });
+
+  it("lays every casing under every line, so where two roads part neither is cut", () => {
+    const kinds = [...svg.querySelectorAll(".roads path")].map((p) => p.getAttribute("class"));
+    expect(kinds.lastIndexOf("road-casing")).toBeLessThan(kinds.indexOf("road"));
+  });
+
+  it("says what it is: a road, between which towns, and how far", () => {
+    const r = world.roads[0];
+    const title = svg.querySelector(`.road-casing[data-road="0"] title`)?.textContent ?? "";
+    expect(title).toContain(world.cities[r.a].name);
+    expect(title).toContain(world.cities[r.b].name);
+    expect(title).toContain(`${Math.round(r.length * KM_PER_UNIT)} km`);
   });
 });
 
@@ -663,7 +730,9 @@ describe("the keys can be read", () => {
           if (el.closest(".legend")) continue;      // UI chrome headings, already localised on their own path
           if (el.closest(".scale-bar")) continue;    // "360 km" — an SI unit, kept in Latin by Korean map convention
           mapTextChecked++;
-          const hasLatin = /[A-Za-z]/.test(el.textContent ?? "");
+          // ...and so is a road's length beside its towns' names ("카아그–마에르 길 · 43km"): the unit
+          // is let through, the names are still checked
+          const hasLatin = /[A-Za-z]/.test((el.textContent ?? "").replace(/\d+\s?km\b/g, ""));
           if (lang === "ko") {
             expect(hasLatin, `${view}: "${el.textContent}" has a Latin letter on the Korean map`).toBe(false);
           } else {

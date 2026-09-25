@@ -11,6 +11,7 @@ import { politicalLayer, type PoliticalOpts } from "./politicalLayer";
 import { properName, polityLabeller } from "./properName";
 import { featureLabel, worldNameIn } from "../engine/featureLabel";
 import { riverSize } from "../engine/rivers";
+import { roadsInUse } from "../engine/worldRoads";
 import { cultureLayer } from "./cultureLayer";
 import { provinceLayer, snapOwnersToProvinces } from "./provinceLayer";
 
@@ -30,6 +31,28 @@ export function politicalOpts(view: MapView, lang: Lang = "en", colorOf?: (id: n
     : { labelOf };
 }
 
+
+// A road's line and its casing. The line is a dark red — the colour the Gough map drew its roads in,
+// darkened until, with its casing, it clears 3:1 on every biome (the mid greens and the alpine grey
+// are where a brighter red failed) — and the casing is the parchment the map haloes its names with,
+// kept under the coast's weight.
+const ROAD_INK = "#7a2a1a";
+const ROAD_W = 1.1;
+const ROAD_CASING_W = 2.3;
+
+// A road through its cells' centres, drawn smooth: straight out of its town to the middle of its first
+// step, a curve through each cell's centre to the middle of the next step, and straight into the town
+// at the other end. Through the centres themselves it would kink at every cell, as a river does.
+function roadPath(points: ArrayLike<number>, cells: number[]): string {
+  const at = (c: number) => `${points[c * 2].toFixed(1)},${points[c * 2 + 1].toFixed(1)}`;
+  const mid = (c: number, e: number) =>
+    `${((points[c * 2] + points[e * 2]) / 2).toFixed(1)},${((points[c * 2 + 1] + points[e * 2 + 1]) / 2).toFixed(1)}`;
+  const n = cells.length;
+  if (n < 3) return `M${at(cells[0])}L${at(cells[n - 1])}`;
+  let d = `M${at(cells[0])}L${mid(cells[0], cells[1])}`;
+  for (let i = 1; i < n - 1; i++) d += `Q${at(cells[i])} ${mid(cells[i], cells[i + 1])}`;
+  return `${d}L${at(cells[n - 1])}`;
+}
 
 // n-point star centered at (cx,cy), alternating outer/inner radius, tip pointing up.
 // a drawn thing that can say what it is (SVG's own tooltip: no CSS, and it survives export)
@@ -173,6 +196,31 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
       }));
     });
     root.appendChild(rivers);
+  }
+
+  // roads between the towns (worldRoads.ts) — over the rivers they bridge, under every name and mark,
+  // and in every view, since like the rivers they are the ground the realms are drawn on. Only the
+  // roads in use in the year drawn, those on the cheapest way between two towns standing then
+  // (roadsInUse): an exported map carries its year's roads, and the screen draws every road once and
+  // lets the scrubber show the year's (app.ts). No one colour clears 3:1 against both the palest and
+  // the darkest biome, so a road is cased: the dark line carries it over pale ground, the parchment
+  // casing over dark. Every casing goes under every line, so where two roads part neither is cut.
+  if (world.roads.length) {
+    const inUse = roadsInUse(world.roads, (id) => !unfounded.has(id));
+    const casings: SVGElement[] = [], lines: SVGElement[] = [];
+    world.roads.forEach((r, k) => {
+      if (!inUse[k]) return;
+      const d = roadPath(grid.points, r.cells);
+      const title = t(lang, "roadBetween").replace("{a}", nm(world.cities[r.a].name))
+        .replace("{b}", nm(world.cities[r.b].name)).replace("{km}", String(Math.round(r.length * KM_PER_UNIT)));
+      const line = { d, fill: "none", "vector-effect": "non-scaling-stroke", "stroke-linecap": "round", "stroke-linejoin": "round", "data-road": k };
+      // the casing is the wider of the two, so it carries the name a pointer finds
+      casings.push(named(svgEl("path", { class: "road-casing", ...line, stroke: PARCHMENT, "stroke-width": ROAD_CASING_W }), title));
+      lines.push(svgEl("path", { class: "road", ...line, stroke: ROAD_INK, "stroke-width": ROAD_W, "pointer-events": "none" }));
+    });
+    const roads = svgEl("g", { class: "roads" });
+    roads.append(...casings, ...lines);
+    root.appendChild(roads);
   }
 
   // geographic feature names (above the political fills, below the settlements).
