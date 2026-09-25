@@ -20,7 +20,7 @@ import { attachZoomPan, type ZoomPan } from "./zoomPan";
 import { politicalLayer } from "./politicalLayer";
 import { cultureLayer } from "./cultureLayer";
 import { provinceLayer, snapOwnersToProvinces } from "./provinceLayer";
-import { deconflictLabels, clearMarks, clearCastleName, coveredBy } from "./deconflict";
+import { deconflictLabels, clearMarks, clearCastleName, coveredBy, placeRoadEnds } from "./deconflict";
 import { applyLabelScale, applyMarkerScale, floorLabelSize } from "./labelScale";
 import { layOutLabelsForExport } from "./exportLabels";
 import { type Lang, t } from "./i18n";
@@ -841,6 +841,12 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     // fixed by moving a node: the plate is rendered without the strip from the start.
     const layout = generateCityLayout(cityContext(marker), params.seed);
     const citySvg = renderCity(layout, lang, { keyOutside: true, townName });
+    // a town's name written where a road leaves the plate opens that town, as the neighbours beside it
+    // do (a drag that ends on one is not a click: the zoom swallows it)
+    citySvg.addEventListener("click", (e) => {
+      const to = (e.target as Element).closest?.("[data-city]")?.getAttribute("data-city");
+      if (to) openCity(Number(to));
+    });
     const frame = document.createElement("div");
     frame.className = "map-frame";
     frame.appendChild(citySvg);
@@ -958,7 +964,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     // 7-unit ward name at 4.8px on screen — against 18px for the SAME word in the key standing
     // under it. Floored first, culled after, so `deconflictLabels` measures the names as they will
     // be read. A desktop plate is already past the floor (10.2px at 720px), so it is untouched.
-    floorLabelSize(citySvg, ".ward-label", PLATE_NAME_MIN_PX);
+    floorLabelSize(citySvg, ".ward-label, .road-end", PLATE_NAME_MIN_PX);
     // The rest of what the plate writes shrank the same way: the town's own name 12.2px on a phone,
     // its north 4.8px, its scale 4.6px. The name is the plate's heading, so it gets a heading's size.
     floorLabelSize(citySvg, ".city-name-text", PLATE_TITLE_MIN_PX);
@@ -969,6 +975,8 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     // the castle's name off the castle it names
     clearMarks(citySvg);
     clearCastleName(citySvg);
+    // ...and where each road goes, beside its road where it leaves the plate, off the plate's own name
+    placeRoadEnds(citySvg);
     deconflictLabels(citySvg);
     cityZoom = attachZoomPan(citySvg, frame, {
       labels: zoomLabels(),
@@ -1016,7 +1024,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
       const marker = generated.world.cities.find((c) => c.id === openCityId);
       if (marker) {
         const svg = renderCity(generateCityLayout(cityContext(marker), params.seed), lang, { townName });
-        layOutLabelsForExport(svg, (s) => { fitTitle(s); clearMarks(s); clearCastleName(s); });
+        layOutLabelsForExport(svg, (s) => { fitTitle(s); clearMarks(s); clearCastleName(s); placeRoadEnds(s); });
         const [, , w, h] = (svg.getAttribute("viewBox") || "0 0 1000 700").split(/[\s,]+/).map(Number);
         return {
           svg, name: marker.name.replace(/[^\w-]+/g, "_") || "city",

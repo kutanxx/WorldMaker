@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from "vitest";
-import { deconflictLabels, clearMarks, clearCastleName, coveredBy } from "./deconflict";
+import { deconflictLabels, clearMarks, clearCastleName, coveredBy, placeRoadEnds } from "./deconflict";
 import { CITY_LABEL_DX } from "./renderer";
 
 const NS = "http://www.w3.org/2000/svg";
@@ -627,5 +627,137 @@ describe("clearCastleName", () => {
     svg.appendChild(u);
     expect(() => clearCastleName(svg)).not.toThrow();
     expect(u.getAttribute("x")).toBe("108");
+  });
+});
+
+// ★ Where a road goes is written where it leaves the plate, and the ends of the roads are where the
+// plate keeps its furniture — its name's tablet at the top, the compass and the scale in the bottom
+// corners: measured over 336 plates, 244 of 901 road ends had their label's place under one of them.
+describe("placeRoadEnds", () => {
+  type P = [number, number];
+  type Edges = { x0: number; y0: number; x1: number; y1: number };
+  const el = (svg: Element, tag: string, attrs: Record<string, string | number>, box?: Box) => {
+    const e = document.createElementNS(NS, tag);
+    for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, String(v));
+    if (box) (e as unknown as { getBBox: () => Box }).getBBox = () => box;
+    svg.appendChild(e);
+    return e as unknown as SVGGraphicsElement;
+  };
+  const pts = (ps: P[]) => ps.map((p) => p.join(",")).join(" ");
+  // a 460-unit plate with its town in the middle
+  const plate = (town: P[] = [[170, 170], [290, 170], [290, 290], [170, 290]]) => {
+    const svg = document.createElementNS(NS, "svg") as SVGSVGElement;
+    svg.setAttribute("viewBox", "0 0 460 460");
+    el(svg, "polygon", { class: "boundary", points: pts(town) });
+    return svg;
+  };
+  const road = (svg: SVGSVGElement, i: number, line: P[]) =>
+    el(svg, "polyline", { class: "suburb-road", "data-road": i, points: pts(line), "stroke-width": 1.6 });
+  // a destination as the renderer leaves it: a line box 30 wide and 8.8 tall about its middle and baseline
+  const W = 30;
+  const dest = (svg: SVGSVGElement, i: number, x: number, y: number) => ({
+    t: el(svg, "text", { class: "road-end", "data-road": i, x, y, "font-size": 7, "stroke-width": 2.2 },
+      { x: x - W / 2, y: y - 6.9, width: W, height: 8.8 }),
+    x, y,
+  });
+  // where its letters and halo stand now
+  const boxNow = (d: { t: SVGGraphicsElement; x: number; y: number }): Edges => {
+    const dx = Number(d.t.getAttribute("x")) - d.x, dy = Number(d.t.getAttribute("y")) - d.y;
+    return { x0: d.x - W / 2 - 1.1 + dx, y0: d.y - 6.9 - 1.1 + dy, x1: d.x + W / 2 + 1.1 + dx, y1: d.y + 1.9 + 1.1 + dy };
+  };
+  const overlap = (a: Edges, b: Edges) => a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1;
+  // how near a box comes to a stretch of road (0 where the road runs through it)
+  const toRoad = (b: Edges, a: P, c: P) => {
+    let d = Infinity;
+    for (let k = 0; k <= 400; k++) {
+      const x = a[0] + ((c[0] - a[0]) * k) / 400, y = a[1] + ((c[1] - a[1]) * k) / 400;
+      d = Math.min(d, Math.hypot(Math.max(b.x0 - x, 0, x - b.x1), Math.max(b.y0 - y, 0, y - b.y1)));
+    }
+    return d;
+  };
+
+  it("sets a destination beside its road, near where the road leaves the plate, inside its frame", () => {
+    const svg = plate();
+    road(svg, 0, [[290, 230], [370, 228], [456, 230]]);             // out to the east
+    const d = dest(svg, 0, 420, 240);
+    placeRoadEnds(svg);
+    const b = boxNow(d);
+    expect(b.x1, "past the frame").toBeLessThanOrEqual(450);
+    expect(b.x0 >= 10 && b.y0 >= 10 && b.y1 <= 450, "outside the frame").toBe(true);
+    const off = toRoad(b, [370, 228], [456, 230]);
+    expect(off, "on its road").toBeGreaterThan(0.8);
+    expect(off, "away from its road").toBeLessThan(6);
+    expect(456 - b.x1, "further in from the edge than it had to go").toBeLessThan(25);
+  });
+
+  it("walks in along its road past the plate's name at the top", () => {
+    const svg = plate();
+    el(svg, "rect", { class: "city-name-plate", x: 170, y: 11, width: 120, height: 32 }, { x: 170, y: 11, width: 120, height: 32 });
+    road(svg, 0, [[230, 170], [228, 90], [230, 4]]);                 // out to the north, under the name
+    const d = dest(svg, 0, 236, 30);
+    placeRoadEnds(svg);
+    const b = boxNow(d);
+    expect(overlap(b, { x0: 170, y0: 11, x1: 290, y1: 43 }), "under the plate's name").toBe(false);
+    expect(toRoad(b, [228, 90], [230, 4]), "away from its road").toBeLessThan(6);
+    expect(b.y1, "in the town").toBeLessThan(170);
+  });
+
+  it("keeps off the compass in its corner", () => {
+    const svg = plate();
+    el(svg, "circle", { class: "compass-plate", cx: 424, cy: 419, r: 22 }, { x: 402, y: 397, width: 44, height: 44 });
+    road(svg, 0, [[290, 290], [370, 380], [452, 452]]);              // out to the south-east corner
+    const d = dest(svg, 0, 420, 420);
+    placeRoadEnds(svg);
+    expect(overlap(boxNow(d), { x0: 402, y0: 397, x1: 446, y1: 441 }), "on the compass").toBe(false);
+  });
+
+  it("keeps two destinations apart where their roads leave side by side", () => {
+    const svg = plate();
+    road(svg, 0, [[290, 220], [370, 218], [456, 220]]);
+    road(svg, 1, [[290, 240], [370, 242], [456, 240]]);
+    const a = dest(svg, 0, 420, 214), b = dest(svg, 1, 420, 250);
+    placeRoadEnds(svg);
+    expect(overlap(boxNow(a), boxNow(b)), "one on the other").toBe(false);
+  });
+
+  it("stays out of the town, on the road's far side if it must", () => {
+    // the road runs out along the top of a long town: the side toward the plate's middle is the town
+    const svg = plate([[170, 170], [420, 170], [420, 290], [170, 290]]);
+    road(svg, 0, [[300, 170], [380, 166], [456, 166]]);
+    const d = dest(svg, 0, 420, 176);
+    placeRoadEnds(svg);
+    expect(overlap(boxNow(d), { x0: 170, y0: 170, x1: 420, y1: 290 }), "in the town").toBe(false);
+  });
+
+  it("takes a destination off where no place near its road is clear of the plate's name", () => {
+    const svg = plate();
+    el(svg, "rect", { class: "city-name-plate", x: 0, y: 0, width: 460, height: 100 }, { x: 0, y: 0, width: 460, height: 100 });
+    road(svg, 0, [[230, 170], [230, 90], [230, 4]]);
+    dest(svg, 0, 236, 30);
+    const other = dest(svg, 1, 236, 30);                              // (and a label with no road is left be)
+    placeRoadEnds(svg);
+    expect(svg.querySelector('text.road-end[data-road="0"]'), "a name left under the plate's name").toBeNull();
+    expect(svg.contains(other.t), "a label with no road to walk was taken off").toBe(true);
+  });
+
+  // the cull: a road's destination outranks a plain quarter's name — there are one to four of them, at
+  // the plate's edge — and yields to a landmark's
+  it("keeps a destination over a quarter's name, and a landmark's name over a destination", () => {
+    const svg = document.createElementNS(NS, "svg") as SVGSVGElement;
+    const to = mkLabel(svg, "road-end", { x: 50, y: 50, width: 40, height: 10 });
+    const quarter = mkLabel(svg, "ward-label", { x: 60, y: 52, width: 30, height: 10 });
+    deconflictLabels(svg);
+    expect([to.style.visibility, quarter.style.visibility]).toEqual(["", "hidden"]);
+    const landmark = mkLabel(svg, "ward-label ward-landmark", { x: 40, y: 48, width: 30, height: 10 });
+    deconflictLabels(svg);
+    expect([landmark.style.visibility, to.style.visibility]).toEqual(["", "hidden"]);
+  });
+
+  it("does nothing where nothing can be measured", () => {
+    const svg = plate();
+    road(svg, 0, [[290, 230], [456, 230]]);
+    const t = el(svg, "text", { class: "road-end", "data-road": 0, x: 420, y: 240 });
+    expect(() => placeRoadEnds(svg)).not.toThrow();
+    expect(t.getAttribute("x")).toBe("420");
   });
 });

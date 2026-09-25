@@ -43,8 +43,9 @@ export function deconflictLabels(svg: SVGSVGElement, scale = 1, opts: { clear?: 
     // realm tier without ever competing with it: the two are never drawn in the same view.
     [".culture-label", 5, 0],
     // the city plan: its landmarks outrank its ordinary quarters, and both belong to a drawing
-    // read at one scale, so neither waits for a zoom
-    [".ward-landmark", 4, 0], [".ward-label:not(.ward-landmark)", 2, 0],
+    // read at one scale, so neither waits for a zoom. Where a road out goes, written at the plate's
+    // edge (one to four of them), stands between the two.
+    [".ward-landmark", 4, 0], [".road-end", 3, 0], [".ward-label:not(.ward-landmark)", 2, 0],
   ];
   const labels: { el: SVGGraphicsElement; box: DOMRect; prio: number }[] = [];
   try {
@@ -384,21 +385,10 @@ export function clearCastleName(svg: SVGSVGElement, air = 0.3, reach = 45): void
     }
   };
   const hard = [...inkOf(svg, CASTLE_INK), ...inkOf(svg, TOWN_WALL_INK)].filter(near);
-  const boxes = (els: Iterable<SVGGraphicsElement>): Ink[] => {
-    const out: Ink[] = [];
-    for (const el of els) {
-      try {
-        const m = el.getBBox();
-        if (m && (m.width > 0 || m.height > 0)) out.push({ k: "box", b: toBox(m.x, m.y, m.x + m.width, m.y + m.height) });
-      } catch { /* not measurable: nothing to keep off */ }
-    }
-    return out;
-  };
-  const signs = boxes(svg.querySelectorAll<SVGGraphicsElement>(SIGNS)).filter(near);
+  const signs = boxesOf(svg.querySelectorAll<SVGGraphicsElement>(SIGNS)).filter(near);
   // the other names, with the air the cull keeps between two names — nearer, and one of them goes
-  const names = boxes([...svg.querySelectorAll<SVGGraphicsElement>(".ward-label")]
+  const names = namesWithAir([...svg.querySelectorAll<SVGGraphicsElement>(".ward-label")]
     .filter((el) => el !== name && el.style.visibility !== "hidden"))
-    .map((s) => (s.k === "box" ? { k: "box" as const, b: toBox(s.b.x0 - NAME_AIR, s.b.y0 - NAME_AIR, s.b.x1 + NAME_AIR, s.b.y1 + NAME_AIR) } : s))
     .filter(near);
   const outline = svg.querySelector(".boundary");
   const town = outline ? pointsOf(outline) : [];
@@ -428,6 +418,108 @@ export function clearCastleName(svg: SVGSVGElement, air = 0.3, reach = 45): void
   if (!to) return;
   name.setAttribute("x", (attr(name, "x") + to[0]).toFixed(2));
   name.setAttribute("y", (attr(name, "y") + to[1]).toFixed(2));
+}
+
+// the ink of a set of elements taken as their boxes (a name, a sign, a panel)
+function boxesOf(els: Iterable<SVGGraphicsElement>): Ink[] {
+  const out: Ink[] = [];
+  for (const el of els) {
+    try {
+      const m = el.getBBox();
+      if (m && (m.width > 0 || m.height > 0)) out.push({ k: "box", b: toBox(m.x, m.y, m.x + m.width, m.y + m.height) });
+    } catch { /* not measurable: nothing to keep off */ }
+  }
+  return out;
+}
+// ...and names as the cull sees them, with the air it keeps between two names: nearer, and one goes
+const namesWithAir = (els: Iterable<SVGGraphicsElement>): Ink[] => boxesOf(els)
+  .map((s) => (s.k === "box" ? { k: "box" as const, b: toBox(s.b.x0 - NAME_AIR, s.b.y0 - NAME_AIR, s.b.x1 + NAME_AIR, s.b.y1 + NAME_AIR) } : s));
+
+// What a road's destination may not stand on: the plate's own furniture — its name's tablet and the
+// name on it, the compass and its disc, the scale.
+const PLATE_FURNITURE = ".city-name-plate, .city-name-text, .compass-plate, .compass, .scale-bar";
+// how far a destination's box keeps off the middle of its road: the road's half-width (1.6 / 2) and a little
+const ROAD_CLEAR = 1;
+
+/**
+ * Write each road's destination beside the road where it leaves the plate.
+ *
+ * The renderer sets it near the road's end, before anything can be measured: how big the page draws
+ * it, how wide the plate's name stands. And the ends of the roads are where the plate keeps its
+ * furniture — its name at the top, its compass and its scale in the bottom corners: measured over 336
+ * plates, 244 of 901 road ends had their label's place under one of them. So the name walks in along
+ * its road from the edge, trying the side toward the plate's middle first and then the other, to the
+ * first place inside the frame that touches none of the furniture, the town, or another road's
+ * destination — clear of the other names and roads too, where any place within reach is. Where none
+ * is clear of the furniture it is taken off the plate: a name under the plate's name is not a name.
+ *
+ * Run it on the names at the size they will be READ, before the cull. Zooming in afterwards only
+ * shrinks a name toward its anchor, which keeps it clear.
+ */
+export function placeRoadEnds(svg: SVGSVGElement, air = 1.5, reach = 90): void {
+  const labels = [...svg.querySelectorAll<SVGGraphicsElement>("text.road-end")];
+  if (!labels.length) return;
+  const vb = (svg.getAttribute("viewBox") || "").split(/[\s,]+/).map(Number);
+  if (vb.length !== 4 || !vb.every(Number.isFinite)) return;
+  const [vx, vy, vw, vh] = vb;
+  const middle: Pt = [vx + vw / 2, vy + vh / 2];
+  const inFrame = (b: Edges) =>
+    b.x0 >= vx + FRAME_PAD && b.y0 >= vy + FRAME_PAD && b.x1 <= vx + vw - FRAME_PAD && b.y1 <= vy + vh - FRAME_PAD;
+  const outline = svg.querySelector(".boundary");
+  const town = outline ? pointsOf(outline) : [];
+  const hard = inkGrid([
+    ...boxesOf(svg.querySelectorAll<SVGGraphicsElement>(PLATE_FURNITURE)),
+    ...(town.length >= 3 ? [{ k: "fill" as const, pts: town, half: 0 }] : []),
+  ]);
+  // what it would rather not stand on: the other names, and the roads out (its own among them)
+  const soft = inkGrid([
+    ...namesWithAir([...svg.querySelectorAll<SVGGraphicsElement>(".ward-label")].filter((el) => el.style.visibility !== "hidden")),
+    ...inkOf(svg, { lines: "polyline.suburb-road" }),
+  ]);
+  const placed: Ink[] = [];
+  for (const label of labels) {
+    const road = svg.querySelector(`polyline.suburb-road[data-road="${label.getAttribute("data-road")}"]`);
+    const line = road ? pointsOf(road) : [];
+    if (line.length < 2) continue;
+    const ink = glyphEdges(label);
+    if (!ink) return;               // nothing can be measured (no layout): every name stays where it was drawn
+    const pad = attr(label, "stroke-width") / 2 + air;
+    const hw = (ink.x1 - ink.x0) / 2 + pad, hh = (ink.y1 - ink.y0) / 2 + pad;
+    const from: Pt = [(ink.x0 + ink.x1) / 2, (ink.y0 + ink.y1) / 2];
+    const others = inkGrid(placed);
+    // 2: clear of everything · 1: of the furniture, the town and the other destinations only · -1: not even that
+    const level = (b: Edges) => (!inFrame(b) || hard.touches(b) || others.touches(b) ? -1 : soft.touches(b) ? 1 : 2);
+    // the road from its end back toward its gate, stretch by stretch
+    const back = [...line].reverse();
+    const stretches: { a: Pt; c: Pt; len: number; at: number }[] = [];
+    let total = 0;
+    for (let i = 0; i + 1 < back.length; i++) {
+      const len = Math.hypot(back[i + 1][0] - back[i][0], back[i + 1][1] - back[i][1]);
+      if (len > 0) { stretches.push({ a: back[i], c: back[i + 1], len, at: total }); total += len; }
+    }
+    let best: { c: Pt; b: Edges; l: number } | null = null;
+    for (let s = 0; s <= Math.min(reach, total - 12) && best?.l !== 2; s += 1.5) {
+      const st = stretches.find((q) => s <= q.at + q.len) ?? stretches[stretches.length - 1];
+      const f = (s - st.at) / st.len;
+      const p: Pt = [st.a[0] + (st.c[0] - st.a[0]) * f, st.a[1] + (st.c[1] - st.a[1]) * f];
+      // the road runs out toward the edge along u; n is square to it
+      const u: Pt = [(st.a[0] - st.c[0]) / st.len, (st.a[1] - st.c[1]) / st.len];
+      const n: Pt = [-u[1], u[0]];
+      const toward = n[0] * (middle[0] - p[0]) + n[1] * (middle[1] - p[1]) >= 0 ? 1 : -1;
+      for (const side of [toward, -toward]) {
+        const off = ROAD_CLEAR + Math.abs(n[0]) * hw + Math.abs(n[1]) * hh;
+        const c: Pt = [p[0] + n[0] * side * off, p[1] + n[1] * side * off];
+        const b = toBox(c[0] - hw, c[1] - hh, c[0] + hw, c[1] + hh);
+        const l = level(b);
+        if (l > (best?.l ?? -1)) best = { c, b, l };
+        if (l === 2) break;
+      }
+    }
+    if (!best) { label.remove(); continue; }
+    label.setAttribute("x", (attr(label, "x") + best.c[0] - from[0]).toFixed(2));
+    label.setAttribute("y", (attr(label, "y") + best.c[1] - from[1]).toFixed(2));
+    placed.push({ k: "box", b: best.b });
+  }
 }
 
 /**

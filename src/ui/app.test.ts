@@ -873,6 +873,25 @@ describe("a plate tells you where you are and where you can go", () => {
     expect(neighbour.textContent).toContain(second!);   // it went where it said it would
     root.remove();
   });
+
+  // ...and along the road itself: the town a road goes to is written where the road leaves the plate,
+  // and the name opens that town's plate
+  it("walks out along a road to the town written at its end", async () => {
+    const root = document.createElement("div");
+    document.body.appendChild(root);
+    const app = createApp(root, { ...DEFAULT_PARAMS, seed: 1 });
+    await new Promise((r) => setTimeout(r, 0));
+    app.openCity(1);
+    const name = root.querySelector("svg.city text.road-end tspan[data-city]") as SVGElement;
+    expect(name, "no road out says where it goes").not.toBeNull();
+    const to = Number(name.getAttribute("data-city"));
+    expect(to).not.toBe(1);
+    name.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    await new Promise((r) => setTimeout(r, 0));
+    expect(initialCity(location.hash), "it did not go where the road goes").toBe(to);
+    expect(root.querySelector(".city-name-text")?.textContent).toBe(name.textContent);
+    root.remove();
+  });
 });
 
 // The city plans are the best thing this map has and they sat behind four-pixel dots. Enlarging the

@@ -2064,7 +2064,7 @@ describe("a town in one world is not a copy of a town in another", () => {
 describe("the roads out of town go where the world's roads go", () => {
   const ang = (a: number, b: number) => Math.abs(Math.atan2(Math.sin(a - b), Math.cos(a - b)));
   const plates = (() => {
-    let memo: { where: string; roads: number[]; exits: number[] }[] | null = null;
+    let memo: { where: string; roads: number[]; towns: number[]; exits: number[]; to: number[][] | undefined }[] | null = null;
     return () => {
       if (memo) return memo;
       memo = [];
@@ -2077,8 +2077,10 @@ describe("the roads out of town go where the world's roads go", () => {
           memo.push({
             where: `${c.name} (seed ${seed}, ${c.id}, ${l.archetype.id})`,
             roads: c.roads.map((r) => r.bearing),
+            towns: c.roads.map((r) => r.to),
             // where each road out of a gate reaches the edge of the plate, seen from the middle of the town
             exits: l.suburbRoads.map((r) => Math.atan2(r[r.length - 1][1] - cy, r[r.length - 1][0] - cx)),
+            to: l.suburbRoadTo,
           });
         }
       }
@@ -2093,6 +2095,37 @@ describe("the roads out of town go where the world's roads go", () => {
     const deg = (r: number) => (r * 180) / Math.PI;
     expect(deg(gaps[Math.floor(gaps.length / 2)]), "the median road").toBeLessThan(10);
     expect(gaps.filter((g) => g <= Math.PI / 6).length / gaps.length, "roads within 30 degrees of a road out").toBeGreaterThan(0.9);
+  });
+
+  // ...and each road out says where it goes, so the plate can write it where the road leaves the
+  // drawing, as an old town plan wrote "to London" at its edge. Two roads out of one gate that would
+  // end in the same place are drawn as one road, and that road goes to both their towns.
+  // (One town of the 334 names none: Aelmeir, 1:22, a port whose two roads leave the way its plate puts
+  // the sea, so no gate faces them — its gates are plain gates, and nothing is written at its edge.)
+  it("knows where each of its roads out goes, and sends no town down two of them", () => {
+    let unnamed = 0;
+    for (const p of plates()) {
+      if (!p.to) { unnamed++; continue; }
+      expect(p.to.length, p.where).toBe(p.exits.length);
+      const named = p.to.flat();
+      expect(new Set(named).size, `${p.where}: a town down two roads out`).toBe(named.length);
+      for (const id of named) expect(p.towns, `${p.where}: a road out to ${id}, where no road of the world goes`).toContain(id);
+    }
+    expect(unnamed, "towns the world gives roads whose plate names none of them").toBeLessThanOrEqual(1);
+  });
+
+  it("names nearly every town the world's roads lead to on a road out", () => {
+    let roads = 0, named = 0;
+    for (const p of plates()) { roads += p.towns.length; named += (p.to ?? []).flat().length; }
+    expect(roads).toBeGreaterThan(600);
+    expect(named / roads).toBeGreaterThan(0.95);
+  });
+
+  it("adds no destinations to a town the world gives no road", () => {
+    const w = generateWorld({ ...DEFAULT_PARAMS, seed: 11 }).world;
+    const lone = w.cities.filter((c) => !c.roads?.length);
+    expect(lone.length).toBeGreaterThan(0);
+    for (const c of lone) expect("suburbRoadTo" in generateCityLayout(cityContext(c), 11), `seed 11, ${c.id}`).toBe(false);
   });
 });
 
@@ -2197,19 +2230,28 @@ describe("the roads out of town go where the world's roads go", () => {
 // run from those gates, and all that hangs off them follows. With them: a barbican no longer stands on
 // a road forking from its gate, and no gate house under the plate's name, compass or scale. The two
 // towns with no road — an island's, 11:0 and 11:1 — hashed byte for byte the same.
+//
+// And where each road out goes (`suburbRoadTo`, the towns of the world's roads it carries) is kept in the
+// layout now, for the plate to write at its edge. It is hashed on its own below, and left out of the
+// drawing's hash — which is why the drawing's pins did not move for it: nothing drawn moved.
 describe("a plate is the same plate, byte for byte", () => {
   const fold = (h: number, c: number) => Math.imul(h ^ c, 16777619) >>> 0;
   const fnv = (s: string) => { let h = 2166136261 >>> 0; for (let i = 0; i < s.length; i++) h = fold(h, s.charCodeAt(i)); return h >>> 0; };
-  const worldHash = (seed: number) => {
+  const worldHash = (seed: number, part: (l: ReturnType<typeof generateCityLayout>) => string) => {
     const { world } = generateWorld({ ...DEFAULT_PARAMS, seed });
     let h = 2166136261 >>> 0, n = 0;
-    for (const c of world.cities) { h = fold(h, fnv(JSON.stringify(generateCityLayout(cityContext(c), seed)))); n++; }
+    for (const c of world.cities) { h = fold(h, fnv(part(generateCityLayout(cityContext(c), seed)))); n++; }
     return { h, n };
   };
+  const drawing = (l: ReturnType<typeof generateCityLayout>) => JSON.stringify(l, (k, v) => (k === "suburbRoadTo" ? undefined : v));
+  const destinations = (l: ReturnType<typeof generateCityLayout>) => JSON.stringify(l.suburbRoadTo ?? null);
   it("draws seed 1's twenty-eight towns exactly as it did", () => {
-    expect(worldHash(1)).toEqual({ h: 3118129168, n: 28 });
+    expect(worldHash(1, drawing)).toEqual({ h: 3118129168, n: 28 });
   });
   it("draws seed 12's twenty-eight towns exactly as it did", () => {
-    expect(worldHash(12)).toEqual({ h: 1075377656, n: 28 });
+    expect(worldHash(12, drawing)).toEqual({ h: 1075377656, n: 28 });
+  });
+  it("sends seed 1's and seed 12's roads out where they went", () => {
+    expect([worldHash(1, destinations), worldHash(12, destinations)]).toEqual([{ h: 106483190, n: 28 }, { h: 964394477, n: 28 }]);
   });
 });

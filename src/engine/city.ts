@@ -73,6 +73,9 @@ export interface CityLayout {
   labels: { x: number; y: number; type: WardType; landmark: boolean }[];
   features: CityFeatures;
   suburbRoads: Polyline[];
+  // ...and where each of them goes, in the same order: the towns of the world's roads it carries (none
+  // for a gate's own road out). Only on a town the world gives roads, so the rest keep their layout.
+  suburbRoadTo?: number[][];
   suburbs: Polygon[];
   outworks: Outwork[];
   harbor: Harbor | null;
@@ -939,16 +942,26 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
 
   // ---- extramural suburbs (faubourg) + outworks: OUTSIDE the wall, in the canvas margin ----
   const suburbRoads: Polyline[] = [];
+  const suburbRoadTo: number[][] = [];
   const suburbs: Polygon[] = [];
   for (const [gi, g] of wall.gates.entries()) {
     // The world's roads that leave by this gate, each its own road out toward where it goes — forking
     // outside the gate where two leave by one — and a gate of the town's own one road straight out.
     const theirs = wall.gateRoads?.[gi] ?? [];
-    const outs = (theirs.length ? theirs.map((r) => roadOut(g, r.bearing)) : [roadOut(g)])
-      .filter((r): r is NonNullable<typeof r> => r !== null)
-      .filter((r, i, all) => all.findIndex((o) => Math.hypot(o.end[0] - r.end[0], o.end[1] - r.end[1]) < FORK_APART) === i);
+    const aimed = (theirs.length ? theirs.map((r) => ({ out: roadOut(g, r.bearing), to: r.to })) : [{ out: roadOut(g), to: [] as number[] }])
+      .filter((a): a is { out: NonNullable<typeof a.out>; to: number[] } => a.out !== null);
+    const near = (p: Point, q: Point) => Math.hypot(p[0] - q[0], p[1] - q[1]);
+    const kept = aimed.map((a, i) => aimed.findIndex((o) => near(o.out.end, a.out.end) < FORK_APART) === i);
+    const outs = aimed.filter((_, i) => kept[i]).map((a) => ({ ...a.out, to: [...a.to] }));
+    // a road out that would end where another does is drawn as that one, and its towns go with it
+    aimed.forEach((a, i) => {
+      if (kept[i]) return;
+      const into = outs.reduce((best, o) => (near(o.end, a.out.end) < near(best.end, a.out.end) ? o : best));
+      into.to.push(...a.to);
+    });
     if (!outs.length) continue;
-    for (const { ux, uy, start, L, end } of outs) {
+    for (const { ux, uy, start, L, end, to } of outs) {
+      suburbRoadTo.push(to);
       const nx = -uy, ny = ux;
       // gentle bend at the midpoint so the highway reads hand-drawn, not ruled
       const bendOff = (rng() - 0.5) * 12;
@@ -1287,7 +1300,8 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
 
   return {
     name: ctx.name, size: ctx.size, coastal: ctx.coastal, isCapital: ctx.isCapital,
-    archetype, bounds, boundary, water, mountains, wall, moat, gateBridges, mainRoads, minorRoads, wards, parks, labels, features, suburbRoads, suburbs, outworks, harbor,
+    archetype, bounds, boundary, water, mountains, wall, moat, gateBridges, mainRoads, minorRoads, wards, parks, labels, features, suburbRoads,
+    ...(suburbRoadTo.some((to) => to.length) ? { suburbRoadTo } : {}), suburbs, outworks, harbor,
     abbey, cemetery, gallows, leperHouse, fairground, parishChurches, marketCross, well, inns, barbicans, riversideTrades, countryside, castle,
     parkTrees, landmarks, ...(hill ? { hill } : {}),
   };

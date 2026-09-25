@@ -1001,3 +1001,60 @@ describe("a gate names where its road goes", () => {
     for (const t of titles(renderCity(layout, "en"))) expect(t).toBe("Gate");
   });
 });
+
+// ★ ...and the road itself says so where it leaves the plate, as an old town plan wrote "to London" at
+// its edge: a reader learned where a road went only by hovering over its gate (333 of 336 plates have
+// a road out with somewhere to go).
+describe("a road says where it goes where it leaves the plate", () => {
+  const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });
+  const townName = (id: number) => world.cities[id]?.name;
+  const town = world.cities.find((c) => (c.roads?.length ?? 0) >= 2)!;
+  const layout = generateCityLayout(cityContext(town), 1);
+  const going = (layout.suburbRoadTo ?? []).map((to, i) => [i, to] as const).filter(([, to]) => to.length);
+
+  it("writes each road's towns beside it, one label to a road out, in the reader's language", () => {
+    expect(going.length).toBeGreaterThan(0);
+    for (const lang of ["en", "ko"] as const) {
+      const svg = renderCity(layout, lang, { townName });
+      expect(svg.querySelectorAll("text.road-end").length, lang).toBe(going.length);
+      for (const [i, to] of going) {
+        const el = svg.querySelector(`text.road-end[data-road="${i}"]`);
+        expect(el, `${lang}: road ${i} has no label`).not.toBeNull();
+        expect(svg.querySelector(`polyline.suburb-road[data-road="${i}"]`), `road ${i} is not drawn`).not.toBeNull();
+        for (const id of to) expect(el!.textContent).toContain(properName(lang, world.cities[id].name));
+        expect(el!.textContent).toMatch(lang === "en" ? /^to / : / 방면$/);
+      }
+    }
+  });
+
+  // each name is a span of its own that carries its town: the page opens that town's plate on a click
+  it("gives each town's name on it the town it stands for", () => {
+    const svg = renderCity(layout, "en", { townName });
+    const spans = [...svg.querySelectorAll("text.road-end tspan[data-city]")];
+    expect(spans.length).toBe(going.flatMap(([, to]) => to).length);
+    for (const s of spans) expect(s.textContent).toBe(world.cities[Number(s.getAttribute("data-city"))].name);
+  });
+
+  it("writes nothing where the page cannot name the towns, or no road of the world leaves", () => {
+    expect(renderCity(layout, "en").querySelectorAll("text.road-end").length).toBe(0);
+    const w11 = generateWorld({ ...DEFAULT_PARAMS, seed: 11 }).world;
+    const lone = w11.cities.find((c) => !c.roads?.length)!;
+    const svg = renderCity(generateCityLayout(cityContext(lone), 11), "en", { townName: (id) => w11.cities[id]?.name });
+    expect(svg.querySelectorAll("text.road-end").length).toBe(0);
+  });
+
+  // where it stands before the page can measure it (placeRoadEnds moves it clear of the plate's name,
+  // compass and scale once it can): inside the plate, near its road's end
+  it("starts each label inside the plate, near its road's end", () => {
+    const svg = renderCity(layout, "en", { townName });
+    const labels = svg.querySelectorAll("text.road-end");
+    expect(labels.length).toBeGreaterThan(0);
+    for (const el of labels) {
+      const r = layout.suburbRoads[Number(el.getAttribute("data-road"))];
+      const [ex, ey] = r[r.length - 1];
+      const x = Number(el.getAttribute("x")), y = Number(el.getAttribute("y"));
+      expect(x > 0 && x < layout.bounds.w && y > 0 && y < layout.bounds.h, `(${x}, ${y})`).toBe(true);
+      expect(Math.hypot(x - ex, y - ey)).toBeLessThan(30);
+    }
+  });
+});

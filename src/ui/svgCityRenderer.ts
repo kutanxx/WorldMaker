@@ -90,6 +90,9 @@ const BRIDGE_EDGE = "#5f5a4e";
 // a slope shorter than this carries no hachure: the ground there hardly falls
 const HILL_STROKE_MIN = 1.5;
 const BRIDGE_DECK = "#a8a294";
+// where a road out goes, written at the plate's edge: in italic, a shade off the quarters' ink, so it
+// reads as a note on the road and not as the name of a place on the plate
+const ROAD_END_INK = "#5c4a33";
 
 const TINT: Partial<Record<WardType, string>> = {
   plaza: "#e6ddc6",      // civic square — light stone
@@ -341,9 +344,10 @@ export function renderCity(layout: CityLayout, lang: Lang = "en", opts: CityRend
     env.appendChild(treeGlyph(t2, cs.vocabulary.tree, "wood-tree",
       1.6 + ((t2[0] * 7 + t2[1] * 13) % 10) / 12));
   }
-  for (const r of layout.suburbRoads) {
-    env.appendChild(svgEl("polyline", { class: "suburb-road", points: pts(r), fill: "none", stroke: "#c9bb96", "stroke-width": 1.6, "stroke-linecap": "round" }));
-  }
+  // (numbered, so the name of where one goes can find its road: see the road-end labels below)
+  layout.suburbRoads.forEach((r, i) => {
+    env.appendChild(svgEl("polyline", { class: "suburb-road", "data-road": i, points: pts(r), fill: "none", stroke: "#c9bb96", "stroke-width": 1.6, "stroke-linecap": "round" }));
+  });
   for (const b of layout.suburbs) {
     env.appendChild(named(svgEl("polygon", { class: "suburb", points: pts(b), fill: "#e0d6c0", stroke: "#9a8a70", "stroke-width": 0.4 }), fn("suburb")));
   }
@@ -720,6 +724,37 @@ export function renderCity(layout: CityLayout, lang: Lang = "en", opts: CityRend
     tx.textContent = WARD_NAME[lang][l.type] ?? "";
     labelsG.appendChild(tx);
   }
+  // ★ Where each road out goes, written where it leaves the plate — as an old town plan wrote "to
+  // London" at its edge; the gate it leaves by is named for the same towns. A reader learned where a
+  // road went only by hovering over its gate. Set here near the road's end, on the side toward the
+  // plate's middle; the page sets it beside its road clear of the plate's name, compass and scale once
+  // it can measure it (placeRoadEnds). Each town's name is a span of its own, which opens that town.
+  (layout.suburbRoadTo ?? []).forEach((to, i) => {
+    const towns = to.map((id) => ({ id, name: opts.townName?.(id) })).filter((tw): tw is { id: number; name: string } => !!tw.name);
+    if (!towns.length) return;
+    const road = layout.suburbRoads[i];
+    const [ex, ey] = road[road.length - 1], [px, py] = road[road.length - 2];
+    const len = Math.hypot(ex - px, ey - py) || 1;
+    const ux = (ex - px) / len, uy = (ey - py) / len;
+    const side = -uy * (w / 2 - ex) + ux * (h / 2 - ey) >= 0 ? 1 : -1;   // the normal toward the middle
+    const tx = svgEl("text", {
+      class: "road-end", "data-road": i,
+      x: (ex - ux * 16 - uy * side * 6).toFixed(1), y: (ey - uy * 16 + ux * side * 6 + 2.5).toFixed(1),
+      "font-size": 7, "font-style": "italic", "text-anchor": "middle",
+      fill: ROAD_END_INK, stroke: PARCHMENT, "stroke-width": 2.2, "paint-order": "stroke",
+    });
+    const [before, after] = t(lang, "roadTo").split("{towns}");
+    const words = (s: string) => { if (s) tx.appendChild(document.createTextNode(s)); };
+    words(before);
+    towns.forEach((tw, k) => {
+      if (k) words(lang === "ko" ? "·" : k === towns.length - 1 ? " and " : ", ");
+      const span = svgEl("tspan", { "data-city": tw.id, style: "cursor:pointer" });
+      span.textContent = properName(lang, tw.name);
+      tx.appendChild(span);
+    });
+    words(after);
+    labelsG.appendChild(tx);
+  });
   root.appendChild(labelsG);
 
   const titleG = svgEl("g", { class: "city-name" });
