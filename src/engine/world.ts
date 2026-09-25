@@ -11,6 +11,7 @@ import { assignCultures } from "./culture";
 import { traceRivers, nameRivers, riverSize } from "./rivers";
 import { buildProvinces, PROVINCE_SALT } from "./provinces";
 import { reliefAt } from "./relief";
+import { roadsBetweenTowns } from "./worldRoads";
 
 // A second sea round a port is at least this many tenths of a right angle of the compass wide (30
 // degrees), its middle at least this far from the port's own sea's, with at least this many tenths of
@@ -286,6 +287,10 @@ export function generateWorld(params: WorldParams, nameOverride?: string): Gener
       ...siteOf(cell),
     });
   }
+
+  // ...and the roads between them, now that every town stands somewhere (see worldRoads.ts: terrain
+  // and heights only, no rng, so nothing above or below moves for them)
+  roadsBetweenTowns(grid, heights, terrain, cities).forEach((roads, i) => { if (roads.length) cities[i].roads = roads; });
 
   // geography names use a SEPARATE rng stream so the main stream (heights/terrain/biome/
   // polity/cities and the golden regression) is byte-unchanged; reads the built biome array

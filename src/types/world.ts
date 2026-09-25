@@ -59,6 +59,9 @@ export interface CityMarker {
   // walls of a valley, the rise behind a spur or a slope
   relief?: "summit" | "valley" | "spur" | "slope";
   reliefBearing?: number;
+  // the roads out of the town: which town each leads to (its id) and which way it leaves, the way its
+  // route over land runs two cells out (see worldRoads.ts) — only where the town has a neighbour by land
+  roads?: { to: number; bearing: number }[];
 }
 
 export interface Polity {
