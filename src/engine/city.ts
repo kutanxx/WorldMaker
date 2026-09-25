@@ -199,6 +199,8 @@ const STREET_SETBACK = 3;
 const WALL_SETBACK = 3.5;
 // ...and from a road that cuts through the block, from its centre line: half its drawn width and a little
 const MAIN_ROAD_CLEAR = 2.7;
+// ...and of a bridge's drawn line (half its 5.4 and a little air)
+const BRIDGE_CLEAR = 3;
 const MINOR_ROAD_CLEAR = 1.6;
 // river towns are defended by the river itself — a separate moat ring hugging the wall read as a
 // second, disconnected river alongside the big one, so bridgeTown gets no moat (user-reported)
@@ -215,6 +217,12 @@ const BUILDING_SALT = 4400;
 const RIVER_MOUTH_SALT = 4600;
 // the foothills' own stream (see makeMountains)
 const MOUNTAIN_SALT = 4700;
+// ...and the plots a road, the wall or the shore would take whole from a ward are cut again from this
+// one, at half the ward's own plot size — or a third, where no half-plot stands clear
+const RECUT_SALT = 4800, RECUT_SHARES = [0.5, 0.3];
+// ...and no piece smaller than a small house (the town's houses run from about 18 at the tenth
+// percentile): a smaller one reads as a speck
+const RECUT_MIN = 14;
 // the width of the key strip an exported plate carries beside the town (the renderer's KEY_STRIP;
 // a test holds the two equal), which moves the town's name right by half of it
 export const PLATE_KEY_STRIP = 108;
@@ -521,6 +529,8 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
   const gridTown = archetype.streetField === "grid";
   const landmarks: Landmark[] = [];
   const parks: Polygon[] = [];
+  // plots cut again where a ward would otherwise stand bare, from a stream of their own (see below)
+  let recut: Rng | null = null;
   const wards: Ward[] = zoned.map((z) => {
     if (z.type === "park") {
       if (!texture.arid) parks.push(z.polygon); // desert: no green parks
@@ -574,6 +584,20 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
           buildings.push(piece);
         }
       }
+      // A ward of one or two big plots by the wall or the water could lose them all — a plot the wall
+      // line cuts too deep to cut back whole, or the shore runs through — and stand bare inside the
+      // walls. Where it would, and it has room for a plot, its plots are cut again at half a plot and
+      // the pieces that stand clear kept. (Not round a great building: its close is open by design.)
+      if (!buildings.length && raw.length && !great && area(block) >= minArea) {
+        recut ??= mulberry32(plateSeed(worldSeed, ctx.id + RECUT_SALT));
+        for (const share of RECUT_SHARES) {
+          for (const lot of raw) for (const piece of lots(recut, lot, { minArea: minArea * share, chaos: 0, sizeChaos: 0.3, emptyProb: 0, margin: 0.2 })) {
+            const b = settle(piece);
+            if (b && dry(b) && area(b) >= RECUT_MIN) buildings.push(b);
+          }
+          if (buildings.length) break;
+        }
+      }
     }
     return { polygon: z.polygon, type: z.type, buildings, inner: z.inner };
   });
@@ -586,7 +610,9 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
   // Every road segment once, with its box grown by the clearance: a segment whose grown box misses
   // the building's box is nowhere near it (the prefilter the perf pass proved exact, 2026-09-24).
   const roadSegs: { a: Point; c: Point; clear: number; x0: number; y0: number; x1: number; y1: number }[] = [];
-  for (const [roads, clear] of [[mainRoads, MAIN_ROAD_CLEAR], [minorRoads, MINOR_ROAD_CLEAR]] as [Polyline[], number][]) {
+  // ...and of a bridge as it is drawn, 5.4 wide: a house kept only a lane's width off its line stood
+  // under its parapet (three plates of twelve worlds, once the rivers ran the world's way and width)
+  for (const [roads, clear] of [[mainRoads, MAIN_ROAD_CLEAR], [minorRoads, MINOR_ROAD_CLEAR], [water.bridges, BRIDGE_CLEAR]] as [Polyline[], number][]) {
     for (const r of roads) for (let i = 0; i < r.length - 1; i++) {
       const a: Point = r[i], c: Point = r[i + 1];
       roadSegs.push({ a, c, clear, x0: Math.min(a[0], c[0]) - clear, y0: Math.min(a[1], c[1]) - clear, x1: Math.max(a[0], c[0]) + clear, y1: Math.max(a[1], c[1]) + clear });
@@ -606,7 +632,24 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
     }
     return false;
   };
-  for (const ward of wards) if (ward.buildings.length) ward.buildings = ward.buildings.filter((b) => !crowdedByRoad(b));
+  // A ward of houses the road runs through keeps houses along it. A small ward of big plots (a
+  // market's, a merchant's, a patrician's, the docks') is cut into one or two, and the road's clearance
+  // took them whole: 12 wards of twelve worlds stood bare inside the walls. Where it would, the plots
+  // the road crowds are cut smaller and their pieces clear of it kept (from a stream of their own, so
+  // no other plate moves).
+  for (const ward of wards) {
+    if (!ward.buildings.length) continue;
+    const clear = ward.buildings.filter((b) => !crowdedByRoad(b));
+    if (clear.length || landmarks.some((m) => m.kind === ward.type)) { ward.buildings = clear; continue; }
+    recut ??= mulberry32(plateSeed(worldSeed, ctx.id + RECUT_SALT));
+    const minArea = DENSITY[ward.type] ?? 130, crowded = ward.buildings;
+    for (const share of RECUT_SHARES) {
+      ward.buildings = crowded
+        .flatMap((b) => lots(recut!, b, { minArea: minArea * share, chaos: 0, sizeChaos: 0.3, emptyProb: 0, margin: 0.2 }))
+        .filter((piece) => area(piece) >= RECUT_MIN && !crowdedByRoad(piece) && dry(piece) && piece.every(inTown));
+      if (ward.buildings.length) break;
+    }
+  }
 
   // Parks were a plain green pane, which on a plate full of fields reads as one more field. Trees on
   // a loose grid, clear of the wall and the paths — the country's own tree, so a taiga town's park

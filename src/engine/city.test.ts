@@ -1961,6 +1961,53 @@ describe("everything a plate draws stands where it belongs", () => {
     expect(hills).toBeGreaterThanOrEqual(3);
   });
 
+  // A bridge is drawn 5.4 wide; a house kept only a lane's width off its line stood under its parapet
+  // (2:24, 3:21, 5:22, after the river work widened and turned their rivers).
+  it("keeps every house off a bridge as it is drawn", () => {
+    // how near a house comes to a bridge's line (0 where the line enters or crosses it)
+    const toBridge = (h: P[], a: P, b: P) => {
+      if (pointInPolygon(a, h) || pointInPolygon(b, h)) return 0;
+      let d = Infinity;
+      for (let i = 0; i < h.length; i++) {
+        const p = h[i], q = h[(i + 1) % h.length];
+        if (segmentsIntersect(p, q, a, b)) return 0;
+        d = Math.min(d, pointSegDist(p, a, b), pointSegDist(a, p, q), pointSegDist(b, p, q));
+      }
+      return d;
+    };
+    for (const { where, l } of towns()) {
+      for (const [a, b] of l.water.bridges as [P, P][]) {
+        for (const wd of l.wards) for (const h of wd.buildings as P[][]) expect(toBridge(h, a, b), `a house under a bridge at ${where}`).toBeGreaterThanOrEqual(2.7);
+      }
+    }
+  });
+
+  // A ward of houses keeps houses. A small ward of big plots — a market's, a merchant's, a patrician's,
+  // the docks' — was cut into one or two, and a road through it took them whole, or the wall line or
+  // the shore did: 12 wards of twelve worlds stood bare inside the walls (7 before the terrain work
+  // rearranged the plates). The two left are slivers — 270 and 261 units of dry ground, by the river
+  // at 3:8 and the wall at 11:15 — where no plot fits.
+  const BARE_WARDS = 2;
+  it("leaves no ward of houses bare because a road, the wall or the shore took its plots", () => {
+    const bare: string[] = [];
+    for (const { where, l } of towns()) {
+      const B = l.boundary as P[];
+      for (const wd of l.wards) {
+        if (["plaza", "park", "castle"].includes(wd.type) || wd.buildings.length) continue;
+        if (l.landmarks.some((m) => m.kind === wd.type)) continue;   // built round its one great building
+        const vis = clipToConvex(B, wd.polygon as P[]) as P[];
+        if (vis.length < 3) continue;
+        const bb = bbox(vis);
+        let n = 0;
+        for (let y = bb.minY; y < bb.maxY; y += 3) for (let x = bb.minX; x < bb.maxX; x += 3) {
+          if (pointInPolygon([x, y], vis) && !inWater(l.water, [x, y]) && edgeDist([x, y], B) >= 3.5) n++;
+        }
+        if (n * 9 > 250) bare.push(`${where} ${wd.type} ${n * 9}`);
+      }
+    }
+    expect(bare.length, bare.join("; ")).toBeLessThanOrEqual(BARE_WARDS);
+  });
+
   it("spaces the towers along a wall", () => {
     for (const { where, l } of towns()) {
       if (!l.wall) continue;
@@ -2083,6 +2130,10 @@ describe("a town in one world is not a copy of a town in another", () => {
 // across its river along the road over its bridge; the 4 towns on a summit, now on their hill with
 // their ridge running on past their fields (makeHill, a new `hill` only on those four layouts); and the
 // 4 ports between two seas, which draw the second (otherSea). The other 284 hashed byte for byte the same.
+//
+// And for a ward that keeps its houses: exactly 15 plates moved — 11 wards a road, the wall line or the
+// shore had left bare get houses cut from their plots (18 of them, from a stream of their own), and 5
+// houses under a bridge's parapet step off it. The other 321 hashed byte for byte the same.
 describe("a plate is the same plate, byte for byte", () => {
   const fold = (h: number, c: number) => Math.imul(h ^ c, 16777619) >>> 0;
   const fnv = (s: string) => { let h = 2166136261 >>> 0; for (let i = 0; i < s.length; i++) h = fold(h, s.charCodeAt(i)); return h >>> 0; };
@@ -2093,7 +2144,7 @@ describe("a plate is the same plate, byte for byte", () => {
     return { h, n };
   };
   it("draws seed 1's twenty-eight towns exactly as it did", () => {
-    expect(worldHash(1)).toEqual({ h: 3566677040, n: 28 });
+    expect(worldHash(1)).toEqual({ h: 221431460, n: 28 });
   });
   it("draws seed 12's twenty-eight towns exactly as it did", () => {
     expect(worldHash(12)).toEqual({ h: 3252257965, n: 28 });
