@@ -1,5 +1,5 @@
 import type { World } from "../types/world";
-import { svgEl, legendPanel, legendRow, starPath, compassRose, mapFrame, INK, PARCHMENT, LEGEND_TITLE_H, LEGEND_TEXT, LEGEND_ROW, LEGEND_SWATCH, LEGEND_GAP, LEGEND_W_FIXED, CITY_LABEL_DX } from "./renderer";
+import { svgEl, legendPanel, legendRow, starPath, compassRose, mapFrame, INK, PARCHMENT, LEGEND_TITLE_H, LEGEND_TEXT, LEGEND_ROW, LEGEND_SWATCH, LEGEND_GAP, LEGEND_W_FIXED, CITY_LABEL_DX, ROAD_INK, ROAD_W, ROAD_CASING_W, roadMark } from "./renderer";
 import { scaleBar, KM_PER_UNIT, KM_PER_WALKING_DAY } from "./scaleBar";
 import { displayBiomes } from "./displayBiome";
 import { OCEAN, ALPINE, BIOME_COLORS } from "../engine/biome";
@@ -31,14 +31,6 @@ export function politicalOpts(view: MapView, lang: Lang = "en", colorOf?: (id: n
     : { labelOf };
 }
 
-
-// A road's line and its casing. The line is a dark red — the colour the Gough map drew its roads in,
-// darkened until, with its casing, it clears 3:1 on every biome (the mid greens and the alpine grey
-// are where a brighter red failed) — and the casing is the parchment the map haloes its names with,
-// kept under the coast's weight.
-const ROAD_INK = "#7a2a1a";
-const ROAD_W = 1.1;
-const ROAD_CASING_W = 2.3;
 
 // A road through its cells' centres, drawn smooth: straight out of its town to the middle of its first
 // step, a curve through each cell's centre to the middle of the next step, and straight into the town
@@ -151,7 +143,7 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
   const slot = svgEl("g", { class: "political-slot" });
   slot.appendChild(
     view === "culture" ? cultureLayer(grid, world.cultureOf, world.cultures, lang)
-      : view === "province" ? provinceLayer(grid, world.provinceOf, world.provinces, { owner: world.polityOf, legend: true, lang })
+      : view === "province" ? provinceLayer(grid, world.provinceOf, world.provinces, { owner: world.polityOf, legend: true, lang, roads: world.roads.length > 0 })
         // terrain/political: snap nation ownership to whole provinces so borders (and political fills)
         // fall on province edges — the SAME geometry the province view uses, so views stay consistent.
         // ⚠ No `keep` set here, and none needed: this draws `world.polityOf`, the ownership of year
@@ -378,19 +370,30 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
   // it in political view). Rendered conditionally — not CSS-hidden — so exports match.
   if (view === "terrain") {
     const present = [...byBiome.keys()].sort((a, b) => a - b);
+    // ...and under the ground's colours, the one line on it a reader cannot tell by its colour: the road
+    const rows = present.length + (world.roads.length ? 1 : 0);
     const legend = svgEl("g", { class: "legend biome-legend" });
-    const x0 = 14, y0 = grid.height - 14 - present.length * LEGEND_ROW;
+    const x0 = 14, y0 = grid.height - 14 - rows * LEGEND_ROW;
     // the heading grows the panel UPWARD so the key stays anchored to the map's bottom-left corner
-    legend.appendChild(legendPanel(x0 - 5, y0 - 10 - LEGEND_TITLE_H, LEGEND_W_FIXED, present.length * LEGEND_ROW + 14 + LEGEND_TITLE_H, t(lang, "legendTerrain")));
+    legend.appendChild(legendPanel(x0 - 5, y0 - 10 - LEGEND_TITLE_H, LEGEND_W_FIXED, rows * LEGEND_ROW + 14 + LEGEND_TITLE_H, t(lang, "legendTerrain")));
+    const labelled = (row: SVGElement, y: number, text: string) => {
+      const t = svgEl("text", { x: x0 + LEGEND_SWATCH + LEGEND_GAP, y: y, "font-size": LEGEND_TEXT, fill: "#42341f", "letter-spacing": 0.3 });
+      t.textContent = text;
+      row.appendChild(t);
+      legend.appendChild(row);
+    };
     present.forEach((bm, i) => {
       const y = y0 + i * LEGEND_ROW;
       const row = legendRow(LEGEND_ROW);
       row.appendChild(svgEl("rect", { class: "legend-item", x: x0, y: y - 9, width: LEGEND_SWATCH, height: LEGEND_SWATCH, fill: BIOME_COLORS[bm], stroke: INK, "stroke-width": 0.6, "vector-effect": "non-scaling-stroke" }));
-      const t = svgEl("text", { x: x0 + LEGEND_SWATCH + LEGEND_GAP, y: y, "font-size": LEGEND_TEXT, fill: "#42341f", "letter-spacing": 0.3 });
-      t.textContent = biomeName(lang, bm);
-      row.appendChild(t);
-      legend.appendChild(row);
+      labelled(row, y, biomeName(lang, bm));
     });
+    if (world.roads.length) {
+      const y = y0 + present.length * LEGEND_ROW;
+      const row = legendRow(LEGEND_ROW);
+      row.appendChild(roadMark(x0, y));
+      labelled(row, y, t(lang, "keyRoad"));
+    }
     root.appendChild(legend);
   }
 

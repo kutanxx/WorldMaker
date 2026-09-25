@@ -60,12 +60,13 @@ describe("renderWorld biomes", () => {
     expect(svg.querySelectorAll(".compass").length).toBe(1);
     expect(svg.querySelector(".compass-n")?.textContent).toBe("N");
   });
-  // every row of the key is one group, so the page can lay the key out in columns off the map
+  // every row of the key is one group, so the page can lay the key out in columns off the map — its
+  // mark a swatch of colour, or for the road the road itself
   it("draws each row of the key as one group that says its own height", () => {
     const rows = svg.querySelectorAll(".legend .legend-row");
-    expect(rows.length).toBe(svg.querySelectorAll(".legend .legend-item").length);
+    expect(rows.length).toBe(svg.querySelectorAll(".legend .legend-item, .legend .legend-symbol").length);
     for (const r of rows) {
-      expect(r.querySelector(".legend-item"), "a row without its swatch").not.toBeNull();
+      expect(r.querySelector(".legend-item, .legend-symbol"), "a row without its mark").not.toBeNull();
       expect(r.querySelector("text"), "a row without its word").not.toBeNull();
       expect(Number(r.getAttribute("data-pitch"))).toBeGreaterThan(0);
     }
@@ -471,6 +472,38 @@ describe("renderWorld roads", () => {
   it("lays every casing under every line, so where two roads part neither is cut", () => {
     const kinds = [...svg.querySelectorAll(".roads path")].map((p) => p.getAttribute("class"));
     expect(kinds.lastIndexOf("road-casing")).toBeLessThan(kinds.indexOf("road"));
+  });
+
+  // A red line on every view, and none of the keys said what it was (the rivers are left unkeyed: blue
+  // water tells itself). The key that describes the ground and the key that describes the lines say it
+  // — terrain and province — in the road's own colours; the realms' and the cultures' keys list colours
+  // of fill, and a road there would be read as one more realm.
+  it("is in the terrain key and the province key, drawn as the map draws it", () => {
+    const line = svg.querySelector(".road")!, casing = svg.querySelector(".road-casing")!;
+    for (const [view, key] of [["terrain", ".biome-legend"], ["province", ".province-legend"]] as const) {
+      for (const lang of ["en", "ko"] as const) {
+        const map = renderWorld(world, view, [], lang);
+        const row = [...map.querySelectorAll(`${key} .legend-row`)].find((r) => r.querySelector("text")?.textContent === (lang === "en" ? "Road" : "길"));
+        expect(row, `${view}/${lang}: no road in the key`).toBeDefined();
+        const drawn = [...row!.querySelectorAll("line")].map((l) => [l.getAttribute("stroke"), l.getAttribute("stroke-width")]);
+        expect(drawn, `${view}/${lang}`).toEqual([
+          [casing.getAttribute("stroke"), casing.getAttribute("stroke-width")],
+          [line.getAttribute("stroke"), line.getAttribute("stroke-width")],
+        ]);
+      }
+    }
+    for (const [view, key] of [["political", ".nation-legend"], ["culture", ".culture-legend"]] as const) {
+      const texts = [...renderWorld(world, view).querySelectorAll(`${key} text`)].map((t) => t.textContent);
+      expect(texts, view).not.toContain("Road");
+    }
+  });
+
+  it("is in no key where the world has no roads", () => {
+    const roadless = { ...world, roads: [] };
+    for (const [view, key] of [["terrain", ".biome-legend"], ["province", ".province-legend"]] as const) {
+      const texts = [...renderWorld(roadless, view).querySelectorAll(`${key} text`)].map((t) => t.textContent);
+      expect(texts, view).not.toContain("Road");
+    }
   });
 
   it("says what it is: a road, between which towns, and how far", () => {

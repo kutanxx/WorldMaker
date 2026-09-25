@@ -1,5 +1,5 @@
 import type { World } from "../types/world";
-import { svgEl, legendPanel, legendRow, INK, LEGEND_TITLE_H, LEGEND_TEXT, LEGEND_ROW, LEGEND_SWATCH, LEGEND_GAP, LEGEND_W_FIXED } from "./renderer";
+import { svgEl, legendPanel, legendRow, INK, LEGEND_TITLE_H, LEGEND_TEXT, LEGEND_ROW, LEGEND_SWATCH, LEGEND_GAP, LEGEND_W_FIXED, roadMark } from "./renderer";
 import { t, type Lang } from "./i18n";
 import { cellPath, segPath } from "./svgPaths";
 import { politicalBorders } from "../engine/borders";
@@ -111,9 +111,10 @@ export function snapOwnersToProvinces(
 // and province-name labels emitted largest-first so deconflictLabels keeps the biggest on collision.
 export function provinceLayer(
   grid: GridLike, provinceOf: ArrayLike<number>, provinces: Province[],
-  opts: { fills?: boolean; labels?: boolean; owner?: ArrayLike<number>; legend?: boolean; lang?: Lang } = {},
+  // `roads`: the map draws roads between the towns (the key then says which line they are)
+  opts: { fills?: boolean; labels?: boolean; owner?: ArrayLike<number>; legend?: boolean; lang?: Lang; roads?: boolean } = {},
 ): SVGGElement {
-  const { fills = true, labels = true, owner, legend = false, lang = "en" } = opts;
+  const { fills = true, labels = true, owner, legend = false, lang = "en", roads = false } = opts;
   // A province name is a composite ("Barrens of Dimbrerk"), so it is rebuilt from its parts rather
   // than transliterated. This is the view with the most lettering on it — roughly a hundred labels
   // — and it was the last one still drawing English at a Korean reader.
@@ -183,6 +184,8 @@ export function provinceLayer(
       [t(lang, "keyProvinceBorder"), (x, y) => svgEl("line", { x1: x, y1: y - 3, x2: x + 12, y2: y - 3, stroke: "#3c2f1c", "stroke-width": 1.1, "stroke-opacity": 0.9 })],
       [t(lang, "keyRealmBorder"), (x, y) => svgEl("line", { x1: x, y1: y - 3, x2: x + 12, y2: y - 3, stroke: "#161009", "stroke-width": 2, "stroke-opacity": 0.95 })],
       [t(lang, "keySeat"), (x, y) => svgEl("circle", { cx: x + 6, cy: y - 3, r: 1.6, fill: "#2a2118", stroke: "#f4ecd8", "stroke-width": 0.6 })],
+      // ...and the third kind of line on it, which runs between the seats
+      ...(roads ? [[t(lang, "keyRoad"), roadMark] as [string, (x: number, y: number) => SVGElement]] : []),
     ];
     const lg = svgEl("g", { class: "legend province-legend" });
     const x0 = 14, y0 = grid.height - 14 - rows.length * LEGEND_ROW;

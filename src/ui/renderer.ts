@@ -17,6 +17,24 @@ export const PARCHMENT = "#f3ead2";
 // how far LEFT of it the name ends instead (see deconflictLabels)
 export const CITY_LABEL_DX = 5;
 
+// A road on the world map: its line and its casing. The line is a dark red — the colour the Gough map
+// drew its roads in, darkened until, with its casing, it clears 3:1 on every biome (the mid greens and
+// the alpine grey are where a brighter red failed) — and the casing is the parchment the map haloes
+// its names with, kept under the coast's weight. The map's roads and the keys that name them both
+// draw from here.
+export const ROAD_INK = "#7a2a1a";
+export const ROAD_W = 1.1;
+export const ROAD_CASING_W = 2.3;
+
+/** a road as a key draws it: a stretch of it across the swatch's width, its middle 3 above `y` */
+export function roadMark(x: number, y: number): SVGElement {
+  const g = svgEl("g", { class: "legend-symbol road-key" });
+  const at = { x1: x, y1: y - 3, x2: x + 12, y2: y - 3, "stroke-linecap": "round" };
+  g.appendChild(svgEl("line", { ...at, stroke: PARCHMENT, "stroke-width": ROAD_CASING_W }));
+  g.appendChild(svgEl("line", { ...at, stroke: ROAD_INK, "stroke-width": ROAD_W }));
+  return g;
+}
+
 // The enclosure a legend sits in. Every legend on this map — biomes, nations, cultures — used to be
 // a rounded white card with a thin tan edge: the one thing on the page that looked like browser UI
 // rather than cartography, next to a compass rose and a double-ruled border. Historically the box

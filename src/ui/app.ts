@@ -464,7 +464,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
       slot.replaceChildren(cultureLayer(world.grid, world.cultureOf, world.cultures, lang)); // time-independent
     } else if (view === "province") {
       // provinces are geography (time-independent); nation borders track the scrubbed year via snap.owner
-      slot.replaceChildren(provinceLayer(world.grid, world.provinceOf, world.provinces, { owner: snap.owner, legend: true, lang }));
+      slot.replaceChildren(provinceLayer(world.grid, world.provinceOf, world.provinces, { owner: snap.owner, legend: true, lang, roads: world.roads.length > 0 }));
     } else {
       // nation ownership snapped to whole provinces so terrain/political borders match the province view
       const snapped = snapOwnersToProvinces(world.grid.count, world.provinceOf, world.provinces, snap.owner, freeRealms);
