@@ -13,6 +13,9 @@ export function svgEl(tag: string, attrs?: Record<string, string | number>): SVG
 // into a colour of its own.
 export const INK = "#3c2f1c";
 export const PARCHMENT = "#f3ead2";
+// How far right of its dot the world map sets a town's name — and, where a control covers that side,
+// how far LEFT of it the name ends instead (see deconflictLabels)
+export const CITY_LABEL_DX = 5;
 
 // The enclosure a legend sits in. Every legend on this map — biomes, nations, cultures — used to be
 // a rounded white card with a thin tan edge: the one thing on the page that looked like browser UI

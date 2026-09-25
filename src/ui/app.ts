@@ -19,7 +19,7 @@ import { attachZoomPan, type ZoomPan } from "./zoomPan";
 import { politicalLayer } from "./politicalLayer";
 import { cultureLayer } from "./cultureLayer";
 import { provinceLayer, snapOwnersToProvinces } from "./provinceLayer";
-import { deconflictLabels, clearMarks, clearCastleName } from "./deconflict";
+import { deconflictLabels, clearMarks, clearCastleName, coveredBy } from "./deconflict";
 import { applyLabelScale, applyMarkerScale, floorLabelSize } from "./labelScale";
 import { layOutLabelsForExport } from "./exportLabels";
 import { type Lang, t } from "./i18n";
@@ -618,6 +618,10 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     stage.appendChild(withList);
     cityZoom?.destroy(); cityZoom = null;
     worldZoom?.destroy();
+    // What the page's own controls cover of the map — the focus chip and the +/−/↺ mount — asked
+    // afresh on every pass, since what they cover changes with the window. At rest the names of
+    // areas step out from under them (see deconflictLabels).
+    const underControls = () => coveredBy(svg, frame.querySelectorAll(":scope > .focus-toggle, :scope > .map-zoom-controls"));
     // Zooming holds the lettering at its on-screen size and then asks deconflictLabels what fits
     // now. That is the whole of the "more names as you lean in" behaviour: the land spreads out,
     // the words do not, and the room that opens up is filled from the priority order the pass
@@ -633,7 +637,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
           relayout = 0;
           applyLabelScale(svg, pendingScale, WORLD_LABEL_FLOOR);
           applyMarkerScale(svg, pendingScale);
-          deconflictLabels(svg, pendingScale);
+          deconflictLabels(svg, pendingScale, { clear: underControls() });
         });
       },
     });
@@ -696,7 +700,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
       const z = worldZoom?.scale() ?? 1;
       applyLabelScale(svg, z, WORLD_LABEL_FLOOR);
       applyMarkerScale(svg, z);
-      deconflictLabels(svg, z); // hide colliding lower-priority labels, and those the zoom has not earned yet
+      deconflictLabels(svg, z, { clear: underControls() }); // hide colliding lower-priority labels, and those the zoom has not earned yet
       // ⚠ After `fillSlot`, always: outside terrain the key is drawn INSIDE the slot that was just
       // replaced, so every scrub hands back a new key and the one standing under the map is stale.
       placeLegend(svg, sheet, true, 1, keyColumns());
@@ -719,7 +723,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
       const z = worldZoom?.scale() ?? 1;
       applyLabelScale(svg, z, WORLD_LABEL_FLOOR);
       applyMarkerScale(svg, z);
-      deconflictLabels(svg, z);
+      deconflictLabels(svg, z, { clear: underControls() });
     };
     timeline.setIndex(currentYearIndex); // renders the current year in the current view
     // replaceState, not location.hash: re-rendering the same world is not a place to come back to,

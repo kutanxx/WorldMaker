@@ -1,5 +1,5 @@
 import type { World } from "../types/world";
-import { svgEl, legendPanel, legendRow, starPath, compassRose, mapFrame, INK, PARCHMENT, LEGEND_TITLE_H, LEGEND_TEXT, LEGEND_ROW, LEGEND_SWATCH, LEGEND_GAP, LEGEND_W_FIXED } from "./renderer";
+import { svgEl, legendPanel, legendRow, starPath, compassRose, mapFrame, INK, PARCHMENT, LEGEND_TITLE_H, LEGEND_TEXT, LEGEND_ROW, LEGEND_SWATCH, LEGEND_GAP, LEGEND_W_FIXED, CITY_LABEL_DX } from "./renderer";
 import { scaleBar, KM_PER_UNIT, KM_PER_WALKING_DAY } from "./scaleBar";
 import { displayBiomes } from "./displayBiome";
 import { OCEAN, ALPINE, BIOME_COLORS } from "../engine/biome";
@@ -316,7 +316,7 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
     const label = svgEl("text", {
       class: "city-label " + (c.isCapital ? "city-capital" : "city-town"),
       "data-city": c.id, style: "cursor:pointer",
-      x: c.x + 5, y: c.y + 3, "font-size": c.isCapital ? 10 : 8,
+      x: c.x + CITY_LABEL_DX, y: c.y + 3, "font-size": c.isCapital ? 10 : 8,
       "font-weight": c.isCapital ? 600 : 400,
       fill: c.isCapital ? "#2a2118" : "#6b5d42",
       stroke: PARCHMENT, "stroke-width": 1.6, "paint-order": "stroke",

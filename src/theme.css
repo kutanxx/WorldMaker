@@ -153,7 +153,9 @@ a.home:hover { background: #e7cf9c; }
 /* The controls float over the map's own bottom-right corner, where a sea name or a coastal town
    likes to sit — and the map moves UNDER them, so there is no square of map that can be reserved
    against them at every zoom. What a printed atlas does instead is give the furniture a mount: the
-   panel makes "this name is behind a control" read as a panel rather than as a smudged label. */
+   panel makes "this name is behind a control" read as a panel rather than as a smudged label.
+   At REST the room they take is fixed, and a name steps out from under them where there is free
+   room to go (deconflictLabels, `clear`); the mount is for the zoomed map and for what cannot move. */
 .map-zoom-controls {
   position: absolute; right: 14px; bottom: 14px;
   display: flex; flex-direction: column; gap: 4px; z-index: 5;

@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from "vitest";
-import { deconflictLabels, clearMarks, clearCastleName } from "./deconflict";
+import { deconflictLabels, clearMarks, clearCastleName, coveredBy } from "./deconflict";
+import { CITY_LABEL_DX } from "./renderer";
 
 const NS = "http://www.w3.org/2000/svg";
 type Box = { x: number; y: number; width: number; height: number };
@@ -168,6 +169,127 @@ describe("deconflictLabels run more than once", () => {
     deconflictLabels(svg);
     expect(far.getAttribute("x")).toBe("300");
     expect(far.getAttribute("y")).toBe("312");
+  });
+});
+
+// The page's controls stand ON the world map — "Map only" at its top right, +/−/↺ at its bottom
+// right — and at rest a sea's name under one of them read as a smudge: measured at 1440x900, in 5 of
+// 12 worlds (4 under the chip, 1 under ↺).
+describe("deconflictLabels and the controls standing on the map", () => {
+  const mk = (svg: SVGSVGElement, cls: string, x: number, y: number, w: number, h: number) => {
+    const t = document.createElementNS(NS, "text");
+    t.setAttribute("class", cls); t.setAttribute("x", String(x)); t.setAttribute("y", String(y));
+    (t as unknown as { getBBox: () => Box }).getBBox = () =>
+      ({ x: Number(t.getAttribute("x")), y: Number(t.getAttribute("y")) - h, width: w, height: h });
+    svg.appendChild(t);
+    return t as unknown as SVGGraphicsElement;
+  };
+  const map = () => {
+    const svg = document.createElementNS(NS, "svg") as SVGSVGElement;
+    svg.setAttribute("viewBox", "0 0 1000 700");
+    return svg;
+  };
+  const chip = { x: 930, y: 10, width: 60, height: 25 };   // the top-right corner, in map units
+
+  it("steps an area's name out from under a control at rest, the shortest way that stays on the map", () => {
+    const svg = map();
+    const sea = mk(svg, "region-label", 900, 34, 80, 14);   // 900..980 x 20..34, under the chip
+    deconflictLabels(svg, 1, { clear: [chip] });
+    // down clears it and the cull's air (20); left would take 55; up and right leave the map
+    expect(sea.getAttribute("x")).toBe("900");
+    expect(sea.getAttribute("y")).toBe("54");
+    expect(sea.style.visibility).toBe("");
+    deconflictLabels(svg, 1, { clear: [chip] });             // and stays there on the next pass
+    expect(sea.getAttribute("y")).toBe("54");
+  });
+
+  // World 1 at 1440x900: "푸른 심해", moved exactly the cull's air below the chip, was deleted by the
+  // cull — the move and the cull's air are two float sums that need not land on the same number.
+  // These fractions do not: 14.07 + (2.05 + 29.78 + 4 - 14.07) - 4 comes out under 2.05 + 29.78.
+  it("keeps the name it moved, where a real map's fractions round against it", () => {
+    const svg = map();
+    const chipHere = { x: 930, y: 2.05, width: 60, height: 29.78 };
+    const sea = mkLabel(svg, "region-label", { x: 900, y: 14.07, width: 80, height: 14 });
+    deconflictLabels(svg, 1, { clear: [chipHere] });
+    expect(Number(sea.getAttribute("y")), "it moved below the chip").toBeGreaterThan(21);
+    expect(sea.style.visibility).toBe("");
+  });
+
+  it("leaves the names alone while the map is zoomed — the map moves under the controls then", () => {
+    const svg = map();
+    const sea = mk(svg, "region-label", 900, 34, 80, 14);
+    deconflictLabels(svg, 2, { clear: [chip] });
+    expect(sea.getAttribute("y")).toBe("34");
+    expect(sea.style.visibility).toBe("");
+  });
+
+  // A town's name belongs to its dot, so it cannot step aside like a sea's — but it can cross to the
+  // dot's other side, the other place a cartographer sets a point's name. Measured at 1366x650, a
+  // capital's name ran under the +/−/↺ mount in 3 of 12 worlds (자라이르, 네일, 카르크·피이빅).
+  it("crosses a town's name to the other side of its dot when that side is free", () => {
+    const svg = map();
+    const narrow = { x: 960, y: 10, width: 30, height: 25 };
+    // the renderer sets a town's name CITY_LABEL_DX right of its dot: this dot is at x 950
+    const capital = mk(svg, "city-label city-capital", 950 + CITY_LABEL_DX, 30, 30, 10);
+    const elsewhere = mk(svg, "city-label city-capital", 400, 300, 40, 10);
+    deconflictLabels(svg, 1, { clear: [narrow] });
+    expect(capital.getAttribute("text-anchor")).toBe("end");
+    expect(capital.getAttribute("x")).toBe(String(950 - CITY_LABEL_DX));   // ends as far left of the dot
+    expect(capital.getAttribute("y")).toBe("30");
+    expect(capital.style.visibility).toBe("");
+    expect(elsewhere.getAttribute("text-anchor")).toBeNull();
+  });
+
+  // A first cut deleted the names it could not move, and at 1366x650 took two capitals off world 8:
+  // one had the map's edge on its other side, one had another capital there. A move is only worth
+  // making into room that costs nothing; without it the name stays behind the control's mount.
+  it("moves nothing where there is no free room — off the map, or onto another name", () => {
+    const wall = map();
+    const edge = mk(wall, "city-label city-capital", 25 + CITY_LABEL_DX, 30, 30, 10);   // left of it: off the map
+    deconflictLabels(wall, 1, { clear: [{ x: 12, y: 10, width: 60, height: 25 }] });
+    expect(edge.getAttribute("text-anchor")).toBeNull();
+    expect(edge.getAttribute("x")).toBe(String(25 + CITY_LABEL_DX));
+    expect(edge.style.visibility).toBe("");
+
+    const svg = map();
+    const narrow = { x: 960, y: 10, width: 30, height: 25 };
+    const capital = mk(svg, "city-label city-capital", 950 + CITY_LABEL_DX, 30, 30, 10);
+    const neighbour = mk(svg, "city-label city-capital", 905, 32, 30, 10);   // on the dot's other side
+    deconflictLabels(svg, 1, { clear: [narrow] });
+    expect(capital.getAttribute("text-anchor")).toBeNull();
+    expect(capital.style.visibility).toBe("");
+    expect(neighbour.style.visibility).toBe("");
+  });
+
+  it("steps an area's name into the free side, not onto another name", () => {
+    const svg = map();
+    const sea = mk(svg, "region-label", 900, 34, 80, 14);             // under the chip
+    const below = mk(svg, "city-label city-capital", 905, 60, 40, 10);  // holds the room just below it
+    deconflictLabels(svg, 1, { clear: [chip] });
+    expect(sea.getAttribute("y"), "not down, onto the capital").toBe("34");
+    expect(sea.getAttribute("x"), "left, the free way").toBe(String(900 - 55));
+    expect(sea.style.visibility).toBe("");
+    expect(below.style.visibility).toBe("");
+  });
+});
+
+describe("coveredBy", () => {
+  it("takes an element's box on screen back into the drawing's units", () => {
+    const svg = document.createElementNS(NS, "svg") as SVGSVGElement;
+    // half a pixel to the unit, the drawing's origin at (100, 50) on screen
+    (svg as unknown as { getScreenCTM: () => unknown }).getScreenCTM = () => ({ a: 0.5, b: 0, c: 0, d: 0.5, e: 100, f: 50 });
+    const rect = (left: number, top: number, width: number, height: number) => {
+      const el = document.createElement("button");
+      el.getBoundingClientRect = () => ({ left, top, width, height, right: left + width, bottom: top + height, x: left, y: top, toJSON: () => ({}) });
+      return el;
+    };
+    const shown = rect(600, 60, 30, 20), hidden = rect(0, 0, 0, 0);   // ↺ is not drawn at rest on a phone
+    expect(coveredBy(svg, [shown, hidden])).toEqual([{ x: 1000, y: 20, width: 60, height: 40 }]);
+  });
+
+  it("covers nothing where there is no layout to measure", () => {
+    const svg = document.createElementNS(NS, "svg") as SVGSVGElement;
+    expect(coveredBy(svg, [document.createElement("button")])).toEqual([]);
   });
 });
 

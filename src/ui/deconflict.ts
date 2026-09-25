@@ -1,4 +1,5 @@
 import { pointInPolygon, type Point } from "../engine/geometry";
+import { CITY_LABEL_DX } from "./renderer";
 // Hide any label whose bounding box overlaps a higher-priority one (player nation > other nation >
 // capital > region > river > town), so nation names and place names don't collide. Runs post-mount
 // because it needs getBBox (real layout); jsdom lacks getBBox, so it's a no-op in tests unless
@@ -6,6 +7,12 @@ import { pointInPolygon, type Point } from "../engine/geometry";
 
 // the air one name keeps from another, or the cull takes one of them (see deconflictLabels)
 const NAME_AIR = 4;
+// how far inside the map's edge a name stays: the decorative border is inset 8, plus a little air
+const FRAME_PAD = 10;
+
+// The names of AREAS: a realm's, a region's, a province's, a culture's may stand anywhere inside
+// what they name, so they can step aside. A town's name belongs to its dot and cannot.
+const AREA_NAMES = ".nation-label, .region-label, .province-label, .culture-label";
 
 /**
  * `scale` is the map's current zoom, 1 at rest. At rest the map carries only the names of large
@@ -16,7 +23,7 @@ const NAME_AIR = 4;
  * The thresholds below are the one place in this pass with hand-chosen numbers. Everything else
  * follows from what fits.
  */
-export function deconflictLabels(svg: SVGSVGElement, scale = 1): void {
+export function deconflictLabels(svg: SVGSVGElement, scale = 1, opts: { clear?: Box[] } = {}): void {
   // selector, priority when they compete, and the zoom at which the name is worth the room.
   // A capital's name waits for no zoom either. It used to wait for 1.5x, which meant the map opened
   // as a field of unnamed specks -- 0 of 28 names on screen at rest -- with its best feature, the
@@ -112,7 +119,7 @@ export function deconflictLabels(svg: SVGSVGElement, scale = 1): void {
   const vb = (svg.dataset.baseViewbox || "").split(/[\s,]+/).map(Number);
   if (vb.length === 4 && vb.every(Number.isFinite)) {
     const [vx, vy, vw, vh] = vb;
-    const PAD = 10; // stay inside the decorative border (inset 8) with a little air
+    const PAD = FRAME_PAD;
     for (const l of labels) {
       if (l.el.classList.contains("river-label")) continue;
       let dx = 0, dy = 0;
@@ -125,17 +132,77 @@ export function deconflictLabels(svg: SVGSVGElement, scale = 1): void {
     }
   }
 
-  labels.sort((a, b) => b.prio - a.prio); // place the important ones first
   // Things the map draws that are not in the tiers above, and that nothing may sit on. The legend is
   // an opaque panel, and a label underneath it was left "visible" while being covered — at 92% panel
   // opacity that is not a name, it is a smudge showing through. The world's title is the same case
   // from the other side: it was invisible to this pass, so it neither ceded space nor claimed any,
   // and a region name would come to rest just below it and read as a subtitle. Seeding both as
   // already-occupied lets the culling below reason about the room that is actually free.
-  const kept: DOMRect[] = [];
+  const furniture: DOMRect[] = [];
   for (const panel of svg.querySelectorAll<SVGGraphicsElement>(".legend, .world-name-text")) {
-    try { kept.push(panel.getBBox()); } catch { /* no layout (jsdom): nothing to reserve */ }
+    try { furniture.push(panel.getBBox()); } catch { /* no layout (jsdom): nothing to reserve */ }
   }
+
+  // ★ The page's controls stand ON the drawing — "Map only" at the world map's top right, +/−/↺ at
+  // its bottom right — and at rest a name under one of them read as a smudge: measured at 1440x900,
+  // a sea's name in 5 of 12 worlds (4 under the chip, 1 under ↺), and at 1366x650 in 6, two of them
+  // capitals. At rest the room they take is fixed, so a name moves out from under them where there is
+  // free room to move to: an area's name the shortest way, a town's name — which belongs to its dot
+  // and cannot step aside — across to the dot's other side. Free means clear of the controls, of the
+  // map's edge, of the title and of every other name, so a move never costs the map a name it was
+  // showing; with no free room the name stays behind the control's mount, as it always did. (A first
+  // cut deleted the names it could not move: at 1366x650 that took two capitals off world 8.)
+  // Zoomed, the map moves UNDER the controls and there is no fixed room to keep — the mount in
+  // theme.css answers for that — so `clear` is for the resting map only.
+  const clear = scale === 1 ? opts.clear ?? [] : [];
+  if (clear.length) {
+    // one unit past the cull's air, for the reason CAPITAL_GAP gives: a name set exactly AIR from
+    // what it left sits a rounding error inside the cull's reach, and was deleted there
+    const STEP = AIR + 1;
+    const grow = (b: Box, by: number) =>
+      ({ x: b.x - by, y: b.y - by, width: b.width + by * 2, height: b.height + by * 2 }) as DOMRect;
+    const under = (b: Box) => clear.some((c) => hit(b as DOMRect, grow(c, AIR)));
+    const onMap = (b: Box) => vb.length !== 4 || !vb.every(Number.isFinite) || (
+      b.x >= vb[0] + FRAME_PAD && b.x + b.width <= vb[0] + vb[2] - FRAME_PAD
+      && b.y >= vb[1] + FRAME_PAD && b.y + b.height <= vb[1] + vb[3] - FRAME_PAD);
+    const free = (self: (typeof labels)[number], b: Box) => {
+      if (!onMap(b) || under(b)) return false;
+      const room = grow(b, STEP);
+      return !furniture.some((f) => hit(f, room)) && !labels.some((o) => o !== self && hit(o.box, room));
+    };
+    for (const l of labels) {
+      if (!under(l.box)) continue;
+      if (l.el.matches(".city-label")) {
+        if (l.el.getAttribute("text-anchor") === "end") continue;
+        // it began CITY_LABEL_DX right of its dot, and ends as far left of it
+        const crossed = { x: l.box.x - l.box.width - 2 * CITY_LABEL_DX, y: l.box.y, width: l.box.width, height: l.box.height };
+        if (!free(l, crossed)) continue;
+        l.el.setAttribute("text-anchor", "end");
+        l.el.setAttribute("x", String(Number(l.el.getAttribute("x") || 0) - 2 * CITY_LABEL_DX));
+        l.box.x = crossed.x;
+        continue;
+      }
+      if (!l.el.matches(AREA_NAMES)) continue;
+      let best: [number, number] | null = null;
+      for (const c of clear) {
+        if (!hit(l.box, grow(c, AIR))) continue;
+        for (const [dx, dy] of [
+          [c.x - STEP - (l.box.x + l.box.width), 0], [c.x + c.width + STEP - l.box.x, 0],
+          [0, c.y - STEP - (l.box.y + l.box.height)], [0, c.y + c.height + STEP - l.box.y],
+        ] as [number, number][]) {
+          if (!free(l, { x: l.box.x + dx, y: l.box.y + dy, width: l.box.width, height: l.box.height })) continue;
+          if (!best || Math.abs(dx) + Math.abs(dy) < Math.abs(best[0]) + Math.abs(best[1])) best = [dx, dy];
+        }
+      }
+      if (!best) continue;
+      const [dx, dy] = best;
+      if (dx) { l.el.setAttribute("x", String(Number(l.el.getAttribute("x") || 0) + dx)); l.box.x += dx; }
+      if (dy) { l.el.setAttribute("y", String(Number(l.el.getAttribute("y") || 0) + dy)); l.box.y += dy; }
+    }
+  }
+
+  labels.sort((a, b) => b.prio - a.prio); // place the important ones first
+  const kept: DOMRect[] = [...furniture];
   const withAir = (b: DOMRect) =>
     ({ x: b.x - AIR, y: b.y - AIR, width: b.width + AIR * 2, height: b.height + AIR * 2 }) as DOMRect;
   for (const l of labels) {
@@ -463,3 +530,26 @@ function inkGrid(ink: Ink[]): { touches: (b: Edges) => boolean } {
 }
 
 type Box = { x: number; y: number; width: number; height: number };
+
+/**
+ * What the page's own controls cover of a drawing, in the drawing's units: each element's box on
+ * screen taken back through the drawing's screen transform. An element that is not drawn (a phone's
+ * +/−, the ↺ at rest) covers nothing, and neither does anything where there is no layout (jsdom).
+ */
+export function coveredBy(svg: SVGSVGElement, els: Iterable<Element>): Box[] {
+  const m = svg.getScreenCTM?.();
+  const det = m ? m.a * m.d - m.b * m.c : 0;
+  if (!m || !det) return [];
+  const toUser = (sx: number, sy: number): [number, number] => {
+    const x = sx - m.e, y = sy - m.f;
+    return [(m.d * x - m.c * y) / det, (m.a * y - m.b * x) / det];
+  };
+  const out: Box[] = [];
+  for (const el of els) {
+    const r = el.getBoundingClientRect();
+    if (!(r.width > 0 && r.height > 0)) continue;
+    const [x0, y0] = toUser(r.left, r.top), [x1, y1] = toUser(r.right, r.bottom);
+    out.push({ x: Math.min(x0, x1), y: Math.min(y0, y1), width: Math.abs(x1 - x0), height: Math.abs(y1 - y0) });
+  }
+  return out;
+}
