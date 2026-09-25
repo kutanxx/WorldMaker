@@ -48,6 +48,13 @@ describe("makeFold", () => {
     expect(f.head.textContent).toContain("23");
   });
 
+  // The town list follows the year, so what it holds changes under a head that says how many.
+  it("recounts when what is inside changes", () => {
+    const f = makeFold({ title: "Cities", open: false, count: 28 });
+    f.setCount(8);
+    expect(f.head.querySelector(".fold-count")!.textContent).toBe("8");
+  });
+
   it("leaves the count out when there is nothing to count", () => {
     const f = makeFold({ title: "Key", open: false });
     expect(f.head.querySelector(".fold-count")).toBeNull();

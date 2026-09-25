@@ -17,6 +17,8 @@ export interface Fold {
   setOpen(on: boolean): void;
   /** Wide windows show these sections outright; the head stands down to a plain heading. */
   setFoldable(on: boolean): void;
+  /** A new count for the head — the town list follows the scrubbed year, so what it holds changes. */
+  setCount(n: number): void;
 }
 
 export interface FoldOpts {
@@ -45,11 +47,12 @@ export function makeFold(opts: FoldOpts): Fold {
   title.textContent = opts.title;
   head.appendChild(title);
 
+  let count: HTMLSpanElement | null = null;
   if (opts.count !== undefined) {
-    const n = document.createElement("span");
-    n.className = "fold-count";
-    n.textContent = String(opts.count);
-    head.appendChild(n);
+    count = document.createElement("span");
+    count.className = "fold-count";
+    count.textContent = String(opts.count);
+    head.appendChild(count);
   }
   const mark = document.createElement("span");
   mark.className = "fold-mark";
@@ -79,6 +82,7 @@ export function makeFold(opts: FoldOpts): Fold {
     section, head, body,
     setOpen(on) { open = on; paint(); },
     setFoldable(on) { foldable = on; head.disabled = !on; paint(); },
+    setCount(n) { if (count) count.textContent = String(n); },
   };
 }
 

@@ -23,7 +23,7 @@ import { deconflictLabels, clearMarks, clearCastleName } from "./deconflict";
 import { applyLabelScale, applyMarkerScale, floorLabelSize } from "./labelScale";
 import { layOutLabelsForExport } from "./exportLabels";
 import { type Lang, t } from "./i18n";
-import { makeFold, readFoldPref, writeFoldPref } from "./fold";
+import { makeFold, readFoldPref, writeFoldPref, type Fold } from "./fold";
 import { legendSheet, placeLegend } from "./legendSheet";
 import { measureChrome, fitChrome } from "./chromeBudget";
 import { LEGEND_ROW } from "./renderer";
@@ -398,6 +398,9 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
 
   // city cell -> the <span> naming its realm in the list, refilled whenever the year changes
   const realmCells = new Map<number, HTMLElement>();
+  // city id -> its row in the list, and the list's section, whose head counts the rows the year shows
+  const listRows = new Map<number, HTMLLIElement>();
+  let listFold: Fold | null = null;
 
   // The list must name the realm the MAP shows holding the town, so it reads the same
   // province-snapped ownership the political layer paints from — not the raw snapshot, which can
@@ -432,6 +435,18 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
       const id = Number(el.getAttribute("data-city"));
       el.style.display = hidden.has(id) ? "none" : "";
     }
+    // ★ ...and the list beside it. It offered every town at every year while the map hid the ones
+    // not founded: world 1 opens at year 0 with its 8 capitals on the map and 28 towns in the list,
+    // each wearing a realm, and over twelve worlds 170 of 336 towns were listed in a year before
+    // they stood (92 still at year 200). Asked whether to hide them or grey them out, the reader
+    // chose the list that matches the map. A row keeps its place and returns to it, so a town
+    // arrives where capitals-then-size puts it, and the head counts what the list shows.
+    let shown = 0;
+    for (const [id, li] of listRows) {
+      li.hidden = hidden.has(id);
+      if (!li.hidden) shown++;
+    }
+    listFold?.setCount(shown);
   }
 
   function fillSlot(slot: SVGGElement, view: MapView, yearIndex: number): void {
@@ -548,7 +563,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     // on a phone the list and the chronicle came to 641px against a 225px map. Folded, the head
     // still carries the count — "Cities 23" says towns are there, which is the one job the list
     // was added to do.
-    const listFold = makeFold({
+    listFold = makeFold({
       title: t(lang, "cityList"), count: generated.world.cities.length,
       // ★ Foldable at every width now, at the reader's asking: "도시 목록도 접었다 피는게 괜찮지
       // 않을까". Unread, it opens on a desktop and stays folded on a phone (where it and the
@@ -560,6 +575,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     list.classList.add("city-list");
     const ul = document.createElement("ul");
     realmCells.clear();
+    listRows.clear();
     // The tiebreaker sorts by the name actually ON THE BUTTON, not the underlying Latin `c.name` —
     // in Korean that RENDERS as `properName(lang, c.name)`, and sorting by the untransliterated name
     // instead put same-size Korean towns in an order that reads as arbitrary to the reader who never
@@ -584,6 +600,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
       b.addEventListener("click", () => openCity(c.id));
       li.appendChild(b);
       ul.appendChild(li);
+      listRows.set(c.id, li);
     }
     listFold.body.appendChild(ul);
 
@@ -829,10 +846,11 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     // atlas never draws (19 of 19 on seed 1), which is its own bug and not something to paper over.
     // The plate answers for the year the reader scrubbed to, and says which year that was: the
     // world map has a scrubber to carry that, and a plate does not.
-    // ★ ...unless the town was not there yet. The list offers every town at every year while the
-    // map hides the ones not founded, and measured over 336 towns at year 0 — where every world
-    // starts — 170 plates said "Realm — X · 0 AY" over "Founded — 360 AY". Such a plate answers for
-    // the first year its town stood; the realm line says which year that is.
+    // ★ ...unless the town was not there yet. The list used to offer every town at every year while
+    // the map hid the ones not founded, and measured over 336 towns at year 0 — where every world
+    // starts — 170 plates said "Realm — X · 0 AY" over "Founded — 360 AY". The list hides them now,
+    // but a shared link (`&city=N`) still opens any town at year 0. Such a plate answers for the
+    // first year its town stood; the realm line says which year that is.
     const founded = history.cityFoundings.find((f) => f.cityId === cityId)?.year;
     let factIndex = currentYearIndex;
     if (founded !== undefined && history.snapshots[factIndex].year < founded) {

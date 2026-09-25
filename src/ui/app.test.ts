@@ -843,12 +843,17 @@ describe("a plate tells you where you are and where you can go", () => {
 // dots' targets helped whoever already knew to aim at one; nothing told a first-time reader that
 // there was anything to aim at.
 describe("the cities announce themselves", () => {
+  // every city by the chronicle's last year — before that, the ones standing (see "the towns arrive")
   it("lists every city beside the map, capitals first", async () => {
     const root = document.createElement("div");
     document.body.appendChild(root);
     createApp(root, { ...DEFAULT_PARAMS, seed: 5 });
     await new Promise((r) => setTimeout(r, 0));
-    const items = [...root.querySelectorAll(".city-list-item")];
+    const slider = root.querySelector(".timeline input[type=range]") as HTMLInputElement;
+    slider.value = slider.max;
+    slider.dispatchEvent(new Event("input"));
+    const items = [...root.querySelectorAll<HTMLLIElement>(".city-list li")].filter((li) => !li.hidden)
+      .map((li) => li.querySelector(".city-list-item")!);
     expect(items.length).toBe(28);
     const caps = items.filter((b) => b.classList.contains("is-capital"));
     expect(caps.length).toBeGreaterThan(1);
@@ -955,6 +960,39 @@ describe("the towns arrive as the chronicle founds them", () => {
     expect(atEnd, `year 0 showed ${atStart}, year 500 showed ${atEnd}`).toBeGreaterThan(atStart);
     // and the capitals are there from the first year — they are the seats the world starts with
     expect(atStart).toBeGreaterThanOrEqual(8);
+    root.remove();
+  });
+
+  // ...and the list beside the map lists the same towns. It offered every town at every year while
+  // the map hid the ones not yet founded: world 1 opens at year 0 with its 8 capitals on the map and
+  // 28 towns in the list, each wearing a realm, and over twelve worlds 170 of 336 towns were listed
+  // in a year before they stood (still 92 at year 200). Asked whether the list should hide them or
+  // grey them out, the reader chose the list that matches the map (2026-09-25).
+  it("lists the towns the map shows in the scrubbed year, in the list's own order, and counts them", async () => {
+    const root = document.createElement("div");
+    document.body.appendChild(root);
+    createApp(root, { ...DEFAULT_PARAMS, seed: 1 });
+    await new Promise((r) => setTimeout(r, 0));
+    const slider = root.querySelector(".timeline input[type=range]") as HTMLInputElement;
+    const at = (v: string) => { slider.value = v; slider.dispatchEvent(new Event("input")); };
+    const onMap = () => new Set([...root.querySelectorAll<SVGElement>(".markers .marker-hit")]
+      .filter((e) => e.style.display !== "none").map((e) => Number(e.getAttribute("data-city"))));
+    const listed = () => [...root.querySelectorAll<HTMLLIElement>(".city-list li")].filter((li) => !li.hidden)
+      .map((li) => Number(li.querySelector(".city-list-item")!.getAttribute("data-city")));
+    const count = () => root.querySelector(".city-list .fold-count")!.textContent;
+    const order = [...root.querySelectorAll(".city-list-item")].map((b) => Number(b.getAttribute("data-city")));
+    for (const v of ["0", "11", "30", slider.max, "0"]) {   // back to the dawn too, as ▶ does from the end
+      at(v);
+      const ids = listed();
+      expect(new Set(ids), `year index ${v}`).toEqual(onMap());
+      expect(count(), `year index ${v}: the head counts what the list shows`).toBe(String(ids.length));
+      // a town arrives in its own place in the list, capitals first then by size — not at the end
+      expect(ids, `year index ${v}`).toEqual(order.filter((id) => ids.includes(id)));
+    }
+    at("0");
+    expect(listed().length, "world 1 opens on its 8 capitals").toBe(8);
+    at(slider.max);
+    expect(listed().length, "and every town stands by year 500").toBe(28);
     root.remove();
   });
 });
@@ -1341,8 +1379,8 @@ describe("a window too narrow to carry the map's furniture", () => {
     for (const h of heads) expect(h.disabled, `${h.textContent} cannot be folded`).toBe(false);
     // Folded, the head is all that is left of the section: it has to say what is inside — and the
     // number has to be the towns actually in the list, not the `townCount` asked for (a 6-town
-    // world lands 14 of them once capitals are seated).
-    const rows = root.querySelectorAll(".city-list-item").length;
+    // world lands 14 of them once capitals are seated) — and in the list means shown in this year.
+    const rows = [...root.querySelectorAll<HTMLLIElement>(".city-list li")].filter((li) => !li.hidden).length;
     expect(rows).toBeGreaterThan(0);
     expect(titled(/Cities/)!.querySelector(".fold-count")!.textContent).toBe(String(rows));
   });
