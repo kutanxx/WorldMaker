@@ -87,6 +87,8 @@ function named<T extends SVGElement>(el: T, text: string): T {
 }
 
 const BRIDGE_EDGE = "#5f5a4e";
+// a slope shorter than this carries no hachure: the ground there hardly falls
+const HILL_STROKE_MIN = 1.5;
 const BRIDGE_DECK = "#a8a294";
 
 const TINT: Partial<Record<WardType, string>> = {
@@ -248,6 +250,7 @@ export function renderCity(layout: CityLayout, lang: Lang = "en", opts: CityRend
     for (let i = 0; i < brow.length; i++) {
       const [bx, by] = brow[i], [fx, fy] = foot[i];
       const len = Math.hypot(fx - bx, fy - by);
+      if (len < HILL_STROKE_MIN) continue;   // (a spur's ground rises behind it: no slope there to draw)
       hg.appendChild(svgEl("line", {
         class: "hill-hachure", x1: bx.toFixed(1), y1: by.toFixed(1),
         x2: (bx + (fx - bx) * 0.85).toFixed(1), y2: (by + (fy - by) * 0.85).toFixed(1),
@@ -741,21 +744,83 @@ export function renderCity(layout: CityLayout, lang: Lang = "en", opts: CityRend
     ...present.map((wt) => [TINT[wt]!, WARD_NAME[lang][wt] ?? ""] as [string, string]),
     ["#9fc1d6", t(lang, "water")], ["#d8b65e", t(lang, "mainRoad")],
   ];
+  // ★ ...and the plate's own marks, drawn as the plate draws them, each where the plate has one: the
+  // key named the colours, the water and the main road, and nothing a reader might ask about next — a
+  // heavy line with balls on it round the town, a small cross in a quarter, grey hachured ground. A
+  // mark is drawn in the 8x8 a swatch fills, its row's middle 2 above the row's baseline.
+  const marks: [(x: number, y: number) => SVGElement, string][] = [];
+  if (layout.wall) {
+    const timber = layout.features.wallMaterial === "timber";
+    const wallStroke = timber ? "#6b4f34" : "#43392d", wallInner = timber ? "#8a6a44" : "#8a7a60";
+    const towerFill = timber ? "#9c7a52" : "#8a7858", towerStroke = timber ? "#6b4f34" : "#5a4a36";
+    const gateFill = timber ? "#7a5a38" : "#9a9a9a", gateStroke = timber ? "#5a3f26" : "#43392d";
+    const wallLine = (g: SVGElement, x: number, y: number) => {
+      g.appendChild(svgEl("line", { x1: x - 1, y1: y - 2, x2: x + 9, y2: y - 2, stroke: wallStroke, "stroke-width": 2.6, "stroke-linecap": "round" }));
+      g.appendChild(svgEl("line", { x1: x - 1, y1: y - 2, x2: x + 9, y2: y - 2, stroke: wallInner, "stroke-width": 0.7 }));
+    };
+    marks.push([(x, y) => {
+      const g = svgEl("g", { class: "legend-symbol" });
+      wallLine(g, x, y);
+      g.appendChild(svgEl("circle", { cx: x + 7.5, cy: y - 2, r: 1.9, fill: towerFill, stroke: towerStroke, "stroke-width": 0.6 }));
+      return g;
+    }, fn("wall")]);
+    if (layout.wall.gates.length) marks.push([(x, y) => {
+      const g = svgEl("g", { class: "legend-symbol" });
+      wallLine(g, x, y);
+      g.appendChild(svgEl("rect", { x: x + 1.8, y: y - 4.2, width: 4.4, height: 4.4, rx: 0.8, fill: gateFill, stroke: gateStroke, "stroke-width": 0.7 }));
+      return g;
+    }, fn("gate")]);
+  }
+  if (layout.parishChurches.length) marks.push([(x, y) => {
+    const g = svgEl("g", { class: "legend-symbol" });
+    g.appendChild(svgEl("path", { d: `M${x + 4},${y - 5}v6 M${x + 2},${y - 3}h4`, stroke: "#7a6a86", "stroke-width": 1.2, fill: "none", "stroke-linecap": "round" }));
+    return g;
+  }, fn("parishChurch")]);
   // a crossing gets its own line in the key, but only where the plate actually has one
-  if (layout.water.bridges.length || layout.gateBridges.length) items.push([BRIDGE_DECK, t(lang, "bridge")]);
+  if (layout.water.bridges.length || layout.gateBridges.length) marks.push([(x, y) => {
+    const g = svgEl("g", { class: "legend-symbol" });
+    g.appendChild(svgEl("line", { x1: x - 1, y1: y - 2, x2: x + 9, y2: y - 2, stroke: BRIDGE_EDGE, "stroke-width": 4.4, "stroke-linecap": "butt" }));
+    g.appendChild(svgEl("line", { x1: x - 1, y1: y - 2, x2: x + 9, y2: y - 2, stroke: BRIDGE_DECK, "stroke-width": 2.4, "stroke-linecap": "butt" }));
+    return g;
+  }, t(lang, "bridge")]);
+  if (layout.mountains.length) {
+    const steep = layout.mountains.some((m) => m.steep);
+    marks.push([(x, y) => {
+      const g = svgEl("g", { class: "legend-symbol" });
+      g.appendChild(svgEl("rect", { x, y: y - 6, width: 8, height: 8, fill: steep ? "#a99e8c" : "#bcb2a0", stroke: "none" }));
+      for (const dx of [1.5, 4, 6.5]) g.appendChild(svgEl("line", { x1: x + dx, y1: y - 4.5, x2: x + dx, y2: y - 1, stroke: steep ? "#5f5648" : "#7a715f", "stroke-width": 0.5 }));
+      return g;
+    }, fn("mountain")]);
+  }
+  if (layout.hill) marks.push([(x, y) => {
+    const g = svgEl("g", { class: "legend-symbol" });
+    g.appendChild(svgEl("rect", { x, y: y - 6, width: 8, height: 8, fill: "#8b7355", "fill-opacity": 0.1, stroke: "none" }));
+    for (const dx of [1, 3, 5, 7]) g.appendChild(svgEl("line", { x1: x + dx, y1: y - 5.5, x2: x + dx, y2: y + 1.5, stroke: "#7a6a4f", "stroke-width": 0.45, "stroke-linecap": "round" }));
+    return g;
+  }, fn("slope")]);
+  const rowsN = items.length + marks.length;
   const CITY_TITLE_H = 14; // 11 put the heading's descender on the first swatch (measured -0.8)
   // the strip starts at the top of the plate, so there is no room above it: the heading takes its
   // place at the top of the panel and the rows start below it
   const x0 = w + 12, y0 = 20 + CITY_TITLE_H; // in the right-hand strip, clear of the map
-  legend.appendChild(legendPanel(x0 - 4, y0 - 8 - CITY_TITLE_H, 92, items.length * CITY_LEGEND_ROW + 12 + CITY_TITLE_H, t(lang, "legendDistricts"), 7.5));
-  items.forEach(([color, label], i) => {
-    const y = y0 + i * CITY_LEGEND_ROW;
-    const row = legendRow(CITY_LEGEND_ROW);
-    row.appendChild(svgEl("rect", { class: "legend-item", x: x0, y: y - 6, width: 8, height: 8, fill: color, stroke: INK, "stroke-width": 0.6 }));
+  legend.appendChild(legendPanel(x0 - 4, y0 - 8 - CITY_TITLE_H, 92, rowsN * CITY_LEGEND_ROW + 12 + CITY_TITLE_H, t(lang, "legendPlate"), 7.5));
+  const labelled = (row: SVGElement, y: number, label: string) => {
     const txt = svgEl("text", { x: x0 + 14, y, "font-size": 9, fill: "#42341f", "letter-spacing": 0.3 });
     txt.textContent = label;
     row.appendChild(txt);
     legend.appendChild(row);
+  };
+  items.forEach(([color, label], i) => {
+    const y = y0 + i * CITY_LEGEND_ROW;
+    const row = legendRow(CITY_LEGEND_ROW);
+    row.appendChild(svgEl("rect", { class: "legend-item", x: x0, y: y - 6, width: 8, height: 8, fill: color, stroke: INK, "stroke-width": 0.6 }));
+    labelled(row, y, label);
+  });
+  marks.forEach(([draw, label], i) => {
+    const y = y0 + (items.length + i) * CITY_LEGEND_ROW;
+    const row = legendRow(CITY_LEGEND_ROW);
+    row.appendChild(draw(x0, y));
+    labelled(row, y, label);
   });
   root.appendChild(legend);
 

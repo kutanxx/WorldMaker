@@ -23,7 +23,7 @@ export const FEATURE_NAME = {
     field: "Field", fallowField: "Fallow field", terrace: "Terraced field", pasture: "Pasture", orchard: "Orchard",
     caravanserai: "Caravanserai",
     garden: "Garden", harbour: "Harbour", tanner: "Tannery", dyer: "Dyer's yard",
-    castle: "Castle", bridge: "Bridge", wall: "Town wall", gate: "Gate",
+    castle: "Castle", bridge: "Bridge", wall: "Town wall", gate: "Gate", mountain: "Mountains", slope: "Slope",
   },
   ko: {
     abbey: "수도원", cemetery: "공동묘지", gallows: "교수대", leperHouse: "나병자 수용소",
@@ -33,7 +33,7 @@ export const FEATURE_NAME = {
     field: "밭", fallowField: "휴경지", terrace: "계단식 밭", pasture: "목초지", orchard: "과수원",
     caravanserai: "대상 숙소",
     garden: "텃밭", harbour: "항구", tanner: "무두질터", dyer: "염색장",
-    castle: "성채", bridge: "다리", wall: "성벽", gate: "성문",
+    castle: "성채", bridge: "다리", wall: "성벽", gate: "성문", mountain: "산", slope: "비탈",
   },
 } as const satisfies Record<Lang, Record<string, string>>;
 
@@ -93,7 +93,7 @@ export const UI: Record<Lang, Record<string, string>> = {
     viewProvince: "Provinces: the administrative regions, their seats and the countries they make up.",
     cityPlanOf: "Plan of",
     compassN: "N", langToggle: "한국어", home: "🏠", homeLabel: "Home",
-    legendTerrain: "Terrain", legendRealms: "Realms", legendCultures: "Cultures", legendDistricts: "Districts",
+    legendTerrain: "Terrain", legendRealms: "Realms", legendCultures: "Cultures", legendDistricts: "Districts", legendPlate: "Key",
     legendToggle: "Key", legendShow: "Show the key", legendHide: "Hide the key",
     moreToggle: "More", lessToggle: "Less", moreShow: "More controls", moreHide: "Fewer controls",
     zoomIn: "Zoom in", zoomOut: "Zoom out", zoomReset: "Reset view", play: "Play", pause: "Pause",
@@ -129,7 +129,7 @@ export const UI: Record<Lang, Record<string, string>> = {
     viewProvince: "영토: 행정 구역과 그 중심지, 그리고 이들이 이루는 나라.",
     cityPlanOf: "도면 —",
     compassN: "북", langToggle: "EN", home: "🏠", homeLabel: "홈",
-    legendTerrain: "지형", legendRealms: "나라", legendCultures: "문화", legendDistricts: "구역",
+    legendTerrain: "지형", legendRealms: "나라", legendCultures: "문화", legendDistricts: "구역", legendPlate: "범례",
     legendToggle: "범례", legendShow: "범례 펼치기", legendHide: "범례 접기",
     moreToggle: "더 보기", lessToggle: "접기", moreShow: "컨트롤 더 보기", moreHide: "컨트롤 접기",
     zoomIn: "확대", zoomOut: "축소", zoomReset: "전체 보기", play: "재생", pause: "일시정지",

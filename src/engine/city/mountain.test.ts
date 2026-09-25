@@ -154,6 +154,24 @@ describe("the world's mountains on the plate", () => {
     }
   });
 
+  // A town out on a spur stands on it the same way: its ground falls away round its flanks and down its
+  // tip — steep and short on the flanks, longer down the tip where the ridge line runs on — and rises
+  // behind it up the ridge, where its rock is, so no slope is drawn there.
+  it("sets a spur town out on its spur: its slope falls round the flanks and the tip, not up the ridge", () => {
+    for (const ridge of [-2.2, 0.5, 2]) {
+      const hill = makeHill(ring, center, bounds, ridge, "spur");
+      const width = (i: number) => Math.hypot(hill.foot[i][0] - hill.brow[i][0], hill.foot[i][1] - hill.brow[i][1]);
+      const bearing = (i: number) => Math.atan2(hill.brow[i][1] - center[1], hill.brow[i][0] - center[0]);
+      const at = (dir: number) => hill.brow.map((_, i) => i).filter((i) => off(bearing(i), dir) < 0.2).map(width);
+      for (const w of at(ridge)) expect(w, `up the ridge at ${ridge}`).toBeLessThan(2);
+      for (const side of [ridge + Math.PI / 2, ridge - Math.PI / 2]) for (const w of at(side)) {
+        expect(w, `a flank at ${ridge}`).toBeGreaterThan(12);
+        expect(w, `a flank at ${ridge}`).toBeLessThan(20);
+      }
+      for (const w of at(ridge + Math.PI)) expect(w, `the tip at ${ridge}`).toBeGreaterThan(25);
+    }
+  });
+
   it("runs a hill-top town's ridge on past its fields, narrow, the way the world's high ground runs", () => {
     for (const ridge of [-2.2, 0.5, 2]) {
       const masses = makeMountains(mulberry32(3), TABLE.hilltopFortress, ring, center, bounds, { facing: ridge, rng: mulberry32(9) });

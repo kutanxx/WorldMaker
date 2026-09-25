@@ -1936,12 +1936,24 @@ describe("everything a plate draws stands where it belongs", () => {
   // fortress on the hill had one broad shoulder of rock against its wall instead — 30-34% of its plate,
   // and no wall where it stood.
   it("sets a hill-top town on its hill, walled all round, its ridge running on past its fields", () => {
-    let hills = 0;
+    let hills = 0, spurs = 0;
     for (let seed = 1; seed <= 12; seed++) {
       const w = generateWorld({ ...DEFAULT_PARAMS, seed }).world;
       for (const c of w.cities) {
         const where = `${c.name} (seed ${seed}, ${c.id})`;
         const l = towns().find((t) => t.where === where)!.l;
+        if (c.relief === "spur" && !c.river && !c.coastal) {
+          // a spur town stands out on its spur: its slope falls round it, but not up the ridge behind
+          spurs++;
+          expect(l.hill, `no slope round ${where}`).toBeDefined();
+          const H = l.hill!, rb = c.reliefBearing!;
+          const off = (a: number) => Math.abs(Math.atan2(Math.sin(a - rb), Math.cos(a - rb)));
+          for (let i = 0; i < H.brow.length; i++) {
+            const a = Math.atan2(H.brow[i][1] - 230, H.brow[i][0] - 230), w = Math.hypot(H.foot[i][0] - H.brow[i][0], H.foot[i][1] - H.brow[i][1]);
+            if (off(a) < 0.2) expect(w, `a slope up the ridge behind ${where}`).toBeLessThan(2);
+          }
+          continue;
+        }
         if (c.relief !== "summit" || c.river || c.coastal) { expect(l.hill, `a hill under ${where}`).toBeUndefined(); continue; }
         hills++;
         expect(l.hill, `no hill under ${where}`).toBeDefined();
@@ -1959,6 +1971,7 @@ describe("everything a plate draws stands where it belongs", () => {
       }
     }
     expect(hills).toBeGreaterThanOrEqual(3);
+    expect(spurs).toBeGreaterThanOrEqual(3);
   });
 
   // A bridge is drawn 5.4 wide; a house kept only a lane's width off its line stood under its parapet
@@ -2134,6 +2147,10 @@ describe("a town in one world is not a copy of a town in another", () => {
 // And for a ward that keeps its houses: exactly 15 plates moved — 11 wards a road, the wall line or the
 // shore had left bare get houses cut from their plots (18 of them, from a stream of their own), and 5
 // houses under a bridge's parapet step off it. The other 321 hashed byte for byte the same.
+//
+// And for a spur town out on its spur (makeHill's "spur" form): exactly the 5 spur towns moved, each
+// with its slope round its flanks and down its tip. The key's new marks are the renderer's alone, so
+// no layout moved for them. The other 331 hashed byte for byte the same.
 describe("a plate is the same plate, byte for byte", () => {
   const fold = (h: number, c: number) => Math.imul(h ^ c, 16777619) >>> 0;
   const fnv = (s: string) => { let h = 2166136261 >>> 0; for (let i = 0; i < s.length; i++) h = fold(h, s.charCodeAt(i)); return h >>> 0; };
@@ -2147,6 +2164,6 @@ describe("a plate is the same plate, byte for byte", () => {
     expect(worldHash(1)).toEqual({ h: 221431460, n: 28 });
   });
   it("draws seed 12's twenty-eight towns exactly as it did", () => {
-    expect(worldHash(12)).toEqual({ h: 3252257965, n: 28 });
+    expect(worldHash(12)).toEqual({ h: 3750421655, n: 28 });
   });
 });

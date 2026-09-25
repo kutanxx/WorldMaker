@@ -352,7 +352,49 @@ describe("the town plan's district key", () => {
   it("says what it is a key to", () => {
     const layout = generateCityLayout(cityContext(marker), 7);
     const svg = renderCity(layout, "en");
-    expect(svg.querySelector(".legend .legend-title")?.textContent).toBe("Districts");
+    expect(svg.querySelector(".legend .legend-title")?.textContent).toBe("Key");
+  });
+});
+
+// The key named the districts' colours, the water and the main road, and nothing a reader might ask
+// about next — a heavy line with balls on it round the town, a small cross in a quarter, grey hachured
+// ground. It carries the plate's own marks now, drawn as the plate draws them, each where the plate
+// has it.
+describe("the town plan's key names its marks", () => {
+  const symbols = (svg: SVGSVGElement) => new Map([...svg.querySelectorAll(".legend .legend-row")].filter((r) => r.querySelector(".legend-symbol")).map((r) => [r.querySelector("text")!.textContent!, r] as [string, Element]));
+  const summitTown = () => {
+    const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 2 });
+    const c = world.cities.find((x) => x.relief === "summit" && !x.river && !x.coastal)!;
+    return generateCityLayout(cityContext(c), 2);
+  };
+
+  it("draws the wall, its gates, the parish church, the rock and the slope as the plate draws them", () => {
+    const layout = summitTown();
+    expect(layout.wall && layout.parishChurches.length && layout.mountains.length && layout.hill).toBeTruthy();
+    const svg = renderCity(layout, "en");
+    const rows = symbols(svg);
+    for (const name of ["Town wall", "Gate", "Parish church", "Mountains", "Slope"]) expect(rows.has(name), name).toBe(true);
+    const strokeOf = (row: Element, sel: string) => row.querySelector(sel)?.getAttribute("stroke") ?? row.querySelector(sel)?.getAttribute("fill");
+    expect(strokeOf(rows.get("Town wall")!, ".legend-symbol line"), "the wall's stroke").toBe(svg.querySelector(".wall-seg")!.getAttribute("stroke"));
+    expect(rows.get("Town wall")!.querySelector("circle")?.getAttribute("fill"), "its tower").toBe(svg.querySelector(".tower")!.getAttribute("fill"));
+    expect(rows.get("Gate")!.querySelector("rect.legend-symbol, .legend-symbol rect")?.getAttribute("fill"), "the gate").toBe(svg.querySelector(".gate")!.getAttribute("fill"));
+    expect(strokeOf(rows.get("Parish church")!, "path"), "the church's cross").toBe(svg.querySelector(".parish-church")!.getAttribute("stroke"));
+    expect(rows.get("Mountains")!.querySelector("rect")?.getAttribute("fill"), "the rock").toBe(svg.querySelector(".mountain")!.getAttribute("fill"));
+    expect(strokeOf(rows.get("Slope")!, "line"), "the slope's hachures").toBe(svg.querySelector(".hill-hachure")!.getAttribute("stroke"));
+    // ...in the key's own strip, clear of the town
+    for (const r of rows.values()) for (const e of r.querySelectorAll(".legend-symbol, .legend-symbol *")) {
+      for (const a of ["x", "x1", "x2", "cx"]) if (e.getAttribute(a) !== null) expect(Number(e.getAttribute(a))).toBeGreaterThanOrEqual(layout.bounds.w);
+    }
+  });
+
+  it("names only what the plate has, and in the reader's language", () => {
+    const plain = generateCityLayout(cityContext({ ...marker, coastal: false, elevation: 0.4, biome: GRASSLAND }), 7);
+    const rows = symbols(renderCity(plain, "en"));
+    expect(rows.has("Mountains")).toBe(plain.mountains.length > 0);
+    expect(rows.has("Slope")).toBe(false);
+    expect(rows.has("Bridge")).toBe(plain.water.bridges.length > 0 || plain.gateBridges.length > 0);
+    const ko = symbols(renderCity(summitTown(), "ko"));
+    for (const name of ["성벽", "성문", "본당 교회", "산", "비탈"]) expect(ko.has(name), name).toBe(true);
   });
 });
 
@@ -437,13 +479,14 @@ describe("a bridge is not painted as a piece of road", () => {
     }
   });
 
-  it("names the bridge in the district key, so the line means something", () => {
+  it("names the bridge in the key, drawn as the plate draws one, so the line means something", () => {
     const layout = generateCityLayout({ id: 7, name: "T", size: 4, coastal: false, isCapital: false, elevation: 0.4, biome: GRASSLAND, river: true }, 1);
     const svg = renderCity(layout, "en");
-    const labels = [...svg.querySelectorAll(".legend text")].map((t) => t.textContent);
-    expect(labels).toContain("Bridge");
-    expect([...svg.querySelectorAll(".legend .legend-item")].map((r) => r.getAttribute("fill")))
-      .toContain(svg.querySelector(".bridge-deck")!.getAttribute("stroke"));
+    const row = [...svg.querySelectorAll(".legend .legend-row")].find((r) => r.querySelector("text")?.textContent === "Bridge");
+    expect(row).toBeDefined();
+    const strokes = [...row!.querySelectorAll(".legend-symbol line, line.legend-symbol")].map((l) => l.getAttribute("stroke"));
+    expect(strokes).toContain(svg.querySelector(".bridge-deck")!.getAttribute("stroke"));
+    expect(strokes).toContain(svg.querySelector(".bridge")!.getAttribute("stroke"));
   });
 });
 

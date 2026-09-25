@@ -106,6 +106,8 @@ const FOOT_GAP = 40, FOOT_MIN = 18;
 // A hill-top town's slope runs this far out from its wall on its steep sides and this far toward its
 // ridge, beginning this far outside the wall, drawn at this many bearings round it
 const HILL_STEEP = 16, HILL_GENTLE = 44, HILL_GAP = 3, HILL_BEARINGS = 144;
+// ...and a spur town's this far down its flanks and this far down its tip, where the ridge line runs on
+const SPUR_SIDE = 14, SPUR_TIP = 30;
 // ...and its ridge runs on past the foot of it as narrow high ground (the foothills of a town with
 // this share of mountain round it), beginning this far past its wall
 const RIDGE_SHARE = 0.1, RIDGE_GAP = HILL_GAP + HILL_GENTLE + 8;
@@ -113,14 +115,16 @@ const RIDGE_SHARE = 0.1, RIDGE_GAP = HILL_GAP + HILL_GENTLE + 8;
 /**
  * A town on a summit stands ON its hill: the ground falls away from its wall all round — steep and
  * short on every side, long and gentle toward its ridge (`ridge`, the way the world's high ground runs
- * on). The slope is a band from its brow, just outside the wall, to its foot in the country, paired
+ * on). A town out on a spur stands on it the same way, but its ground rises behind it up the ridge
+ * (`ridge` is then uphill, where its rock is): the slope falls round its flanks, steep and short, and
+ * down its tip, longer, where the ridge line runs on down — and none is drawn up the ridge. The slope is a band from its brow, just outside the wall, to its foot in the country, paired
  * bearing by bearing so it can be drawn as hachures down it. Walls, gates and roads cross it; fields,
  * hamlets and the country's landmarks keep off it. `band` is the slope as one polygon (its brow and its
  * foot joined by a seam), for a point test.
  */
 export interface Hill { brow: Polyline; foot: Polyline; band: Polygon }
 
-export function makeHill(boundary: Polygon, center: Point, bounds: { w: number; h: number }, ridge: number): Hill {
+export function makeHill(boundary: Polygon, center: Point, bounds: { w: number; h: number }, ridge: number, form: "summit" | "spur" = "summit"): Hill {
   // how far the town reaches along a bearing: where a ray from its middle leaves its outline
   const reachAt = (ux: number, uy: number) => {
     let best = 0;
@@ -140,9 +144,12 @@ export function makeHill(boundary: Polygon, center: Point, bounds: { w: number; 
     const tx = ux > 1e-9 ? (bounds.w - center[0]) / ux : ux < -1e-9 ? -center[0] / ux : Infinity;
     const ty = uy > 1e-9 ? (bounds.h - center[1]) / uy : uy < -1e-9 ? -center[1] / uy : Infinity;
     const edge = Math.min(tx, ty) - 2;
-    const toward = ((1 + Math.cos(a - ridge)) / 2) ** 2;   // 1 along the ridge, 0 away from it
+    const along = Math.cos(a - ridge);   // 1 toward the ridge, -1 away from it
     const rb = Math.min(reachAt(ux, uy) + HILL_GAP, edge - 1);
-    const rf = Math.min(rb + HILL_STEEP + (HILL_GENTLE - HILL_STEEP) * toward, edge);
+    // (a summit's sum in the order it was first written, so its plates hold byte for byte)
+    const rf = Math.min(form === "summit"
+      ? rb + HILL_STEEP + (HILL_GENTLE - HILL_STEEP) * ((1 + along) / 2) ** 2
+      : rb + (1 - ((1 + along) / 2) ** 4) * (SPUR_SIDE + (SPUR_TIP - SPUR_SIDE) * ((1 - along) / 2) ** 2), edge);
     brow.push([center[0] + ux * rb, center[1] + uy * rb]);
     foot.push([center[0] + ux * rf, center[1] + uy * rf]);
   }

@@ -308,9 +308,12 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
     bearing: ctx.mountainBearing, share: ctx.mountainShare, rng: mulberry32(plateSeed(worldSeed, ctx.id + MOUNTAIN_SALT)),
     wet: (p) => inWater(water, p), facing: ctx.reliefBearing,
   });
-  // ...and a town on its summit stands on its hill (see makeHill). What the country's pieces keep off is
-  // the rock and that slope; walls, gates and the roads out of them cross the slope as a road climbs one.
-  const hill = archetype.id === "hilltopFortress" && ctx.reliefBearing !== undefined ? makeHill(boundary, [center[0], center[1]], bounds, ctx.reliefBearing) : undefined;
+  // ...and a town on its summit stands on its hill, a town on a spur out on its spur (see makeHill). What
+  // the country's pieces keep off is the rock and that slope; walls, gates and the roads out of them
+  // cross the slope as a road climbs one.
+  const hill = ctx.reliefBearing === undefined ? undefined
+    : archetype.id === "hilltopFortress" ? makeHill(boundary, [center[0], center[1]], bounds, ctx.reliefBearing)
+    : archetype.id === "spur" ? makeHill(boundary, [center[0], center[1]], bounds, ctx.reliefBearing, "spur") : undefined;
   const ground: MountainMass[] = hill ? [...mountains, { polygon: hill.band, innerEdge: hill.brow, steep: false }] : mountains;
 
   // BLOCK-CENTRIC: wards are the city blocks; streets are the gaps (shared ward edges).

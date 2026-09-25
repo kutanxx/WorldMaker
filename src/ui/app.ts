@@ -802,7 +802,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     // a map whose places are also named, but a plate's quarters have nothing but their colour.
     const keySheet = legendSheet();
     const keyFold = makeFold({
-      title: t(lang, "legendDistricts"), open: readFoldPref(CITY_KEY_FOLD_KEY, true),
+      title: t(lang, "legendPlate"), open: readFoldPref(CITY_KEY_FOLD_KEY, true),
       onToggle: (on) => {
         writeFoldPref(CITY_KEY_FOLD_KEY, on);
         // measured again now that it has a width — see the world key's fold
