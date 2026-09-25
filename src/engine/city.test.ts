@@ -2097,6 +2097,22 @@ describe("the roads out of town go where the world's roads go", () => {
     expect(gaps.filter((g) => g <= Math.PI / 6).length / gaps.length, "roads within 30 degrees of a road out").toBeGreaterThan(0.9);
   });
 
+  // ★ ...and where the road out of a gate missed its world road by more than 30 degrees, it runs straight
+  // out 17 — over the moat by its causeway, past a barbican's towers — turns there, and runs straight for
+  // the plate's edge where the world's road points. It missed 19 of 688, and 8 are mended: 5 whose gate
+  // stood too far round for the 45-degree turn (2:11, 4:25, 5:18, and 1:24 and 11:14, whose town lay
+  // across a road turned any sooner) and 3 river towns where the aimed turn crossed the river on the
+  // slant (6:18, 9:11, 11:9). The 11 left it cannot mend: 5 whose world road climbs into the plate's rock
+  // (roads keep off it), and 6 where the plate's sea or the town itself stands between.
+  it("turns a road out that missed its world road toward it, where the way is clear", () => {
+    const off = (p: ReturnType<typeof plates>[number]) => p.roads.map((b) => Math.min(...p.exits.map((e) => ang(e, b))));
+    const missed = plates().flatMap((p) => off(p).filter((g) => g > Math.PI / 6).map(() => p.where));
+    expect(missed.length, missed.join("; ")).toBeLessThanOrEqual(11);
+    for (const at of ["seed 6, 18,", "seed 9, 11,", "seed 11, 9,"]) {
+      expect(missed.filter((w) => w.includes(at)), `the river still turns ${at}'s road away`).toEqual([]);
+    }
+  });
+
   // ...and each road out says where it goes, so the plate can write it where the road leaves the
   // drawing, as an old town plan wrote "to London" at its edge. Two roads out of one gate that would
   // end in the same place are drawn as one road, and that road goes to both their towns.
@@ -2234,6 +2250,12 @@ describe("the roads out of town go where the world's roads go", () => {
 // And where each road out goes (`suburbRoadTo`, the towns of the world's roads it carries) is kept in the
 // layout now, for the plate to write at its edge. It is hashed on its own below, and left out of the
 // drawing's hash — which is why the drawing's pins did not move for it: nothing drawn moved.
+//
+// And for a road out that missed its world road by more than 30 degrees (turnedOut): exactly the 8
+// plates where one could be turned toward it moved — 1:24, 2:11, 4:25, 5:18, 6:18, 9:11, 11:9, 11:14,
+// each road now running 17 straight out of its gate and on to the plate's edge where the world's road
+// points, and the gate houses, the country and all else that follows its road with it. Seed 12 has
+// none; the other 328 plates hashed byte for byte the same, and no road out goes to another town.
 describe("a plate is the same plate, byte for byte", () => {
   const fold = (h: number, c: number) => Math.imul(h ^ c, 16777619) >>> 0;
   const fnv = (s: string) => { let h = 2166136261 >>> 0; for (let i = 0; i < s.length; i++) h = fold(h, s.charCodeAt(i)); return h >>> 0; };
@@ -2246,7 +2268,7 @@ describe("a plate is the same plate, byte for byte", () => {
   const drawing = (l: ReturnType<typeof generateCityLayout>) => JSON.stringify(l, (k, v) => (k === "suburbRoadTo" ? undefined : v));
   const destinations = (l: ReturnType<typeof generateCityLayout>) => JSON.stringify(l.suburbRoadTo ?? null);
   it("draws seed 1's twenty-eight towns exactly as it did", () => {
-    expect(worldHash(1, drawing)).toEqual({ h: 3118129168, n: 28 });
+    expect(worldHash(1, drawing)).toEqual({ h: 3828712746, n: 28 });
   });
   it("draws seed 12's twenty-eight towns exactly as it did", () => {
     expect(worldHash(12, drawing)).toEqual({ h: 1075377656, n: 28 });

@@ -298,6 +298,18 @@ const DRY_TO_NAME = 0.15;
 // how far a road out of a gate may turn from straight out of the town, in the steps it is tried in
 const OUT_TURNS = [0, 0.26, -0.26, 0.52, -0.52, 0.78, -0.78];
 const OUT_TURN_MAX = 0.78;
+// a road out that leaves the plate further than this from where its world road goes is turned toward it
+// (see turnedOut), past the gate at its knee...
+const ROAD_MISS = Math.PI / 6;
+// ...for the plate's edge in the world road's own direction, or as near it as the land lets: 2 degrees
+// a step, either side, out to 24
+const TURN_SEARCH = [0, ...Array.from({ length: 12 }, (_, k) => [(k + 1), -(k + 1)]).flat()].map((k) => (k * Math.PI) / 90);
+// ...and kept this clear of every other road out (of a road of its own gate, past this far from the gate)
+const TURN_ROAD_CLEAR = 3, TURN_KNEE_CLEAR = 14;
+// how far straight out of its gate a turned road runs before it turns: past the causeway over the moat
+// (11) and past the barbican's towers, which stand 11 out and 4 either side of the road — turned at 8
+// or 11, the road ran through a tower on 6 of the 8 plates it turned
+const TURN_KNEE = 17;
 // two roads out of one gate that would reach the plate's edge this close together are one road
 const FORK_APART = 12;
 
@@ -940,31 +952,112 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
     return false;
   });
 
+  // how far from where its world road goes a road out leaves the plate, seen from the town's middle
+  const exitOff = (end: Point, bearing: number) => {
+    const a = Math.atan2(end[1] - center[1], end[0] - center[0]);
+    return Math.abs(Math.atan2(Math.sin(a - bearing), Math.cos(a - bearing)));
+  };
+  // the least gap between two stretches of line (0 where they cross)
+  const segGap = (a: Point, b: Point, c: Point, d: Point) => {
+    const o = (p: Point, q: Point, r: Point) => (q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0]);
+    if ((o(c, d, a) > 0) !== (o(c, d, b) > 0) && (o(a, b, c) > 0) !== (o(a, b, d) > 0)) return 0;
+    return Math.min(pointSegDist(a, c, d), pointSegDist(b, c, d), pointSegDist(c, a, b), pointSegDist(d, a, b));
+  };
+  const throughTown = (a: Point, b: Point) => {
+    const n = Math.max(1, Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) / 2));
+    for (let k = 1; k <= n; k++) if (pointInPolygon([a[0] + ((b[0] - a[0]) * k) / n, a[1] + ((b[1] - a[1]) * k) / n], boundary)) return true;
+    return false;
+  };
+  // A road out turned toward its world road: straight out of the gate to its knee (TURN_KNEE: over the
+  // moat by its causeway and past a barbican's towers), and from there straight for the plate's edge
+  // where the world's road points, seen from the town's middle (TURN_SEARCH: as near it as the land
+  // lets). Dry or over the water square, off the rock, off the town, and clear of the other roads out.
+  const turnedOut = (g: Point, bearing: number, others: [Point, Point][]): (Omit<Out, "to"> & { knee: Point }) | null => {
+    const dx = g[0] - center[0], dy = g[1] - center[1], gl = Math.hypot(dx, dy) || 1;
+    const knee: Point = [g[0] + (dx / gl) * TURN_KNEE, g[1] + (dy / gl) * TURN_KNEE];
+    if (inWater(water, knee) || inMountains(mountains, knee) || !inCanvas(knee) || pointInPolygon(knee, boundary)) return null;
+    // ...the stretch to it dry and off the rock too — and the rock looked for every unit, not every 3
+    // as roadOut does: a long turned road at 12:16 grazed the mountain's edge between two looks
+    const onRock = (a: Point, b: Point) => {
+      const n = Math.max(1, Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1])));
+      for (let k = 0; k <= n; k++) if (inMountains(mountains, [a[0] + ((b[0] - a[0]) * k) / n, a[1] + ((b[1] - a[1]) * k) / n])) return true;
+      return false;
+    };
+    const past: Point = [g[0] + (dx / gl) * 2, g[1] + (dy / gl) * 2];
+    if (!dryLink(past, knee) || onRock(past, knee)) return null;
+    for (const turn of TURN_SEARCH) {
+      const bx = Math.cos(bearing + turn), by = Math.sin(bearing + turn);
+      const tx = bx > 0.001 ? (bounds.w - 3 - center[0]) / bx : bx < -0.001 ? (3 - center[0]) / bx : Infinity;
+      const ty = by > 0.001 ? (bounds.h - 3 - center[1]) / by : by < -0.001 ? (3 - center[1]) / by : Infinity;
+      const t = Math.min(tx, ty) - 1;                  // as roadOut's roads, 4 in from the plate's edge
+      const end: Point = [center[0] + bx * t, center[1] + by * t];
+      const L = Math.hypot(end[0] - knee[0], end[1] - knee[1]);
+      if (L < 14 || inWater(water, end) || onRock(knee, end) || throughTown(knee, end)) continue;
+      if (!dryLink(knee, end) && !squareCrossing(knee, end, water)) continue;
+      if (others.some(([p, q]) => segGap(knee, end, p, q) < TURN_ROAD_CLEAR)) continue;
+      return { ux: (end[0] - knee[0]) / L, uy: (end[1] - knee[1]) / L, start: knee, L, end, knee };
+    }
+    return null;
+  };
+
   // ---- extramural suburbs (faubourg) + outworks: OUTSIDE the wall, in the canvas margin ----
   const suburbRoads: Polyline[] = [];
   const suburbRoadTo: number[][] = [];
   const suburbs: Polygon[] = [];
-  for (const [gi, g] of wall.gates.entries()) {
-    // The world's roads that leave by this gate, each its own road out toward where it goes — forking
-    // outside the gate where two leave by one — and a gate of the town's own one road straight out.
+  const near = (p: Point, q: Point) => Math.hypot(p[0] - q[0], p[1] - q[1]);
+  // The roads out of every gate, planned before any is drawn (roadOut draws no numbers, so the plate's
+  // stream is untouched): the world's roads that leave by a gate, each its own road out toward where it
+  // goes — forking outside the gate where two leave by one — and a gate of the town's own one road
+  // straight out.
+  type Out = NonNullable<ReturnType<typeof roadOut>> & { to: number[]; knee?: Point };
+  const plans: Out[][] = wall.gates.map((g, gi) => {
     const theirs = wall.gateRoads?.[gi] ?? [];
     const aimed = (theirs.length ? theirs.map((r) => ({ out: roadOut(g, r.bearing), to: r.to })) : [{ out: roadOut(g), to: [] as number[] }])
       .filter((a): a is { out: NonNullable<typeof a.out>; to: number[] } => a.out !== null);
-    const near = (p: Point, q: Point) => Math.hypot(p[0] - q[0], p[1] - q[1]);
     const kept = aimed.map((a, i) => aimed.findIndex((o) => near(o.out.end, a.out.end) < FORK_APART) === i);
-    const outs = aimed.filter((_, i) => kept[i]).map((a) => ({ ...a.out, to: [...a.to] }));
+    const outs: Out[] = aimed.filter((_, i) => kept[i]).map((a) => ({ ...a.out, to: [...a.to] }));
     // a road out that would end where another does is drawn as that one, and its towns go with it
     aimed.forEach((a, i) => {
       if (kept[i]) return;
       const into = outs.reduce((best, o) => (near(o.end, a.out.end) < near(best.end, a.out.end) ? o : best));
       into.to.push(...a.to);
     });
+    return outs;
+  });
+  // ★ A road out may turn only 45 degrees from straight out of the town, and it missed where its world
+  // road goes by more than ROAD_MISS on 19 of 688: where its gate stood too far round (3), and in river
+  // towns where the aimed turn crossed the river on the slant (3). Such a road turns once, past the
+  // gate — at the end of the causeway, or where it would have started — and runs straight for the
+  // plate's edge where the world's road points, or as near it as the land lets (turnedOut). Only if the
+  // way is dry, off the rock, off the town and clear of every other road out; the rest keep their road.
+  // A road out carrying two of the world's roads is judged by the one it misses most, and aimed between
+  // them: at 9:11 the pair's middle hid a road 41 degrees off behind a mean 27 off.
+  const bearingTo = new Map((ctx.roads ?? []).map((r) => [r.to, r.bearing]));
+  const worstOff = (end: Point, to: number[]) => Math.max(...to.map((id) => exitOff(end, bearingTo.get(id)!)));
+  plans.forEach((outs, gi) => outs.forEach((o) => {
+    if (!o.to.length || worstOff(o.end, o.to) <= ROAD_MISS) return;
+    let mx = 0, my = 0;
+    for (const id of o.to) { mx += Math.cos(bearingTo.get(id)!); my += Math.sin(bearingTo.get(id)!); }
+    const g = wall.gates[gi];
+    const others = plans.flatMap((os, gj) => os.filter((x) => x !== o).map((x): [Point, Point] => {
+      // (a road of the same gate starts where this one does: it is kept clear of past the knee only)
+      if (gj !== gi) return [x.knee ?? [wall.gates[gj][0], wall.gates[gj][1]], x.end];
+      const ux = x.end[0] - g[0], uy = x.end[1] - g[1], l = Math.hypot(ux, uy) || 1;
+      return [[g[0] + (ux / l) * TURN_KNEE_CLEAR, g[1] + (uy / l) * TURN_KNEE_CLEAR], x.end];
+    }));
+    const turned = turnedOut(g, Math.atan2(my, mx), others);
+    if (turned && worstOff(turned.end, o.to) < worstOff(o.end, o.to)) Object.assign(o, turned);
+  }));
+  for (const [gi, g] of wall.gates.entries()) {
+    const outs = plans[gi];
     if (!outs.length) continue;
-    for (const { ux, uy, start, L, end, to } of outs) {
+    for (const { ux, uy, start, L, end, to, knee } of outs) {
       suburbRoadTo.push(to);
       const nx = -uy, ny = ux;
-      // gentle bend at the midpoint so the highway reads hand-drawn, not ruled
+      // gentle bend at the midpoint so the highway reads hand-drawn, not ruled (drawn for a turned road
+      // too, which keeps to its knee, so every plate's stream stays where it was)
       const bendOff = (rng() - 0.5) * 12;
+      if (knee) { suburbRoads.push([[g[0], g[1]], knee, end]); continue; }
       const mid: Point = [start[0] + ux * L * 0.5 + nx * bendOff, start[1] + uy * L * 0.5 + ny * bendOff];
       // (a road that crosses water keeps straight, so its bridge stands where its crossing was checked)
       const straight = inWater(water, mid) || inMountains(mountains, mid) || !dryLink(start, end);
