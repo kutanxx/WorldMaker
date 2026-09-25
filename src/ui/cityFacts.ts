@@ -66,12 +66,23 @@ export function cityFacts(
   const realm = realmName === undefined ? null : polityLabeller(lang, forms, true)(owner, realmName);
   const [lo, hi] = POPULATION_BANDS[city.size] ?? POPULATION_BANDS[3];
 
-  // the three nearest towns, so a reader can walk out of one plate and into the next
-  const neighbours = world.cities
+  // the towns the roads lead to — the ones the plate's gates are named for — nearest by road first, in
+  // km along the road, so a reader can walk out of one plate and into the next. It was the three
+  // nearest as the crow flies, which pointed across the sea and left out the towns the gates named.
+  // A town no road leaves (an island of its own) still points at the three nearest.
+  const byRoad = world.roads
+    .filter((r) => r.a === city.id || r.b === city.id)
+    .map((r) => {
+      const o = world.cities[r.a === city.id ? r.b : r.a];
+      return { id: o.id, name: properName(lang, o.name), km: r.length * kmPerUnit };
+    });
+  const byCrow = () => world.cities
     .filter((c) => c.id !== city.id)
     .map((c) => ({ id: c.id, name: properName(lang, c.name), km: Math.hypot(c.x - city.x, c.y - city.y) * kmPerUnit }))
     .sort((a, b) => a.km - b.km)
-    .slice(0, 3)
+    .slice(0, 3);
+  const neighbours = (byRoad.length ? byRoad : byCrow())
+    .sort((a, b) => a.km - b.km)
     .map((n) => ({ ...n, km: Math.round(n.km) }));
 
   return {

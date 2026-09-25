@@ -41,13 +41,64 @@ describe("what a plate can say about its town", () => {
   });
 
   it("points at the towns next door, nearest first, in walking distance", () => {
-    const f = facts(0);
-    expect(f.neighbours.length).toBe(3);
-    for (let i = 1; i < f.neighbours.length; i++) expect(f.neighbours[i].km).toBeGreaterThanOrEqual(f.neighbours[i - 1].km);
-    for (const n of f.neighbours) {
-      expect(n.id).not.toBe(world.cities[0].id);
-      expect(world.cities.some((c) => c.id === n.id && c.name === n.name)).toBe(true);
-      expect(n.km).toBeGreaterThan(0);
+    for (let i = 0; i < world.cities.length; i++) {
+      const f = facts(i);
+      expect(f.neighbours.length, `city ${i} points nowhere`).toBeGreaterThan(0);
+      for (let k = 1; k < f.neighbours.length; k++) expect(f.neighbours[k].km).toBeGreaterThanOrEqual(f.neighbours[k - 1].km);
+      for (const n of f.neighbours) {
+        expect(n.id).not.toBe(world.cities[i].id);
+        expect(world.cities.some((c) => c.id === n.id && c.name === n.name)).toBe(true);
+        expect(n.km).toBeGreaterThan(0);
+      }
+    }
+  });
+});
+
+// "Nearby" was the three nearest towns as the crow flies. Over twelve worlds 12 towns listed one
+// across the sea (835 km of it, from one island), and on 102 of 336 plates a gate was named for a
+// town the row left out — "Gate to Kaag", and no Kaag nearby. It lists the towns the roads lead to
+// now, the gates' own, nearest by road first and in km along the road, the way the Gough map wrote
+// a distance on each of its roads.
+describe("the towns next door are the towns the roads lead to", () => {
+  const worlds = [1, 11].map((seed) => generateWorld({ ...DEFAULT_PARAMS, seed }).world);
+  const factsOf = (w: (typeof worlds)[number], i: number) =>
+    cityFacts(w, w.cities[i], generateCityLayout(cityContext(w.cities[i]), w.params.seed), "en", KM_PER_UNIT);
+
+  it("lists exactly the towns a town's roads lead to, in km along each road", () => {
+    let towns = 0;
+    for (const w of worlds) for (const c of w.cities) {
+      if (!c.roads?.length) continue;
+      towns++;
+      const f = factsOf(w, c.id);
+      expect(new Set(f.neighbours.map((n) => n.id)), `seed ${w.params.seed}: town ${c.id}`).toEqual(new Set(c.roads.map((r) => r.to)));
+      for (const n of f.neighbours) {
+        const road = w.roads.find((r) => (r.a === c.id && r.b === n.id) || (r.b === c.id && r.a === n.id))!;
+        expect(n.km, `seed ${w.params.seed}: ${c.id} -> ${n.id}`).toBe(Math.round(road.length * KM_PER_UNIT));
+      }
+    }
+    expect(towns).toBeGreaterThan(50);
+  });
+
+  it("never points across the water to a town no road reaches", () => {
+    for (const w of worlds) for (const c of w.cities) {
+      if (!c.roads?.length) continue;
+      for (const n of factsOf(w, c.id).neighbours) {
+        expect(c.roads.some((r) => r.to === n.id), `seed ${w.params.seed}: ${c.id} points at ${n.id}`).toBe(true);
+      }
+    }
+  });
+
+  // An island town of its own has no road at all; it still points at the three nearest, as the crow
+  // flies, rather than at nothing.
+  it("keeps the three nearest as the crow flies for a town no road leaves", () => {
+    const w = worlds[1];
+    const lone = w.cities.filter((c) => !c.roads?.length);
+    expect(lone.length).toBeGreaterThan(0);
+    for (const c of lone) {
+      const f = factsOf(w, c.id);
+      const nearest = w.cities.filter((o) => o.id !== c.id)
+        .sort((a, b) => Math.hypot(a.x - c.x, a.y - c.y) - Math.hypot(b.x - c.x, b.y - c.y)).slice(0, 3);
+      expect(f.neighbours.map((n) => n.id)).toEqual(nearest.map((o) => o.id));
     }
   });
 });
