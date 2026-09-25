@@ -117,3 +117,21 @@ describe("how much of the compass round a port is sea", () => {
     expect(mean(byOcean[3])).toBeGreaterThan(mean(byOcean[1]) * 1.3);
   });
 });
+
+// A port that stands between two seas — on an isthmus or a strait, land between them both ways round —
+// sees the second one too. Its plate drew its own sea only.
+describe("a port between two seas", () => {
+  it("sees its second sea, across the land from its own", () => {
+    let two = 0;
+    for (const w of worlds) for (const c of w.cities) {
+      if (!c.otherSea) continue;
+      two++;
+      expect(c.coastal, c.name).toBe(true);
+      const apart = Math.abs(Math.atan2(Math.sin(c.otherSea.bearing - c.seaBearing!), Math.cos(c.otherSea.bearing - c.seaBearing!)));
+      expect(apart, `the second sea of ${c.name} beside its own`).toBeGreaterThan(Math.PI / 2);
+      expect(c.otherSea.arc, c.name).toBeGreaterThanOrEqual(Math.PI / 6 - 1e-9);
+      expect(c.seaArc! + c.otherSea.arc, c.name).toBeLessThan(2 * Math.PI);
+    }
+    expect(two).toBeGreaterThanOrEqual(2);
+  });
+});

@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { mulberry32 } from "../rng";
 import type { Polygon, Point } from "../geometry";
-import { makeMountains, inMountains } from "./mountain";
+import { makeMountains, inMountains, makeHill } from "./mountain";
 import { selectArchetype, TABLE } from "./archetypes";
 
 const bounds = { w: 300, h: 300 };
@@ -125,6 +125,46 @@ describe("the world's mountains on the plate", () => {
     expect(walls.length).toBe(2);
     for (const w of walls) expect(Math.min(off(facing(w), 1.2), off(facing(w), 1.2 + Math.PI))).toBeLessThan(0.3);
     expect(off(facing(walls[0]), facing(walls[1]))).toBeGreaterThan(Math.PI - 0.3);
+  });
+
+  // A town on a summit stands ON its hill: the ground falls away from its wall all round, steep and
+  // short on every side, long and gentle toward its ridge. It had one broad shoulder of rock instead,
+  // 30-34% of its plate, which read as a town at the foot of a massif.
+  it("sets a hill-top town on its hill: its slope falls away all round it, gentlest toward its ridge", () => {
+    for (const ridge of [-2.2, 0.5, 2]) {
+      const hill = makeHill(ring, center, bounds, ridge);
+      expect(hill.brow.length).toBe(hill.foot.length);
+      expect(hill.brow.length).toBeGreaterThan(60);
+      const width = (i: number) => Math.hypot(hill.foot[i][0] - hill.brow[i][0], hill.foot[i][1] - hill.brow[i][1]);
+      const bearing = (i: number) => Math.atan2(hill.brow[i][1] - center[1], hill.brow[i][0] - center[0]);
+      for (let i = 0; i < hill.brow.length; i++) {
+        // the brow just outside the wall (a ring of radius 60 here), the foot further out, all on the plate
+        expect(Math.hypot(hill.brow[i][0] - center[0], hill.brow[i][1] - center[1])).toBeGreaterThan(60);
+        expect(width(i)).toBeGreaterThan(5);
+        for (const p of [hill.brow[i], hill.foot[i]]) { expect(p[0]).toBeGreaterThanOrEqual(0); expect(p[0]).toBeLessThanOrEqual(bounds.w); expect(p[1]).toBeGreaterThanOrEqual(0); expect(p[1]).toBeLessThanOrEqual(bounds.h); }
+      }
+      const toward = hill.brow.map((_, i) => i).filter((i) => off(bearing(i), ridge) < 0.3).map(width);
+      const away = hill.brow.map((_, i) => i).filter((i) => off(bearing(i), ridge + Math.PI) < 0.3).map(width);
+      expect(Math.min(...toward), `toward ${ridge}`).toBeGreaterThan(Math.max(...away) * 2);
+      // the band is the slope and nothing else: the town is not on it, the country past its foot is not
+      expect(inMountains([{ polygon: hill.band, innerEdge: hill.brow, steep: false }], center)).toBe(false);
+      const mid = hill.brow.length >> 2;
+      const on: Point = [(hill.brow[mid][0] + hill.foot[mid][0]) / 2, (hill.brow[mid][1] + hill.foot[mid][1]) / 2];
+      expect(inMountains([{ polygon: hill.band, innerEdge: hill.brow, steep: false }], on)).toBe(true);
+    }
+  });
+
+  it("runs a hill-top town's ridge on past its fields, narrow, the way the world's high ground runs", () => {
+    for (const ridge of [-2.2, 0.5, 2]) {
+      const masses = makeMountains(mulberry32(3), TABLE.hilltopFortress, ring, center, bounds, { facing: ridge, rng: mulberry32(9) });
+      expect(masses.length).toBeGreaterThan(0);
+      for (const m of masses) {
+        expect(off(facing(m), ridge)).toBeLessThan(0.5);
+        for (const p of m.innerEdge) expect(Math.hypot(p[0] - center[0], p[1] - center[1]), "past the hill and its fields").toBeGreaterThan(60 + 40);
+      }
+      const angles = masses.flatMap((m) => m.innerEdge.map((p) => { const a = Math.atan2(p[1] - center[1], p[0] - center[0]) - ridge; return Math.atan2(Math.sin(a), Math.cos(a)); }));
+      expect(Math.max(...angles) - Math.min(...angles), "a ridge, not a shoulder").toBeLessThan(1.3);
+    }
   });
 
   it("raises foothills past a town's fields on the side the world's mountains are", () => {

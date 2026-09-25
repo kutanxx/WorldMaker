@@ -59,6 +59,8 @@ export const SEA_ARC_STRAIGHT = 0.84 * Math.PI;
 // ...and opens no narrower than this into a bay, nor wider round a headland than the whole less this;
 // the head of a bay, or a headland's nose, is rounded over this share of the town's reach
 const SEA_OPEN_MIN = Math.PI / 3, BAY_ROUND = 0.5;
+// a second sea's shore wears noise of its own (any offset into the noise field will do)
+const OTHER_WAVES = 101.3;
 
 /**
  * How the shore runs off a port's flanks (see buildWater): out along its bearing at this slope on both
@@ -77,7 +79,11 @@ function shoreBend(seaArc?: number): number {
  * and how big the world map draws it there (0 a stream, 1 a river, 2 a great river; a river where it
  * does not say); and for a port, how much of the compass round it is sea (see seaArc).
  */
-export interface WaterSite { turn?: number; rises?: boolean; size?: 0 | 1 | 2; seaArc?: number }
+export interface WaterSite {
+  turn?: number; rises?: boolean; size?: 0 | 1 | 2; seaArc?: number;
+  // a second sea, across the land from the port's own (an isthmus, a strait): which way, how wide
+  otherSea?: { bearing: number; arc: number };
+}
 
 /**
  * @param seaBearing which way the open water lies, in the world's own frame (atan2, +x east,
@@ -134,35 +140,43 @@ export function buildWater(
       // frame, carried well past the plate on both flanks, then cut back to the plate so nothing is
       // painted out over the legend strip beside it. Same noise, same depth, same rng draws —
       // only the direction is no longer the town's own invention.
-      const ux = Math.cos(seaBearing), uy = Math.sin(seaBearing);
-      const vx = -uy, vy = ux;
       const R = Math.min(w, h), cx = w / 2, cy = h / 2;
       const reach = Math.hypot(w, h);           // enough to cross the plate at any angle
       const inland = shoreAt(R / 2 - depth);  // where the waterline sits
       const stretch = (2 * reach) / R;          // keep the waves the size they were on a plate edge
-      // ...and runs the way the world's coast runs: out to sea on both flanks round a bay, back past the
-      // town round a headland, straight across where the world's sea fills as much as a straight coast's
-      const bend = shoreBend(course.seaArc), round = (townReach ?? 90) * BAY_ROUND;
-      const far = reach * 2;
-      const shore: Point[] = [];
-      for (let i = 0; i <= K * 2; i++) {
-        const u01 = i / (K * 2);
-        const along = -reach + u01 * 2 * reach;
-        let n = 0;
-        for (let o = 0; o < OCTAVES.length; o++) {
-          n += noise(u01 * OCTAVES[o][0] * stretch, seaBearing * 1.7 + o * 37.3) * amp * OCTAVES[o][1];
-        }
-        const off = bend ? Math.min(far * 0.95, inland + n + bend * (Math.hypot(along, round) - round)) : inland + n;
-        shore.push([cx + ux * off + vx * along, cy + uy * off + vy * along]);
-      }
-      const open: Polygon = [
-        ...shore,
-        [cx + ux * far + vx * reach, cy + uy * far + vy * reach],
-        [cx + ux * far - vx * reach, cy + uy * far - vy * reach],
-      ];
+      const far = reach * 2, round = (townReach ?? 90) * BAY_ROUND;
       const plate: Polygon = [[0, 0], [w, 0], [w, h], [0, h]];
-      const clipped = clipToConvex(open, plate);
-      if (clipped.length >= 3) return { kind, bodies: [clipped], bridges: [] };
+      // the sea toward a bearing, its shore running the way the world's coast runs: out to sea on both
+      // flanks round a bay, back past the town round a headland, straight across where the world's sea
+      // fills as much as a straight coast's (`waves` sets the shore's own noise apart for a second sea)
+      const seaToward = (bearing: number, arc: number | undefined, waves: number): Polygon => {
+        const ux = Math.cos(bearing), uy = Math.sin(bearing);
+        const vx = -uy, vy = ux;
+        const bend = shoreBend(arc);
+        const shore: Point[] = [];
+        for (let i = 0; i <= K * 2; i++) {
+          const u01 = i / (K * 2);
+          const along = -reach + u01 * 2 * reach;
+          let n = 0;
+          for (let o = 0; o < OCTAVES.length; o++) {
+            n += noise(u01 * OCTAVES[o][0] * stretch, bearing * 1.7 + o * 37.3 + waves) * amp * OCTAVES[o][1];
+          }
+          const off = bend ? Math.min(far * 0.95, inland + n + bend * (Math.hypot(along, round) - round)) : inland + n;
+          shore.push([cx + ux * off + vx * along, cy + uy * off + vy * along]);
+        }
+        const open: Polygon = [
+          ...shore,
+          [cx + ux * far + vx * reach, cy + uy * far + vy * reach],
+          [cx + ux * far - vx * reach, cy + uy * far - vy * reach],
+        ];
+        return clipToConvex(open, plate);
+      };
+      const clipped = seaToward(seaBearing, course.seaArc, 0);
+      if (clipped.length >= 3) {
+        // ...and a port between two seas has the second one too, across the land from its own
+        const other = course.otherSea ? seaToward(course.otherSea.bearing, course.otherSea.arc, OTHER_WAVES) : [];
+        return { kind, bodies: other.length >= 3 ? [clipped, other] : [clipped], bridges: [] };
+      }
     }
     let polygon: Polygon;
     if (side === 0) polygon = [[w, 0], ...edge, [w, h]];

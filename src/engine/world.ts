@@ -12,6 +12,11 @@ import { traceRivers, nameRivers, riverSize } from "./rivers";
 import { buildProvinces, PROVINCE_SALT } from "./provinces";
 import { reliefAt } from "./relief";
 
+// A second sea round a port is at least this many tenths of a right angle of the compass wide (30
+// degrees), its middle at least this far from the port's own sea's, with at least this many tenths of
+// land between them both ways round
+const SEA2_MIN = 3, SEA2_APART = (2 * Math.PI) / 3, SEA2_LAND = 5;
+
 /**
  * @param nameOverride what to call this world, when the reader asked for a name. The draw for the
  * generated name is taken either way, so the rng stream behind everything else is unchanged.
@@ -77,8 +82,9 @@ export function generateWorld(params: WorldParams, nameOverride?: string): Gener
   // a bay sees a little of the sea, one on a headland most of it; a straight coast, half a cell off,
   // fills some 150 degrees. The plate drew every port's shore straight across its bearing. Terrain only.
   const SEA_BINS = 36;
-  const seaArcAt = (cell: number): number | undefined => {
-    if (!isCoastal(cell)) return undefined;
+  const bearingOfBin = (b: number) => -Math.PI + ((b + 0.5) / SEA_BINS) * 2 * Math.PI;
+  const seaAt = (cell: number): { seaBearing?: number; seaArc?: number; otherSea?: { bearing: number; arc: number } } => {
+    if (!isCoastal(cell)) return {};
     const x = grid.points[cell * 2], y = grid.points[cell * 2 + 1];
     const near = new Set<number>(grid.neighbors[cell]);
     for (const n of grid.neighbors[cell]) for (const m of grid.neighbors[n]) near.add(m);
@@ -93,9 +99,39 @@ export function generateWorld(params: WorldParams, nameOverride?: string): Gener
       for (let s = 0; s < SEA_BINS; s++) for (const k of [(b + s) % SEA_BINS, (b - s + SEA_BINS) % SEA_BINS]) if (dist[k] < Infinity) return sea[k];
       return false;
     };
-    let wet = 0;
-    for (let b = 0; b < SEA_BINS; b++) if (wetAt(b)) wet++;
-    return (wet / SEA_BINS) * 2 * Math.PI;
+    const wet = Array.from({ length: SEA_BINS }, (_, b) => wetAt(b));
+    const total = wet.filter(Boolean).length;
+    // A second sea: the runs of sea round the compass, the port's own the one its bearing looks into,
+    // and another a third of the compass or more away with land between them both ways round (a small
+    // run of sea in that land is a cove of one sea or the other, not land). Most ports have none.
+    const runs: number[][] = [];
+    const start = wet.findIndex((v, b) => v && !wet[(b + SEA_BINS - 1) % SEA_BINS]);
+    if (start >= 0) for (let i = 0; i < SEA_BINS; i++) {
+      const b = (start + i) % SEA_BINS;
+      if (!wet[b]) continue;
+      if (i > 0 && wet[(b + SEA_BINS - 1) % SEA_BINS]) runs[runs.length - 1].push(b); else runs.push([b]);
+    }
+    const across = (a: number, b: number) => Math.abs(Math.atan2(Math.sin(a - b), Math.cos(a - b)));
+    const centreOf = (run: number[]) => { let sx = 0, sy = 0; for (const b of run) { sx += Math.cos(bearingOfBin(b)); sy += Math.sin(bearingOfBin(b)); } return Math.atan2(sy, sx); };
+    const own = seaBearingAt(cell);
+    let other: number[] | undefined, mine: number[] | undefined;
+    if (runs.length >= 2 && own !== undefined) {
+      mine = runs.reduce((best, run) => (Math.min(...run.map((b) => across(bearingOfBin(b), own))) < Math.min(...best.map((b) => across(bearingOfBin(b), own))) ? run : best));
+      // the land bins between two runs, going round from the end of one to the start of the other
+      const landBetween = (from: number[], to: number[]) => { let n = 0; for (let b = (from[from.length - 1] + 1) % SEA_BINS; b !== to[0]; b = (b + 1) % SEA_BINS) if (!wet[b]) n++; return n; };
+      for (const run of runs) {
+        if (run === mine || run.length < SEA2_MIN || across(centreOf(run), centreOf(mine!)) < SEA2_APART) continue;
+        if (landBetween(mine!, run) < SEA2_LAND || landBetween(run, mine!) < SEA2_LAND) continue;
+        if (!other || run.length > other.length) other = run;
+      }
+    }
+    if (!other || !mine) return { seaArc: (total / SEA_BINS) * 2 * Math.PI };
+    // ...and its own sea lies where that sea is: the nearest sea's bearing, a mean of unit vectors to
+    // the sea cells round it, pointed between two seas at neither (7:26 at 142 degrees, its own at 220)
+    return {
+      seaBearing: centreOf(mine), seaArc: ((total - other.length) / SEA_BINS) * 2 * Math.PI,
+      otherSea: { bearing: centreOf(other), arc: (other.length / SEA_BINS) * 2 * Math.PI },
+    };
   };
 
   // The way the river runs through a river town: from where its biggest feeder comes in to where it
@@ -176,7 +212,7 @@ export function generateWorld(params: WorldParams, nameOverride?: string): Gener
       size: randInt(rng, 3, 6),
       coastal: isCoastal(p.capital),
       seaBearing: seaBearingAt(p.capital),
-      seaArc: seaArcAt(p.capital),
+      ...seaAt(p.capital),
       elevation: heights[p.capital],
       biome: biome[p.capital],
       river: riverCells.has(p.capital),
@@ -241,7 +277,7 @@ export function generateWorld(params: WorldParams, nameOverride?: string): Gener
       size: randInt(rng, 1, 3),
       coastal: isCoastal(cell),
       seaBearing: seaBearingAt(cell),
-      seaArc: seaArcAt(cell),
+      ...seaAt(cell),
       elevation: heights[cell],
       biome: biome[cell],
       river: riverCells.has(cell),

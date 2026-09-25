@@ -36,6 +36,9 @@ export interface CityMarker {
   // how much of the compass round a port is sea, two cells out (radians): some 2.6 on a straight coast,
   // less at the head of a bay, more on a headland — ports only
   seaArc?: number;
+  // ...and where a port stands between two seas — land between them both ways round — the second one:
+  // which way it lies and how much of the compass it fills (seaArc is then its own sea's alone)
+  otherSea?: { bearing: number; arc: number };
   // ...and what it does there: how far it turns (radians, from the way its biggest feeder comes in to
   // the way it leaves; positive is clockwise on the map) — absent where it rises at the town, which is
   // where the world map first draws it, no feeder coming in

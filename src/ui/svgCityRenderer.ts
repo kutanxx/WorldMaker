@@ -239,6 +239,24 @@ export function renderCity(layout: CityLayout, lang: Lang = "en", opts: CityRend
     root.appendChild(hg);
   }
 
+  // A town on its summit stands on its hill: a pale slope round its wall, hachured down from the brow —
+  // short and heavy on its steep sides, long and light toward its ridge. Under the country and its roads.
+  if (layout.hill) {
+    const { brow, foot, band } = layout.hill;
+    const hg = svgEl("g", { class: "hill" });
+    hg.appendChild(svgEl("polygon", { class: "hill-slope", points: pts(band), fill: "#8b7355", "fill-opacity": 0.1, stroke: "none" }));
+    for (let i = 0; i < brow.length; i++) {
+      const [bx, by] = brow[i], [fx, fy] = foot[i];
+      const len = Math.hypot(fx - bx, fy - by);
+      hg.appendChild(svgEl("line", {
+        class: "hill-hachure", x1: bx.toFixed(1), y1: by.toFixed(1),
+        x2: (bx + (fx - bx) * 0.85).toFixed(1), y2: (by + (fy - by) * 0.85).toFixed(1),
+        stroke: "#7a6a4f", "stroke-width": Math.max(0.3, Math.min(0.8, 9 / Math.max(len, 1))).toFixed(2), "stroke-linecap": "round",
+      }));
+    }
+    root.appendChild(hg);
+  }
+
   // mountain barriers: rock fill + cliff crest + downhill hachures (unclipped, behind the city)
   if (layout.mountains.length) {
     const mg = svgEl("g", { class: "mountains" });

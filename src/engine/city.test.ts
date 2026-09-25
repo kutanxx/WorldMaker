@@ -973,9 +973,11 @@ describe("a coastal plate faces the way the world faces", () => {
         if (l.water.kind !== "sea" || c.seaBearing === undefined) continue;
         checked++;
         // the AREA centroid, not the mean of the vertices: the shore carries a couple of hundred
-        // sample points and the open-water side four, so a vertex mean is dragged onto the beach
+        // sample points and the open-water side four, so a vertex mean is dragged onto the beach.
+        // The port's own sea (the first body): a river running into it, or a second sea across the
+        // land from it, lies elsewhere by design.
         let ax = 0, ay = 0, aw = 0;
-        for (const b of l.water.bodies) { const c2 = centroid(b), w2 = Math.abs(area(b)); ax += c2[0] * w2; ay += c2[1] * w2; aw += w2; }
+        for (const b of l.water.bodies.slice(0, 1)) { const c2 = centroid(b), w2 = Math.abs(area(b)); ax += c2[0] * w2; ay += c2[1] * w2; aw += w2; }
         const drawn = Math.atan2(ay / aw - l.bounds.h / 2, ax / aw - l.bounds.w / 2);
         let d = Math.abs(drawn - c.seaBearing) % (Math.PI * 2);
         if (d > Math.PI) d = Math.PI * 2 - d;
@@ -1364,6 +1366,23 @@ describe("water in a town", () => {
     expect(bends).toBeGreaterThan(6);
   });
 
+  // A bridge town runs along the road over its bridge, across its river — the way towns grew at the
+  // approaches to a crossing. Its long axis was a draw of dice: its 44 bridge towns lay a median 45
+  // degrees off their river, 21 of them longer along it than across.
+  it("stretches a bridge town across its river, along the road over its bridge", () => {
+    const ratios: number[] = [];
+    for (const { where, c, l } of towns()) {
+      if (l.archetype.id !== "bridgeTown" || c.riverBearing === undefined) continue;
+      const f = c.riverBearing, B = l.boundary as [number, number][];
+      const extent = (a: number) => { const t = B.map((p) => (p[0] - 230) * Math.cos(a) + (p[1] - 230) * Math.sin(a)); return Math.max(...t) - Math.min(...t); };
+      const r = extent(f + Math.PI / 2) / extent(f);
+      expect(r, `${where} lies along its river`).toBeGreaterThan(1.1);
+      ratios.push(r);
+    }
+    expect(ratios.length).toBeGreaterThan(30);
+    expect(ratios.sort((a, b) => a - b)[ratios.length >> 1]).toBeGreaterThan(1.25);
+  });
+
   // ...and it runs as wide as the world map draws it: a stream, a river or a great river. Every river on
   // a plate was the one width, a great river's town and a stream's alike.
   it("runs a river town's river as wide as the world map draws it", () => {
@@ -1406,6 +1425,26 @@ describe("water in a town", () => {
     const [bays, coasts, heads] = [arcs.slice(0, third), arcs.slice(third, 2 * third), arcs.slice(2 * third)].map((g) => median(g.map((x) => x.plate)));
     expect(coasts, "the plate's sea round a port on a straight coast").toBeGreaterThan(bays + 0.05);
     expect(heads, "...and round one on a headland").toBeGreaterThan(coasts + 0.05);
+  });
+
+  // A port between two seas has water on both sides, and its harbour on its own. Its plate drew its own
+  // sea only.
+  it("draws a port's second sea across the land from its own, and keeps its harbour on its own", () => {
+    const toBody = (p: [number, number], poly: [number, number][]) => { let d = Infinity; for (let i = 0; i < poly.length; i++) d = Math.min(d, pointSegDist(p, poly[i], poly[(i + 1) % poly.length])); return d; };
+    let n = 0;
+    for (const { where, c, l } of towns()) {
+      if (!c.otherSea) continue;
+      n++;
+      const b = c.otherSea.bearing, second = l.water.bodies[l.water.bodies.length - 1] as [number, number][];
+      let wet = false;
+      for (let r = 20; r <= 225 && !wet; r += 5) if (pointInPolygon([230 + Math.cos(b) * r, 230 + Math.sin(b) * r], second)) wet = true;
+      expect(wet, `the second sea of ${where}`).toBe(true);
+      if (l.harbor) {
+        const q = l.harbor.quay[l.harbor.quay.length >> 1] as [number, number];
+        expect(toBody(q, l.water.bodies[0] as [number, number][]), `the harbour of ${where} on its second sea`).toBeLessThan(toBody(q, second));
+      }
+    }
+    expect(n).toBeGreaterThanOrEqual(2);
   });
 
   // 22 of the 80 river towns of twelve worlds stand where the world's river reaches the sea, and
@@ -1893,6 +1932,35 @@ describe("everything a plate draws stands where it belongs", () => {
     expect(seen).toEqual(new Set(["summit", "valley", "spur", "slope"]));
   });
 
+  // A town on a summit stands on its hill, walled all round, its ridge running on past its fields. The
+  // fortress on the hill had one broad shoulder of rock against its wall instead — 30-34% of its plate,
+  // and no wall where it stood.
+  it("sets a hill-top town on its hill, walled all round, its ridge running on past its fields", () => {
+    let hills = 0;
+    for (let seed = 1; seed <= 12; seed++) {
+      const w = generateWorld({ ...DEFAULT_PARAMS, seed }).world;
+      for (const c of w.cities) {
+        const where = `${c.name} (seed ${seed}, ${c.id})`;
+        const l = towns().find((t) => t.where === where)!.l;
+        if (c.relief !== "summit" || c.river || c.coastal) { expect(l.hill, `a hill under ${where}`).toBeUndefined(); continue; }
+        hills++;
+        expect(l.hill, `no hill under ${where}`).toBeDefined();
+        const B = l.boundary as P[];
+        for (const m of l.mountains) for (const p of m.innerEdge) expect(edgeDist(p as P, B), `rock against the wall of ${where}`).toBeGreaterThan(30);
+        const rock = l.mountains.reduce((t, m) => t + Math.abs(area(m.polygon)), 0) / (460 * 460);
+        expect(rock, `the rock round ${where}`).toBeLessThan(0.12);
+        // walled all round: one closed ring
+        expect(l.wall!.segments.length, `the wall of ${where}`).toBe(1);
+        const ring = l.wall!.segments[0];
+        expect(Math.hypot(ring[0][0] - ring[ring.length - 1][0], ring[0][1] - ring[ring.length - 1][1])).toBeLessThan(1e-6);
+        // no field on its slope
+        const slope = [{ polygon: l.hill!.band, innerEdge: l.hill!.brow, steep: false }];
+        for (const f of l.countryside.fields) expect(inMountains(slope, centroid(f.polygon)), `a field on the slope of ${where}`).toBe(false);
+      }
+    }
+    expect(hills).toBeGreaterThanOrEqual(3);
+  });
+
   it("spaces the towers along a wall", () => {
     for (const { where, l } of towns()) {
       if (!l.wall) continue;
@@ -2010,6 +2078,11 @@ describe("a town in one world is not a copy of a town in another", () => {
 // And for the run of the coast (seaArc): exactly the 139 ports moved — each shore bends the way the
 // world's coast runs at its port, into a bay, round a headland, or hardly at all on a straight coast
 // (the world's arc is measured, so almost none is exactly straight). No other plate moved.
+//
+// And for the rest of the ground: exactly 52 plates moved — the 44 bridge towns, each now stretched
+// across its river along the road over its bridge; the 4 towns on a summit, now on their hill with
+// their ridge running on past their fields (makeHill, a new `hill` only on those four layouts); and the
+// 4 ports between two seas, which draw the second (otherSea). The other 284 hashed byte for byte the same.
 describe("a plate is the same plate, byte for byte", () => {
   const fold = (h: number, c: number) => Math.imul(h ^ c, 16777619) >>> 0;
   const fnv = (s: string) => { let h = 2166136261 >>> 0; for (let i = 0; i < s.length; i++) h = fold(h, s.charCodeAt(i)); return h >>> 0; };
@@ -2020,9 +2093,9 @@ describe("a plate is the same plate, byte for byte", () => {
     return { h, n };
   };
   it("draws seed 1's twenty-eight towns exactly as it did", () => {
-    expect(worldHash(1)).toEqual({ h: 2692617470, n: 28 });
+    expect(worldHash(1)).toEqual({ h: 3566677040, n: 28 });
   });
   it("draws seed 12's twenty-eight towns exactly as it did", () => {
-    expect(worldHash(12)).toEqual({ h: 396956493, n: 28 });
+    expect(worldHash(12)).toEqual({ h: 3252257965, n: 28 });
   });
 });

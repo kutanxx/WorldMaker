@@ -839,3 +839,31 @@ describe("where two waters meet", () => {
     }
   });
 });
+
+// A town on its summit stands on its hill: a pale slope round its wall with hachures down it, short and
+// heavy on its steep sides, long toward its ridge. It stood beside one broad shoulder of rock instead.
+describe("a hill-top town's hill", () => {
+  it("draws the slope round its wall, hachured down it from the brow", () => {
+    const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 2 });
+    const top = world.cities.find((c) => c.relief === "summit" && !c.river && !c.coastal)!;
+    const layout = generateCityLayout(cityContext(top), 2);
+    expect(layout.hill).toBeDefined();
+    const svg = renderCity(layout);
+    expect(svg.querySelectorAll("g.hill .hill-slope").length).toBe(1);
+    const strokes = [...svg.querySelectorAll("g.hill line.hill-hachure")];
+    expect(strokes.length).toBe(layout.hill!.brow.length);
+    const w = (e: Element) => Number(e.getAttribute("stroke-width"));
+    const len = (e: Element) => Math.hypot(Number(e.getAttribute("x2")) - Number(e.getAttribute("x1")), Number(e.getAttribute("y2")) - Number(e.getAttribute("y1")));
+    // each runs down the slope, away from the town's middle
+    for (const e of strokes) {
+      const d1 = Math.hypot(Number(e.getAttribute("x1")) - 230, Number(e.getAttribute("y1")) - 230);
+      const d2 = Math.hypot(Number(e.getAttribute("x2")) - 230, Number(e.getAttribute("y2")) - 230);
+      expect(d2).toBeGreaterThan(d1);
+    }
+    // ...the short ones (the steep side) heavier than the long ones
+    const byLen = [...strokes].sort((a, b) => len(a) - len(b));
+    expect(w(byLen[0])).toBeGreaterThan(w(byLen[byLen.length - 1]));
+    // ...and a town on no hill draws none
+    expect(renderCity(generateCityLayout(cityContext(world.cities.find((c) => !c.relief)!), 2)).querySelectorAll("g.hill").length).toBe(0);
+  });
+});

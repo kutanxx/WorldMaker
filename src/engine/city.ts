@@ -12,8 +12,8 @@ import type { Water } from "./city/water";
 import { makeBoundary } from "./city/cityBoundary";
 import { wallFromDefenses } from "./city/walls";
 import type { DefenseWall } from "./city/walls";
-import { makeMountains, inMountains } from "./city/mountain";
-import type { MountainMass } from "./city/mountain";
+import { makeMountains, inMountains, makeHill } from "./city/mountain";
+import type { MountainMass, Hill } from "./city/mountain";
 import { makeHarbor } from "./city/harbor";
 import type { Harbor } from "./city/harbor";
 import { generateWards } from "./city/wards";
@@ -60,6 +60,7 @@ export interface CityLayout {
   boundary: Polygon;
   water: Water;
   mountains: MountainMass[];
+  hill?: Hill;              // the slope a town on its summit stands on (walls, gates and roads cross it)
   wall: DefenseWall | null;
   moat: Polyline[] | null;
   gateBridges: Polyline[];
@@ -101,6 +102,7 @@ export interface CityContext {
   river?: boolean; // world river through the cell (optional so test fixtures can omit it → no river)
   seaBearing?: number; // which way the open sea lies, in world radians; absent → the plate picks
   seaArc?: number;     // ...and how much of the compass round the port is sea; absent → a straight coast
+  otherSea?: { bearing: number; arc: number }; // ...and a second sea across the land from its own
   riverBearing?: number; // which way the world's river runs through the town; absent → the plate picks
   riverTurn?: number;    // ...how far it turns there; absent → the plate picks whether it wraps the town
   riverRises?: boolean;  // ...and whether it rises there, rather than running in from upstream
@@ -115,7 +117,7 @@ export interface CityContext {
 export function cityContext(c: CityMarker): CityContext {
   return {
     id: c.id, name: c.name, size: c.size, coastal: c.coastal, isCapital: c.isCapital, elevation: c.elevation, biome: c.biome,
-    river: c.river, seaBearing: c.seaBearing, seaArc: c.seaArc, riverBearing: c.riverBearing, riverTurn: c.riverTurn, riverRises: c.riverRises, riverSize: c.riverSize,
+    river: c.river, seaBearing: c.seaBearing, seaArc: c.seaArc, otherSea: c.otherSea, riverBearing: c.riverBearing, riverTurn: c.riverTurn, riverRises: c.riverRises, riverSize: c.riverSize,
     mountainBearing: c.mountainBearing, mountainShare: c.mountainShare, onMountain: c.onMountain,
     relief: c.relief, reliefBearing: c.reliefBearing,
   };
@@ -262,18 +264,20 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
   // ...and what it is built of, from the country it stands in (see textureOf)
   const texture = textureOf(ctx.biome);
 
-  const course = { turn: ctx.riverTurn, rises: ctx.riverRises, size: ctx.riverSize, seaArc: ctx.seaArc };
+  const course = { turn: ctx.riverTurn, rises: ctx.riverRises, size: ctx.riverSize, seaArc: ctx.seaArc, otherSea: ctx.otherSea };
   const water = buildWater(rng, archetype.water, bounds, ctx.seaBearing, radius, ctx.riverBearing, course);
   // The sea on its own: what a port's harbour, docks and seaward side are measured against, whatever
   // else runs into it.
-  const seaOnly: Water = { kind: water.kind, bodies: water.bodies.slice(), bridges: [] };
+  // (the port's own sea: a second sea across the land from it takes no harbour)
+  const seaOnly: Water = { kind: water.kind, bodies: water.bodies.slice(0, 1), bridges: [] };
   // ★ A port where the world's river reaches the sea draws its river. 22 of the 80 river towns of
   // twelve worlds stand on a coast AND a river — the world map draws the river running out to sea
   // at the town — and their plates drew the sea and no river at all. It comes down the way the world's
   // river runs, into the sea, from a stream of its own, so no other port moves.
   const riverMouth = archetype.water === "sea" && !!ctx.river && ctx.riverBearing !== undefined;
   if (riverMouth) {
-    water.bodies.push(...buildWater(mulberry32(plateSeed(worldSeed, ctx.id + RIVER_MOUTH_SALT)), "river", bounds, undefined, radius, ctx.riverBearing, course).bodies);
+    // (second, after its own sea and before any other: what reads a port's river looks for it there)
+    water.bodies.splice(1, 0, ...buildWater(mulberry32(plateSeed(worldSeed, ctx.id + RIVER_MOUTH_SALT)), "river", bounds, undefined, radius, ctx.riverBearing, course).bodies);
   }
   if (archetype.oasis) {
     const or = radius * 0.12;
@@ -282,8 +286,11 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
     water.bodies.push(oasisPoly);
   }
   // the way the town runs, where its ground gives it one: along its valley, between the walls, or out
-  // along its spur from the high ground behind it
-  const along = ctx.reliefBearing === undefined ? undefined
+  // along its spur from the high ground behind it; and a bridge town along the road over its bridge,
+  // across the river — the way towns grew at the approaches to a crossing. Its axis was a draw of
+  // dice: over twelve worlds its 44 bridge towns lay a median 45 degrees off their river.
+  const along = archetype.id === "bridgeTown" && ctx.riverBearing !== undefined ? ctx.riverBearing + Math.PI / 2
+    : ctx.reliefBearing === undefined ? undefined
     : archetype.id === "valleyPass" ? ctx.reliefBearing + Math.PI / 2
     : archetype.id === "spur" ? ctx.reliefBearing : undefined;
   const boundary = makeBoundary(rng, archetype, ctx.size, center, water, along);
@@ -293,6 +300,10 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
     bearing: ctx.mountainBearing, share: ctx.mountainShare, rng: mulberry32(plateSeed(worldSeed, ctx.id + MOUNTAIN_SALT)),
     wet: (p) => inWater(water, p), facing: ctx.reliefBearing,
   });
+  // ...and a town on its summit stands on its hill (see makeHill). What the country's pieces keep off is
+  // the rock and that slope; walls, gates and the roads out of them cross the slope as a road climbs one.
+  const hill = archetype.id === "hilltopFortress" && ctx.reliefBearing !== undefined ? makeHill(boundary, [center[0], center[1]], bounds, ctx.reliefBearing) : undefined;
+  const ground: MountainMass[] = hill ? [...mountains, { polygon: hill.band, innerEdge: hill.brow, steep: false }] : mountains;
 
   // BLOCK-CENTRIC: wards are the city blocks; streets are the gaps (shared ward edges).
   // The ward mesh is laid out to the town's ACTUAL reach, not to a nominal disc. Wards are Voronoi
@@ -911,7 +922,7 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
     return false;
   };
   const standsClear = (fp: Polygon) =>
-    fp.every((q) => inCanvas(q) && !pointInPolygon(q, boundary) && !inMountains(mountains, q) && !underFurniture(q))
+    fp.every((q) => inCanvas(q) && !pointInPolygon(q, boundary) && !inMountains(ground, q) && !underFurniture(q))
     && !overlapsWater(water, fp)
     && !drawnOut.some((o) => polysOverlap(fp, o))
     && !suburbRoads.some((r) => nearLine(fp, r, 1.5));
@@ -933,7 +944,7 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
   // watermill on the watercourse (seigneurial: mill sits ON the water with a race)
   for (let tries = 0; tries < 80 && outworks.length === 0; tries++) {
     const p: Point = [3 + rng() * (bounds.w - 6), 3 + rng() * (bounds.h - 6)];
-    if (pointInPolygon(p, boundary) || inWater(water, p) || inMountains(mountains, p) || !inCanvas(p) || underFurniture(p, 6)) continue;
+    if (pointInPolygon(p, boundary) || inWater(water, p) || inMountains(ground, p) || !inCanvas(p) || underFurniture(p, 6)) continue;
     if (nearWater(p) && standsClear(disc(p, 3.2))) { const r = raceEnd(p); outworks.push({ type: "watermill", at: p, angle: rng() * Math.PI * 2, race: r ? [p, r] : undefined }); drawnOut.push(disc(p, 3.2)); }
   }
   // windmill on exposed high ground: phase 0 insists on open country well past the wall,
@@ -941,7 +952,7 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
   for (let phase = 0; phase < 2 && outworks.length === 0; phase++) {
     for (let tries = 0; tries < 80 && outworks.length === 0; tries++) {
       const p: Point = [3 + rng() * (bounds.w - 6), 3 + rng() * (bounds.h - 6)];
-      if (pointInPolygon(p, boundary) || inWater(water, p) || inMountains(mountains, p) || !inCanvas(p) || underFurniture(p, 6)) continue;
+      if (pointInPolygon(p, boundary) || inWater(water, p) || inMountains(ground, p) || !inCanvas(p) || underFurniture(p, 6)) continue;
       if (suburbs.some((b) => { const c = centroid(b); return Math.hypot(c[0] - p[0], c[1] - p[1]) < 10; })) continue;
       if (phase === 0 && Math.hypot(p[0] - center[0], p[1] - center[1]) < radius + 22) continue; // exposed, on a rise
       if (!standsClear(disc(p, 4.5))) continue;              // its sails turn 4 out
@@ -971,7 +982,7 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
   const findSpot = (minGap: number, footprint: (p: Point) => Polygon): Point | null => {
     for (let tries = 0; tries < 120; tries++) {
       const p: Point = [3 + rng() * (bounds.w - 6), 3 + rng() * (bounds.h - 6)];
-      if (pointInPolygon(p, boundary) || inWater(water, p) || inMountains(mountains, p) || !inCanvas(p) || underFurniture(p, 10)) continue;
+      if (pointInPolygon(p, boundary) || inWater(water, p) || inMountains(ground, p) || !inCanvas(p) || underFurniture(p, 10)) continue;
       if (occupied.some((c) => Math.hypot(c[0] - p[0], c[1] - p[1]) < minGap)) continue;
       const fp = footprint(p);
       if (!standsClear(fp)) continue;
@@ -1137,7 +1148,7 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
     const want = 2 + (ctx.size >= 4 ? 1 : 0);
     for (let tries = 0; tries < 140 && riversideTrades.length < want; tries++) {
       const p: Point = [4 + rng() * (bounds.w - 8), 4 + rng() * (bounds.h - 8)];
-      if (pointInPolygon(p, boundary) || inWater(water, p) || inMountains(mountains, p) || underFurniture(p, 4)) continue;
+      if (pointInPolygon(p, boundary) || inWater(water, p) || inMountains(ground, p) || underFurniture(p, 4)) continue;
       if (!nearW(p)) continue;
       if (occupied.some((o) => Math.hypot(o[0] - p[0], o[1] - p[1]) < 8)) continue;
       if (!standsClear(box(p, 2.4, 2.8))) continue;   // the workshop and the dyer's rack below it
@@ -1149,7 +1160,7 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
   // countryside: generated LAST (rng-stream tail, per convention) so it avoids every
   // suburb/outwork/landmark already placed above (occupied carries all of their centres).
   const countryside = generateCountryside(rng, {
-    bounds, boundary, water, mountains,
+    bounds, boundary, water, mountains: ground,
     roads: suburbRoads,
     moat: moat ?? [],
     obstacles: [...occupied],
@@ -1163,6 +1174,6 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
     name: ctx.name, size: ctx.size, coastal: ctx.coastal, isCapital: ctx.isCapital,
     archetype, bounds, boundary, water, mountains, wall, moat, gateBridges, mainRoads, minorRoads, wards, parks, labels, features, suburbRoads, suburbs, outworks, harbor,
     abbey, cemetery, gallows, leperHouse, fairground, parishChurches, marketCross, well, inns, barbicans, riversideTrades, countryside, castle,
-    parkTrees, landmarks,
+    parkTrees, landmarks, ...(hill ? { hill } : {}),
   };
 }

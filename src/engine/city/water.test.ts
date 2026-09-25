@@ -243,6 +243,19 @@ describe("the sea lies where the world says it lies", () => {
     expect(straight).toEqual(sea(undefined));
   });
 
+  // ...and a port between two seas has the second one too, across the land from its own
+  it("draws a port's second sea on the far side of it, and leaves its own sea as it was", () => {
+    const R = 90, bearing = 0.7;
+    const one = buildWater(mulberry32(7), "sea", bounds, bearing, R, undefined, { seaArc: SEA_ARC_STRAIGHT });
+    const two = buildWater(mulberry32(7), "sea", bounds, bearing, R, undefined, { seaArc: SEA_ARC_STRAIGHT, otherSea: { bearing: bearing + Math.PI, arc: 0.5 * Math.PI } });
+    expect(two.bodies.length).toBe(2);
+    expect(two.bodies[0]).toEqual(one.bodies[0]);
+    const far: Point = [centre[0] + Math.cos(bearing + Math.PI) * R * 1.3, centre[1] + Math.sin(bearing + Math.PI) * R * 1.3];
+    expect(inWater(one, far)).toBe(false);
+    expect(inWater(two, far)).toBe(true);
+    expect(inWater(two, centre), "the town between them stands on dry land").toBe(false);
+  });
+
   it("falls back to a drawn side when the world has not said which way", () => {
     const water = buildWater(mulberry32(7), "sea", bounds);
     expect(water.bodies.length).toBe(1);
