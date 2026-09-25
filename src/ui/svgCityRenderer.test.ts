@@ -9,6 +9,7 @@ import type { CityMarker } from "../types/world";
 import { generateWorld } from "../engine/world";
 import { DEFAULT_PARAMS } from "../types/world";
 import { featureName, WARD_NAME } from "./i18n";
+import { properName } from "./properName";
 
 // the renderer anchors a stilt at the building's vertex-mean; replicate it so the test can
 // predict exactly which buildings sit over water.
@@ -968,5 +969,35 @@ describe("a hill-top town's hill", () => {
     expect(w(byLen[0])).toBeGreaterThan(w(byLen[byLen.length - 1]));
     // ...and a town on no hill draws none
     expect(renderCity(generateCityLayout(cityContext(world.cities.find((c) => !c.relief)!), 2)).querySelectorAll("g.hill").length).toBe(0);
+  });
+});
+
+// ★ A gate is named for where its road goes (the world's roads, worldRoads.ts): "Gate to Kaag", as
+// the Porta Romana was the gate of the road to Rome. A gate of the town's own lanes is a gate.
+describe("a gate names where its road goes", () => {
+  const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });
+  const town = world.cities.find((c) => (c.roads?.length ?? 0) >= 2)!;
+  const layout = generateCityLayout(cityContext(town), 1);
+  const townName = (id: number) => world.cities[id]?.name;
+  const titles = (svg: SVGSVGElement) => [...svg.querySelectorAll("rect.gate")].map((g) => g.querySelector("title")?.textContent ?? "");
+
+  it("names each road's town on its gate, in the reader's language", () => {
+    const roadGates = (layout.wall!.gateRoads ?? []).map((rs) => rs.flatMap((r) => r.to));
+    expect(roadGates.some((to) => to.length), "no gate carries a road").toBe(true);
+    const en = titles(renderCity(layout, "en", { townName }));
+    const ko = titles(renderCity(layout, "ko", { townName }));
+    roadGates.forEach((to, i) => {
+      if (!to.length) { expect(en[i]).toBe("Gate"); expect(ko[i]).toBe("성문"); return; }
+      for (const id of to) {
+        expect(en[i], `gate ${i}`).toContain(world.cities[id].name);
+        expect(ko[i], `gate ${i}`).toContain(properName("ko", world.cities[id].name));
+      }
+      expect(en[i]).toMatch(/^Gate to /);
+      expect(ko[i]).toMatch(/ 방면 성문$/);
+    });
+  });
+
+  it("is just a gate where the page cannot name the towns", () => {
+    for (const t of titles(renderCity(layout, "en"))) expect(t).toBe("Gate");
   });
 });

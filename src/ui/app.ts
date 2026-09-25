@@ -487,6 +487,9 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     return !a || a === document.body || !a.isConnected || a === hidden;
   }
 
+  // a town's name by its id, for the plate's gates (each named for the towns its road leads to)
+  const townName = (id: number): string | undefined => generated.world.cities[id]?.name;
+
   function showWorld(): void {
     const was = openCityId;
     openCityId = null;
@@ -829,7 +832,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     // ⚠ The strip's width is baked into the plate's viewBox, so unlike the world map this cannot be
     // fixed by moving a node: the plate is rendered without the strip from the start.
     const layout = generateCityLayout(cityContext(marker), params.seed);
-    const citySvg = renderCity(layout, lang, { keyOutside: true });
+    const citySvg = renderCity(layout, lang, { keyOutside: true, townName });
     const frame = document.createElement("div");
     frame.className = "map-frame";
     frame.appendChild(citySvg);
@@ -1004,7 +1007,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     if (openCityId !== null) {
       const marker = generated.world.cities.find((c) => c.id === openCityId);
       if (marker) {
-        const svg = renderCity(generateCityLayout(cityContext(marker), params.seed), lang);
+        const svg = renderCity(generateCityLayout(cityContext(marker), params.seed), lang, { townName });
         layOutLabelsForExport(svg, (s) => { fitTitle(s); clearMarks(s); clearCastleName(s); });
         const [, , w, h] = (svg.getAttribute("viewBox") || "0 0 1000 700").split(/[\s,]+/).map(Number);
         return {

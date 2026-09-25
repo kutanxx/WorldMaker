@@ -2057,6 +2057,45 @@ describe("a town in one world is not a copy of a town in another", () => {
   });
 });
 
+// ★ The roads out of town go where the world's roads go (worldRoads.ts). A plate's gates stood wherever
+// its own streets met the wall, the most spread-out two to four of them, and its roads ran straight out
+// from its middle: over twelve worlds the gap between each of a town's three nearest towns and the
+// plate's nearest road out was a median 37 degrees — 39 for bearings drawn at random.
+describe("the roads out of town go where the world's roads go", () => {
+  const ang = (a: number, b: number) => Math.abs(Math.atan2(Math.sin(a - b), Math.cos(a - b)));
+  const plates = (() => {
+    let memo: { where: string; roads: number[]; exits: number[] }[] | null = null;
+    return () => {
+      if (memo) return memo;
+      memo = [];
+      for (let seed = 1; seed <= 12; seed++) {
+        const w = generateWorld({ ...DEFAULT_PARAMS, seed }).world;
+        for (const c of w.cities) {
+          if (!c.roads?.length) continue;
+          const l = generateCityLayout(cityContext(c), seed);
+          const cx = l.bounds.w / 2, cy = l.bounds.h / 2;
+          memo.push({
+            where: `${c.name} (seed ${seed}, ${c.id}, ${l.archetype.id})`,
+            roads: c.roads.map((r) => r.bearing),
+            // where each road out of a gate reaches the edge of the plate, seen from the middle of the town
+            exits: l.suburbRoads.map((r) => Math.atan2(r[r.length - 1][1] - cy, r[r.length - 1][0] - cx)),
+          });
+        }
+      }
+      return memo;
+    };
+  })();
+
+  it("leaves each plate toward every town the world's roads lead to", () => {
+    const gaps = plates().flatMap((p) => p.roads.map((b) => Math.min(...p.exits.map((e) => ang(e, b)))));
+    gaps.sort((a, b) => a - b);
+    expect(gaps.length).toBeGreaterThan(600);
+    const deg = (r: number) => (r * 180) / Math.PI;
+    expect(deg(gaps[Math.floor(gaps.length / 2)]), "the median road").toBeLessThan(10);
+    expect(gaps.filter((g) => g <= Math.PI / 6).length / gaps.length, "roads within 30 degrees of a road out").toBeGreaterThan(0.9);
+  });
+});
+
 // ★ A lock on the plates themselves, byte for byte. Nothing pinned a city layout (the world and the
 // history have golden hashes; a plate had only "is deterministic"), so a change meant only to make
 // the generator FASTER could have moved a building and nobody would know. Opening a capital's
@@ -2151,6 +2190,13 @@ describe("a town in one world is not a copy of a town in another", () => {
 // And for a spur town out on its spur (makeHill's "spur" form): exactly the 5 spur towns moved, each
 // with its slope round its flanks and down its tip. The key's new marks are the renderer's alone, so
 // no layout moved for them. The other 331 hashed byte for byte the same.
+//
+// And for the world's roads (worldRoads.ts): exactly the 334 towns the world gives a road moved — each
+// takes a gate for every road, where a street runs through its wall toward where the road goes (a road
+// without one forks from the nearest gate), and its roads out turn toward those towns; its main streets
+// run from those gates, and all that hangs off them follows. With them: a barbican no longer stands on
+// a road forking from its gate, and no gate house under the plate's name, compass or scale. The two
+// towns with no road — an island's, 11:0 and 11:1 — hashed byte for byte the same.
 describe("a plate is the same plate, byte for byte", () => {
   const fold = (h: number, c: number) => Math.imul(h ^ c, 16777619) >>> 0;
   const fnv = (s: string) => { let h = 2166136261 >>> 0; for (let i = 0; i < s.length; i++) h = fold(h, s.charCodeAt(i)); return h >>> 0; };
@@ -2161,9 +2207,9 @@ describe("a plate is the same plate, byte for byte", () => {
     return { h, n };
   };
   it("draws seed 1's twenty-eight towns exactly as it did", () => {
-    expect(worldHash(1)).toEqual({ h: 221431460, n: 28 });
+    expect(worldHash(1)).toEqual({ h: 3118129168, n: 28 });
   });
   it("draws seed 12's twenty-eight towns exactly as it did", () => {
-    expect(worldHash(12)).toEqual({ h: 3750421655, n: 28 });
+    expect(worldHash(12)).toEqual({ h: 1075377656, n: 28 });
   });
 });

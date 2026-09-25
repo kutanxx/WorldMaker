@@ -85,3 +85,48 @@ describe("wallFromDefenses", () => {
     expect(capped.gates.length).toBeLessThanOrEqual(3);
   });
 });
+
+// ★ The world's roads (worldRoads.ts): a gate for each, where a street runs through the wall nearest the
+// way the road leaves; a road with no gate of its own forks from the nearest gate.
+describe("wallFromDefenses with the world's roads", () => {
+  const centre: [number, number] = [150, 150];
+  // streets running straight out of the middle through the ring, every 30 degrees
+  const spokes: Polyline[] = Array.from({ length: 12 }, (_, i) => {
+    const a = (i / 12) * Math.PI * 2;
+    return [[150 + Math.cos(a) * 20, 150 + Math.sin(a) * 20], [150 + Math.cos(a) * 90, 150 + Math.sin(a) * 90]];
+  });
+  const dirOf = (g: [number, number]) => Math.atan2(g[1] - centre[1], g[0] - centre[0]);
+  const across = (a: number, b: number) => Math.abs(Math.atan2(Math.sin(a - b), Math.cos(a - b)));
+
+  it("opens a gate for each road where a street crosses the wall nearest its way", () => {
+    const roads = [{ bearing: 0.1, to: [1] }, { bearing: Math.PI / 2 + 0.1, to: [2] }];
+    // the street nodes just past the wall (the ring is 60 out), where the town's own gates come from
+    const nodes: Polyline[] = spokes.map(([, b]) => { const p: [number, number] = [150 + (b[0] - 150) * (70 / 90), 150 + (b[1] - 150) * (70 / 90)]; return [p, p]; });
+    const wall = wallFromDefenses(ring, noWater, noMountains, nodes, 3, () => true, { from: centre, roads, streets: spokes });
+    expect(wall.gateRoads).toBeDefined();
+    roads.forEach((r) => {
+      const gi = wall.gateRoads!.findIndex((rs) => rs.includes(r));
+      expect(gi, `no gate for the road at ${r.bearing}`).toBeGreaterThanOrEqual(0);
+      expect(across(dirOf(wall.gates[gi] as [number, number]), r.bearing), "its gate is where the nearest street crosses").toBeLessThan(0.11);
+    });
+    // ...and the town fills up to its number of gates with a way out of its own
+    expect(wall.gates.length).toBe(3);
+    expect(wall.gateRoads!.filter((rs) => rs.length === 0).length).toBe(1);
+  });
+
+  it("forks a road from the nearest gate when it has no way out of its own", () => {
+    // one street through the wall, two roads leaving on either side of it
+    const one: Polyline[] = [spokes[0]];
+    const roads = [{ bearing: -0.3, to: [1] }, { bearing: 0.3, to: [2] }];
+    const wall = wallFromDefenses(ring, noWater, noMountains, noRoads, 2, () => true, { from: centre, roads, streets: one });
+    expect(wall.gates.length).toBe(1);
+    expect(wall.gateRoads![0]).toEqual(expect.arrayContaining(roads));
+  });
+
+  it("leaves a town the world gives no road exactly as it was", () => {
+    const streets: Polyline[] = [[[150, 150], [150, 213]], [[150, 150], [87, 150]]];
+    const plain = wallFromDefenses(ring, noWater, noMountains, streets, 3);
+    expect(plain.gateRoads).toBeUndefined();
+    expect(wallFromDefenses(ring, noWater, noMountains, streets, 3, () => true, undefined)).toEqual(plain);
+  });
+});

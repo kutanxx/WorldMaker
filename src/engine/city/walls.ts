@@ -10,7 +10,18 @@ export interface DefenseWall {
   towers: Point[];
   gates: Point[];
   seaGates: Point[];
+  /** for a town the world gives roads: which of them leave by each gate (none: a local way out) */
+  gateRoads?: GateRoad[][];
 }
+
+/** a road the world gives a town, as the plate takes it: the way it leaves, and where it goes */
+export interface GateRoad { bearing: number; to: number[] }
+
+// how far round from the way a road leaves a gate may stand and still be its gate: its road out can
+// turn 45 degrees toward the road's way from straight out of the town (see city.ts, roadOut)
+const AIM_REACH = Math.PI / 2;
+
+const across = (a: number, b: number) => Math.abs(Math.atan2(Math.sin(a - b), Math.cos(a - b)));
 
 // how far outward a boundary edge probes for the sea: the waterfront itself. It was 36, to bridge
 // the beach a port town used to stand back from its shore by — which also opened every edge of the
@@ -70,7 +81,10 @@ function reduceGates(gates: Point[], max: number): Point[] {
 // a gate this close to the end of a run of wall where the water takes over opens onto the shore
 const WET_END = 10;
 
-function placeGates(segments: Polyline[], roads: Polyline[], maxGates: number, seaGates: Point[], usable: (p: Point) => boolean): Point[] {
+function placeGates(
+  segments: Polyline[], roads: Polyline[], maxGates: number, seaGates: Point[], usable: (p: Point) => boolean,
+  aims?: { from: Point; roads: GateRoad[]; streets: Polyline[] },
+): { gates: Point[]; served: number[][] } {
   const NEAR = 15, MERGE2 = 12 * 12;
   const gates: Point[] = [];
   // ★ A gate is a way out to somewhere. A street node near the end of a run of wall snapped onto
@@ -106,17 +120,85 @@ function placeGates(segments: Polyline[], roads: Polyline[], maxGates: number, s
   // So when nothing is near enough, the town still takes ONE gate: the wall point closest to a
   // street, however far that is. It is a floor, not a retune — the 325 towns that had gates keep
   // exactly the gates they had.
-  if (gates.length === 0) {
-    const kept = spare.length ? reduceGates(spare, 1) : fallback ? [fallback] : [];
+  // ★ ...and, for a town the world gives roads, every place a street runs through the wall. The street
+  // nodes reach the wall at a median five places, and a road's way out had none of them within 45
+  // degrees for one road in five over twelve worlds; the streets cross it at a median eleven, one of
+  // them within 45 degrees of all but 8 of 688 roads. A gate there has its street for its approach: a
+  // gate opened where the road met the wall had to be tied in by a stub a median 34 long, cutting
+  // across a block — and under a cathedral and two guild halls.
+  const crossings: Point[] = [];
+  if (aims) for (const st of aims.streets) for (const sg of segments) for (let i = 0; i + 1 < sg.length; i++) {
+    const p = crossingOf(st[0], st[st.length - 1], sg[i], sg[i + 1]);
+    if (!p || !good(p)) continue;
+    if ([...gates, ...crossings].some((g) => (g[0] - p[0]) ** 2 + (g[1] - p[1]) ** 2 < MERGE2)) continue;
+    crossings.push(p);
+  }
+  if (gates.length === 0 && crossings.length === 0) {
+    let kept = spare.length ? reduceGates(spare, 1) : fallback ? [fallback] : [];
     // ...and it is a way out: where the wall point nearest a street leads nowhere — a mountain town
     // where its stream rises had its one gate facing its foothills — the nearest one that does
     if (kept.length && !usable(kept[0])) {
       const out = nearestWayOut(segments, roads, good) ?? nearestWayOut(segments, roads, usable);
-      if (out) return [out];
+      if (out) kept = [out];
     }
-    return kept;
+    // (a town's one gate, however it was found, is the way out of every road that can leave by it)
+    return { gates: kept, served: kept.map((g) => aimsWithin(g, aims)) };
   }
-  return reduceGates(gates, maxGates);
+  if (!aims?.roads.length) return { gates: reduceGates(gates, maxGates), served: [] };
+  // ★ A gate for each road the world gives the town: the way out — a street's end at the wall, or a
+  // street running through it — whose direction from the middle of the town is nearest the way the road
+  // leaves. The pairs are matched nearest first, so two roads never take one gate and the road whose
+  // gate is plainest gets it. A road left without a gate of its own leaves by the nearest one within
+  // AIM_REACH, forking outside it, as roads did. Then the town takes as many more gates as it had, as
+  // spread out as they come, for the lanes to its fields.
+  const cands = [...gates, ...crossings].map((p) => ({ p }));
+  const dir = (g: Point) => Math.atan2(g[1] - aims.from[1], g[0] - aims.from[0]);
+  const pairs: { c: number; k: number; d: number }[] = [];
+  cands.forEach((c, ci) => aims.roads.forEach((r, k) => {
+    const d = across(dir(c.p), r.bearing);
+    if (d <= AIM_REACH) pairs.push({ c: ci, k, d });
+  }));
+  pairs.sort((a, b) => a.d - b.d || a.k - b.k || a.c - b.c);
+  const chosen: number[] = [], served: number[][] = [], taken = new Set<number>();
+  for (const pr of pairs) {
+    if (chosen.includes(pr.c) || taken.has(pr.k)) continue;
+    chosen.push(pr.c); served.push([pr.k]); taken.add(pr.k);
+  }
+  aims.roads.forEach((r, k) => {
+    if (taken.has(k)) return;
+    let best = -1, bd = AIM_REACH;
+    chosen.forEach((ci, j) => { const d = across(dir(cands[ci].p), r.bearing); if (d <= bd) { bd = d; best = j; } });
+    if (best >= 0) served[best].push(k);
+  });
+  const out = chosen.map((ci) => cands[ci].p);
+  while (out.length < maxGates) {
+    let best = -1, bd = -1;
+    gates.forEach((g, gi) => {
+      if (chosen.includes(gi)) return;
+      let md = Infinity;
+      for (const c of out) md = Math.min(md, (g[0] - c[0]) ** 2 + (g[1] - c[1]) ** 2);
+      if (md > bd) { bd = md; best = gi; }
+    });
+    if (best < 0) break;
+    chosen.push(best); served.push([]); out.push(gates[best]);
+  }
+  return { gates: out, served };
+}
+
+// the world's roads that can leave by a gate: those within AIM_REACH of the way it faces
+function aimsWithin(g: Point, aims?: { from: Point; roads: GateRoad[]; streets: Polyline[] }): number[] {
+  if (!aims) return [];
+  const d = Math.atan2(g[1] - aims.from[1], g[0] - aims.from[0]);
+  return aims.roads.flatMap((r, k) => (across(d, r.bearing) <= AIM_REACH ? [k] : []));
+}
+
+// where segment ab crosses segment cd, if it does
+function crossingOf(a: Point, b: Point, c: Point, d: Point): Point | null {
+  const rx = b[0] - a[0], ry = b[1] - a[1], sx = d[0] - c[0], sy = d[1] - c[1];
+  const den = rx * sy - ry * sx;
+  if (Math.abs(den) < 1e-12) return null;
+  const t = ((c[0] - a[0]) * sy - (c[1] - a[1]) * sx) / den, u = ((c[0] - a[0]) * ry - (c[1] - a[1]) * rx) / den;
+  return t >= 0 && t <= 1 && u >= 0 && u <= 1 ? [a[0] + rx * t, a[1] + ry * t] : null;
 }
 
 // the point of the wall nearest the end of a street that `ok` accepts, if the wall has one
@@ -139,6 +221,7 @@ function nearestWayOut(segments: Polyline[], roads: Polyline[], ok: (p: Point) =
 export function wallFromDefenses(
   boundary: Polygon, water: Water, mountains: MountainMass[], mainRoads: Polyline[],
   maxGates = Infinity, usable: (gate: Point) => boolean = () => true,
+  aims?: { from: Point; roads: GateRoad[]; streets: Polyline[] },
 ): DefenseWall {
   const n = boundary.length;
   const c = centroid(boundary);
@@ -212,9 +295,10 @@ export function wallFromDefenses(
       towers.push(p); last = i;
     });
   }
-  const gates = placeGates(segments, mainRoads, maxGates, seaGates, usable);
+  const { gates, served } = placeGates(segments, mainRoads, maxGates, seaGates, usable, aims);
   // A gate is its own tower: the square gate block stands where the wall is opened, and a drum tower
   // on the corner beside it was drawn on top of it — on 213 of 336 plates of twelve worlds.
   const clearOfGates = towers.filter((t) => !gates.some((g) => onGate(t, g)));
-  return { segments, towers: clearOfGates, gates, seaGates };
+  if (!aims?.roads.length) return { segments, towers: clearOfGates, gates, seaGates };
+  return { segments, towers: clearOfGates, gates, seaGates, gateRoads: served.map((ks) => ks.map((k) => aims.roads[k])) };
 }

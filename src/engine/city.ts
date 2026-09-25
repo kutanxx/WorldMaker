@@ -11,7 +11,7 @@ import { buildWater, inWater, waterBridges, overlapsWater } from "./city/water";
 import type { Water } from "./city/water";
 import { makeBoundary } from "./city/cityBoundary";
 import { wallFromDefenses } from "./city/walls";
-import type { DefenseWall } from "./city/walls";
+import type { DefenseWall, GateRoad } from "./city/walls";
 import { makeMountains, inMountains, makeHill } from "./city/mountain";
 import type { MountainMass, Hill } from "./city/mountain";
 import { makeHarbor } from "./city/harbor";
@@ -112,6 +112,7 @@ export interface CityContext {
   onMountain?: boolean;     // the world draws the town in its mountains; absent → judged by elevation
   relief?: ReliefKind;      // ...and the lie of the land it stands on there; absent → the plate picks
   reliefBearing?: number;   // ...and which way that ground rises (a valley's: the line its walls stand on)
+  roads?: { to: number; bearing: number }[];   // the world's roads out of the town (see worldRoads.ts)
 }
 
 export function cityContext(c: CityMarker): CityContext {
@@ -119,8 +120,42 @@ export function cityContext(c: CityMarker): CityContext {
     id: c.id, name: c.name, size: c.size, coastal: c.coastal, isCapital: c.isCapital, elevation: c.elevation, biome: c.biome,
     river: c.river, seaBearing: c.seaBearing, seaArc: c.seaArc, otherSea: c.otherSea, riverBearing: c.riverBearing, riverTurn: c.riverTurn, riverRises: c.riverRises, riverSize: c.riverSize,
     mountainBearing: c.mountainBearing, mountainShare: c.mountainShare, onMountain: c.onMountain,
-    relief: c.relief, reliefBearing: c.reliefBearing,
+    relief: c.relief, reliefBearing: c.reliefBearing, roads: c.roads,
   };
+}
+
+// Two of the world's roads leaving a town within this of each other are one road at the plate's scale:
+// a mile and a half across, the plate cannot show them part.
+const ROAD_MERGE = Math.PI / 6;
+/**
+ * The world's roads out of a town as its plate takes them: those leaving within ROAD_MERGE of the first
+ * of a run are one road, leaving the way their mean does and leading to all their towns. The run starts
+ * after the widest gap round the compass, so no road is split from its neighbour across the start.
+ */
+function gateRoadsOf(roads: { to: number; bearing: number }[] | undefined): GateRoad[] {
+  if (!roads?.length) return [];
+  const sorted = [...roads].sort((a, b) => a.bearing - b.bearing || a.to - b.to);
+  const n = sorted.length;
+  let start = 0, widest = -1;
+  for (let i = 0; i < n; i++) {
+    const gap = i === 0 ? sorted[0].bearing + 2 * Math.PI - sorted[n - 1].bearing : sorted[i].bearing - sorted[i - 1].bearing;
+    if (gap > widest) { widest = gap; start = i; }
+  }
+  const out: GateRoad[] = [];
+  let run: { to: number; bearing: number }[] = [];
+  const close = () => {
+    let x = 0, y = 0;
+    for (const r of run) { x += Math.cos(r.bearing); y += Math.sin(r.bearing); }
+    out.push({ bearing: Math.atan2(y, x), to: run.map((r) => r.to) });
+    run = [];
+  };
+  for (let k = 0; k < n; k++) {
+    const r = sorted[(start + k) % n];
+    if (run.length && Math.abs(Math.atan2(Math.sin(r.bearing - run[0].bearing), Math.cos(r.bearing - run[0].bearing))) > ROAD_MERGE) close();
+    run.push(r);
+  }
+  close();
+  return out;
 }
 
 /**
@@ -257,6 +292,11 @@ const CASTLE_GATE_GAP = 3;
 const HOUSE_ROAD_CLEAR = 1.4;
 // a district is named only if at least this much of it, inside the town, is dry ground
 const DRY_TO_NAME = 0.15;
+// how far a road out of a gate may turn from straight out of the town, in the steps it is tried in
+const OUT_TURNS = [0, 0.26, -0.26, 0.52, -0.52, 0.78, -0.78];
+const OUT_TURN_MAX = 0.78;
+// two roads out of one gate that would reach the plate's edge this close together are one road
+const FORK_APART = 12;
 
 export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLayout {
   const rng: Rng = mulberry32(plateSeed(worldSeed, ctx.id));
@@ -364,10 +404,18 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
   // its river, and the road straight out of it ran down the channel to the edge — so it was dropped,
   // and a town whose only gate that was had no road out at all. It crosses water, if at all, the way
   // the town's own bridges do — once, and square — and never climbs over the mountain.
-  const roadOut = (g: Point): { ux: number; uy: number; start: Point; L: number; end: Point } | null => {
+  // ...and a gate that is one of the world's roads (see gateRoadsOf) turns toward the way that road
+  // leaves: exactly, where that is within 45 degrees of straight out, and otherwise as near as it can.
+  const roadOut = (g: Point, aim?: number): { ux: number; uy: number; start: Point; L: number; end: Point } | null => {
     const dx = g[0] - center[0], dy = g[1] - center[1];
     const gl = Math.hypot(dx, dy) || 1;
-    for (const turn of [0, 0.26, -0.26, 0.52, -0.52, 0.78, -0.78]) {
+    let turns = OUT_TURNS;
+    if (aim !== undefined) {
+      const radial = Math.atan2(dy, dx), off = Math.atan2(Math.sin(aim - radial), Math.cos(aim - radial));
+      const toward = (t: number) => Math.abs(off - t);
+      turns = [...(Math.abs(off) <= OUT_TURN_MAX + 1e-9 ? [off] : []), ...[...OUT_TURNS].sort((a, b) => toward(a) - toward(b))];
+    }
+    for (const turn of turns) {
       const c = Math.cos(turn), s = Math.sin(turn);
       const ux = (dx * c - dy * s) / gl, uy = (dx * s + dy * c) / gl;
       const start: Point = [g[0] + ux * 8, g[1] + uy * 8]; // clear wall + moat
@@ -383,7 +431,9 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
     }
     return null;
   };
-  const wall = wallFromDefenses(boundary, water, mountains, roadEnds.map((nd) => [nd, nd]), maxGates, (g) => roadOut(g) !== null);
+  const gateRoads = gateRoadsOf(ctx.roads);
+  const wall = wallFromDefenses(boundary, water, mountains, roadEnds.map((nd) => [nd, nd]), maxGates, (g) => roadOut(g) !== null,
+    gateRoads.length ? { from: [center[0], center[1]], roads: gateRoads, streets: streetGraph.edges.map(([a, b]) => [streetGraph.nodes[a], streetGraph.nodes[b]]) } : undefined);
   const classified = classifyStreets(streetGraph, wall.gates, [center[0], center[1]], water.bodies.length ? dryLink : undefined);
   let mainRoads = classified.main;
   const minorRoads = [...classified.minor, ...net.stubs];
@@ -866,22 +916,52 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
     groundColor: texture.groundColor,
   };
 
+  // ★ The plate's own furniture lies over the country: the town's name on its tablet across the top,
+  // the compass on its disc in one bottom corner, the scale on its tablet in the other. Nothing out
+  // there knew it — over twelve worlds some two hundred hamlets, farms, gallows, cemeteries, abbeys
+  // and mills lay under one of them. They keep clear now. The name's tablet is reserved for the
+  // longest the name may be drawn: its Latin spelling, and centred either on the plate or, in an
+  // exported plate that carries its key beside it, on plate and key together.
+  const titleHalf = Math.max(60, (ctx.name.length * 13) / 2 + 22);
+  const furniture: Polygon[] = [
+    [[bounds.w / 2 - titleHalf, 0], [bounds.w / 2 + PLATE_KEY_STRIP / 2 + titleHalf, 0], [bounds.w / 2 + PLATE_KEY_STRIP / 2 + titleHalf, 50], [bounds.w / 2 - titleHalf, 50]],
+    Array.from({ length: 16 }, (_, k) => [bounds.w - 32 + Math.cos((k / 16) * Math.PI * 2) * 27, bounds.h - 35 + Math.sin((k / 16) * Math.PI * 2) * 27] as Point),
+    [[10, bounds.h - 38], [122, bounds.h - 38], [122, bounds.h], [10, bounds.h]],
+  ];
+  const furnitureBoxes = furniture.map(bbox);
+  const underFurniture = (p: Point, pad = 0) => furniture.some((f, i) => {
+    const b = furnitureBoxes[i];   // (nowhere near its box: neither under it nor within pad of it)
+    if (p[0] < b.minX - pad || p[0] > b.maxX + pad || p[1] < b.minY - pad || p[1] > b.maxY + pad) return false;
+    if (pointInPolygon(p, f)) return true;
+    if (pad > 0) for (let i = 0; i < f.length; i++) if (pointSegDist(p, f[i], f[(i + 1) % f.length]) < pad) return true;
+    return false;
+  });
+
   // ---- extramural suburbs (faubourg) + outworks: OUTSIDE the wall, in the canvas margin ----
   const suburbRoads: Polyline[] = [];
   const suburbs: Polygon[] = [];
-  for (const g of wall.gates) {
-    const road = roadOut(g);
-    if (!road) continue;
-    const { ux, uy, start, L, end } = road;
+  for (const [gi, g] of wall.gates.entries()) {
+    // The world's roads that leave by this gate, each its own road out toward where it goes — forking
+    // outside the gate where two leave by one — and a gate of the town's own one road straight out.
+    const theirs = wall.gateRoads?.[gi] ?? [];
+    const outs = (theirs.length ? theirs.map((r) => roadOut(g, r.bearing)) : [roadOut(g)])
+      .filter((r): r is NonNullable<typeof r> => r !== null)
+      .filter((r, i, all) => all.findIndex((o) => Math.hypot(o.end[0] - r.end[0], o.end[1] - r.end[1]) < FORK_APART) === i);
+    if (!outs.length) continue;
+    for (const { ux, uy, start, L, end } of outs) {
+      const nx = -uy, ny = ux;
+      // gentle bend at the midpoint so the highway reads hand-drawn, not ruled
+      const bendOff = (rng() - 0.5) * 12;
+      const mid: Point = [start[0] + ux * L * 0.5 + nx * bendOff, start[1] + uy * L * 0.5 + ny * bendOff];
+      // (a road that crosses water keeps straight, so its bridge stands where its crossing was checked)
+      const straight = inWater(water, mid) || inMountains(mountains, mid) || !dryLink(start, end);
+      suburbRoads.push([[g[0], g[1]], straight ? [start[0] + ux * L * 0.5, start[1] + uy * L * 0.5] : mid, end]);
+    }
+    // faubourg: a SHORT cluster of houses right at the gate (a gate hamlet), along its first road — not
+    // a long ribbon; the "village" character lives in the nucleated hamlets further out
+    // (countryside.villages)
+    const { ux, uy, start, L } = outs[0];
     const nx = -uy, ny = ux;                  // perpendicular unit
-    // gentle bend at the midpoint so the highway reads hand-drawn, not ruled
-    const bendOff = (rng() - 0.5) * 12;
-    const mid: Point = [start[0] + ux * L * 0.5 + nx * bendOff, start[1] + uy * L * 0.5 + ny * bendOff];
-    // (a road that crosses water keeps straight, so its bridge stands where its crossing was checked)
-    const straight = inWater(water, mid) || inMountains(mountains, mid) || !dryLink(start, end);
-    suburbRoads.push([[g[0], g[1]], straight ? [start[0] + ux * L * 0.5, start[1] + uy * L * 0.5] : mid, end]);
-    // faubourg: a SHORT cluster of houses right at the gate (a gate hamlet), not a long ribbon —
-    // the "village" character lives in the nucleated hamlets further out (countryside.villages)
     const ribbon = Math.min(26, L);
     for (let d = 6; d < ribbon; d += 8) {
       const prob = 0.85 - (d / ribbon) * 0.35;
@@ -905,7 +985,9 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
         ];
         // the whole house, not its middle: a gate house stood with a corner in the river on 10 plates
         // of twelve worlds, and on the mountain's rock on 7
-        if (house.some((q) => pointInPolygon(q, boundary) || inMountains(mountains, q) || !inCanvas(q)) || overlapsWater(water, house)) continue;
+        // ...and not under the plate's own furniture: a road out to a town to the north runs under the
+        // name's tablet, and its gate houses stood there with it (9 on 3 plates of twelve worlds)
+        if (house.some((q) => pointInPolygon(q, boundary) || inMountains(mountains, q) || !inCanvas(q) || underFurniture(q)) || overlapsWater(water, house)) continue;
 
         suburbs.push(house);
       }
@@ -926,26 +1008,6 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
   // bridge: it used to be drawn straight over the river (11 plates of twelve worlds).
   water.bridges.push(...waterBridges(suburbRoads, water));
 
-  // ★ The plate's own furniture lies over the country: the town's name on its tablet across the top,
-  // the compass on its disc in one bottom corner, the scale on its tablet in the other. Nothing out
-  // there knew it — over twelve worlds some two hundred hamlets, farms, gallows, cemeteries, abbeys
-  // and mills lay under one of them. They keep clear now. The name's tablet is reserved for the
-  // longest the name may be drawn: its Latin spelling, and centred either on the plate or, in an
-  // exported plate that carries its key beside it, on plate and key together.
-  const titleHalf = Math.max(60, (ctx.name.length * 13) / 2 + 22);
-  const furniture: Polygon[] = [
-    [[bounds.w / 2 - titleHalf, 0], [bounds.w / 2 + PLATE_KEY_STRIP / 2 + titleHalf, 0], [bounds.w / 2 + PLATE_KEY_STRIP / 2 + titleHalf, 50], [bounds.w / 2 - titleHalf, 50]],
-    Array.from({ length: 16 }, (_, k) => [bounds.w - 32 + Math.cos((k / 16) * Math.PI * 2) * 27, bounds.h - 35 + Math.sin((k / 16) * Math.PI * 2) * 27] as Point),
-    [[10, bounds.h - 38], [122, bounds.h - 38], [122, bounds.h], [10, bounds.h]],
-  ];
-  const furnitureBoxes = furniture.map(bbox);
-  const underFurniture = (p: Point, pad = 0) => furniture.some((f, i) => {
-    const b = furnitureBoxes[i];   // (nowhere near its box: neither under it nor within pad of it)
-    if (p[0] < b.minX - pad || p[0] > b.maxX + pad || p[1] < b.minY - pad || p[1] > b.maxY + pad) return false;
-    if (pointInPolygon(p, f)) return true;
-    if (pad > 0) for (let i = 0; i < f.length; i++) if (pointSegDist(p, f[i], f[(i + 1) % f.length]) < pad) return true;
-    return false;
-  });
 
   // ★ Everything drawn out in the country stands on ground of its own. Each piece was placed by its
   // middle alone — kept off the town, the water and the other pieces' middles — so its drawing lay
@@ -1162,16 +1224,23 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
       .map((r) => { let len = 0; for (let i = 0; i < r.length - 1; i++) len += Math.hypot(r[i + 1][0] - r[i][0], r[i + 1][1] - r[i][1]); return { r, len }; })
       .sort((a, b) => b.len - a.len);
     const wantB = ctx.size >= 4 ? 2 : 1;
+    const fronted: Point[] = [];
     for (const { r } of ranked) {
       if (barbicans.length >= wantB) break;
       if (r.length < 2) continue;
       const gate = r[0];
+      // one to a gate: two of the world's roads may leave by one gate (see wallFromDefenses)
+      if (fronted.some((g) => g[0] === gate[0] && g[1] === gate[1])) continue;
       const dx = r[1][0] - gate[0], dy = r[1][1] - gate[1], L = Math.hypot(dx, dy) || 1;
       const ux = dx / L, uy = dy / L, nx = -uy, ny = ux;
       const front: Point = [gate[0] + ux * 12, gate[1] + uy * 12];
       if (pointInPolygon(front, boundary) || inWater(water, front) || inMountains(mountains, front)) continue;
       const t1: Point = [gate[0] + ux * 11 + nx * 4, gate[1] + uy * 11 + ny * 4];
       const t2: Point = [gate[0] + ux * 11 - nx * 4, gate[1] + uy * 11 - ny * 4];
+      // ...and it stands astride its own road only: where another road forks from its gate, a tower
+      // stood on that one (11:27)
+      if (suburbRoads.some((o) => o !== r && [t1, t2].some((t) => nearLine(disc(t, 3), o, 1)))) continue;
+      fronted.push(gate);
       const wallA: Polyline = [[gate[0] + nx * 3, gate[1] + ny * 3], t1];
       const wallB: Polyline = [[gate[0] - nx * 3, gate[1] - ny * 3], t2];
       barbicans.push({ at: front, towers: [t1, t2], walls: [wallA, wallB] });

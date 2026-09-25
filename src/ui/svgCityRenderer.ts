@@ -181,6 +181,11 @@ export interface CityRenderOpts {
    * drawn past the right edge of the shrunken box, and the strip keeps only the compass's width.
    */
   keyOutside?: boolean;
+  /**
+   * The (Latin) name of a town by its id, for the gates: each is named for the towns its road leads
+   * to (the world's roads, worldRoads.ts). Without it a gate is just a gate.
+   */
+  townName?: (id: number) => string | undefined;
 }
 
 export function renderCity(layout: CityLayout, lang: Lang = "en", opts: CityRenderOpts = {}): SVGSVGElement {
@@ -674,7 +679,17 @@ export function renderCity(layout: CityLayout, lang: Lang = "en", opts: CityRend
     for (const t of layout.wall.towers) tg.appendChild(svgEl("circle", { class: "tower", cx: t[0], cy: t[1], r: 2.6, fill: towerFill, stroke: towerStroke, "stroke-width": 0.8 }));
     root.appendChild(tg);
     const gg = svgEl("g", { class: "gates" });
-    for (const ga of layout.wall.gates) gg.appendChild(svgEl("rect", { class: "gate", x: ga[0] - 3, y: ga[1] - 3, width: 6, height: 6, rx: 1, fill: gateFill, stroke: gateStroke, "stroke-width": 1 }));
+    // ★ A gate is named for where its road goes, as the Porta Romana was the gate of the road to Rome;
+    // a gate of the town's own lanes is a gate
+    const gateTitle = (i: number): string => {
+      const names = (layout.wall!.gateRoads?.[i] ?? []).flatMap((r) => r.to)
+        .map((id) => opts.townName?.(id)).filter((n): n is string => !!n).map((n) => properName(lang, n));
+      if (!names.length) return fn("gate");
+      const towns = lang === "ko" ? names.join("·")
+        : names.length === 1 ? names[0] : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+      return t(lang, "gateTo").replace("{towns}", towns);
+    };
+    layout.wall.gates.forEach((ga, i) => gg.appendChild(named(svgEl("rect", { class: "gate", x: ga[0] - 3, y: ga[1] - 3, width: 6, height: 6, rx: 1, fill: gateFill, stroke: gateStroke, "stroke-width": 1 }), gateTitle(i))));
     root.appendChild(gg);
   }
   if (castleG) root.appendChild(castleG);
