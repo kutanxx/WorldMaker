@@ -8,6 +8,7 @@ import type { Polygon } from "../engine/geometry";
 import type { CityMarker } from "../types/world";
 import { generateWorld } from "../engine/world";
 import { DEFAULT_PARAMS } from "../types/world";
+import { featureName, WARD_NAME } from "./i18n";
 
 // the renderer anchors a stilt at the building's vertex-mean; replicate it so the test can
 // predict exactly which buildings sit over water.
@@ -387,6 +388,63 @@ describe("the town plan's key names its marks", () => {
     }
   });
 
+  // ...the castle and the country's marks too. The key named none of the country — the abbey, the
+  // gallows, the mills, the hamlets, the fields — so a reader hovered over each or guessed.
+  it("names every mark the plate draws, the castle's and the country's too, and only those", () => {
+    let castles = 0;
+    for (const seed of [1, 2, 3]) {
+      const { world } = generateWorld({ ...DEFAULT_PARAMS, seed });
+      for (const c of world.cities) {
+        const L = generateCityLayout(cityContext(c), seed);
+        const rows = symbols(renderCity(L, "en"));
+        const cs = L.countryside, terrace = cs.vocabulary.field === "terrace";
+        const has: [string, boolean][] = [
+          ["Barbican", L.barbicans.length > 0], ["Market cross", !!L.marketCross], ["Well", !!L.well], ["Harbour", !!L.harbor],
+          ["Terraced field", terrace && cs.fields.length > 0],
+          ["Field", !terrace && cs.fields.some((f) => f.state !== "fallow")], ["Fallow field", !terrace && cs.fields.some((f) => f.state === "fallow")],
+          ["Pasture", cs.pastures.length > 0], ["Orchard", cs.orchards.length > 0], ["Garden", cs.gardens.length > 0],
+          ["Hamlet", cs.villages.length > 0], ["Farmstead", cs.farmsteads.some((f) => f.kind !== "caravanserai")],
+          ["Caravanserai", cs.farmsteads.some((f) => f.kind === "caravanserai")],
+          ["Windmill", L.outworks.some((o) => o.type === "windmill")], ["Watermill", L.outworks.some((o) => o.type === "watermill")],
+          ["Inn", L.inns.length > 0], ["Abbey", !!L.abbey], ["Cemetery", !!L.cemetery], ["Gallows", !!L.gallows],
+          ["Leper house", !!L.leperHouse], ["Fairground", !!L.fairground],
+          ["Tannery", L.riversideTrades.some((t) => t.kind === "tanner")], ["Dyer's yard", L.riversideTrades.some((t) => t.kind === "dyer")],
+        ];
+        for (const [name, present] of has) expect(rows.has(name), `${name} in the key of ${c.name} (seed ${seed})`).toBe(present);
+        // the castle's own row, its district's colour, carries its keep
+        if (L.castle) {
+          castles++;
+          expect(rows.get("Castle")?.querySelector(".legend-symbol polygon, .legend-symbol rect"), `the keep in the key of ${c.name}`).toBeTruthy();
+        }
+      }
+    }
+    expect(castles).toBeGreaterThan(5);
+  });
+
+  it("draws the country's marks in the plate's own colours", () => {
+    const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });
+    let checked = 0;
+    for (const c of world.cities) {
+      const L = generateCityLayout(cityContext(c), 1);
+      const svg = renderCity(L, "en");
+      const rows = symbols(svg);
+      const pairs: [string, string, string, string][] = [
+        ["Abbey", ".cloister", "rect", "fill"], ["Cemetery", ".churchyard", "rect", "fill"], ["Gallows", ".gallows", "path", "stroke"],
+        ["Windmill", ".outwork-sails", "path", "stroke"], ["Hamlet", ".village-green", "ellipse, polygon", "fill"],
+        ["Fairground", ".fair-stall", "rect, polygon", "fill"], ["Inn", ".inn", "rect", "fill"], ["Pasture", ".pasture", "rect", "stroke"],
+        ["Leper house", ".leper-cross", "path", "stroke"], ["Castle", ".castle-keep", "polygon, rect", "fill"],
+      ];
+      for (const [name, plateSel, keySel, attr] of pairs) {
+        const drawn = svg.querySelector(plateSel);
+        if (!drawn || !rows.has(name)) continue;
+        const inKey = [...rows.get(name)!.querySelectorAll(`.legend-symbol ${keySel.split(", ").join(", .legend-symbol ")}`)].map((e) => e.getAttribute(attr));
+        expect(inKey, `${name} in the key of ${c.name}`).toContain(drawn.getAttribute(attr));
+        checked++;
+      }
+    }
+    expect(checked).toBeGreaterThan(20);
+  });
+
   it("names only what the plate has, and in the reader's language", () => {
     const plain = generateCityLayout(cityContext({ ...marker, coastal: false, elevation: 0.4, biome: GRASSLAND }), 7);
     const rows = symbols(renderCity(plain, "en"));
@@ -395,6 +453,8 @@ describe("the town plan's key names its marks", () => {
     expect(rows.has("Bridge")).toBe(plain.water.bridges.length > 0 || plain.gateBridges.length > 0);
     const ko = symbols(renderCity(summitTown(), "ko"));
     for (const name of ["성벽", "성문", "본당 교회", "산", "비탈"]) expect(ko.has(name), name).toBe(true);
+    // a fair outside the walls is not the market quarter inside them: the two had one name
+    expect(featureName("ko", "fairground")).not.toBe(WARD_NAME.ko.market);
   });
 });
 

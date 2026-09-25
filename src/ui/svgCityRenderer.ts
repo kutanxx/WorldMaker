@@ -740,8 +740,8 @@ export function renderCity(layout: CityLayout, lang: Lang = "en", opts: CityRend
   // so the reader can tell the colour-coded quarters apart
   const order: WardType[] = ["plaza", "market", "guildhall", "cathedral", "castle", "merchant", "patriciate", "craftsmen", "slum", "military", "park"];
   const present = order.filter((wt) => TINT[wt] && layout.wards.some((wd) => wd.type === wt));
-  const items: [string, string][] = [
-    ...present.map((wt) => [TINT[wt]!, WARD_NAME[lang][wt] ?? ""] as [string, string]),
+  const items: [string, string, WardType?][] = [
+    ...present.map((wt) => [TINT[wt]!, WARD_NAME[lang][wt] ?? "", wt] as [string, string, WardType]),
     ["#9fc1d6", t(lang, "water")], ["#d8b65e", t(lang, "mainRoad")],
   ];
   // ★ ...and the plate's own marks, drawn as the plate draws them, each where the plate has one: the
@@ -771,11 +771,28 @@ export function renderCity(layout: CityLayout, lang: Lang = "en", opts: CityRend
       return g;
     }, fn("gate")]);
   }
-  if (layout.parishChurches.length) marks.push([(x, y) => {
+  const mark = (label: string, draw: (g: SVGElement, x: number, y: number) => void) => marks.push([(x, y) => {
     const g = svgEl("g", { class: "legend-symbol" });
-    g.appendChild(svgEl("path", { d: `M${x + 4},${y - 5}v6 M${x + 2},${y - 3}h4`, stroke: "#7a6a86", "stroke-width": 1.2, fill: "none", "stroke-linecap": "round" }));
+    draw(g, x, y);
     return g;
-  }, fn("parishChurch")]);
+  }, label]);
+  const el = (g: SVGElement, tag: string, attrs: Record<string, string | number>) => g.appendChild(svgEl(tag, attrs));
+  if (layout.barbicans.length) mark(fn("barbican"), (g, x, y) => {
+    for (const bx of [x + 1.5, x + 6.5]) {
+      el(g, "line", { x1: bx, y1: y - 5, x2: bx, y2: y, stroke: "#43392d", "stroke-width": 1.8, "stroke-linecap": "round" });
+      el(g, "circle", { cx: bx, cy: y, r: 1.5, fill: "#8a7858", stroke: "#43392d", "stroke-width": 0.6 });
+    }
+  });
+  if (layout.parishChurches.length) mark(fn("parishChurch"), (g, x, y) => {
+    el(g, "path", { d: `M${x + 4},${y - 5}v6 M${x + 2},${y - 3}h4`, stroke: "#7a6a86", "stroke-width": 1.2, fill: "none", "stroke-linecap": "round" });
+  });
+  if (layout.marketCross) mark(fn("marketCross"), (g, x, y) => {
+    el(g, "rect", { x: x + 2.5, y: y - 1, width: 3, height: 3, fill: "#d8d2c4", stroke: "#7a6f56", "stroke-width": 0.4 });
+    el(g, "path", { d: `M${x + 4},${y + 0.5}v-5 M${x + 2.3},${y - 3}h3.4`, stroke: "#5a4a34", "stroke-width": 0.9, fill: "none", "stroke-linecap": "round" });
+  });
+  if (layout.well) mark(fn("well"), (g, x, y) => {
+    el(g, "circle", { cx: x + 4, cy: y - 2, r: 2, fill: "#b9c4cc", stroke: "#5a5346", "stroke-width": 0.5 });
+  });
   // a crossing gets its own line in the key, but only where the plate actually has one
   if (layout.water.bridges.length || layout.gateBridges.length) marks.push([(x, y) => {
     const g = svgEl("g", { class: "legend-symbol" });
@@ -783,6 +800,84 @@ export function renderCity(layout: CityLayout, lang: Lang = "en", opts: CityRend
     g.appendChild(svgEl("line", { x1: x - 1, y1: y - 2, x2: x + 9, y2: y - 2, stroke: BRIDGE_DECK, "stroke-width": 2.4, "stroke-linecap": "butt" }));
     return g;
   }, t(lang, "bridge")]);
+  if (layout.harbor) mark(fn("harbour"), (g, x, y) => {
+    el(g, "polyline", { points: `${x},${y + 1} ${x + 4.5},${y + 1} ${x + 7},${y - 3.5}`, fill: "none", stroke: "#9a8f7a", "stroke-width": 2, "stroke-linecap": "round", "stroke-linejoin": "round" });
+    el(g, "line", { x1: x + 2, y1: y + 1, x2: x + 2, y2: y - 3, stroke: "#8a6a44", "stroke-width": 1.1, "stroke-linecap": "round" });
+    el(g, "circle", { cx: x + 7, cy: y - 3.5, r: 1.3, fill: "#efe7d2", stroke: "#7a2f2f", "stroke-width": 0.6 });
+  });
+  // ...and the country's, in the order a reader meets them walking out: the ground that is worked, who
+  // works it, what grinds and lodges, and the houses of the dead, the condemned and the sick
+  const furrowed = (g: SVGElement, x: number, y: number, fill: string, stroke: string, lines: string, width: number) => {
+    el(g, "rect", { x, y: y - 6, width: 8, height: 8, fill, stroke, "stroke-width": 0.4 });
+    for (const dy of [-4.3, -2, 0.3]) el(g, "line", { x1: x + 0.6, y1: y + dy, x2: x + 7.4, y2: y + dy, stroke: lines, "stroke-width": width });
+  };
+  if (cs.vocabulary.field === "terrace") {
+    if (cs.fields.length) mark(fn("terrace"), (g, x, y) => furrowed(g, x, y, cs.dry ? "#e0cf9a" : "#d9cc9a", "#b3a26e", "#9c8757", 0.75));
+  } else {
+    if (cs.fields.some((f) => f.state !== "fallow")) mark(fn("field"), (g, x, y) => furrowed(g, x, y, cs.dry ? "#e0cf9a" : "#d9cc9a", "#b3a26e", cs.dry ? "#c9b47a" : "#c4b581", 0.35));
+    if (cs.fields.some((f) => f.state === "fallow")) mark(fn("fallowField"), (g, x, y) => furrowed(g, x, y, "#c8cba0", "#b3a26e", "#b3b585", 0.35));
+  }
+  if (cs.pastures.length) mark(fn("pasture"), (g, x, y) => {
+    el(g, "rect", { x, y: y - 6, width: 8, height: 8, fill: "#ccd6a8", "fill-opacity": 0.7, stroke: "#8a6a44", "stroke-width": 0.5, "stroke-dasharray": "1.6 1.1" });
+    for (const [ax, ay] of [[2.5, -3.5], [5.5, -1]]) el(g, "circle", { cx: x + ax, cy: y + ay, r: 0.8, fill: "#f4f1e4", stroke: "#5c4a33", "stroke-width": 0.25 });
+  });
+  if (cs.orchards.length) mark(fn("orchard"), (g, x, y) => {
+    el(g, "rect", { x, y: y - 6, width: 8, height: 8, fill: "#cfd8ac", "fill-opacity": 0.5, stroke: "#8a8a5f", "stroke-width": 0.3 });
+    for (const [tx, ty] of [[2.3, -3.8], [5.7, -3.8], [4, -0.4]] as [number, number][]) g.appendChild(treeGlyph([x + tx, y + ty], cs.vocabulary.tree === "palm" ? "palm" : "round", "legend-tree", 1.2));
+  });
+  if (cs.gardens.length) mark(fn("garden"), (g, x, y) => {
+    el(g, "rect", { x, y: y - 6, width: 8, height: 8, fill: "#c9d0a0", stroke: "#8a8a5f", "stroke-width": 0.3 });
+  });
+  if (cs.villages.length) mark(fn("hamlet"), (g, x, y) => {
+    el(g, "ellipse", { cx: x + 4, cy: y - 2, rx: 2.2, ry: 1.6, fill: "#bcd0a0", stroke: "#8a8a5f", "stroke-width": 0.3 });
+    for (const [hx, hy] of [[0.2, -5.6], [5.8, -5.6], [0.2, 0.4], [5.8, 0.4]]) el(g, "rect", { x: x + hx, y: y + hy, width: 2, height: 1.6, fill: "#e0d6c0", stroke: "#9a8a70", "stroke-width": 0.3 });
+  });
+  if (cs.farmsteads.some((f) => f.kind !== "caravanserai")) mark(fn("farmstead"), (g, x, y) => {
+    el(g, "rect", { x: x + 0.5, y: y - 5, width: 4.5, height: 3, fill: "#e0d6c0", stroke: "#9a8a70", "stroke-width": 0.4 });
+    el(g, "rect", { x: x + 3.5, y: y - 1.2, width: 4, height: 2.6, fill: "#7a5a3a", stroke: "#4d3620", "stroke-width": 0.4 });
+  });
+  if (cs.farmsteads.some((f) => f.kind === "caravanserai")) mark(fn("caravanserai"), (g, x, y) => {
+    el(g, "rect", { x: x + 0.5, y: y - 5.5, width: 7, height: 7, fill: "#d8c9a8", stroke: "#8a7350", "stroke-width": 1 });
+    el(g, "rect", { x: x + 2.3, y: y - 3.7, width: 3.4, height: 3.4, fill: "#eadcb6", stroke: "#a8926a", "stroke-width": 0.4 });
+  });
+  if (layout.outworks.some((o) => o.type === "windmill")) mark(fn("windmill"), (g, x, y) => {
+    el(g, "circle", { cx: x + 4, cy: y - 2, r: 1.2, fill: "#8a7858" });
+    el(g, "path", { d: `M${x + 1.5},${y - 4.5} L${x + 6.5},${y + 0.5} M${x + 6.5},${y - 4.5} L${x + 1.5},${y + 0.5}`, stroke: "#6b5a44", "stroke-width": 0.8, fill: "none" });
+  });
+  if (layout.outworks.some((o) => o.type === "watermill")) mark(fn("watermill"), (g, x, y) => {
+    el(g, "line", { x1: x, y1: y - 2, x2: x + 3, y2: y - 2, stroke: "#9fc1d6", "stroke-width": 1.4, "stroke-linecap": "round" });
+    el(g, "rect", { x: x + 2, y: y - 4.5, width: 3.6, height: 3.2, fill: "#c9a86a", stroke: "#8a6a44", "stroke-width": 0.5 });
+    el(g, "circle", { cx: x + 6.4, cy: y - 0.4, r: 1.5, fill: "none", stroke: "#6b5a44", "stroke-width": 0.7 });
+  });
+  if (layout.inns.length) mark(fn("inn"), (g, x, y) => {
+    el(g, "rect", { x: x + 0.5, y: y - 4.4, width: 5, height: 4, fill: "#d8c49a", stroke: "#7a5a3a", "stroke-width": 0.5 });
+    el(g, "path", { d: `M${x + 5.5},${y - 4}h1.8 M${x + 7.3},${y - 4}v1.8`, stroke: "#5a4a34", "stroke-width": 0.5, fill: "none" });
+    el(g, "rect", { x: x + 6.5, y: y - 2.2, width: 1.5, height: 1.3, fill: "#b98a4a", stroke: "#5a4a34", "stroke-width": 0.3 });
+  });
+  if (layout.abbey) mark(fn("abbey"), (g, x, y) => {
+    el(g, "rect", { x: x + 0.5, y: y - 5.5, width: 7, height: 7, rx: 0.4, fill: "#d8d2c4", stroke: "#8a7f6a", "stroke-width": 0.6 });
+    el(g, "rect", { x: x + 2.5, y: y - 3.5, width: 3, height: 3, fill: "#bcd0a0", stroke: "#8a7f6a", "stroke-width": 0.3 });
+  });
+  if (layout.cemetery) mark(fn("cemetery"), (g, x, y) => {
+    el(g, "rect", { x: x + 0.5, y: y - 5.8, width: 7, height: 7.6, rx: 0.8, fill: "#e4dfcd", stroke: "#9a8a70", "stroke-width": 0.4 });
+    for (const gx of [1.8, 3.5, 5.2]) el(g, "rect", { x: x + gx, y: y - 3.2, width: 1.1, height: 2, rx: 0.5, fill: "#cfc8b8", stroke: "#7a715f", "stroke-width": 0.3 });
+  });
+  if (layout.gallows) mark(fn("gallows"), (g, x, y) => {
+    el(g, "path", { d: `M${x + 2},${y + 1.5}L${x + 2},${y - 5}L${x + 6},${y - 5}M${x + 6},${y - 5}L${x + 6},${y - 2.5}`, fill: "none", stroke: "#3c2f1c", "stroke-width": 0.9, "stroke-linecap": "round" });
+  });
+  if (layout.leperHouse) mark(fn("leperHouse"), (g, x, y) => {
+    el(g, "rect", { x: x + 0.3, y: y - 5.4, width: 7.4, height: 6.8, fill: "none", stroke: "#8a7f6a", "stroke-width": 0.4, "stroke-dasharray": "1.6 1.2" });
+    el(g, "rect", { x: x + 2.5, y: y - 3, width: 3, height: 2.4, fill: "#d8d2c4", stroke: "#7a6f56", "stroke-width": 0.4 });
+    el(g, "path", { d: `M${x + 4},${y - 3}v-1.8 M${x + 3.2},${y - 4}h1.6`, stroke: "#7a2f2f", "stroke-width": 0.5, fill: "none", "stroke-linecap": "round" });
+  });
+  if (layout.fairground) mark(fn("fairground"), (g, x, y) => {
+    el(g, "ellipse", { cx: x + 4, cy: y - 2, rx: 3.9, ry: 3.2, fill: "#c4d2a2", "fill-opacity": 0.6, stroke: "#8a8a5f", "stroke-width": 0.3 });
+    for (const [sx, sy] of [[1.6, -3.6], [4.8, -3.6], [3.2, -0.8]]) el(g, "rect", { x: x + sx, y: y + sy, width: 1.6, height: 1.2, fill: "#d8b96a", stroke: "#8a6a3a", "stroke-width": 0.4 });
+  });
+  for (const kind of ["tanner", "dyer"] as const) if (layout.riversideTrades.some((tr) => tr.kind === kind)) mark(fn(kind), (g, x, y) => {
+    el(g, "rect", { x: x + 2, y: y - 4.4, width: 4, height: 3.2, fill: "#6b5a44", stroke: "#3c2f1c", "stroke-width": 0.4 });
+    if (kind === "dyer") el(g, "path", { d: `M${x + 2},${y + 0.6}h4 M${x + 3},${y}v1.2 M${x + 5},${y}v1.2`, stroke: "#7a5a3a", "stroke-width": 0.4, fill: "none" });
+  });
   if (layout.mountains.length) {
     const steep = layout.mountains.some((m) => m.steep);
     marks.push([(x, y) => {
@@ -810,10 +905,17 @@ export function renderCity(layout: CityLayout, lang: Lang = "en", opts: CityRend
     row.appendChild(txt);
     legend.appendChild(row);
   };
-  items.forEach(([color, label], i) => {
+  items.forEach(([color, label, ward], i) => {
     const y = y0 + i * CITY_LEGEND_ROW;
     const row = legendRow(CITY_LEGEND_ROW);
     row.appendChild(svgEl("rect", { class: "legend-item", x: x0, y: y - 6, width: 8, height: 8, fill: color, stroke: INK, "stroke-width": 0.6 }));
+    // the castle's district, and its keep on it: the colour alone said nothing of the donjon drawn there
+    if (ward === "castle" && layout.castle) {
+      const g = svgEl("g", { class: "legend-symbol" });
+      g.appendChild(svgEl("polygon", { points: `${x0 + 2.2},${y - 3.8} ${x0 + 5.8},${y - 3.8} ${x0 + 5.8},${y - 0.2} ${x0 + 2.2},${y - 0.2}`, fill: "#6e7686", stroke: "#2c3140", "stroke-width": 0.6 }));
+      for (const [kx, ky] of [[2.2, -3.8], [5.8, -3.8], [5.8, -0.2], [2.2, -0.2]]) g.appendChild(svgEl("circle", { cx: x0 + kx, cy: y + ky, r: 0.8, fill: "#7c8494", stroke: "#2c3140", "stroke-width": 0.3 }));
+      row.appendChild(g);
+    }
     labelled(row, y, label);
   });
   marks.forEach(([draw, label], i) => {

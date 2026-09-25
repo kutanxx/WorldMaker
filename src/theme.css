@@ -782,7 +782,17 @@ svg.city .wall-seg, svg.city .wall-seg-inner, svg.city .tower, svg.city .gate { 
     grid-template-columns: min(calc(100% - 222px), calc(100vh - var(--plate-chrome, 150px))) 210px;
   }
   .stage.plate > .map-frame { grid-column: 1; }
-  .stage.plate > .plate-side { grid-column: 2; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+  /* ⚠ `height: 0; min-height: 100%`, as .map-side has it: the drawing sets the row's height and the
+     column fills it, never more. The key carries the plate's marks now (the country's, the castle's),
+     and a busy capital's ran to 33 rows — the column 106px below the plate at 1440x900, the page
+     scrolling 126px. The facts keep their height; the key takes what is left and scrolls in it. */
+  .stage.plate > .plate-side {
+    grid-column: 2; display: flex; flex-direction: column; gap: 12px; min-width: 0;
+    height: 0; min-height: 100%; box-sizing: border-box;
+  }
+  .plate-side > .city-facts { flex: 0 0 auto; }
+  .plate-side > .legend-fold { flex: 0 1 auto; min-height: 0; display: flex; flex-direction: column; }
+  .plate-side > .legend-fold > .fold-body { min-height: 0; overflow-y: auto; }
   /* and standing beside the drawing each becomes a panel, the way the world map's column is: every
      other box on this page is parchment inside a 1px #cbb784 edge */
   .plate-side > .legend-fold, .plate-side > .city-facts {

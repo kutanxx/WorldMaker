@@ -121,6 +121,21 @@ describe("the plate's key stands beside the drawing where there is room", () => 
       .toMatch(/\.plate-side\s*>\s*\.city-facts\s*\{[^}]*grid-template-columns:\s*max-content/);
   });
 
+  // ★ ...and the column is no taller than the drawing. The key grew the plate's marks (the country's,
+  // the castle's) and a busy capital's ran to 33 rows: at 1440x900 the column ran 106px below the plate
+  // and the page scrolled 126px. The world map's column already keeps itself out of the row's height
+  // (`height: 0; min-height: 100%`, see .map-side) and scrolls its list inside what is left; the
+  // plate's does the same, its key scrolling under the facts.
+  it("keeps the column within the drawing's height, the key scrolling inside it", () => {
+    const block = wideBlock();
+    const rule = (sel: RegExp) => { const m = block.match(sel); return m ? m[0] : ""; };
+    const side = rule(/\.stage\.plate\s*>\s*\.plate-side\s*\{[^}]*\}/);
+    expect(side, "the column sets the row's height").toMatch(/height:\s*0/);
+    expect(side, "...and fills the row the drawing set").toMatch(/min-height:\s*100%/);
+    expect(rule(/\.plate-side\s*>\s*\.legend-fold\s*\{[^}]*flex:[^}]*\}/), "the key gives way to the facts").toMatch(/min-height:\s*0/);
+    expect(rule(/\.plate-side\s*>\s*\.legend-fold[^{]*\.fold-body\s*\{[^}]*\}/), "the key scrolls inside its panel").toMatch(/overflow-y:\s*auto/);
+  });
+
   // ★ The number in the media query is not a taste. The plate is capped by the room its chrome
   // leaves it — `100vh - RESERVE`, the plate being square — and by the band it sits in, so a side column costs
   // the drawing NOTHING exactly while `band - (column + gap) >= that cap`. Anything else is width

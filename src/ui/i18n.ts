@@ -27,7 +27,7 @@ export const FEATURE_NAME = {
   },
   ko: {
     abbey: "수도원", cemetery: "공동묘지", gallows: "교수대", leperHouse: "나병자 수용소",
-    fairground: "장터", inn: "여관", marketCross: "시장 십자가", well: "우물",
+    fairground: "장마당", inn: "여관", marketCross: "시장 십자가", well: "우물",
     barbican: "외성", parishChurch: "본당 교회", windmill: "풍차",
     watermill: "물레방아", farmstead: "농장", hamlet: "마을", suburb: "성밖 민가",
     field: "밭", fallowField: "휴경지", terrace: "계단식 밭", pasture: "목초지", orchard: "과수원",
