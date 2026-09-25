@@ -123,6 +123,14 @@ describe("wallFromDefenses with the world's roads", () => {
     expect(wall.gateRoads![0]).toEqual(expect.arrayContaining(roads));
   });
 
+  // ⚠ Every walled town has a gate (see placeGates): even one whose ways out all face away from its roads.
+  it("keeps a gate when every way out faces away from the town's roads", () => {
+    const east: Polyline[] = [spokes[0], spokes[1], spokes[11]];          // streets out of the east side only
+    const roads = [{ bearing: Math.PI, to: [1] }];                        // ...and the one road leaves west
+    const wall = wallFromDefenses(ring, noWater, noMountains, noRoads, 2, () => true, { from: centre, roads, streets: east });
+    expect(wall.gates.length).toBe(1);
+  });
+
   it("leaves a town the world gives no road exactly as it was", () => {
     const streets: Polyline[] = [[[150, 150], [150, 213]], [[150, 150], [87, 150]]];
     const plain = wallFromDefenses(ring, noWater, noMountains, streets, 3);

@@ -182,6 +182,14 @@ function placeGates(
     if (best < 0) break;
     chosen.push(best); served.push([]); out.push(gates[best]);
   }
+  // ⚠ ...and never none: where every way out stands more than AIM_REACH from every road and no street
+  // end is left to fill with — the town's wall faces away from where its roads go — it keeps the way
+  // out nearest a road, as a town with no street near its wall keeps one (above).
+  if (!out.length && cands.length) {
+    let best = 0, bd = Infinity;
+    cands.forEach((c, ci) => aims.roads.forEach((r) => { const d = across(dir(c.p), r.bearing); if (d < bd) { bd = d; best = ci; } }));
+    out.push(cands[best].p); served.push(aimsWithin(cands[best].p, aims));
+  }
   return { gates: out, served };
 }
 
