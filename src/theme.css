@@ -388,6 +388,13 @@ svg.world.lang-en .nation-label { font-variant: small-caps; letter-spacing: 0.10
 .view-toggle button:not(:first-child) { border-left: none; }
 .culture-label { font-family: 'Cinzel', serif; font-weight: 600; }
 .view-toggle button.active { background: #d8b25a; font-weight: 600; }
+/* The ink toggle stands beside the views and says it is on the way they do: it is how a view is drawn,
+   pressed or not. */
+.ink-toggle.active { background: #d8b25a; font-weight: 600; }
+/* ...and on an ink map a pointer's tint is ink too, not the colour map's red */
+.world.ink .marker-hit:hover { fill: rgba(27, 22, 18, 0.10); }
+.world.ink .marker-hit:active { fill: rgba(27, 22, 18, 0.20); }
+.world.ink .city-label:hover { fill: #555; }
 
 /* `position: relative` is the language toggle's anchor — see `.landing-lang` below. */
 .landing-hero { position: relative; text-align: center; padding: 8px 16px 0; }

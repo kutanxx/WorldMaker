@@ -238,6 +238,48 @@ describe("export follows the screen", () => {
     return created.length ? { name: names[names.length - 1], text: await blobText(created[created.length - 1]) } : null;
   }
 
+  // The map for print: one ink on white paper (inkStyle.ts). The toggle redraws the map in ink, the
+  // year's realms stay in ink as the scrubber runs, and the file is the map on the screen.
+  // (a full world drawn in ink four times over: it outruns the 5s budget when the whole suite is running,
+  // and a test that dies midway leaves its page in the document for the next one to trip on)
+  it("prints the map in ink, through the scrubber and into the file", async () => {
+    const root = document.createElement("div");
+    document.body.appendChild(root);
+    try {
+      createApp(root, { ...DEFAULT_PARAMS, seed: 1 });
+      await new Promise((r) => setTimeout(r, 0));
+      const ink = root.querySelector(".ink-toggle") as HTMLButtonElement;
+      expect(ink, "no way to print the map in ink").not.toBeNull();
+      expect(ink.getAttribute("aria-pressed")).toBe("false");
+      ink.click();
+      await new Promise((r) => setTimeout(r, 0));
+      expect(root.querySelector(".ink-toggle")!.getAttribute("aria-pressed")).toBe("true");
+      const map = () => root.querySelector("svg.world")!;
+      expect(map().classList.contains("ink")).toBe(true);
+      expect(map().querySelectorAll(".ink-marks .ink-peak").length).toBeGreaterThan(0);
+      // the realms' view, scrubbed: the year's layer arrives in colour and must go into ink with it
+      const political = [...root.querySelectorAll(".view-toggle button")].find((b) => /Political|정치/.test(b.textContent ?? "")) as HTMLButtonElement;
+      political.click();
+      await new Promise((r) => setTimeout(r, 0));
+      const slider = root.querySelector(".timeline input[type=range]") as HTMLInputElement;
+      slider.value = String(Math.floor(Number(slider.max) / 2)); slider.dispatchEvent(new Event("input"));
+      expect(map().classList.contains("ink"), "the realms' view left ink").toBe(true);
+      const fills = [...map().querySelectorAll(".political-slot .territory")].map((t) => t.getAttribute("fill"));
+      expect(fills.length).toBeGreaterThan(0);
+      expect(new Set(fills), "a realm painted in colour").toEqual(new Set(["none"]));
+      expect(map().querySelectorAll(".political-slot .ink-border-halo").length).toBeGreaterThan(0);
+      const svgBtn = [...root.querySelectorAll("button")].find((b) => b.textContent === "SVG")!;
+      const file = await captureDownload(() => svgBtn.click());
+      expect(file!.text, "the file is not the ink map").toContain("ink-marks");
+      // ...and back
+      (root.querySelector(".ink-toggle") as HTMLButtonElement).click();
+      await new Promise((r) => setTimeout(r, 0));
+      expect(map().classList.contains("ink")).toBe(false);
+    } finally {
+      root.remove();
+    }
+  }, 20000);
+
   it("writes the city a reader is looking at, not the world behind it", async () => {
     const root = document.createElement("div");
     const app = createApp(root, small);

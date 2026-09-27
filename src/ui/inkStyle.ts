@@ -1,0 +1,250 @@
+// The map in one ink on white paper, for print.
+//
+// A novelist's map goes to a printer in black ink, and the colour map tells its kinds of ground apart by
+// colour alone — in one ink every one of them is the same white. The reader chose, from a preview drawn
+// on world 1, the illustrated way over plain line work: water lines round the coast, shaded peaks along
+// the ranges, hills, trees in the forests (broadleaf, conifer, palm), tufts on the marshes, dots on the
+// deserts; and white paper over cream, since a book's paper brings its own tint.
+//
+// It is drawn FROM the colour map: `renderWorld` draws the map as it always does and, for ink, hands it
+// here to be re-inked, so the two can never disagree about where anything is. The marks are placed by a
+// hash of their cell rather than a random stream: the same world is the same ink map, and drawing it
+// moves nothing in the world.
+import type { World } from "../types/world";
+import { biomeName, t, type Lang } from "./i18n";
+import { svgEl, legendPanel, legendRow, LEGEND_ROW, LEGEND_SWATCH, LEGEND_GAP, LEGEND_TEXT, LEGEND_TITLE_H, LEGEND_W_FIXED } from "./renderer";
+import { displayBiomes } from "./displayBiome";
+import { ALPINE, TAIGA, TEMPERATE_FOREST, TROPICAL, WETLAND, DESERT } from "../engine/biome";
+import { OCEAN } from "../engine/terrain";
+import { pointInPolygon, type Point } from "../engine/geometry";
+
+export const INK = "#1b1612";
+export const PAPER = "#ffffff";
+
+// The water lines round the coast — how far out each runs and how heavy it is, outermost first. Each is
+// lighter than the one inside it, and all of them lighter than the coast: the draughtsman's rule.
+const WATER_LINES: [number, number][] = [[11, 0.4], [7.5, 0.5], [4, 0.65]];
+const COAST_W = 1.5;
+// how many trees a forest's cell carries (a rain forest more), and a desert's dots
+const TREES = new Map<number, number>([[TEMPERATE_FOREST, 2], [TAIGA, 2], [TROPICAL, 3]]);
+const DUNE_DOTS = 3;
+// hills: ground this far below the mountains' line and up to it
+const HILL_BAND = 0.07;
+// A realm's border in ink: heavy and dashed, on a band of paper this much wider so it reads through the
+// trees it crosses.
+const BORDER_W = 1.6, BORDER_DASH = "6 2 1.5 2", HALO_EXTRA = 2.2;
+
+const f1 = (v: number) => v.toFixed(1);
+const hash = (i: number, k: number) => {
+  let h = (Math.imul(i + 1, 374761393) + Math.imul(k + 1, 668265263)) >>> 0;
+  h = Math.imul(h ^ (h >>> 13), 1274126177) >>> 0;
+  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+};
+
+type Kind = "peak" | "hill" | "broadleaf" | "conifer" | "palm" | "marsh" | "dune";
+
+// One mark, standing on (x, y) — the foot of a peak or a tree, the middle of a tuft or a dot.
+function mark(kind: Kind, x: number, y: number, w = 12): SVGElement {
+  const stroke = { stroke: INK, "stroke-linejoin": "round", "stroke-linecap": "round" };
+  if (kind === "peak") {
+    const ht = w * 0.78, g = svgEl("g", { class: "ink-peak" });
+    g.appendChild(svgEl("path", { d: `M${f1(x - w / 2)},${f1(y)}L${f1(x)},${f1(y - ht)}L${f1(x + w / 2)},${f1(y)}Z`, fill: PAPER }));
+    // the shadowed flank: solid ink, a narrow light edge left along the ridge (the Tolkien peak)
+    g.appendChild(svgEl("path", { d: `M${f1(x)},${f1(y - ht)}L${f1(x + w / 2)},${f1(y)}L${f1(x + w * 0.1)},${f1(y)}Z`, fill: INK }));
+    g.appendChild(svgEl("path", { d: `M${f1(x - w / 2)},${f1(y)}L${f1(x)},${f1(y - ht)}L${f1(x + w / 2)},${f1(y)}`, fill: "none", ...stroke, "stroke-width": 0.9 }));
+    return g;
+  }
+  if (kind === "hill") return svgEl("path", { class: "ink-hill", d: `M${f1(x - 4)},${f1(y)}Q${f1(x)},${f1(y - 4.2)} ${f1(x + 4)},${f1(y)}`, fill: PAPER, ...stroke, "stroke-width": 0.6 });
+  if (kind === "marsh") {
+    return svgEl("path", {
+      class: "ink-marsh", fill: "none", ...stroke, "stroke-width": 0.5,
+      d: `M${f1(x - 3)},${f1(y)}L${f1(x + 3)},${f1(y)}M${f1(x - 1.6)},${f1(y)}L${f1(x - 2.3)},${f1(y - 2)}M${f1(x)},${f1(y)}L${f1(x)},${f1(y - 2.8)}M${f1(x + 1.6)},${f1(y)}L${f1(x + 2.3)},${f1(y - 2)}`,
+    });
+  }
+  if (kind === "dune") return svgEl("circle", { class: "ink-dune", cx: f1(x), cy: f1(y), r: 0.45, fill: INK });
+  const g = svgEl("g", { class: `ink-tree ink-${kind}` });
+  if (kind === "conifer") {
+    g.appendChild(svgEl("path", { d: `M${f1(x)},${f1(y - 7.3)}L${f1(x - 2.4)},${f1(y - 1)}L${f1(x + 2.4)},${f1(y - 1)}Z`, fill: PAPER, ...stroke, "stroke-width": 0.5 }));
+  } else if (kind === "broadleaf") {
+    g.appendChild(svgEl("ellipse", { cx: f1(x), cy: f1(y - 4.1), rx: 2.4, ry: 3.1, fill: PAPER, ...stroke, "stroke-width": 0.5 }));
+  } else {
+    // a palm: a leaning trunk and its fronds
+    g.appendChild(svgEl("path", {
+      fill: "none", ...stroke, "stroke-width": 0.5,
+      d: `M${f1(x)},${f1(y)}Q${f1(x + 1.1)},${f1(y - 2.6)} ${f1(x + 0.6)},${f1(y - 5.4)}M${f1(x + 0.6)},${f1(y - 5.4)}L${f1(x - 2.2)},${f1(y - 4.4)}M${f1(x + 0.6)},${f1(y - 5.4)}L${f1(x - 1.6)},${f1(y - 6.9)}M${f1(x + 0.6)},${f1(y - 5.4)}L${f1(x + 0.8)},${f1(y - 7.6)}M${f1(x + 0.6)},${f1(y - 5.4)}L${f1(x + 3)},${f1(y - 6.6)}M${f1(x + 0.6)},${f1(y - 5.4)}L${f1(x + 3.3)},${f1(y - 4.2)}`,
+    }));
+    return g;
+  }
+  g.appendChild(svgEl("path", { d: `M${f1(x)},${f1(y - 1)}L${f1(x)},${f1(y)}`, ...stroke, "stroke-width": 0.5 }));
+  return g;
+}
+
+/**
+ * The ground's marks, back (north) to front: a peak on every mountain cell, sized by its height; a hill
+ * on open high ground under the mountains; trees on a forest's cells, a tuft on a marsh's, dots on a
+ * desert's. Each stands inside its own cell — a point off the cell's middle by a hash of the cell,
+ * drawn back toward the middle until it is inside — so none stands out over the sea.
+ */
+export function inkMarks(world: World): SVGGElement {
+  const g = world.grid;
+  const shown = displayBiomes(g, world.biome);
+  const hillFrom = world.params.mountainLevel - HILL_BAND;
+  const placed: { y: number; x: number; el: SVGElement }[] = [];
+  for (let i = 0; i < g.count; i++) {
+    if (world.terrain[i] === OCEAN) continue;
+    const poly = g.polygons[i] as Point[];
+    const cx = g.points[i * 2], cy = g.points[i * 2 + 1];
+    // (to the tenth of a unit it is drawn at, and tested there: a point inside that rounds outside is not)
+    const at = (k: number, spread: number): Point => {
+      let dx = (hash(i, k) - 0.5) * spread, dy = (hash(i, k + 97) - 0.5) * spread;
+      for (let n = 0; n < 5; n++, dx /= 2, dy /= 2) {
+        const p: Point = [Number(f1(cx + dx)), Number(f1(cy + dy))];
+        if (pointInPolygon(p, poly)) return p;
+      }
+      return [cx, cy];
+    };
+    const put = (kind: Kind, [x, y]: Point, w?: number) => {
+      const el = mark(kind, x, y, w);
+      el.setAttribute("data-cell", String(i));
+      el.setAttribute("data-x", String(x)); el.setAttribute("data-y", String(y));
+      placed.push({ y, x, el });
+    };
+    const b = shown[i], h = world.heights[i];
+    const trees = TREES.get(b);
+    if (b === ALPINE) put("peak", at(1, 4), 10 + 5 * Math.min(1, Math.max(0, (h - world.params.mountainLevel) / 0.4)));
+    else if (trees) for (let k = 0; k < trees; k++) put(b === TAIGA ? "conifer" : b === TROPICAL ? "palm" : "broadleaf", at(10 + k, 10));
+    else if (b === WETLAND) put("marsh", at(30, 8));
+    else if (b === DESERT) for (let k = 0; k < DUNE_DOTS; k++) put("dune", at(50 + k, 10));
+    else if (h >= hillFrom) put("hill", at(2, 5));
+  }
+  placed.sort((a, b) => a.y - b.y || a.x - b.x);
+  const layer = svgEl("g", { class: "ink-marks" }) as SVGGElement;
+  for (const p of placed) layer.appendChild(p.el);
+  return layer;
+}
+
+// A key for the ink map: the marks it draws, drawn as it draws them, and its road and sea route.
+function inkKey(marks: SVGGElement, lang: Lang, height: number, road: boolean, sea: boolean): SVGGElement {
+  const has = (cls: string) => marks.querySelector(`.${cls}`) !== null;
+  const rows: [string, (x: number, y: number) => SVGElement[]][] = [];
+  const two = (kind: Kind) => (x: number, y: number) => [mark(kind, x + 3.2, y + 1.5), mark(kind, x + 8.8, y + 1.5)];
+  if (has("ink-peak")) rows.push([biomeName(lang, ALPINE), (x, y) => [mark("peak", x + 6, y + 1.5, 10)]]);
+  if (has("ink-hill")) rows.push([t(lang, "keyHills"), (x, y) => [mark("hill", x + 6, y)]]);
+  if (has("ink-broadleaf")) rows.push([biomeName(lang, TEMPERATE_FOREST), two("broadleaf")]);
+  if (has("ink-conifer")) rows.push([biomeName(lang, TAIGA), two("conifer")]);
+  if (has("ink-palm")) rows.push([biomeName(lang, TROPICAL), two("palm")]);
+  if (has("ink-marsh")) rows.push([biomeName(lang, WETLAND), (x, y) => [mark("marsh", x + 6, y - 1)]]);
+  if (has("ink-dune")) rows.push([biomeName(lang, DESERT), (x, y) => [mark("dune", x + 2.5, y - 4), mark("dune", x + 6.5, y - 2.5), mark("dune", x + 10, y - 5)]]);
+  if (road) rows.push([t(lang, "keyRoad"), (x, y) => [
+    svgEl("line", { x1: x, y1: y - 3, x2: x + 12, y2: y - 3, stroke: PAPER, "stroke-width": 2.3, "stroke-linecap": "round" }),
+    svgEl("line", { x1: x, y1: y - 3, x2: x + 12, y2: y - 3, stroke: INK, "stroke-width": 0.9, "stroke-dasharray": "4 1.6" }),
+  ]]);
+  if (sea) rows.push([t(lang, "keySeaRoute"), (x, y) => [svgEl("line", { x1: x, y1: y - 3, x2: x + 12, y2: y - 3, stroke: INK, "stroke-width": 0.9, "stroke-dasharray": "1.2 2.4", "stroke-linecap": "round" })]]);
+  const legend = svgEl("g", { class: "legend biome-legend ink-legend" }) as SVGGElement;
+  const x0 = 14, y0 = height - 14 - rows.length * LEGEND_ROW;
+  legend.appendChild(legendPanel(x0 - 5, y0 - 10 - LEGEND_TITLE_H, LEGEND_W_FIXED, rows.length * LEGEND_ROW + 14 + LEGEND_TITLE_H, t(lang, "legendTerrain")));
+  rows.forEach(([word, draw], k) => {
+    const y = y0 + k * LEGEND_ROW;
+    const row = legendRow(LEGEND_ROW);
+    for (const el of draw(x0, y)) { el.classList.add("legend-symbol"); row.appendChild(el); }
+    const text = svgEl("text", { x: x0 + LEGEND_SWATCH + LEGEND_GAP, y, "font-size": LEGEND_TEXT, fill: INK, "letter-spacing": 0.3 });
+    text.textContent = word;
+    row.appendChild(text);
+    legend.appendChild(row);
+  });
+  return legend;
+}
+
+// Anything still in a colour after the passes above takes the nearer of the two inks by its lightness —
+// the frame, the compass, the cartouche, and whatever a later layer adds without knowing about ink.
+function twoInks(root: Element): void {
+  const lightness = (c: string): number | null => {
+    const v = c.trim().toLowerCase();
+    if (v === "white") return 1;
+    if (v === "black") return 0;
+    let m = /^#([0-9a-f]{3})$/.exec(v);
+    const hex = m ? m[1].split("").map((d) => d + d).join("") : (/^#([0-9a-f]{6})$/.exec(v) ?? [])[1];
+    if (hex) return (0.2126 * parseInt(hex.slice(0, 2), 16) + 0.7152 * parseInt(hex.slice(2, 4), 16) + 0.0722 * parseInt(hex.slice(4, 6), 16)) / 255;
+    m = /^rgba?\(([^)]+)\)$/.exec(v);
+    if (m) { const [r, g, b] = m[1].split(",").map(Number); return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255; }
+    return null;
+  };
+  for (const el of [root, ...root.querySelectorAll("*")]) {
+    for (const a of ["fill", "stroke", "stop-color"]) {
+      const v = el.getAttribute(a);
+      if (v === null || v === "none" || v === "transparent" || v === INK || v === PAPER) continue;
+      const l = lightness(v);
+      if (l !== null) el.setAttribute(a, l > 0.55 ? PAPER : INK);
+    }
+  }
+}
+
+/**
+ * The overlay slot in ink — the realms', the peoples' or the provinces' layer for a year: no fills, its
+ * borders heavy and dashed on a band of paper, its names in ink, and no key of colours it no longer has.
+ * The page refills the slot at every year, and calls this after it as `renderWorld` does.
+ */
+export function inkSlot(slot: Element): void {
+  for (const p of slot.querySelectorAll(".territory, .culture-area, .province-fill")) { p.setAttribute("fill", "none"); p.removeAttribute("fill-opacity"); }
+  for (const l of slot.querySelectorAll(".nation-legend, .culture-legend")) l.remove();
+  for (const p of slot.querySelectorAll(".province-border")) { p.setAttribute("stroke", INK); p.setAttribute("stroke-width", "0.6"); p.setAttribute("stroke-dasharray", "1 1.6"); }
+  for (const p of slot.querySelectorAll(".border, .nation-border, .culture-border")) {
+    p.setAttribute("stroke", INK);
+    p.setAttribute("stroke-width", String(BORDER_W));
+    p.setAttribute("stroke-dasharray", BORDER_DASH);
+    const halo = p.cloneNode(false) as Element;
+    halo.setAttribute("class", "ink-border-halo");
+    halo.setAttribute("stroke", PAPER);
+    halo.setAttribute("stroke-width", String(BORDER_W + HALO_EXTRA));
+    halo.removeAttribute("stroke-dasharray");
+    p.before(halo);
+  }
+  for (const text of slot.querySelectorAll("text")) { text.setAttribute("fill", INK); if (text.getAttribute("stroke")) text.setAttribute("stroke", PAPER); }
+  twoInks(slot);
+}
+
+/**
+ * The map drawn `k` times over, for print. Its marks, water lines and names are drawn in map units and
+ * grow with it; the lines pinned to the screen (`vector-effect: non-scaling-stroke` — the coast, the
+ * rivers, the roads, the borders) would stay as thin as they are on a screen, and are thickened by as
+ * much. For a file only: a map on the screen keeps its lines pinned.
+ */
+export function forPrint(svg: SVGSVGElement, k: number): void {
+  for (const el of svg.querySelectorAll("[vector-effect='non-scaling-stroke'][stroke-width]")) {
+    el.setAttribute("stroke-width", String(Number(el.getAttribute("stroke-width")) * k));
+  }
+}
+
+/** The world map as `renderWorld` drew it, re-inked for print (see the head of this file). */
+export function inkWorld(svg: SVGSVGElement, world: World, lang: Lang): void {
+  svg.classList.add("ink");
+  const ground = svg.querySelector(":scope > rect");
+  ground?.setAttribute("fill", PAPER);
+  const coast = svg.querySelector(".coastline");
+  const coastD = coast?.getAttribute("d") ?? "";
+  const waterlines = svg.querySelector(".waterlines");
+  if (waterlines) {
+    // each line a band of ink with the paper drawn back over its middle, under the land, so only the
+    // seaward half of every ring shows
+    waterlines.replaceChildren();
+    const ring = (stroke: string, width: number) => svgEl("path", { d: coastD, fill: "none", stroke, "stroke-width": width, "stroke-linecap": "round", "stroke-linejoin": "round" });
+    for (const [r, w] of WATER_LINES) waterlines.append(ring(INK, 2 * r + w), ring(PAPER, 2 * r - w));
+  }
+  const biomes = svg.querySelector(".biomes");
+  if (biomes) { biomes.removeAttribute("opacity"); for (const p of biomes.children) p.setAttribute("fill", PAPER); }
+  svg.querySelector(".relief-shade")?.remove();
+  svg.querySelector(".reliefs")?.remove();
+  const marks = inkMarks(world);
+  (biomes ?? ground)?.after(marks);
+  if (coast) { coast.setAttribute("stroke", INK); coast.setAttribute("stroke-width", String(COAST_W)); }
+  const slot = svg.querySelector(".political-slot");
+  if (slot) inkSlot(slot);
+  for (const p of svg.querySelectorAll(".river")) { p.setAttribute("stroke", INK); p.setAttribute("stroke-width", f1(Number(p.getAttribute("stroke-width")) * 0.7)); }
+  for (const p of svg.querySelectorAll(".sea-route")) { p.setAttribute("stroke", INK); p.setAttribute("stroke-width", "0.9"); p.setAttribute("stroke-dasharray", "1.2 2.4"); }
+  for (const p of svg.querySelectorAll(".road-casing")) p.setAttribute("stroke", PAPER);
+  for (const p of svg.querySelectorAll(".road")) { p.setAttribute("stroke", INK); p.setAttribute("stroke-width", "0.9"); p.setAttribute("stroke-dasharray", "4 1.6"); }
+  for (const text of svg.querySelectorAll("text")) { text.setAttribute("fill", INK); if (text.getAttribute("stroke")) text.setAttribute("stroke", PAPER); }
+  const key = svg.querySelector(":scope > .biome-legend");
+  if (key) key.replaceWith(inkKey(marks, lang, world.grid.height, world.roads.length > 0, (world.seaRoutes?.length ?? 0) > 0));
+  twoInks(svg);
+}

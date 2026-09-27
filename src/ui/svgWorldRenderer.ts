@@ -12,6 +12,10 @@ import { properName, polityLabeller } from "./properName";
 import { featureLabel, worldNameIn } from "../engine/featureLabel";
 import { riverSize } from "../engine/rivers";
 import { waysInUse } from "../engine/worldRoads";
+import { inkWorld } from "./inkStyle";
+
+/** How the map is drawn: in its colours, or in one ink on white paper for print (inkStyle.ts). */
+export type MapStyle = "colour" | "ink";
 import { cultureLayer } from "./cultureLayer";
 import { provinceLayer, snapOwnersToProvinces } from "./provinceLayer";
 
@@ -64,7 +68,7 @@ function named<T extends SVGElement>(el: T, text: string): T {
 // use ONE colouring: this draws `world.polityOf` (the eight realms of year zero) while the scrubber
 // redraws from the history's snapshots, and a realm that changed colour between the two would be a
 // drift bug of exactly the kind the shared chronicle assembler was built to end.
-export function renderWorld(world: World, view: MapView = "terrain", econZones: number[] = [], lang: Lang = "en", unfounded: ReadonlySet<number> = new Set(), colorOf?: (id: number) => string, labelOf: (id: number, name: string) => string = polityLabeller(lang)): SVGSVGElement {
+export function renderWorld(world: World, view: MapView = "terrain", econZones: number[] = [], lang: Lang = "en", unfounded: ReadonlySet<number> = new Set(), colorOf?: (id: number) => string, labelOf: (id: number, name: string) => string = polityLabeller(lang), style: MapStyle = "colour"): SVGSVGElement {
   const grid = world.grid;
   // Every proper noun this function draws goes through one of two doors, and which door is not a
   // choice: a name with a common noun IN it (the world's, a region's, a river's) is rebuilt from
@@ -480,5 +484,7 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
   }
   root.appendChild(mapFrame(grid.width, grid.height));
 
+  // ...and for print, the same map in one ink on white paper (inkStyle.ts)
+  if (style === "ink") inkWorld(root, world, lang);
   return root;
 }

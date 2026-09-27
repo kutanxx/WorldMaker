@@ -2,7 +2,8 @@ import type { WorldParams, GeneratedWorld } from "../types/world";
 import { DEFAULT_PARAMS } from "../types/world";
 import { generateWorld } from "../engine/world";
 import { waysInUse } from "../engine/worldRoads";
-import { renderWorld, politicalOpts, type MapView } from "./svgWorldRenderer";
+import { renderWorld, politicalOpts, type MapView, type MapStyle } from "./svgWorldRenderer";
+import { inkSlot, forPrint } from "./inkStyle";
 import { renderCity, CITY_LEGEND_ROW, fitTitle } from "./svgCityRenderer";
 import { generateCityLayout, cityContext } from "../engine/city";
 import { cityFacts } from "./cityFacts";
@@ -74,6 +75,8 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
   let worldZoom: ZoomPan | null = null;
   let cityZoom: ZoomPan | null = null;
   let currentYearIndex = 0;
+  // in colour, or in one ink on white paper for print (inkStyle.ts) — every view, the scrubber and the files
+  let mapStyle: MapStyle = "colour";
   let currentView: MapView = "terrain";
   let lang: Lang = detectLang();
   let openCityId: number | null = null; // which screen is showing (null = world)
@@ -128,6 +131,12 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
   const cultureBtn = document.createElement("button");
   const provinceBtn = document.createElement("button");
   viewToggle.append(terrainBtn, politicalBtn, cultureBtn, provinceBtn);
+  // The map for print: one ink on white paper. Beside the views and not among them — it is how any of
+  // them is drawn, not another thing to look at.
+  const inkBtn = document.createElement("button");
+  inkBtn.type = "button";
+  inkBtn.className = "ink-toggle world-only";
+  inkBtn.setAttribute("aria-pressed", "false");
   // The engine has read all of these from the URL since it was written — seaLevel, mountainLevel,
   // polityCount, townCount, cellCount — and there was no way to reach any of them from the page, so
   // a reader could only ever have the one world the defaults describe. Folded away, because the
@@ -204,7 +213,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
   // box used to stand in front of the die, so opening the fold at 390x844 moved "새 세계" from x=76
   // to x=216 — the one control that must never move under a thumb. On a wide window the zone reads
   // the same either way round: the die, then the way to a particular world.
-  controls.append(homeBtn, backBtn, randomBtn, seedGroup, viewToggle, moreBtn, exportGroup, gazBtn, langBtn);
+  controls.append(homeBtn, backBtn, randomBtn, seedGroup, viewToggle, inkBtn, moreBtn, exportGroup, gazBtn, langBtn);
   syncMore(false);
   root.appendChild(advanced);
 
@@ -231,6 +240,8 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     politicalBtn.textContent = t(lang, "political");
     cultureBtn.textContent = t(lang, "culture");
     provinceBtn.textContent = t(lang, "province");
+    inkBtn.textContent = t(lang, "inkToggle");
+    inkBtn.title = t(lang, "inkTitle");
     langBtn.textContent = t(lang, "langToggle");
   }
   applyLang();
@@ -252,6 +263,12 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
   politicalBtn.addEventListener("click", () => setView("political"));
   cultureBtn.addEventListener("click", () => setView("culture"));
   provinceBtn.addEventListener("click", () => setView("province"));
+  inkBtn.addEventListener("click", () => {
+    mapStyle = mapStyle === "ink" ? "colour" : "ink";
+    inkBtn.setAttribute("aria-pressed", String(mapStyle === "ink"));
+    inkBtn.classList.toggle("active", mapStyle === "ink");
+    showWorld();
+  });
 
   /**
    * What goes in the map's overlay slot for a given view and year. One place decides, because it
@@ -473,6 +490,8 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
       const snapped = snapOwnersToProvinces(world.grid.count, world.provinceOf, world.provinces, snap.owner, freeRealms);
       slot.replaceChildren(politicalLayer(world.grid, snapped, history.polities, politicalOpts(view, lang, colorOf, polityLabeller(lang, governmentForms))));
     }
+    // the year's layer arrives in its colours; on an ink map it goes into ink with the rest
+    if (mapStyle === "ink") inkSlot(slot);
   }
 
   /**
@@ -514,7 +533,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     politicalBtn.classList.toggle("active", currentView === "political");
     cultureBtn.classList.toggle("active", currentView === "culture");
     provinceBtn.classList.toggle("active", currentView === "province");
-    const svg = renderWorld(generated.world, currentView, history.economicZones.map((z) => z.cell), lang, new Set(), colorOf, polityLabeller(lang, governmentForms));
+    const svg = renderWorld(generated.world, currentView, history.economicZones.map((z) => z.cell), lang, new Set(), colorOf, polityLabeller(lang, governmentForms), mapStyle);
     const cityIdOf = (el: Element | null) => {
       const id = el?.getAttribute("data-city");
       return id !== null && id !== undefined && id !== "" ? Number(id) : null;
@@ -1026,6 +1045,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
   // its own and nothing like the world's.
   interface ScreenExport { svg: SVGSVGElement; name: string; width: number; height: number }
 
+  const INK_PNG_SCALE = 3;
   const CITY_PNG_SCALE = 2;   // a city is drawn small; at 1:1 its 7px ward names come out unreadable
 
   function exportScreenSvg(): ScreenExport {
@@ -1041,12 +1061,15 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
         };
       }
     }
-    return { svg: exportWorldSvg(), name: "world", width: params.width, height: params.height };
+    // an ink map is for print: its PNG is drawn three times over (3000px across for the usual world, ten
+    // inches at 300dpi), where the screen's copy stays at the map's own size
+    const k = mapStyle === "ink" ? INK_PNG_SCALE : 1;
+    return { svg: exportWorldSvg(), name: "world", width: params.width * k, height: params.height * k };
   }
 
   // Export the world at the year + view the timeline is currently showing.
   function exportWorldSvg(): SVGSVGElement {
-    const svg = renderWorld(generated.world, currentView, history.economicZones.map((z) => z.cell), lang, unfoundedAt(currentYearIndex), colorOf, polityLabeller(lang, governmentForms));
+    const svg = renderWorld(generated.world, currentView, history.economicZones.map((z) => z.cell), lang, unfoundedAt(currentYearIndex), colorOf, polityLabeller(lang, governmentForms), mapStyle);
     fillSlot(svg.querySelector(".political-slot") as SVGGElement, currentView, currentYearIndex);
     // This is a fresh render that has never been in the document, so its labels have never been laid
     // out against each other — left alone, every name in the world goes into the file, stacked.
@@ -1071,6 +1094,9 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
   pngBtn.addEventListener("click", async () => {
     try {
       const { svg, name, width, height } = await exportScreenSvgWithFonts();
+      // the ink map's PNG is drawn INK_PNG_SCALE times over (exportScreenSvg), and its screen-pinned lines
+      // with it — the SVG is vector and keeps them as drawn
+      if (mapStyle === "ink" && openCityId === null) forPrint(svg, INK_PNG_SCALE);
       downloadBlob(`${name}.png`, await svgToPngBlob(svg, width, height));
     } catch (e) {
       console.error("PNG export failed", e);
