@@ -252,6 +252,32 @@ describe("applyLabelScale and the city plan", () => {
     applyLabelScale(svg, 1);
     expect(ward.getAttribute("font-size")).toBe("7.00");
   });
+
+  // Where a road leaves the plate it names the town it goes to (the road ends, 2026-09-26). Zooming a
+  // plate cannot be measured from here (the relayout waits on a frame a hidden pane never draws), so the
+  // one claim is pinned instead: a road's destination grows and shrinks exactly as a ward's name does,
+  // and its parchment halo with it.
+  it("holds a road's destination the way it holds a ward's name", () => {
+    const svg = document.createElementNS(NS, "svg") as SVGSVGElement;
+    const make = (cls: string, halo?: string) => {
+      const t = document.createElementNS(NS, "text");
+      t.setAttribute("class", cls);
+      t.setAttribute("font-size", "7");
+      if (halo) t.setAttribute("stroke-width", halo);
+      svg.appendChild(t);
+      return t;
+    };
+    const ward = make("ward-label"), end = make("road-end", "2.4");
+    for (const s of [0.5, 2, 4, 8]) {
+      applyLabelScale(svg, s);
+      const k = Number(end.getAttribute("font-size")) / 7;
+      expect(k, `scale ${s}`).not.toBe(1);
+      expect(end.getAttribute("font-size"), `scale ${s}`).toBe(ward.getAttribute("font-size"));
+      expect(Number(end.getAttribute("stroke-width")), `scale ${s}`).toBeCloseTo(2.4 * k, 1);
+    }
+    applyLabelScale(svg, 1);
+    expect(end.getAttribute("font-size")).toBe("7.00");
+  });
 });
 
 // The culture view's names were left out of the selector, so they alone kept growing with the land:
