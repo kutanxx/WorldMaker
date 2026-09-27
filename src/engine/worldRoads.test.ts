@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { generateWorld } from "./world";
 import { DEFAULT_PARAMS } from "../types/world";
 import { OCEAN } from "./terrain";
-import { roadsInUse } from "./worldRoads";
+import { roadsInUse, waysInUse } from "./worldRoads";
 import { simulateHistory } from "./history";
 
 // The world drew no roads, and a town plate's roads left its gates wherever its own streets met the
@@ -224,5 +224,95 @@ describe("the roads in use as the chronicle runs, over twelve worlds", () => {
     const { w, stands } = runs[0];
     expect(w.cities.filter((c) => stands(0)(c.id)).length).toBe(8);
     expect(roadsInUse(w.roads, stands(0)).filter(Boolean).length).toBe(15);
+  });
+});
+
+// The sea routes (seaRoutes.ts) follow the chronicle with the roads, by the roads' own rule over both:
+// a sea route shows while it lies on the cheapest way between two standing towns, ships taken; a road
+// while it lies on one over land, as it always has, or with ships. Kept apart, a sea route shown once
+// both its ports stood gave world 1's first screen none; taken together with the roads alone, a ferry
+// across a bay made the coast road round it no one's way, and 10 roads in 60 worlds never showed.
+describe("the ways in use in a year, by road and by sea", () => {
+  // four towns: a road 0-1, a long road 1-2 round a bay, a road 2-3; a ship 0-2 across the bay; and an
+  // island town 4 a ship reaches from 1
+  const roads = [{ a: 0, b: 1, effort: 1 }, { a: 1, b: 2, effort: 10 }, { a: 2, b: 3, effort: 1 }];
+  const sea = [{ a: 0, b: 2, length: 3 }, { a: 1, b: 4, length: 5 }];
+  const inUse = (standing: number[]) => waysInUse(roads, sea, (id) => standing.includes(id));
+
+  it("takes the ship across the bay, and keeps the road round it where it was the way over land", () => {
+    expect(inUse([0, 2])).toEqual({ roads: [true, true, false], sea: [true, false] });
+  });
+
+  it("shows a road beyond a crossing when it is the way on to a standing town", () => {
+    expect(inUse([1, 3])).toEqual({ roads: [true, true, true], sea: [true, false] });
+  });
+
+  it("reaches an island town by ship, and the road to its port", () => {
+    expect(inUse([0, 4])).toEqual({ roads: [true, false, false], sea: [false, true] });
+  });
+
+  it("shows every way once every town stands", () => {
+    expect(inUse([0, 1, 2, 3, 4])).toEqual({ roads: [true, true, true], sea: [true, true] });
+  });
+});
+
+describe("the ways in use as the chronicle runs, over twelve worlds", () => {
+  const runs = worlds.map((w) => {
+    const h = simulateHistory(w, w.params.seed);
+    const founded = new Map(h.cityFoundings.map((f) => [f.cityId, f.year]));
+    return { w, years: h.snapshots.map((s) => s.year), stands: (y: number) => (id: number) => (founded.get(id) ?? 0) <= y };
+  });
+
+  it("never takes a road or a sea route away once it is in use, and shows them all at the end", () => {
+    let routes = 0;
+    for (const { w, years, stands } of runs) {
+      routes += w.seaRoutes.length;
+      let before: boolean[] = [];
+      for (const y of years) {
+        const now = waysInUse(w.roads, w.seaRoutes, stands(y)), flat = [...now.roads, ...now.sea];
+        before.forEach((was, k) => { if (was) expect(flat[k], `seed ${w.params.seed}: way ${k} gone in ${y}`).toBe(true); });
+        before = flat;
+      }
+      expect(before.every(Boolean), `seed ${w.params.seed}: a way never shown`).toBe(true);
+    }
+    expect(routes).toBeGreaterThan(20);
+  });
+
+  it("joins every standing town to every other it can reach, by road or by sea, in every year", () => {
+    for (const { w, years, stands } of runs) {
+      const ways = [...w.roads, ...w.seaRoutes];
+      for (const y of [years[0], years[Math.floor(years.length / 2)]]) {
+        const up = stands(y), now = waysInUse(w.roads, w.seaRoutes, up), shown = [...now.roads, ...now.sea];
+        const reach = (from: number, only: (k: number) => boolean) => {
+          const seen = new Set([from]), stack = [from];
+          while (stack.length) {
+            const t = stack.pop()!;
+            ways.forEach((r, k) => {
+              if (!only(k) || (r.a !== t && r.b !== t)) return;
+              const o = r.a === t ? r.b : r.a;
+              if (!seen.has(o)) { seen.add(o); stack.push(o); }
+            });
+          }
+          return seen;
+        };
+        for (const c of w.cities.filter((t) => up(t.id))) {
+          const drawn = reach(c.id, (k) => shown[k]), any = reach(c.id, () => true);
+          for (const o of w.cities) if (o !== c && up(o.id) && any.has(o.id)) expect(drawn.has(o.id), `seed ${w.params.seed}, ${y}: ${c.id} cannot reach ${o.id}`).toBe(true);
+        }
+      }
+    }
+  });
+
+  it("keeps every road the land alone would show", () => {
+    for (const { w, years, stands } of runs) for (const y of years) {
+      const land = roadsInUse(w.roads, stands(y)), now = waysInUse(w.roads, w.seaRoutes, stands(y));
+      land.forEach((u, k) => { if (u) expect(now.roads[k], `seed ${w.params.seed}, ${y}: road ${k}`).toBe(true); });
+    }
+  });
+
+  it("opens world 1 on seventeen roads and one sea route", () => {
+    const { w, stands } = runs[0];
+    const now = waysInUse(w.roads, w.seaRoutes, stands(0));
+    expect([now.roads.filter(Boolean).length, now.sea.filter(Boolean).length]).toEqual([17, 1]);
   });
 });

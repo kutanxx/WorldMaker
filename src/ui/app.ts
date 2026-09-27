@@ -1,7 +1,7 @@
 import type { WorldParams, GeneratedWorld } from "../types/world";
 import { DEFAULT_PARAMS } from "../types/world";
 import { generateWorld } from "../engine/world";
-import { roadsInUse } from "../engine/worldRoads";
+import { waysInUse } from "../engine/worldRoads";
 import { renderWorld, politicalOpts, type MapView } from "./svgWorldRenderer";
 import { renderCity, CITY_LEGEND_ROW, fitTitle } from "./svgCityRenderer";
 import { generateCityLayout, cityContext } from "../engine/city";
@@ -436,12 +436,15 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
       const id = Number(el.getAttribute("data-city"));
       el.style.display = hidden.has(id) ? "none" : "";
     }
-    // ...and the roads between them: the ones on the cheapest way between two towns standing this
-    // year, through the sites of towns still to come (roadsInUse). renderWorld drew every road once
-    // for the screen; the exported map is drawn for its year by the same rule.
-    const inUse = roadsInUse(generated.world.roads, (id) => !hidden.has(id));
+    // ...and the roads and sea routes between them: the ones on the cheapest way between two towns
+    // standing this year, through the sites of towns still to come (waysInUse). renderWorld drew every
+    // way once for the screen; the exported map is drawn for its year by the same rule.
+    const inUse = waysInUse(generated.world.roads, generated.world.seaRoutes ?? [], (id) => !hidden.has(id));
     for (const el of svg.querySelectorAll<SVGElement>(".roads [data-road]")) {
-      el.style.display = inUse[Number(el.getAttribute("data-road"))] ? "" : "none";
+      el.style.display = inUse.roads[Number(el.getAttribute("data-road"))] ? "" : "none";
+    }
+    for (const el of svg.querySelectorAll<SVGElement>(".sea-routes [data-sea]")) {
+      el.style.display = inUse.sea[Number(el.getAttribute("data-sea"))] ? "" : "none";
     }
     // ★ ...and the list beside it. It offered every town at every year while the map hid the ones
     // not founded: world 1 opens at year 0 with its 8 capitals on the map and 28 towns in the list,
@@ -464,7 +467,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
       slot.replaceChildren(cultureLayer(world.grid, world.cultureOf, world.cultures, lang)); // time-independent
     } else if (view === "province") {
       // provinces are geography (time-independent); nation borders track the scrubbed year via snap.owner
-      slot.replaceChildren(provinceLayer(world.grid, world.provinceOf, world.provinces, { owner: snap.owner, legend: true, lang, roads: world.roads.length > 0 }));
+      slot.replaceChildren(provinceLayer(world.grid, world.provinceOf, world.provinces, { owner: snap.owner, legend: true, lang, roads: world.roads.length > 0, seaRoutes: (world.seaRoutes?.length ?? 0) > 0 }));
     } else {
       // nation ownership snapped to whole provinces so terrain/political borders match the province view
       const snapped = snapOwnersToProvinces(world.grid.count, world.provinceOf, world.provinces, snap.owner, freeRealms);
@@ -928,7 +931,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     for (const n of facts.neighbours) {
       const b = document.createElement("button");
       b.className = "neighbour";
-      b.textContent = `${n.name} · ${n.km}km`;
+      b.textContent = `${n.name} · ${n.bySea ? t(lang, "factBySea").replace("{km}", String(n.km)) : `${n.km}km`}`;
       if (n.foundedIn !== undefined) {
         const note = document.createElement("span");
         note.className = "neighbour-later";

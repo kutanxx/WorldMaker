@@ -165,3 +165,21 @@ export function roadsInUse(roads: readonly { a: number; b: number; effort: numbe
   }
   return inUse;
 }
+
+/**
+ * The roads and the sea routes (seaRoutes.ts) in use while only some towns stand, by the roads' own
+ * rule over both: a sea route while it lies on the cheapest way between two standing towns, ships
+ * taken (a passage costs its length); a road while it lies on one over land, as it always has, or with
+ * ships — so a ferry across a bay never takes the coast road round it off the map, and the road on from
+ * where a ship lands shows with it. Both halves only grow as towns are founded, so nothing is taken
+ * away, and when every town stands every way is in use. The one rule the map, its scrubber and its
+ * export all read.
+ */
+export function waysInUse(
+  roads: readonly { a: number; b: number; effort: number }[], sea: readonly { a: number; b: number; length: number }[],
+  stands: (town: number) => boolean,
+): { roads: boolean[]; sea: boolean[] } {
+  const land = roadsInUse(roads, stands);
+  const joint = roadsInUse([...roads, ...sea.map((s) => ({ a: s.a, b: s.b, effort: s.length }))], stands);
+  return { roads: land.map((u, k) => u || joint[k]), sea: joint.slice(roads.length) };
+}

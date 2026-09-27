@@ -35,6 +35,20 @@ export function roadMark(x: number, y: number): SVGElement {
   return g;
 }
 
+// A sea route on the world map: dashed, in the ink the sea's own names are set in (about 5:1 on the
+// ocean's fill) — the reader's pick from a preview, over the roads' red. It runs only over the one
+// colour, so it needs no casing. The map's routes and the keys that name them both draw from here.
+export const SEA_ROUTE_INK = "#3f5d78";
+export const SEA_ROUTE_W = 1.2;
+export const SEA_ROUTE_DASH = "5 3.5";
+
+/** a sea route as a key draws it, as `roadMark` draws a road */
+export function seaRouteMark(x: number, y: number): SVGElement {
+  const g = svgEl("g", { class: "legend-symbol sea-route-key" });
+  g.appendChild(svgEl("line", { x1: x, y1: y - 3, x2: x + 12, y2: y - 3, stroke: SEA_ROUTE_INK, "stroke-width": SEA_ROUTE_W, "stroke-dasharray": SEA_ROUTE_DASH }));
+  return g;
+}
+
 // The enclosure a legend sits in. Every legend on this map — biomes, nations, cultures — used to be
 // a rounded white card with a thin tan edge: the one thing on the page that looked like browser UI
 // rather than cartography, next to a compass rose and a double-ruled border. Historically the box

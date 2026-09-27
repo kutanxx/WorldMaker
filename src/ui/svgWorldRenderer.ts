@@ -1,5 +1,5 @@
 import type { World } from "../types/world";
-import { svgEl, legendPanel, legendRow, starPath, compassRose, mapFrame, INK, PARCHMENT, LEGEND_TITLE_H, LEGEND_TEXT, LEGEND_ROW, LEGEND_SWATCH, LEGEND_GAP, LEGEND_W_FIXED, CITY_LABEL_DX, ROAD_INK, ROAD_W, ROAD_CASING_W, roadMark } from "./renderer";
+import { svgEl, legendPanel, legendRow, starPath, compassRose, mapFrame, INK, PARCHMENT, LEGEND_TITLE_H, LEGEND_TEXT, LEGEND_ROW, LEGEND_SWATCH, LEGEND_GAP, LEGEND_W_FIXED, CITY_LABEL_DX, ROAD_INK, ROAD_W, ROAD_CASING_W, roadMark, SEA_ROUTE_INK, SEA_ROUTE_W, SEA_ROUTE_DASH, seaRouteMark } from "./renderer";
 import { scaleBar, KM_PER_UNIT, KM_PER_WALKING_DAY } from "./scaleBar";
 import { displayBiomes } from "./displayBiome";
 import { OCEAN, ALPINE, BIOME_COLORS } from "../engine/biome";
@@ -11,7 +11,7 @@ import { politicalLayer, type PoliticalOpts } from "./politicalLayer";
 import { properName, polityLabeller } from "./properName";
 import { featureLabel, worldNameIn } from "../engine/featureLabel";
 import { riverSize } from "../engine/rivers";
-import { roadsInUse } from "../engine/worldRoads";
+import { waysInUse } from "../engine/worldRoads";
 import { cultureLayer } from "./cultureLayer";
 import { provinceLayer, snapOwnersToProvinces } from "./provinceLayer";
 
@@ -143,7 +143,7 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
   const slot = svgEl("g", { class: "political-slot" });
   slot.appendChild(
     view === "culture" ? cultureLayer(grid, world.cultureOf, world.cultures, lang)
-      : view === "province" ? provinceLayer(grid, world.provinceOf, world.provinces, { owner: world.polityOf, legend: true, lang, roads: world.roads.length > 0 })
+      : view === "province" ? provinceLayer(grid, world.provinceOf, world.provinces, { owner: world.polityOf, legend: true, lang, roads: world.roads.length > 0, seaRoutes: (world.seaRoutes?.length ?? 0) > 0 })
         // terrain/political: snap nation ownership to whole provinces so borders (and political fills)
         // fall on province edges — the SAME geometry the province view uses, so views stay consistent.
         // ⚠ No `keep` set here, and none needed: this draws `world.polityOf`, the ownership of year
@@ -197,11 +197,27 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
   // lets the scrubber show the year's (app.ts). No one colour clears 3:1 against both the palest and
   // the darkest biome, so a road is cased: the dark line carries it over pale ground, the parchment
   // casing over dark. Every casing goes under every line, so where two roads part neither is cut.
+  // ...and the sea routes between the ports (seaRoutes.ts), which follow the year with them (waysInUse),
+  // under the roads so a road reaching its port runs on over the route's end
+  const inUse = waysInUse(world.roads, world.seaRoutes ?? [], (id) => !unfounded.has(id));
+  if (world.seaRoutes?.length) {
+    const sea = svgEl("g", { class: "sea-routes" });
+    world.seaRoutes.forEach((s, k) => {
+      if (!inUse.sea[k]) return;
+      const title = t(lang, "seaRouteBetween").replace("{a}", nm(world.cities[s.a].name))
+        .replace("{b}", nm(world.cities[s.b].name)).replace("{km}", String(Math.round(s.length * KM_PER_UNIT)));
+      const d = "M" + s.points.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join("L");
+      const line = { d, fill: "none", "vector-effect": "non-scaling-stroke", "stroke-linecap": "round", "stroke-linejoin": "round", "data-sea": k };
+      // a dashed hairline is a hard thing to point at: an unpainted band under it carries the name
+      sea.appendChild(named(svgEl("path", { class: "sea-route-hit", ...line, stroke: SEA_ROUTE_INK, "stroke-opacity": 0, "stroke-width": 6, "pointer-events": "stroke" }), title));
+      sea.appendChild(svgEl("path", { class: "sea-route", ...line, stroke: SEA_ROUTE_INK, "stroke-width": SEA_ROUTE_W, "stroke-dasharray": SEA_ROUTE_DASH, "pointer-events": "none" }));
+    });
+    root.appendChild(sea);
+  }
   if (world.roads.length) {
-    const inUse = roadsInUse(world.roads, (id) => !unfounded.has(id));
     const casings: SVGElement[] = [], lines: SVGElement[] = [];
     world.roads.forEach((r, k) => {
-      if (!inUse[k]) return;
+      if (!inUse.roads[k]) return;
       const d = roadPath(grid.points, r.cells);
       const title = t(lang, "roadBetween").replace("{a}", nm(world.cities[r.a].name))
         .replace("{b}", nm(world.cities[r.b].name)).replace("{km}", String(Math.round(r.length * KM_PER_UNIT)));
@@ -370,8 +386,10 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
   // it in political view). Rendered conditionally — not CSS-hidden — so exports match.
   if (view === "terrain") {
     const present = [...byBiome.keys()].sort((a, b) => a - b);
-    // ...and under the ground's colours, the one line on it a reader cannot tell by its colour: the road
-    const rows = present.length + (world.roads.length ? 1 : 0);
+    // ...and under the ground's colours, the lines on it a reader cannot tell by their colour: the road,
+    // and the sea route
+    const seaRoutes = (world.seaRoutes?.length ?? 0) > 0;
+    const rows = present.length + (world.roads.length ? 1 : 0) + (seaRoutes ? 1 : 0);
     const legend = svgEl("g", { class: "legend biome-legend" });
     const x0 = 14, y0 = grid.height - 14 - rows * LEGEND_ROW;
     // the heading grows the panel UPWARD so the key stays anchored to the map's bottom-left corner
@@ -393,6 +411,12 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
       const row = legendRow(LEGEND_ROW);
       row.appendChild(roadMark(x0, y));
       labelled(row, y, t(lang, "keyRoad"));
+    }
+    if (seaRoutes) {
+      const y = y0 + (rows - 1) * LEGEND_ROW;
+      const row = legendRow(LEGEND_ROW);
+      row.appendChild(seaRouteMark(x0, y));
+      labelled(row, y, t(lang, "keySeaRoute"));
     }
     root.appendChild(legend);
   }

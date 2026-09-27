@@ -12,6 +12,7 @@ import { traceRivers, nameRivers, riverSize } from "./rivers";
 import { buildProvinces, PROVINCE_SALT } from "./provinces";
 import { reliefAt } from "./relief";
 import { roadsBetweenTowns } from "./worldRoads";
+import { seaRoutesBetweenPorts } from "./seaRoutes";
 
 // A second sea round a port is at least this many tenths of a right angle of the compass wide (30
 // degrees), its middle at least this far from the port's own sea's, with at least this many tenths of
@@ -318,6 +319,9 @@ export function generateWorld(params: WorldParams, nameOverride?: string): Gener
   // and heights only, no rng, so nothing above or below moves for them)
   const network = roadsBetweenTowns(grid, heights, terrain, cities);
   network.out.forEach((roads, i) => { if (roads.length) cities[i].roads = roads; });
+  // ...and the sea routes between the ports, where the sea is the better way (see seaRoutes.ts: terrain,
+  // the mesh and the roads only, no rng)
+  const seaRoutes = seaRoutesBetweenPorts(grid, terrain, cities, network.roads);
 
   // geography names use a SEPARATE rng stream so the main stream (heights/terrain/biome/
   // polity/cities and the golden regression) is byte-unchanged; reads the built biome array
@@ -364,6 +368,7 @@ export function generateWorld(params: WorldParams, nameOverride?: string): Gener
     provinces,
     cities,
     roads: network.roads,
+    seaRoutes,
     rivers,
     riverNet: segments,
   };

@@ -448,13 +448,14 @@ describe("renderWorld roads", () => {
   });
 
   // An exported map is drawn for the year on the scrubber, and carries that year's roads: in world 1
-  // at year 0 the eight capitals stand, joined by fifteen roads (worldRoads.test).
+  // at year 0 the eight capitals stand, joined by fifteen roads over land and two more beyond the one
+  // crossing a ship makes between them (worldRoads.test, "the ways in use").
   it("draws, for a year, only the roads in use in it", () => {
     const h = simulateHistory(world, 1);
     const unfounded = new Set(h.cityFoundings.filter((f) => f.year > 0).map((f) => f.cityId));
     const early = renderWorld(world, "terrain", [], "en", unfounded);
-    expect(early.querySelectorAll(".roads path.road").length).toBe(15);
-    expect(early.querySelectorAll(".roads path.road-casing").length).toBe(15);
+    expect(early.querySelectorAll(".roads path.road").length).toBe(17);
+    expect(early.querySelectorAll(".roads path.road-casing").length).toBe(17);
   });
 
   // No one colour clears 3:1 against both the palest tundra and the darkest taiga — the rivers go as
@@ -512,6 +513,71 @@ describe("renderWorld roads", () => {
     expect(title).toContain(world.cities[r.a].name);
     expect(title).toContain(world.cities[r.b].name);
     expect(title).toContain(`${Math.round(r.length * KM_PER_UNIT)} km`);
+  });
+});
+
+// The roads stopped at the shore. The sea routes (seaRoutes.ts) are drawn in the ink the sea's own names
+// are set in, dashed — the reader's pick from a preview, over the roads' red.
+describe("renderWorld sea routes", () => {
+  const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });
+  const svg = renderWorld(world);
+  const layer = (cls: string) => [...svg.children].findIndex((c) => c.getAttribute("class") === cls);
+
+  it("draws every sea route, over the sea and under the roads, the names and the marks", () => {
+    expect(world.seaRoutes.length).toBeGreaterThan(0);
+    expect(svg.querySelectorAll(".sea-routes path.sea-route").length).toBe(world.seaRoutes.length);
+    expect(layer("sea-routes")).toBeLessThan(layer("roads"));
+    expect(layer("sea-routes")).toBeLessThan(layer("region-labels"));
+    expect(layer("sea-routes")).toBeLessThan(layer("markers"));
+  });
+
+  it("runs each along its course, from one port to the other", () => {
+    expect(svg.querySelectorAll(".sea-routes path.sea-route").length).toBeGreaterThan(0);
+    for (const el of svg.querySelectorAll(".sea-routes path.sea-route")) {
+      const s = world.seaRoutes[Number(el.getAttribute("data-sea"))];
+      const n = (el.getAttribute("d") ?? "").match(/-?\d+(?:\.\d+)?/g)!.map(Number);
+      expect(n.length / 2).toBe(s.points.length);
+      expect([n[0], n[1]]).toEqual([Number(s.points[0][0].toFixed(1)), Number(s.points[0][1].toFixed(1))]);
+    }
+  });
+
+  // inline, since the exports carry no stylesheet (see the line weights above)
+  it("is a dashed line in the sea names' ink, pinned to the screen, that reads on the sea", () => {
+    const line = svg.querySelector(".sea-route")!;
+    expect(line.getAttribute("stroke")).toBe("#3f5d78");
+    expect(line.getAttribute("stroke-dasharray")).toBeTruthy();
+    expect(line.getAttribute("vector-effect")).toBe("non-scaling-stroke");
+    expect(Number(line.getAttribute("stroke-width"))).toBeGreaterThanOrEqual(0.9);
+    expect(ratio(line.getAttribute("stroke")!, BIOME_COLORS[OCEAN])).toBeGreaterThanOrEqual(3);
+  });
+
+  it("says what it is: a sea route, between which ports, and how long the voyage", () => {
+    const s = world.seaRoutes[0];
+    for (const [lang, word] of [["en", "Sea route"], ["ko", "뱃길"]] as const) {
+      const title = renderWorld(world, "terrain", [], lang).querySelector(`[data-sea="0"] title`)?.textContent ?? "";
+      expect(title, lang).toContain(word);
+      expect(title, lang).toMatch(new RegExp(`${Math.round(s.length * KM_PER_UNIT)} ?km`));
+    }
+  });
+
+  it("draws, for a year, only the sea routes in use in it", () => {
+    const h = simulateHistory(world, 1);
+    const unfounded = new Set(h.cityFoundings.filter((f) => f.year > 0).map((f) => f.cityId));
+    expect(renderWorld(world, "terrain", [], "en", unfounded).querySelectorAll(".sea-route").length).toBe(1);
+  });
+
+  it("is in the terrain key and the province key beside the road, and in no key of a world without one", () => {
+    for (const [view, key] of [["terrain", ".biome-legend"], ["province", ".province-legend"]] as const) {
+      for (const lang of ["en", "ko"] as const) {
+        const rows = [...renderWorld(world, view, [], lang).querySelectorAll(`${key} .legend-row`)];
+        const row = rows.find((r) => r.querySelector("text")?.textContent === (lang === "en" ? "Sea route" : "뱃길"));
+        expect(row, `${view}/${lang}: no sea route in the key`).toBeDefined();
+        const drawn = row!.querySelector("line")!;
+        expect([drawn.getAttribute("stroke"), drawn.getAttribute("stroke-dasharray")]).toEqual(["#3f5d78", svg.querySelector(".sea-route")!.getAttribute("stroke-dasharray")]);
+      }
+      const texts = [...renderWorld({ ...world, seaRoutes: [] }, view).querySelectorAll(`${key} text`)].map((t) => t.textContent);
+      expect(texts, view).not.toContain("Sea route");
+    }
   });
 });
 

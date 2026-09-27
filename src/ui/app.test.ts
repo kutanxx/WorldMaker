@@ -9,6 +9,7 @@ import { simulateHistory } from "../engine/history";
 import { snapOwnersToProvinces } from "./provinceLayer";
 import { properName } from "./properName";
 import { worldNameIn } from "../engine/featureLabel";
+import { KM_PER_UNIT } from "./scaleBar";
 
 const small = { ...DEFAULT_PARAMS, width: 300, height: 300, cellCount: 400, townCount: 6 };
 
@@ -881,6 +882,19 @@ describe("a plate tells you where you are and where you can go", () => {
     expect(later).toBeGreaterThan(0);
   });
 
+  // A port's ships sail beside its roads (seaRoutes.ts); the row says which way is the voyage.
+  it("says which of the towns next door is a voyage away", () => {
+    const params = { ...DEFAULT_PARAMS, seed: 1 };
+    const world = generateWorld(params).world;
+    const s = world.seaRoutes[0];
+    expect(s, "world 1 has no sea route").toBeTruthy();
+    const root = document.createElement("div");
+    createApp(root, params).openCity(s.a);
+    const chips = [...root.querySelectorAll(".city-facts .neighbour")].map((b) => b.textContent ?? "");
+    const name = properName("en", world.cities[s.b].name);
+    expect(chips.filter((t) => t.startsWith(`${name} · `) && t.includes(`${Math.round(s.length * KM_PER_UNIT)}km by sea`)), chips.join(" | ")).toHaveLength(1);
+  });
+
   it("walks from one town to the town next door", async () => {
     const root = document.createElement("div");
     document.body.appendChild(root);
@@ -1077,9 +1091,9 @@ describe("the towns arrive as the chronicle founds them", () => {
   });
 
   // ...and the roads between them. The screen draws every road once and the scrubber shows the
-  // year's: those on the cheapest way between two towns standing then (worldRoads.ts roadsInUse).
-  // World 1 opens on fifteen roads between its eight capitals, and by the end every road the plates'
-  // gates face is on the map.
+  // year's: those on the cheapest way between two towns standing then (worldRoads.ts waysInUse). World
+  // 1 opens on seventeen roads between its eight capitals — fifteen over land, two beyond the crossing
+  // a ship makes between them — and by the end every road the plates' gates face is on the map.
   it("draws the roads in use in the scrubbed year, each with its casing", async () => {
     const root = document.createElement("div");
     document.body.appendChild(root);
@@ -1092,12 +1106,34 @@ describe("the towns arrive as the chronicle founds them", () => {
     const all = root.querySelectorAll(".roads path.road").length;
     expect(all).toBe(generateWorld({ ...DEFAULT_PARAMS, seed: 1 }).world.roads.length);
     at("0");
-    expect(shown("road"), "world 1 at year 0").toBe(15);
-    expect(shown("road-casing"), "a casing without its road, or a road without its casing").toBe(15);
+    expect(shown("road"), "world 1 at year 0").toBe(17);
+    expect(shown("road-casing"), "a casing without its road, or a road without its casing").toBe(17);
     at(slider.max);
     expect(shown("road"), "every road by the end").toBe(all);
     at("0");
-    expect(shown("road"), "back at the dawn, as ▶ goes from the end").toBe(15);
+    expect(shown("road"), "back at the dawn, as ▶ goes from the end").toBe(17);
+    root.remove();
+  });
+
+  // ...and the sea routes, by the same rule with them: world 1 opens on the one crossing between its
+  // capitals and sails all five by the end.
+  it("draws the sea routes in use in the scrubbed year, each with what names it", async () => {
+    const root = document.createElement("div");
+    document.body.appendChild(root);
+    createApp(root, { ...DEFAULT_PARAMS, seed: 1 });
+    await new Promise((r) => setTimeout(r, 0));
+    const slider = root.querySelector(".timeline input[type=range]") as HTMLInputElement;
+    const at = (v: string) => { slider.value = v; slider.dispatchEvent(new Event("input")); };
+    const shown = (cls: string) => [...root.querySelectorAll<SVGElement>(`.sea-routes path.${cls}`)]
+      .filter((e) => e.style.display !== "none").length;
+    expect(root.querySelectorAll(".sea-routes path.sea-route").length).toBe(5);
+    at("0");
+    expect(shown("sea-route"), "world 1 at year 0").toBe(1);
+    expect(shown("sea-route-hit"), "a route without the band that names it").toBe(1);
+    at(slider.max);
+    expect(shown("sea-route"), "every sea route by the end").toBe(5);
+    at("0");
+    expect(shown("sea-route"), "back at the dawn").toBe(1);
     root.remove();
   });
 });

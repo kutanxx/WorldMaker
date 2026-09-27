@@ -91,6 +91,16 @@ export interface Road {
   effort: number;
 }
 
+// A sea route between two ports (see seaRoutes.ts), once for the pair: `a` < `b` are the ports' ids,
+// `points` its course from a's position to b's — straight legs over the water between headlands — and
+// `length` how long the voyage is along them (map units), which is also what the passage costs.
+export interface SeaRoute {
+  a: number;
+  b: number;
+  points: [number, number][];
+  length: number;
+}
+
 export interface RiverSegment {
   x1: number; y1: number; x2: number; y2: number; f: number;
 }
@@ -132,6 +142,7 @@ export interface World {
   provinces: Province[];
   cities: CityMarker[];
   roads: Road[];
+  seaRoutes: SeaRoute[];
   rivers: River[];
   riverNet: RiverSegment[];
 }

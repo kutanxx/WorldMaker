@@ -1,5 +1,5 @@
 import type { World } from "../types/world";
-import { svgEl, legendPanel, legendRow, INK, LEGEND_TITLE_H, LEGEND_TEXT, LEGEND_ROW, LEGEND_SWATCH, LEGEND_GAP, LEGEND_W_FIXED, roadMark } from "./renderer";
+import { svgEl, legendPanel, legendRow, INK, LEGEND_TITLE_H, LEGEND_TEXT, LEGEND_ROW, LEGEND_SWATCH, LEGEND_GAP, LEGEND_W_FIXED, roadMark, seaRouteMark } from "./renderer";
 import { t, type Lang } from "./i18n";
 import { cellPath, segPath } from "./svgPaths";
 import { politicalBorders } from "../engine/borders";
@@ -112,9 +112,9 @@ export function snapOwnersToProvinces(
 export function provinceLayer(
   grid: GridLike, provinceOf: ArrayLike<number>, provinces: Province[],
   // `roads`: the map draws roads between the towns (the key then says which line they are)
-  opts: { fills?: boolean; labels?: boolean; owner?: ArrayLike<number>; legend?: boolean; lang?: Lang; roads?: boolean } = {},
+  opts: { fills?: boolean; labels?: boolean; owner?: ArrayLike<number>; legend?: boolean; lang?: Lang; roads?: boolean; seaRoutes?: boolean } = {},
 ): SVGGElement {
-  const { fills = true, labels = true, owner, legend = false, lang = "en", roads = false } = opts;
+  const { fills = true, labels = true, owner, legend = false, lang = "en", roads = false, seaRoutes = false } = opts;
   // A province name is a composite ("Barrens of Dimbrerk"), so it is rebuilt from its parts rather
   // than transliterated. This is the view with the most lettering on it — roughly a hundred labels
   // — and it was the last one still drawing English at a Korean reader.
@@ -186,6 +186,7 @@ export function provinceLayer(
       [t(lang, "keySeat"), (x, y) => svgEl("circle", { cx: x + 6, cy: y - 3, r: 1.6, fill: "#2a2118", stroke: "#f4ecd8", "stroke-width": 0.6 })],
       // ...and the third kind of line on it, which runs between the seats
       ...(roads ? [[t(lang, "keyRoad"), roadMark] as [string, (x: number, y: number) => SVGElement]] : []),
+      ...(seaRoutes ? [[t(lang, "keySeaRoute"), seaRouteMark] as [string, (x: number, y: number) => SVGElement]] : []),
     ];
     const lg = svgEl("g", { class: "legend province-legend" });
     const x0 = 14, y0 = grid.height - 14 - rows.length * LEGEND_ROW;

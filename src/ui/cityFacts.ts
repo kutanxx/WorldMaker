@@ -38,8 +38,9 @@ export interface CityFacts {
   kind: string;
   rank: string;
   population: string;
-  /** `foundedIn`: the year the chronicle founds that town, where it is after `year` — it is not there yet */
-  neighbours: { id: number; name: string; km: number; foundedIn?: number }[];
+  /** `foundedIn`: the year the chronicle founds that town, where it is after `year` — it is not there yet;
+   *  `bySea`: the way there is a ship's (a sea route), and `km` the voyage */
+  neighbours: { id: number; name: string; km: number; foundedIn?: number; bySea?: true }[];
 }
 
 const groups = (n: number) => n.toLocaleString("en-US");
@@ -71,12 +72,20 @@ export function cityFacts(
   // km along the road, so a reader can walk out of one plate and into the next. It was the three
   // nearest as the crow flies, which pointed across the sea and left out the towns the gates named.
   // A town no road leaves (an island of its own) still points at the three nearest.
-  const byRoad = world.roads
+  const byRoad: CityFacts["neighbours"] = world.roads
     .filter((r) => r.a === city.id || r.b === city.id)
     .map((r) => {
       const o = world.cities[r.a === city.id ? r.b : r.a];
       return { id: o.id, name: properName(lang, o.name), km: r.length * kmPerUnit };
     });
+  // ...and the ports a port's ships sail to (seaRoutes.ts), in km of the voyage: an island town no road
+  // leaves points at the ports across the water rather than at the nearest towns as the crow flies
+  for (const s of world.seaRoutes ?? []) {
+    if (s.a !== city.id && s.b !== city.id) continue;
+    const o = world.cities[s.a === city.id ? s.b : s.a];
+    byRoad.push({ id: o.id, name: properName(lang, o.name), km: s.length * kmPerUnit, bySea: true });
+  }
+  // A town no road or ship leaves (an island of its own with no port) still points at the three nearest.
   const byCrow = () => world.cities
     .filter((c) => c.id !== city.id)
     .map((c) => ({ id: c.id, name: properName(lang, c.name), km: Math.hypot(c.x - city.x, c.y - city.y) * kmPerUnit }))

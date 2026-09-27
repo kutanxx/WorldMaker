@@ -59,19 +59,23 @@ describe("what a plate can say about its town", () => {
 // town the row left out — "Gate to Kaag", and no Kaag nearby. It lists the towns the roads lead to
 // now, the gates' own, nearest by road first and in km along the road, the way the Gough map wrote
 // a distance on each of its roads.
+// ...and the ports its ships sail to (seaRoutes.ts), in km of the voyage: an island town no road leaves
+// pointed at the three nearest towns as the crow flies, across water no one crossed.
 describe("the towns next door are the towns the roads lead to", () => {
   const worlds = [1, 11].map((seed) => generateWorld({ ...DEFAULT_PARAMS, seed }).world);
   const factsOf = (w: (typeof worlds)[number], i: number) =>
     cityFacts(w, w.cities[i], generateCityLayout(cityContext(w.cities[i]), w.params.seed), "en", KM_PER_UNIT);
+  const sailsTo = (w: (typeof worlds)[number], id: number) =>
+    w.seaRoutes.filter((s) => s.a === id || s.b === id).map((s) => ({ to: s.a === id ? s.b : s.a, s }));
 
   it("lists exactly the towns a town's roads lead to, in km along each road", () => {
     let towns = 0;
     for (const w of worlds) for (const c of w.cities) {
       if (!c.roads?.length) continue;
       towns++;
-      const f = factsOf(w, c.id);
-      expect(new Set(f.neighbours.map((n) => n.id)), `seed ${w.params.seed}: town ${c.id}`).toEqual(new Set(c.roads.map((r) => r.to)));
-      for (const n of f.neighbours) {
+      const byRoad = factsOf(w, c.id).neighbours.filter((n) => !n.bySea);
+      expect(new Set(byRoad.map((n) => n.id)), `seed ${w.params.seed}: town ${c.id}`).toEqual(new Set(c.roads.map((r) => r.to)));
+      for (const n of byRoad) {
         const road = w.roads.find((r) => (r.a === c.id && r.b === n.id) || (r.b === c.id && r.a === n.id))!;
         expect(n.km, `seed ${w.params.seed}: ${c.id} -> ${n.id}`).toBe(Math.round(road.length * KM_PER_UNIT));
       }
@@ -79,27 +83,48 @@ describe("the towns next door are the towns the roads lead to", () => {
     expect(towns).toBeGreaterThan(50);
   });
 
-  it("never points across the water to a town no road reaches", () => {
+  it("lists the ports a port's ships sail to, in km of the voyage", () => {
+    let ports = 0;
     for (const w of worlds) for (const c of w.cities) {
-      if (!c.roads?.length) continue;
+      const sails = sailsTo(w, c.id);
+      if (!sails.length) continue;
+      ports++;
+      const bySea = factsOf(w, c.id).neighbours.filter((n) => n.bySea);
+      expect(bySea.map((n) => n.id).sort((a, b) => a - b), `seed ${w.params.seed}: town ${c.id}`).toEqual(sails.map((x) => x.to).sort((a, b) => a - b));
+      for (const n of bySea) expect(n.km).toBe(Math.round(sails.find((x) => x.to === n.id)!.s.length * KM_PER_UNIT));
+    }
+    expect(ports).toBeGreaterThan(10);
+  });
+
+  it("never points across the water to a town no road or ship reaches", () => {
+    for (const w of worlds) for (const c of w.cities) {
+      if (!c.roads?.length && !sailsTo(w, c.id).length) continue;
       for (const n of factsOf(w, c.id).neighbours) {
-        expect(c.roads.some((r) => r.to === n.id), `seed ${w.params.seed}: ${c.id} points at ${n.id}`).toBe(true);
+        const way = n.bySea ? sailsTo(w, c.id).some((x) => x.to === n.id) : (c.roads ?? []).some((r) => r.to === n.id);
+        expect(way, `seed ${w.params.seed}: ${c.id} points at ${n.id}`).toBe(true);
       }
     }
   });
 
-  // An island town of its own has no road at all; it still points at the three nearest, as the crow
-  // flies, rather than at nothing.
-  it("keeps the three nearest as the crow flies for a town no road leaves", () => {
-    const w = worlds[1];
-    const lone = w.cities.filter((c) => !c.roads?.length);
+  // An island town of its own, no road leaving it: it points at the ports its ships sail to.
+  it("points an island town at the ports across the water", () => {
+    const lone = worlds[1].cities.filter((c) => !c.roads?.length);
     expect(lone.length).toBeGreaterThan(0);
     for (const c of lone) {
-      const f = factsOf(w, c.id);
-      const nearest = w.cities.filter((o) => o.id !== c.id)
-        .sort((a, b) => Math.hypot(a.x - c.x, a.y - c.y) - Math.hypot(b.x - c.x, b.y - c.y)).slice(0, 3);
-      expect(f.neighbours.map((n) => n.id)).toEqual(nearest.map((o) => o.id));
+      const f = factsOf(worlds[1], c.id);
+      expect(f.neighbours.length, `town ${c.id}`).toBeGreaterThan(0);
+      expect(f.neighbours.every((n) => n.bySea), `town ${c.id}`).toBe(true);
     }
+  });
+
+  // ...and a town neither leaves still points at the three nearest, as the crow flies, rather than at nothing.
+  it("keeps the three nearest as the crow flies for a town no road or ship leaves", () => {
+    const w = { ...worlds[1], roads: [], seaRoutes: [] };
+    const c = w.cities[0];
+    const f = cityFacts(w, c, generateCityLayout(cityContext(c), 11), "en", KM_PER_UNIT);
+    const nearest = w.cities.filter((o) => o.id !== c.id)
+      .sort((a, b) => Math.hypot(a.x - c.x, a.y - c.y) - Math.hypot(b.x - c.x, b.y - c.y)).slice(0, 3);
+    expect(f.neighbours.map((n) => n.id)).toEqual(nearest.map((o) => o.id));
   });
 });
 
