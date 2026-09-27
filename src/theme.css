@@ -624,6 +624,10 @@ svg.city .wall-seg, svg.city .wall-seg-inner, svg.city .tower, svg.city .gate { 
   border: 1px solid #c9bb96; background: #f2ead6; color: #3c2f1c;
 }
 .city-facts .neighbour:hover { background: #e7d9b6; }
+/* A town the road leads to that is not founded yet in the plate's year says when, on a line of its
+   own under the name, in the facts' muted register (#6b5d42, 5.60:1 — see .city-fact-key): it is a
+   note on the name, not a fact. Inline, the 222px column broke it in the middle ("70년" / "건설"). */
+.city-facts .neighbour-later { display: block; font-size: 12px; color: #6b5d42; }
 @media (pointer: coarse) { .city-facts .neighbour { min-height: 34px; padding: 6px 12px; } }
 
 /* The city list. The best thing this map has sits behind its markers, and a four-pixel dot is not

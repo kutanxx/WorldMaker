@@ -38,7 +38,8 @@ export interface CityFacts {
   kind: string;
   rank: string;
   population: string;
-  neighbours: { id: number; name: string; km: number }[];
+  /** `foundedIn`: the year the chronicle founds that town, where it is after `year` — it is not there yet */
+  neighbours: { id: number; name: string; km: number; foundedIn?: number }[];
 }
 
 const groups = (n: number) => n.toLocaleString("en-US");
@@ -81,9 +82,16 @@ export function cityFacts(
     .map((c) => ({ id: c.id, name: properName(lang, c.name), km: Math.hypot(c.x - city.x, c.y - city.y) * kmPerUnit }))
     .sort((a, b) => a.km - b.km)
     .slice(0, 3);
+  // ...and where the plate answers for a year, which of them is not there yet: every world opens at
+  // year 0, where half the towns the roads lead to are founded later. They stay in the row — the gates
+  // and the road ends are named for them — and the row says when they will be.
+  const later = (id: number) => {
+    const y = at ? foundings.find((f) => f.cityId === id)?.year : undefined;
+    return y !== undefined && y > at!.year ? { foundedIn: y } : {};
+  };
   const neighbours = (byRoad.length ? byRoad : byCrow())
     .sort((a, b) => a.km - b.km)
-    .map((n) => ({ ...n, km: Math.round(n.km) }));
+    .map((n) => ({ ...n, km: Math.round(n.km), ...later(n.id) }));
 
   return {
     name: properName(lang, city.name),

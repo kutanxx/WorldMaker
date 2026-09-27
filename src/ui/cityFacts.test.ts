@@ -103,6 +103,42 @@ describe("the towns next door are the towns the roads lead to", () => {
   });
 });
 
+// Every world opens at year 0, and there the row named towns the map did not have yet: over twelve
+// worlds 158 of the 332 entries on the 166 standing towns' plates were towns the chronicle founds
+// later (on 112 plates; on 44 every entry) — "Nearby — Bragr · 145 km" beside a map with no Bragr.
+// The row still lists the towns the roads lead to, which the gates and the road ends are named for,
+// and says when each one that is not there yet will be.
+describe("the towns next door, in the year the plate answers for", () => {
+  const w = generateWorld({ ...DEFAULT_PARAMS, seed: 1 }).world;
+  const h = simulateHistory(w, 1);
+  const foundedIn = new Map(h.cityFoundings.map((f) => [f.cityId, f.year]));
+  const layoutOf = (i: number) => generateCityLayout(cityContext(w.cities[i]), 1);
+  const factsAt = (i: number, snap: number) => cityFacts(w, w.cities[i], layoutOf(i), "en", KM_PER_UNIT, h.cityFoundings,
+    { owner: h.snapshots[snap].owner, polities: h.polities, year: h.snapshots[snap].year });
+
+  it("says when a town a road leads to is founded, where that is after the year", () => {
+    let later = 0, standing = 0;
+    for (const c of w.cities) {
+      if ((foundedIn.get(c.id) ?? 0) > 0) continue;   // the plates a reader opens at year 0
+      for (const n of factsAt(c.id, 0).neighbours) {
+        const y = foundedIn.get(n.id) ?? 0;
+        if (y > 0) { later++; expect(n.foundedIn, `${c.id} -> ${n.id}`).toBe(y); }
+        else { standing++; expect(n.foundedIn, `${c.id} -> ${n.id}`).toBeUndefined(); }
+      }
+    }
+    expect(later, "no town next door is founded after year 0").toBeGreaterThan(0);
+    expect(standing, "no town next door stands at year 0").toBeGreaterThan(0);
+  });
+
+  it("says nothing of the kind once they stand, or where there is no year to answer for", () => {
+    const last = h.snapshots.length - 1;
+    for (const c of w.cities) {
+      for (const n of factsAt(c.id, last).neighbours) expect(n.foundedIn).toBeUndefined();
+      for (const n of cityFacts(w, c, layoutOf(c.id), "en", KM_PER_UNIT, h.cityFoundings).neighbours) expect(n.foundedIn).toBeUndefined();
+    }
+  });
+});
+
 // The founding year was left out when this was written, because the chronicle founded towns that
 // were not on the map. That was fixed at the source, so the year is available — for the towns the
 // chronicle founds. A capital is a seat the world starts with; a town the five centuries never got

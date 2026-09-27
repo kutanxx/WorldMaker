@@ -929,6 +929,12 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
       const b = document.createElement("button");
       b.className = "neighbour";
       b.textContent = `${n.name} · ${n.km}km`;
+      if (n.foundedIn !== undefined) {
+        const note = document.createElement("span");
+        note.className = "neighbour-later";
+        note.textContent = t(lang, "factFoundedLater").replace("{y}", String(n.foundedIn));
+        b.append(" ", note);
+      }
       b.addEventListener("click", () => openCity(n.id));
       nearList.appendChild(b);
     }

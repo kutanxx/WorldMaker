@@ -856,6 +856,31 @@ describe("a plate tells you where you are and where you can go", () => {
     expect(year(values[1]), "the realm is dated before its town stood").toBe(standing);
   });
 
+  // Every world opens at year 0, and there about half the towns the roads lead to are not founded
+  // yet: the row keeps them — the gates and the road ends are named for them — and says when.
+  it("says when a town next door is founded, if the plate's year is before it", () => {
+    const params = { ...DEFAULT_PARAMS, seed: 1 };
+    const world = generateWorld(params).world;
+    const history = simulateHistory(world, params.seed);
+    const foundedIn = new Map(history.cityFoundings.map((f) => [f.cityId, f.year]));
+    const next = (id: number) => world.roads.filter((r) => r.a === id || r.b === id).map((r) => (r.a === id ? r.b : r.a));
+    const town = world.cities.find((c) => (foundedIn.get(c.id) ?? 0) === 0 && next(c.id).some((o) => (foundedIn.get(o) ?? 0) > 0));
+    expect(town, "no standing town has a road to one founded later").toBeTruthy();
+    const root = document.createElement("div");
+    createApp(root, params).openCity(town!.id);
+    const chips = [...root.querySelectorAll(".city-facts .neighbour")];
+    expect(chips.length).toBe(next(town!.id).length);
+    let later = 0;
+    for (const chip of chips) {
+      const o = world.cities.find((c) => chip.textContent!.startsWith(properName("en", c.name) + " ·"))!;
+      const y = foundedIn.get(o.id) ?? 0;
+      const note = chip.querySelector(".neighbour-later")?.textContent ?? null;
+      if (y > 0) { later++; expect(note, o.name).toBe(`founded ${y} AY`); }
+      else expect(note, o.name).toBeNull();
+    }
+    expect(later).toBeGreaterThan(0);
+  });
+
   it("walks from one town to the town next door", async () => {
     const root = document.createElement("div");
     document.body.appendChild(root);
