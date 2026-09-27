@@ -2104,10 +2104,13 @@ describe("the roads out of town go where the world's roads go", () => {
   // across a road turned any sooner) and 3 river towns where the aimed turn crossed the river on the
   // slant (6:18, 9:11, 11:9). The 11 left it cannot mend: 5 whose world road climbs into the plate's rock
   // (roads keep off it), and 6 where the plate's sea or the town itself stands between.
+  // Two of those six were one port's (1:22), whose sea was drawn over the land its roads leave by; with
+  // its sea where the world's is (townWater.test, "a port's roads leave it over land") they leave by a
+  // gate, and 9 are left.
   it("turns a road out that missed its world road toward it, where the way is clear", () => {
     const off = (p: ReturnType<typeof plates>[number]) => p.roads.map((b) => Math.min(...p.exits.map((e) => ang(e, b))));
     const missed = plates().flatMap((p) => off(p).filter((g) => g > Math.PI / 6).map(() => p.where));
-    expect(missed.length, missed.join("; ")).toBeLessThanOrEqual(11);
+    expect(missed.length, missed.join("; ")).toBeLessThanOrEqual(9);
     for (const at of ["seed 6, 18,", "seed 9, 11,", "seed 11, 9,"]) {
       expect(missed.filter((w) => w.includes(at)), `the river still turns ${at}'s road away`).toEqual([]);
     }
@@ -2256,6 +2259,12 @@ describe("the roads out of town go where the world's roads go", () => {
 // each road now running 17 straight out of its gate and on to the plate's edge where the world's road
 // points, and the gate houses, the country and all else that follows its road with it. Seed 12 has
 // none; the other 328 plates hashed byte for byte the same, and no road out goes to another town.
+//
+// And for a port whose nearest sea lay on both sides of it (world.ts SEA_MEAN_MIN): exactly 1:22 moved.
+// It stands at the tip of a neck of land, and its sea was drawn up the neck — over the land its two
+// roads leave by, which had no gate. Its sea now lies opposite that land, round the tip, and its roads
+// leave up the neck by one gate, named for both. Its destinations went from none to [[15, 17], [], []];
+// seed 12 has no such port, and the other 335 plates hashed byte for byte the same.
 describe("a plate is the same plate, byte for byte", () => {
   const fold = (h: number, c: number) => Math.imul(h ^ c, 16777619) >>> 0;
   const fnv = (s: string) => { let h = 2166136261 >>> 0; for (let i = 0; i < s.length; i++) h = fold(h, s.charCodeAt(i)); return h >>> 0; };
@@ -2268,12 +2277,12 @@ describe("a plate is the same plate, byte for byte", () => {
   const drawing = (l: ReturnType<typeof generateCityLayout>) => JSON.stringify(l, (k, v) => (k === "suburbRoadTo" ? undefined : v));
   const destinations = (l: ReturnType<typeof generateCityLayout>) => JSON.stringify(l.suburbRoadTo ?? null);
   it("draws seed 1's twenty-eight towns exactly as it did", () => {
-    expect(worldHash(1, drawing)).toEqual({ h: 3828712746, n: 28 });
+    expect(worldHash(1, drawing)).toEqual({ h: 2771584444, n: 28 });
   });
   it("draws seed 12's twenty-eight towns exactly as it did", () => {
     expect(worldHash(12, drawing)).toEqual({ h: 1075377656, n: 28 });
   });
   it("sends seed 1's and seed 12's roads out where they went", () => {
-    expect([worldHash(1, destinations), worldHash(12, destinations)]).toEqual([{ h: 106483190, n: 28 }, { h: 964394477, n: 28 }]);
+    expect([worldHash(1, destinations), worldHash(12, destinations)]).toEqual([{ h: 422798723, n: 28 }, { h: 964394477, n: 28 }]);
   });
 });

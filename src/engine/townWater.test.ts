@@ -3,6 +3,7 @@ import { generateWorld } from "./world";
 import { DEFAULT_PARAMS } from "../types/world";
 import { riverSize } from "./rivers";
 import { OCEAN } from "./terrain";
+import { SEA_ARC_STRAIGHT } from "./city/water";
 
 // Towns used to be thrown at the claimed land uniformly, and the measurement said exactly that: the
 // pool was 26.8% coastal and the towns came out 27% coastal — statistically indistinguishable from
@@ -115,6 +116,29 @@ describe("how much of the compass round a port is sea", () => {
     }
     const mean = (a: number[]) => a.reduce((t, v) => t + v, 0) / a.length;
     expect(mean(byOcean[3])).toBeGreaterThan(mean(byOcean[1]) * 1.3);
+  });
+});
+
+// A port's plate draws its sea as an arc round its bearing, and the world's roads leave it over land.
+// Measured over twelve worlds, 249 roads out of ports: one port's two roads left straight into the
+// middle of its drawn sea (1:22, at 0.08 and 0.10 of the way from the sea's middle to its shore — the
+// next road anywhere, 0.55). It stands at the tip of a neck of land with the sea on both sides of it,
+// and the bearing, a mean of unit vectors to the nearest sea cells, averaged water at -145 and +25
+// degrees into -60: up the neck, where its roads run. Its plate drew the sea over the land and gave
+// its roads no gate.
+describe("a port's roads leave it over land", () => {
+  it("never leaves by the middle half of the sea its plate draws", () => {
+    const across = (a: number, b: number) => Math.abs(Math.atan2(Math.sin(a - b), Math.cos(a - b)));
+    let roads = 0;
+    for (const w of worlds) for (const c of w.cities) {
+      if (c.seaBearing === undefined || c.seaArc === undefined) continue;
+      const open = Math.max(Math.PI / 3, Math.min(2 * Math.PI - Math.PI / 3, (Math.PI * c.seaArc) / SEA_ARC_STRAIGHT));
+      for (const r of c.roads ?? []) {
+        roads++;
+        expect(across(r.bearing, c.seaBearing) / (open / 2), `seed ${w.params.seed}: ${c.id} -> ${r.to}`).toBeGreaterThanOrEqual(0.5);
+      }
+    }
+    expect(roads).toBeGreaterThan(200);
   });
 });
 

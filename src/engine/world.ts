@@ -17,6 +17,11 @@ import { roadsBetweenTowns } from "./worldRoads";
 // degrees), its middle at least this far from the port's own sea's, with at least this many tenths of
 // land between them both ways round
 const SEA2_MIN = 3, SEA2_APART = (2 * Math.PI) / 3, SEA2_LAND = 5;
+// The unit vectors to a port's nearest sea cells, summed, come to under this share of their count when
+// those cells lie on both sides of it — two of them more than 145 degrees apart. Their mean then points
+// at neither (1:22: water at -145 and +25 degrees made -60, up the neck of land its roads run along).
+// Over twelve worlds the next shortest, of a port with one sea, is 0.37.
+const SEA_MEAN_MIN = 0.3;
 
 /**
  * @param nameOverride what to call this world, when the reader asked for a name. The draw for the
@@ -56,7 +61,7 @@ export function generateWorld(params: WorldParams, nameOverride?: string): Gener
   // The bearing of the open water from a coastal cell: walk out over the mesh, gather the ocean
   // cells within reach, and take the direction of the nearest stretch of them. Reads the terrain
   // array and nothing else — no rng is drawn, so the world it describes is unchanged.
-  const seaBearingAt = (cell: number): number | undefined => {
+  const nearestSea = (cell: number): { sx: number; sy: number; found: number } | undefined => {
     if (!isCoastal(cell)) return undefined;   // only a town ON the water draws a sea to be aimed
     const cx = grid.points[cell * 2], cy = grid.points[cell * 2 + 1];
     const seen = new Set<number>([cell]);
@@ -75,7 +80,11 @@ export function generateWorld(params: WorldParams, nameOverride?: string): Gener
       }
       ring = next;
     }
-    return found > 0 ? Math.atan2(sy, sx) : undefined;
+    return { sx, sy, found };
+  };
+  const seaBearingAt = (cell: number): number | undefined => {
+    const near = nearestSea(cell);
+    return near && near.found > 0 ? Math.atan2(near.sy, near.sx) : undefined;
   };
 
   // How much of the compass round a port is sea, two cells out: the nearest cell in each ten degrees of
@@ -126,7 +135,24 @@ export function generateWorld(params: WorldParams, nameOverride?: string): Gener
         if (!other || run.length > other.length) other = run;
       }
     }
-    if (!other || !mine) return { seaArc: (total / SEA_BINS) * 2 * Math.PI };
+    if (!other || !mine) {
+      // ★ A port whose nearest sea lies on both sides of it, with one sea round it, stands at the end of
+      // a neck of land: its sea is all round it but for the land it hangs from, which is where its roads
+      // go. Its sea lies opposite the middle of the widest run of land two cells out (see SEA_MEAN_MIN).
+      const near = nearestSea(cell);
+      if (near && near.found > 0 && total < SEA_BINS && Math.hypot(near.sx, near.sy) < SEA_MEAN_MIN * near.found) {
+        let from = 0, len = 0;
+        for (let b = 0; b < SEA_BINS; b++) {
+          if (wet[b] || !wet[(b + SEA_BINS - 1) % SEA_BINS]) continue;   // a run of land starts here
+          let n = 0;
+          while (n < SEA_BINS && !wet[(b + n) % SEA_BINS]) n++;
+          if (n > len) { from = b; len = n; }
+        }
+        const land = bearingOfBin(from) + ((len - 1) / 2) * ((2 * Math.PI) / SEA_BINS);
+        return { seaBearing: Math.atan2(-Math.sin(land), -Math.cos(land)), seaArc: (total / SEA_BINS) * 2 * Math.PI };
+      }
+      return { seaArc: (total / SEA_BINS) * 2 * Math.PI };
+    }
     // ...and its own sea lies where that sea is: the nearest sea's bearing, a mean of unit vectors to
     // the sea cells round it, pointed between two seas at neither (7:26 at 142 degrees, its own at 220)
     return {
