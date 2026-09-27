@@ -455,8 +455,11 @@ const ROAD_CLEAR = 1;
  *
  * Run it on the names at the size they will be READ, before the cull. Zooming in afterwards only
  * shrinks a name toward its anchor, which keeps it clear.
+ *
+ * `clear` is what the page's own controls cover of the plate (`coveredBy`), kept off as the furniture
+ * is: the chips over its top-right corner stood on a destination on 4 of 34 plates.
  */
-export function placeRoadEnds(svg: SVGSVGElement, air = 1.5, reach = 90): void {
+export function placeRoadEnds(svg: SVGSVGElement, opts: { clear?: Box[] } = {}, air = 1.5, reach = 90): void {
   const labels = [...svg.querySelectorAll<SVGGraphicsElement>("text.road-end")];
   if (!labels.length) return;
   const vb = (svg.getAttribute("viewBox") || "").split(/[\s,]+/).map(Number);
@@ -470,6 +473,7 @@ export function placeRoadEnds(svg: SVGSVGElement, air = 1.5, reach = 90): void {
   const hard = inkGrid([
     ...boxesOf(svg.querySelectorAll<SVGGraphicsElement>(PLATE_FURNITURE)),
     ...(town.length >= 3 ? [{ k: "fill" as const, pts: town, half: 0 }] : []),
+    ...(opts.clear ?? []).map((c): Ink => ({ k: "box", b: toBox(c.x, c.y, c.x + c.width, c.y + c.height) })),
   ]);
   // what it would rather not stand on: the other names, and the roads out (its own among them)
   const soft = inkGrid([

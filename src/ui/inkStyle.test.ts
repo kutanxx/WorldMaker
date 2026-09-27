@@ -16,9 +16,17 @@ const inked = (view: "terrain" | "political" | "culture" | "province" = "terrain
 
 // The black-and-white print map is a second way of drawing the same map. Pinned before it was built:
 // the colour map comes out byte for byte as it did, in every view.
+// ...and since renaming (nameBook.ts) every name says what it names in a `data-name` attribute, which
+// is all the colour map gained: hashed with those taken out, it is still the same map to the byte.
 describe("the colour map, untouched by the ink style", () => {
   it("draws world 1 exactly as it did, in every view", () => {
-    const hashes = (["terrain", "political", "culture", "province"] as const).map((v) => fnv(svgToString(renderWorld(world, v, [], "ko"))));
+    const hashes = (["terrain", "political", "culture", "province"] as const).map((v) => {
+      const svg = renderWorld(world, v, [], "ko");
+      const named = svg.querySelectorAll("[data-name]");
+      expect(named.length, v).toBeGreaterThan(0);
+      for (const el of named) el.removeAttribute("data-name");
+      return fnv(svgToString(svg));
+    });
     expect(hashes).toEqual([1017043680, 3220428649, 1509237278, 3613793555]);
   });
 });

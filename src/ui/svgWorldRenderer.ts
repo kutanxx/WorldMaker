@@ -239,7 +239,7 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
   // Cartographic convention: AREA (land) features are set upright + UPPERCASE with wide
   // letter-spacing to reinforce their extent; WATER (seas) are italic + blue like rivers.
   const regionLabels = svgEl("g", { class: "region-labels" });
-  for (const r of world.regions) {
+  for (const [gi, r] of world.regions.entries()) {
     // Type size is a map's first signal of what kind of thing a word names, and the three classes
     // used to overlap: regions ran 9.4-16.0, cities 8.5-10.5, rivers 9.4-10.4, so anything in the
     // 9.4-10.5 band gave the reader no way to tell a mountain range from a village. The bands are
@@ -255,6 +255,8 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
     const faint = view !== "terrain";
     const t = svgEl("text", {
       class: "region-label " + (isSea ? "region-sea" : "region-land") + (faint ? " region-faint" : ""),
+      // what it names, for the reader who renames it (nameBook.ts keys)
+      "data-name": `g${gi}`,
       ...(faint ? { "fill-opacity": 0.45 } : {}),
       x: r.centroid[0].toFixed(1), y: r.centroid[1].toFixed(1),
       "text-anchor": "middle", "font-size": fs.toFixed(1),
@@ -275,7 +277,7 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
   // river labels follow the water's course (rotated to the local flow direction), lifted
   // just off the line, never upside-down — the standard hydrographic labelling treatment.
   const riverLabels = svgEl("g", { class: "river-labels" });
-  for (const r of world.rivers) {
+  for (const [vi, r] of world.rivers.entries()) {
     const i = Math.floor(r.path.length / 2);
     const mid = r.path[i];
     const a = r.path[Math.max(0, i - 1)], b = r.path[Math.min(r.path.length - 1, i + 1)];
@@ -287,7 +289,7 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
     let nx = -dy / len, ny = dx / len; if (ny > 0) { nx = -nx; ny = -ny; }
     const lx = mid[0] + nx * fs * 0.5, ly = mid[1] + ny * fs * 0.5;
     const t = svgEl("text", {
-      class: "river-label", x: lx.toFixed(1), y: ly.toFixed(1),
+      class: "river-label", "data-name": `v${vi}`, x: lx.toFixed(1), y: ly.toFixed(1),
       "text-anchor": "middle", "font-size": fs.toFixed(1), fill: "#3f5d78",
       stroke: PARCHMENT, "stroke-width": 1.8, "paint-order": "stroke", "font-style": "italic",
       transform: `rotate(${deg.toFixed(1)} ${lx.toFixed(1)} ${ly.toFixed(1)})`,
@@ -375,7 +377,7 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
     // who can see a name is far likelier to aim at it than at the speck
     const label = svgEl("text", {
       class: "city-label " + (c.isCapital ? "city-capital" : "city-town"),
-      "data-city": c.id, style: "cursor:pointer",
+      "data-city": c.id, "data-name": `t${c.id}`, style: "cursor:pointer",
       x: c.x + CITY_LABEL_DX, y: c.y + 3, "font-size": c.isCapital ? 10 : 8,
       "font-weight": c.isCapital ? 600 : 400,
       fill: c.isCapital ? "#2a2118" : "#6b5d42",
@@ -458,7 +460,7 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
   // the world's name, an atlas title cartouche at the top-centre
   const title = svgEl("g", { class: "world-name" });
   const wt = svgEl("text", {
-    class: "world-name-text", x: grid.width / 2, y: 36, "text-anchor": "middle",
+    class: "world-name-text", "data-name": "w", x: grid.width / 2, y: 36, "text-anchor": "middle",
     "font-size": 22, fill: INK, stroke: PARCHMENT, "stroke-width": 3, "paint-order": "stroke",
   });
   wt.textContent = worldName;

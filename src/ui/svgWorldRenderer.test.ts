@@ -12,6 +12,8 @@ import { BIOME_COLORS } from "../engine/biome";
 import { LEGEND_ROW, LEGEND_TEXT, LEGEND_SWATCH } from "./renderer";
 import { simulateHistory } from "../engine/history";
 import { KM_PER_UNIT } from "./scaleBar";
+import { properName } from "./properName";
+import { featureLabel, worldNameIn } from "../engine/featureLabel";
 
 describe("renderWorld biomes", () => {
   const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });
@@ -513,6 +515,37 @@ describe("renderWorld roads", () => {
     expect(title).toContain(world.cities[r.a].name);
     expect(title).toContain(world.cities[r.b].name);
     expect(title).toContain(`${Math.round(r.length * KM_PER_UNIT)} km`);
+  });
+});
+
+// A reader renames a place by clicking its name on the map (nameBook.ts), so every name the map draws
+// says what it names: `data-name` holds the name book's key.
+describe("every name on the map says what it names", () => {
+  const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });
+  const keyed = (svg: SVGSVGElement, cls: string) => [...svg.querySelectorAll(`text.${cls}`)];
+  it("tags the towns, regions, seas, rivers and the world's title", () => {
+    const svg = renderWorld(world, "terrain", [], "ko");
+    const towns = keyed(svg, "city-label");
+    expect(towns.length).toBe(world.cities.length);
+    for (const t of towns) {
+      const id = Number(t.getAttribute("data-name")!.slice(1));
+      expect(t.getAttribute("data-name")).toMatch(/^t\d+$/);
+      expect(t.textContent).toBe(properName("ko", world.cities[id].name));
+    }
+    const regions = keyed(svg, "region-label");
+    expect(regions.length).toBeGreaterThan(0);
+    for (const r of regions) expect(r.textContent).toBe(featureLabel(world.regions[Number(r.getAttribute("data-name")!.slice(1))].label, "ko"));
+    const rivers = keyed(svg, "river-label");
+    expect(rivers.length).toBeGreaterThan(0);
+    for (const r of rivers) expect(r.textContent).toBe(featureLabel(world.rivers[Number(r.getAttribute("data-name")!.slice(1))].label, "ko"));
+    expect(svg.querySelector("[data-name='w']")?.textContent).toBe(worldNameIn(world, "ko"));
+  });
+  it("tags the realms, the provinces and the peoples in their views", () => {
+    for (const [view, cls, prefix] of [["political", "nation-label", "r"], ["province", "province-label", "p"], ["culture", "culture-label", "c"]] as const) {
+      const labels = keyed(renderWorld(world, view, [], "ko"), cls);
+      expect(labels.length, view).toBeGreaterThan(0);
+      for (const l of labels) expect(l.getAttribute("data-name"), `${view}: ${l.textContent}`).toMatch(new RegExp(`^${prefix}\\d+$`));
+    }
   });
 });
 

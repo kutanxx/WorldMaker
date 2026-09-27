@@ -711,6 +711,19 @@ describe("placeRoadEnds", () => {
     expect(overlap(boxNow(d), { x0: 402, y0: 397, x1: 446, y1: 441 }), "on the compass").toBe(false);
   });
 
+  // The page's own chips stand over the plate's top-right corner — the map-only view, and renaming — and a
+  // destination under one can be neither read nor pressed: measured over 34 plates, one was on 4 of them.
+  it("keeps off what the page's own controls cover of the plate", () => {
+    const svg = plate();
+    road(svg, 0, [[290, 230], [370, 228], [456, 230]]);             // out to the east, under a chip
+    const d = dest(svg, 0, 420, 240);
+    placeRoadEnds(svg, { clear: [{ x: 400, y: 215, width: 60, height: 40 }] });
+    const b = boxNow(d);
+    expect(overlap(b, { x0: 400, y0: 215, x1: 460, y1: 255 }), "under a control").toBe(false);
+    expect(svg.contains(d.t), "taken off where it could walk clear").toBe(true);
+    expect(toRoad(b, [370, 228], [456, 230]), "away from its road").toBeLessThan(6);
+  });
+
   it("keeps two destinations apart where their roads leave side by side", () => {
     const svg = plate();
     road(svg, 0, [[290, 220], [370, 218], [456, 220]]);

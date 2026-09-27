@@ -1,4 +1,4 @@
-import { toHangul, properNoun } from "../engine/hangul";
+import { toHangul, properNoun, plainName } from "../engine/hangul";
 import type { GovernmentForm } from "../engine/government";
 import { realmLabelEn, realmLabelKo, peopleLabelKo } from "../engine/nameSuffix";
 import type { Lang } from "./i18n";
@@ -49,7 +49,7 @@ export function polityLabeller(lang: Lang, forms?: Map<number, GovernmentForm>,
                                spellForm = false): (id: number, name: string) => string {
   return (id, name) => {
     const form = forms?.get(id)?.form;
-    if (lang !== "ko") return spellForm && form ? realmLabelEn(name, form) : name;
+    if (lang !== "ko") return spellForm && form ? realmLabelEn(name, form) : plainName(name);
     return form ? realmLabelKo(name, form) : toHangul(name);
   };
 }
@@ -65,5 +65,5 @@ export function polityLabeller(lang: Lang, forms?: Map<number, GovernmentForm>,
  * every caller off.
  */
 export function peopleLabel(lang: Lang, name: string): string {
-  return lang === "ko" ? peopleLabelKo(name) : name;
+  return lang === "ko" ? peopleLabelKo(name) : plainName(name);
 }

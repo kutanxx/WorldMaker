@@ -122,7 +122,7 @@ export function politicalLayer(
         const name = nameOf(id);
         if (!name) continue;
         const t = svgEl("text", {
-          class: "nation-label", x: c.x, y: c.y, "text-anchor": "middle",
+          class: "nation-label", "data-name": `r${id}`, x: c.x, y: c.y, "text-anchor": "middle",
           "font-size": 11,
           fill: "#2a2118", stroke: "#f3ead2", "stroke-width": 2.5,
           "paint-order": "stroke", "stroke-linejoin": "round",

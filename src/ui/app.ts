@@ -1,14 +1,15 @@
-import type { WorldParams, GeneratedWorld } from "../types/world";
+import type { WorldParams, GeneratedWorld, CityMarker } from "../types/world";
 import { DEFAULT_PARAMS } from "../types/world";
 import { generateWorld } from "../engine/world";
 import { waysInUse } from "../engine/worldRoads";
 import { renderWorld, politicalOpts, type MapView, type MapStyle } from "./svgWorldRenderer";
 import { inkSlot, forPrint } from "./inkStyle";
 import { renderCity, CITY_LEGEND_ROW, fitTitle } from "./svgCityRenderer";
-import { generateCityLayout, cityContext } from "../engine/city";
+import { generateCityLayout, cityContext, type CityLayout } from "../engine/city";
 import { cityFacts } from "./cityFacts";
 import { KM_PER_UNIT, floorScaleCaption } from "./scaleBar";
-import { encodeParams, randomSeed, initialCity } from "./urlState";
+import { encodeParams, randomSeed, initialCity, initialNames, initialParams } from "./urlState";
+import { applyNames, encodeNames, generatedNames, NAME_MAX, type NameBook, type GeneratedNames } from "./nameBook";
 import { hashStringToSeed } from "../engine/rng";
 import { worldToJSON, svgToString, svgToPngBlob, downloadBlob } from "./export";
 import { worldToGazetteer } from "../engine/gazetteer";
@@ -31,7 +32,13 @@ import { measureChrome, fitChrome } from "./chromeBudget";
 import { LEGEND_ROW } from "./renderer";
 import { detectLang, saveLang } from "./lang";
 import { properName, polityLabeller } from "./properName";
-import { worldNameIn } from "../engine/featureLabel";
+import { featureLabel, worldNameIn } from "../engine/featureLabel";
+import { plainName } from "../engine/hangul";
+
+/** whether two sets of parameters make the same world */
+function sameWorld(a: WorldParams, b: WorldParams): boolean {
+  return (Object.keys(DEFAULT_PARAMS) as (keyof WorldParams)[]).every((k) => a[k] === b[k]);
+}
 
 export interface App {
   regenerate(p: WorldParams): void;
@@ -59,6 +66,12 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
   let params: WorldParams = { ...initial };
   let generated: GeneratedWorld = generateWorld(params, worldTitle ?? undefined);
   let history = simulateHistory(generated.world, params.seed);
+  // The reader's own names for this world's places (nameBook.ts), kept in the address beside it: read
+  // from the link the page was opened with — when that link is this world — and written into the world
+  // and its record, over the names it was generated with (kept, to give back).
+  let names: NameBook = sameWorld(initialParams(location.hash), params) ? initialNames(location.hash) : {};
+  let bornNames: GeneratedNames = generatedNames(generated.world, history);
+  applyNames(generated.world, history, bornNames, names);
   // One colouring per world, shared by the first paint, the scrubber and the export. Indexing the
   // palette by id draws id 12 exactly like id 0, and civil-war fragments take the high ids while
   // appearing beside the parent they broke from — so the border between them vanished on 7 of the
@@ -269,6 +282,8 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     inkBtn.classList.toggle("active", mapStyle === "ink");
     showWorld();
   });
+  // whether a name on the map opens a box to type in (see addRenameToggle)
+  let renaming = false;
 
   /**
    * What goes in the map's overlay slot for a given view and year. One place decides, because it
@@ -414,6 +429,35 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     if (e.key === "Escape" && document.body.classList.contains("map-focus")) applyFocus(false);
   });
 
+  /**
+   * Renaming (nameBook.ts): while it is on, a name on the map opens a box where it stands, in place of the
+   * place it names. It stands on the map it works on, under the map-only chip, on the world and on a
+   * plate alike. In the toolbar it took the English bar to two rows (1093px of 1035 at 1440x900), and
+   * there it would have been gone in the map-only view, where the map is biggest. Measured over 12
+   * worlds it stood on no town; the names of seas step out from under it as from under the other chip.
+   */
+  function addRenameToggle(frame: HTMLElement): void {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "rename-toggle";
+    b.textContent = t(lang, "renameToggle");
+    b.title = t(lang, "renameTitle");
+    b.setAttribute("aria-pressed", String(renaming));
+    b.classList.toggle("active", renaming);
+    b.addEventListener("click", () => setRenaming(!renaming));
+    frame.appendChild(b);
+  }
+
+  function setRenaming(on: boolean): void {
+    renaming = on;
+    for (const b of stage.querySelectorAll(".rename-toggle")) {
+      b.setAttribute("aria-pressed", String(on));
+      b.classList.toggle("active", on);
+    }
+    root.classList.toggle("renaming", on);
+    if (!on) closeNameEditor(true);
+  }
+
   // city cell -> the <span> naming its realm in the list, refilled whenever the year changes
   const realmCells = new Map<number, HTMLElement>();
   // city id -> its row in the list, and the list's section, whose head counts the rows the year shows
@@ -517,10 +561,162 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     return !a || a === document.body || !a.isConnected || a === hidden;
   }
 
+  // A plate is laid out under the name its town was born with and titled with the reader's: its title's
+  // tablet is measured from the name, and the town's hamlets and fields keep clear of it (city.ts), so
+  // laid out under a new name they moved. The plan is the town's; only the title is the reader's.
+  function plateOf(marker: CityMarker): CityLayout {
+    const born = bornNames.towns[generated.world.cities.indexOf(marker)] ?? marker.name;
+    return { ...generateCityLayout(cityContext({ ...marker, name: born }), params.seed), name: marker.name };
+  }
+
+  // ── Renaming ──────────────────────────────────────────────────────────────────────────────────────
+  // The box a name is typed into, standing where the name stands on the map; one at a time.
+  let editor: { key: string; input: HTMLInputElement; follow: MutationObserver } | null = null;
+
+  /** Which name a click on the map landed on: a label says (`data-name`); a town's dot, or where a
+   * plate's road goes, says which town. */
+  function nameKeyOf(target: Element): string | null {
+    if (!target.closest?.("svg.world, svg.city")) return null;
+    const named = target.closest("[data-name]")?.getAttribute("data-name");
+    if (named) return named;
+    const town = target.closest("[data-city]")?.getAttribute("data-city");
+    return town ? `t${town}` : null;
+  }
+
+  /** where a name is written on the screen now: its label, or where a plate's road goes to its town */
+  function nameShownAt(key: string): Element | null {
+    return stage.querySelector(`svg [data-name="${key}"]`)
+      ?? (key[0] === "t" ? stage.querySelector(`svg.city [data-city="${key.slice(1)}"]`) : null);
+  }
+
+  /** A name as the map writes it in the reader's language: as it is now, or as the world was born with it.
+   * A realm's and a people's are the bare word, without the form or the 인 the map adds. */
+  function nameIn(key: string, born: boolean): string {
+    const world = generated.world, n = Number(key.slice(1));
+    const word = (now: string | undefined, was: string | undefined) => {
+      const w = born ? was : now;
+      return w === undefined ? "" : properName(lang, w);
+    };
+    switch (key[0]) {
+      case "w": return worldNameIn(born ? { name: bornNames.world, nameLabel: world.nameLabel } : world, lang);
+      case "t": {
+        const i = world.cities.findIndex((c) => c.id === n);
+        return word(world.cities[i]?.name, bornNames.towns[i]);
+      }
+      case "r": return word(history.polities[n]?.name, bornNames.record[n]);
+      case "c": return word(world.cultures[n]?.name, bornNames.peoples[n]);
+      case "g": case "v": case "p": {
+        const item = key[0] === "g" ? world.regions[n] : key[0] === "v" ? world.rivers[n] : world.provinces.find((q) => q.id === n);
+        return item ? featureLabel(born ? { ...item.label, custom: undefined } : item.label, lang) : "";
+      }
+    }
+    return "";
+  }
+
+  /**
+   * Open the box over a name. Enter keeps what is typed, Escape leaves the name as it was, and so does
+   * an empty box — or the name the world gave, which takes the reader's away. Leaving the box any other
+   * way keeps what was typed. It follows its name while the map is moved or zoomed under it.
+   * @param near what was pressed, where the name itself is not drawn at this zoom
+   */
+  function openNameEditor(key: string, at: Element, near: Element = at): void {
+    closeNameEditor(false);
+    const frame = at.closest(".map-frame") as HTMLElement | null;
+    const map = at.closest("svg") as SVGSVGElement | null;
+    if (!frame || !map) return;
+    const input = document.createElement("input");
+    input.type = "text";
+    input.className = "name-editor";
+    input.value = nameIn(key, false);
+    input.placeholder = nameIn(key, true);
+    input.spellcheck = false;
+    input.setAttribute("aria-label", t(lang, "renameLabel"));
+    input.title = t(lang, "renameHint");
+    let anchor = at;
+    const place = () => {
+      if (!anchor.isConnected) {
+        const again = nameShownAt(key);
+        if (!again) { closeNameEditor(true); return; }
+        anchor = again;
+      }
+      let r = anchor.getBoundingClientRect();
+      if (!r.width && !r.height && near.isConnected) r = near.getBoundingClientRect();
+      const f = frame.getBoundingClientRect();
+      input.style.left = `${r.left - f.left + r.width / 2}px`;
+      input.style.top = `${r.top - f.top + r.height / 2}px`;
+      input.style.width = `${Math.round(Math.max(150, Math.min(340, r.width + 36)))}px`;
+    };
+    const follow = new MutationObserver(place);
+    follow.observe(map, { attributes: true, attributeFilter: ["viewBox"] });
+    editor = { key, input, follow };
+    frame.appendChild(input);
+    place();
+    input.addEventListener("keydown", (e) => {
+      // A syllable still being put together (a Korean one, always, until the next key) is the input
+      // method's to finish: an Enter that finishes it keeps the name once it is written.
+      if (e.isComposing) {
+        if (e.key === "Enter") input.addEventListener("compositionend", () => closeNameEditor(true), { once: true });
+        return;
+      }
+      if (e.key === "Enter") { e.preventDefault(); closeNameEditor(true); }
+      // (and not out of the map-only view as well, which Escape also closes)
+      else if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); closeNameEditor(false); }
+    });
+    input.addEventListener("blur", () => { if (editor?.input === input) closeNameEditor(true); });
+    input.focus({ preventScroll: true });
+    input.select();
+  }
+
+  function closeNameEditor(keep: boolean): void {
+    if (!editor) return;
+    const { key, input, follow } = editor;
+    editor = null;
+    follow.disconnect();
+    input.remove();
+    if (keep) setName(key, input.value);
+  }
+
+  /** Write a name into the book, the world and the address, and draw the screen again with it. */
+  function setName(key: string, typed: string): void {
+    const name = Array.from(typed.trim()).slice(0, NAME_MAX).join("");
+    const next: NameBook = { ...names };
+    if (!name || name === nameIn(key, true)) delete next[key]; else next[key] = name;
+    if (next[key] === names[key]) return;
+    names = next;
+    applyNames(generated.world, history, bornNames, names);
+    // the same screen, at the zoom and the year the reader was at
+    if (openCityId !== null) openCity(openCityId, "replace", cityZoom?.viewBox());
+    else showWorld(worldZoom?.viewBox());
+  }
+
+  // While renaming, a click on a name opens its box instead of the place it names (the maps' own click
+  // handlers stand down). Heard on the stage, after the zoom has swallowed a drag's click.
+  stage.addEventListener("click", (e) => {
+    if (!renaming) return;
+    const target = e.target as Element;
+    const key = nameKeyOf(target);
+    // a click on the map elsewhere keeps what was typed; a click on a name moves the box there
+    closeNameEditor(true);
+    if (!key) return;
+    e.preventDefault();
+    // ...which may have drawn the screen again under the name just kept
+    const at = target.isConnected ? (target.closest("[data-name]") ?? nameShownAt(key) ?? target) : nameShownAt(key);
+    if (at) openNameEditor(key, at, target.isConnected ? target : at);
+  });
+  // ...and a press on the map, or on its buttons, does not take the keyboard from the box: the click after
+  // it decides. (Taken, the box kept its name and drew the screen again under the press, and the click
+  // that followed landed on nothing.)
+  stage.addEventListener("mousedown", (e) => {
+    const on = e.target as Element;
+    if (editor && on !== editor.input && on.closest?.(".map-frame")) e.preventDefault();
+  });
+
   // a town's name by its id, for the plate's gates (each named for the towns its road leads to)
   const townName = (id: number): string | undefined => generated.world.cities[id]?.name;
 
-  function showWorld(): void {
+  /** @param restore the zoom to draw the map at (ZoomPan.viewBox), when it is drawn again in place */
+  function showWorld(restore?: string): void {
+    closeNameEditor(false);
     const was = openCityId;
     openCityId = null;
     setTitle();
@@ -539,6 +735,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
       return id !== null && id !== undefined && id !== "" ? Number(id) : null;
     };
     svg.addEventListener("click", (e) => {
+      if (renaming) return;   // the stage opens a name's box instead
       const id = cityIdOf(e.target as Element);
       if (id !== null) openCity(id);
     });
@@ -550,7 +747,9 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
       const id = cityIdOf(e.target as Element);
       if (id === null) return;
       e.preventDefault();
-      openCity(id);
+      // renaming, the town's name opens for typing, as a click on it would
+      if (renaming) openNameEditor(`t${id}`, nameShownAt(`t${id}`) ?? (e.target as Element), e.target as Element);
+      else openCity(id);
     });
     const frame = document.createElement("div");
     frame.className = "map-frame";
@@ -594,6 +793,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     // BELOW the map, floating over the key instead of over the drawing.
 
     addFocusToggle(frame);
+    addRenameToggle(frame);
 
     // The best thing this map has is behind its markers, and until the reader knows a marker leads
     // somewhere there is nothing to tell them so. A list is the signal: it says "there are cities
@@ -662,7 +862,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     // What the page's own controls cover of the map — the focus chip and the +/−/↺ mount — asked
     // afresh on every pass, since what they cover changes with the window. At rest the names of
     // areas step out from under them (see deconflictLabels).
-    const underControls = () => coveredBy(svg, frame.querySelectorAll(":scope > .focus-toggle, :scope > .map-zoom-controls"));
+    const underControls = () => coveredBy(svg, frame.querySelectorAll(":scope > .focus-toggle, :scope > .rename-toggle, :scope > .map-zoom-controls"));
     // Zooming holds the lettering at its on-screen size and then asks deconflictLabels what fits
     // now. That is the whole of the "more names as you lean in" behaviour: the land spreads out,
     // the words do not, and the room that opens up is filled from the priority order the pass
@@ -670,6 +870,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     // Coalesced to one pass per frame: a wheel gesture fires dozens of scale changes.
     let relayout = 0, pendingScale = 1;
     worldZoom = attachZoomPan(svg, frame, {
+      restore,
       labels: zoomLabels(),
       onScale: (scale) => {
         pendingScale = scale;   // the newest scale of the gesture, not the one that scheduled the frame
@@ -769,7 +970,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     timeline.setIndex(currentYearIndex); // renders the current year in the current view
     // replaceState, not location.hash: re-rendering the same world is not a place to come back to,
     // and every view switch used to push one
-    window.history.replaceState(null, "", "#" + worldHash());
+    window.history.replaceState(null, "", "#" + worldHash() + namesPart());
     // ...and the keyboard comes back to where the reader left for the plate: the town's own row,
     // or the list's head if the row is folded away or not founded in this year. The way back it
     // was on is hidden on the world, so focus had fallen to <body> (see openCity).
@@ -794,6 +995,12 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     return worldTitle !== null && !tuned
       ? "seed=" + encodeURIComponent(worldTitle)
       : encodeParams(params).slice(1);
+  }
+
+  // ...and the reader's names ride after it: the link is where they are kept
+  function namesPart(): string {
+    const code = encodeNames(names);
+    return code ? "&names=" + code : "";
   }
 
   /** How many plate entries the one showing sits on top of (0 on the world, or on a linked plate). */
@@ -821,9 +1028,10 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
    * which city (showWorld has just rewritten it to the world's own form) but there is nothing
    * behind it to go back to. "none" when we are only following the history, not making it.
    */
-  function openCity(cityId: number, record: "push" | "replace" | "none" = "push"): void {
+  function openCity(cityId: number, record: "push" | "replace" | "none" = "push", restore?: string): void {
     const marker = generated.world.cities.find((c) => c.id === cityId);
     if (!marker) return;
+    closeNameEditor(false);
     openCityId = cityId;
     setTitle(marker);
     controls.classList.add("plate");
@@ -835,7 +1043,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     // and has no use for the world's settings under it
     root.classList.add("plate-screen");
     dropWidthWatch?.();   // the world screen's sections are about to be thrown away
-    const url = "#" + worldHash() + "&city=" + cityId;
+    const url = "#" + worldHash() + "&city=" + cityId + namesPart();
     // ★ How many plates this one stands on top of, counted in the entry itself: the town next door
     // is a history entry too, so "back to the world" is that many steps, not one (see backToWorld).
     const depth = plateDepth();
@@ -861,11 +1069,12 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     //
     // ⚠ The strip's width is baked into the plate's viewBox, so unlike the world map this cannot be
     // fixed by moving a node: the plate is rendered without the strip from the start.
-    const layout = generateCityLayout(cityContext(marker), params.seed);
-    const citySvg = renderCity(layout, lang, { keyOutside: true, townName });
+    const layout = plateOf(marker);
+    const citySvg = renderCity(layout, lang, { keyOutside: true, townName, townId: cityId });
     // a town's name written where a road leaves the plate opens that town, as the neighbours beside it
     // do (a drag that ends on one is not a click: the zoom swallows it)
     citySvg.addEventListener("click", (e) => {
+      if (renaming) return;   // the stage opens a name's box instead
       const to = (e.target as Element).closest?.("[data-city]")?.getAttribute("data-city");
       if (to) openCity(Number(to));
     });
@@ -873,6 +1082,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     frame.className = "map-frame";
     frame.appendChild(citySvg);
     addFocusToggle(frame);
+    addRenameToggle(frame);
 
     // The plate's key opens by default, where the world map's stays folded: a terrain key annotates
     // a map whose places are also named, but a plate's quarters have nothing but their colour.
@@ -1003,10 +1213,12 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     // the castle's name off the castle it names
     clearMarks(citySvg);
     clearCastleName(citySvg);
-    // ...and where each road goes, beside its road where it leaves the plate, off the plate's own name
-    placeRoadEnds(citySvg);
+    // ...and where each road goes, beside its road where it leaves the plate, off the plate's own name —
+    // and out from under the chips over its corner
+    placeRoadEnds(citySvg, { clear: coveredBy(citySvg, frame.querySelectorAll(":scope > .focus-toggle, :scope > .rename-toggle")) });
     deconflictLabels(citySvg);
     cityZoom = attachZoomPan(citySvg, frame, {
+      restore,
       labels: zoomLabels(),
       onScale: (scale) => {
         cityScale = scale;
@@ -1026,6 +1238,8 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
   }
 
   function regenerate(p: WorldParams): void {
+    // a new world starts with its own names; the same world made again keeps the reader's
+    if (!sameWorld(p, params)) names = {};
     params = { ...p };
     seedInput.value = String(params.seed);
     for (const d of dialRows) { d.input.value = String(params[d.key]); d.read.textContent = String(params[d.key]); }
@@ -1033,6 +1247,8 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     if (params.seed !== hashStringToSeed(worldTitle ?? "")) worldTitle = null;
     generated = generateWorld(params, worldTitle ?? undefined);
     history = simulateHistory(generated.world, params.seed);
+    bornNames = generatedNames(generated.world, history);
+    applyNames(generated.world, history, bornNames, names);
     nationColors = assignNationColors(generated.world.grid.neighbors, history.snapshots.map((s) => s.owner));
     governmentForms = classifyGovernments(generated.world, history);
     currentYearIndex = 0;
@@ -1052,11 +1268,11 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     if (openCityId !== null) {
       const marker = generated.world.cities.find((c) => c.id === openCityId);
       if (marker) {
-        const svg = renderCity(generateCityLayout(cityContext(marker), params.seed), lang, { townName });
+        const svg = renderCity(plateOf(marker), lang, { townName });
         layOutLabelsForExport(svg, (s) => { fitTitle(s); clearMarks(s); clearCastleName(s); placeRoadEnds(s); });
         const [, , w, h] = (svg.getAttribute("viewBox") || "0 0 1000 700").split(/[\s,]+/).map(Number);
         return {
-          svg, name: marker.name.replace(/[^\w-]+/g, "_") || "city",
+          svg, name: plainName(marker.name).replace(/[^\p{L}\p{N}_-]+/gu, "_").replace(/^_+|_+$/g, "") || "city",
           width: Math.round(w * CITY_PNG_SCALE), height: Math.round(h * CITY_PNG_SCALE),
         };
       }
@@ -1074,6 +1290,8 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     // This is a fresh render that has never been in the document, so its labels have never been laid
     // out against each other — left alone, every name in the world goes into the file, stacked.
     layOutLabelsForExport(svg);
+    // what each name names is for renaming on the screen, not for the file
+    for (const el of svg.querySelectorAll("[data-name]")) el.removeAttribute("data-name");
     return svg;
   }
 
@@ -1110,7 +1328,8 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     // The exported document follows the language the user is reading the app in — a Korean
     // session was producing an English gazetteer with Korean chronicle lines inside it.
     const md = worldToGazetteer(generated.world, history, lang);
-    const fname = (generated.world.name.replace(/[^A-Za-z0-9]+/g, "_").replace(/^_+|_+$/g, "") || "gazetteer") + ".md";
+    // (a name the reader gave may be in any script)
+    const fname = (generated.world.name.replace(/[^\p{L}\p{N}]+/gu, "_").replace(/^_+|_+$/g, "") || "gazetteer") + ".md";
     downloadBlob(fname, new Blob([md], { type: "text/markdown" }));
   });
 

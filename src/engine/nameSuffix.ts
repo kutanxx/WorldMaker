@@ -1,4 +1,4 @@
-import { toHangul } from "./hangul";
+import { toHangul, plainName } from "./hangul";
 import type { Government } from "./government";
 
 // Two complaints about the generated names, and a fix for both WITHOUT the generator changing a
@@ -71,5 +71,5 @@ const FORM_WORD_EN: Record<Government, string> = {
 };
 
 export function realmLabelEn(name: string, form: Government): string {
-  return `${name} ${FORM_WORD_EN[form]}`;
+  return `${plainName(name)} ${FORM_WORD_EN[form]}`;
 }

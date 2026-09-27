@@ -219,14 +219,18 @@ a.home:hover { background: #e7cf9c; }
    budget drops to just the scrubber's own strip. At 1920x945 that takes the map from 993x695 to
    about 1350x945. `position: fixed` on the stage rather than a reflow so nothing else has to be
    re-measured or re-laid-out on the way in and out. */
-.focus-toggle {
+.focus-toggle, .rename-toggle {
   position: absolute; right: 14px; top: 14px; z-index: 6;
   padding: 4px 10px; font-size: 12px; letter-spacing: .04em; line-height: 1.4;
   background: rgba(244, 236, 216, 0.88); color: #3c2f1c;
   border: 1px solid rgba(183, 160, 113, 0.7); border-radius: 6px; cursor: pointer;
   box-shadow: 0 1px 3px rgba(42, 33, 24, 0.18);
 }
-.focus-toggle:hover { background: #e7d9b6; }
+.focus-toggle:hover, .rename-toggle:hover { background: #e7d9b6; }
+/* Renaming stands under the map-only chip (27px of it, and the toolbar's 6px gap) and says it is on the
+   way the ink toggle does */
+.rename-toggle { top: 47px; }
+.rename-toggle.active { background: #d8b25a; border-color: #b08a3a; font-weight: 600; }
 
 body.map-focus { overflow: hidden; }
 body.map-focus .app-title,
@@ -317,6 +321,8 @@ svg.world text,
 svg.world .compass,
 svg.world .map-frame,
 svg.world .legend { pointer-events: none; }
+/* ...except while renaming, when a name is what a click is for (app.ts, the stage's click) */
+.renaming svg.world text[data-name] { pointer-events: auto; }
 .nation-label { font-family: 'Cinzel', serif; font-weight: 600; }
 /* A country in small caps, tracked, the way a printed atlas sets one — against a region in full
    caps and a town in upper-and-lower, which is three registers for three kinds of place. It is what
@@ -391,6 +397,20 @@ svg.world.lang-en .nation-label { font-variant: small-caps; letter-spacing: 0.10
 /* The ink toggle stands beside the views and says it is on the way they do: it is how a view is drawn,
    pressed or not. */
 .ink-toggle.active { background: #d8b25a; font-weight: 600; }
+/* While renaming, every name on the map says it can be typed over, and a box stands where a name is being
+   typed (app.ts, openNameEditor) — over the map's chips, and in the page's own face, which has the Hangul
+   the map's display face does not. */
+.renaming svg.world [data-name], .renaming svg.city [data-name],
+.renaming svg.world .marker-hit, .renaming svg.city tspan[data-city] { cursor: text; }
+.renaming svg.world text[data-name]:hover, .renaming svg.city text[data-name]:hover,
+.renaming svg.city tspan[data-city]:hover { text-decoration: underline; }
+.name-editor {
+  position: absolute; z-index: 7; transform: translate(-50%, -50%); box-sizing: border-box;
+  padding: 4px 8px; font-family: inherit; font-size: 16px; font-weight: 600; text-align: center;
+  color: #1b1612; background: #fffaf0; border: 1px solid #7a5c2e; border-radius: 4px;
+  box-shadow: 0 2px 10px rgba(40, 28, 10, 0.3);
+}
+.name-editor:focus { outline: 2px solid #d8b25a; outline-offset: 1px; }
 /* ...and on an ink map a pointer's tint is ink too, not the colour map's red */
 .world.ink .marker-hit:hover { fill: rgba(27, 22, 18, 0.10); }
 .world.ink .marker-hit:active { fill: rgba(27, 22, 18, 0.20); }
@@ -889,6 +909,9 @@ svg.city .wall-seg, svg.city .wall-seg-inner, svg.city .tower, svg.city .gate { 
    stood on the map at 48x44 each (a 60x152 mount, 2.8% of the map) where a phone shows nothing at
    rest and the "전체 보기" chip once zoomed. */
 @media (max-width: 900px), (pointer: coarse) {
+  /* Renaming is typing, and a phone's map is 336px across that the chips already cover a share of. The
+     names a link carries are shown all the same; only the way to change them stays on a desk. */
+  .rename-toggle { display: none; }
   /* Two fingers do this now (see zoomPan), and the three buttons covered 19% of a 321px map. The
      reset stays: a pinch can leave you somewhere you cannot pinch your way back from. */
   .map-zoom-controls .zoom-in, .map-zoom-controls .zoom-out { display: none; }

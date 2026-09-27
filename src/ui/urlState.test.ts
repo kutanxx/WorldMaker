@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { DEFAULT_PARAMS } from "../types/world";
-import { encodeParams, decodeParams, initialParams, initialSeedName, initialCity, withoutCity, randomSeed, parseSeedValue } from "./urlState";
+import { encodeParams, decodeParams, initialParams, initialSeedName, initialCity, initialNames, withoutCity, randomSeed, parseSeedValue } from "./urlState";
+import { encodeNames } from "./nameBook";
 import { hashStringToSeed } from "../engine/rng";
 
 describe("urlState", () => {
@@ -109,5 +110,30 @@ describe("a city in the address", () => {
     expect(initialParams("#seed=Avalon&city=3").seed).toBe(hashStringToSeed("Avalon"));
     expect(initialSeedName("#seed=Avalon&city=3")).toBe("Avalon");
     expect(initialSeedName(world + "&city=3")).toBeNull();
+  });
+});
+
+// The reader's names ride beside the world (nameBook.ts): `&names=<base64url>`. The world and the city
+// have to read the same with them there — anything after the base64 world but `&city=` made the page
+// open world 1, which is exactly the bug the city itself once had.
+describe("the reader's names in the address", () => {
+  const book = { t1: "아르델", w: "새누리" };
+  const names = "&names=" + encodeNames(book);
+  it("are read from either shape of world link, with or without a city", () => {
+    const world = encodeParams({ ...DEFAULT_PARAMS, seed: 9, seaLevel: 0.4 });
+    for (const h of [world + names, world + "&city=3" + names, world + names + "&city=3", "#seed=Avalon" + names + "&city=3"]) {
+      expect(initialNames(h), h).toEqual(book);
+    }
+    expect(initialNames(world)).toEqual({});
+    expect(initialNames("")).toEqual({});
+  });
+  it("leave the world and the city as they were", () => {
+    const world = encodeParams({ ...DEFAULT_PARAMS, seed: 9, seaLevel: 0.4 });
+    expect(initialParams(world + "&city=3" + names)).toEqual({ ...DEFAULT_PARAMS, seed: 9, seaLevel: 0.4 });
+    expect(initialParams(world + names)).toEqual({ ...DEFAULT_PARAMS, seed: 9, seaLevel: 0.4 });
+    expect(initialParams("#seed=Avalon" + names).seed).toBe(hashStringToSeed("Avalon"));
+    expect(initialSeedName("#seed=Avalon" + names + "&city=3")).toBe("Avalon");
+    expect(initialCity(world + names + "&city=3")).toBe(3);
+    expect(initialCity(world + "&city=3" + names)).toBe(3);
   });
 });

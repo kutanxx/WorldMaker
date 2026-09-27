@@ -1,6 +1,7 @@
 import type { WorldParams } from "../types/world";
 import { DEFAULT_PARAMS } from "../types/world";
 import { hashStringToSeed } from "../engine/rng";
+import { decodeNames, type NameBook } from "./nameBook";
 
 const KEYS = Object.keys(DEFAULT_PARAMS) as (keyof WorldParams)[];
 
@@ -58,8 +59,23 @@ export function withoutCity(hash: string): string {
 // ⚠ Both readers below take the city off the address themselves. The page handed them the whole of
 // it, and a plate's address is the world PLUS `&city=N`: `atob` choked on the `&`, so every plate's
 // own link — copied to share, or reloaded — opened DEFAULT_PARAMS and drew town N of world 1.
+// The reader's names ride the same way (nameBook.ts): `&names=<base64url>`, after the world and in any
+// order with the city. The world is read with both taken off — the base64 payload is the whole of what
+// is left, and `atob` chokes on anything after it.
+const NAMES = /(?:^|&)names=([A-Za-z0-9_-]*)(?=&|$)/;
+
+export function initialNames(hash: string): NameBook {
+  const m = NAMES.exec(hash.replace(/^#/, ""));
+  return m ? decodeNames(m[1]) : {};
+}
+
+function worldOnly(hash: string): string {
+  const lead = hash.startsWith("#") ? "#" : "";
+  return lead + withoutCity(hash).replace(/^#/, "").replace(NAMES, "").replace(/^&/, "");
+}
+
 export function initialSeedName(hash: string): string | null {
-  const raw = withoutCity(hash).replace(/^#/, "");
+  const raw = worldOnly(hash).replace(/^#/, "");
   if (raw.length === 0) return null;
   const v = new URLSearchParams(raw).get("seed");
   if (v === null) return null;
@@ -74,7 +90,7 @@ export function initialSeedName(hash: string): string | null {
 }
 
 export function initialParams(hash: string): WorldParams {
-  const world = withoutCity(hash);
+  const world = worldOnly(hash);
   const raw = world.replace(/^#/, "");
   if (raw.length === 0) return { ...DEFAULT_PARAMS, seed: randomSeed() };
   const named = parseSeedValue(new URLSearchParams(raw).get("seed"));

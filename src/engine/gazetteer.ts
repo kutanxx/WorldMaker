@@ -7,7 +7,7 @@ import { buildDynasties } from "./dynasty";
 import { classifyGovernments } from "./government";
 import { buildChronicle } from "./chronicleLines";
 import { featureLabel, worldNameIn } from "./featureLabel";
-import { properNoun } from "./hangul";
+import { properNoun, OWN_MARK } from "./hangul";
 import { realmLabelKo, peopleLabelKo } from "./nameSuffix";
 // 는 was hardcoded after the world's title. It was harmless while the title was Latin and the rule
 // went by the final letter; a Hangul title is chosen by its final consonant, and 소덴드 takes 은.
@@ -380,5 +380,6 @@ export function worldToGazetteer(world: World, history: History, lang: Gazetteer
     L.push(`- ${t.text}`);
   }
 
-  return L.join("\n") + "\n";
+  // a name the reader gave carries an invisible mark (hangul.ts OWN_MARK); the document leaves without it
+  return (L.join("\n") + "\n").split(OWN_MARK).join("");
 }

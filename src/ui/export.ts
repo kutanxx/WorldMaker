@@ -2,6 +2,7 @@ import type { World } from "../types/world";
 import type { History } from "../engine/history";
 import { buildDynasties } from "../engine/dynasty";
 import { naturalHistory } from "../engine/naturalHistory";
+import { OWN_MARK } from "../engine/hangul";
 
 /**
  * The world, and the history that happened to it.
@@ -18,8 +19,15 @@ import { naturalHistory } from "../engine/naturalHistory";
  * machine-readable export could not reach.
  *
  * `history` is optional so a world can still be dumped on its own.
+ *
+ * A name the reader gave (nameBook.ts) carries an invisible mark in the world (hangul.ts OWN_MARK);
+ * the file leaves without it.
  */
 export function worldToJSON(world: World, history?: History): string {
+  return worldJSON(world, history).split(OWN_MARK).join("");
+}
+
+function worldJSON(world: World, history?: History): string {
   if (!history) return JSON.stringify(world);
   const dynasties: Record<number, unknown> = {};
   for (const [id, reigns] of buildDynasties(world, history)) dynasties[id] = reigns;

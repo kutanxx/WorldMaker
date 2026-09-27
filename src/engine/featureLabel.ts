@@ -12,9 +12,12 @@ export interface FeatureLabel {
   adj?: string;
   noun: string;
   proper?: string;
+  /** the reader's own name for the place, standing for the whole label in either language (nameBook.ts) */
+  custom?: string;
 }
 
 export function featureLabel(label: FeatureLabel, lang: "en" | "ko"): string {
+  if (label.custom) return label.custom;
   if (lang === "en") {
     if (label.pattern === "adj") return `the ${label.adj} ${label.noun}`;
     if (label.pattern === "of") return `${label.noun} of ${label.proper}`;

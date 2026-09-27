@@ -189,6 +189,8 @@ export interface CityRenderOpts {
    * to (the world's roads, worldRoads.ts). Without it a gate is just a gate.
    */
   townName?: (id: number) => string | undefined;
+  /** which town this plate is, so its title can be renamed like the world map's names (nameBook.ts) */
+  townId?: number;
 }
 
 export function renderCity(layout: CityLayout, lang: Lang = "en", opts: CityRenderOpts = {}): SVGSVGElement {
@@ -770,7 +772,7 @@ export function renderCity(layout: CityLayout, lang: Lang = "en", opts: CityRend
     rx: 2, fill: PARCHMENT, "fill-opacity": 0.88,
   }));
   const title = svgEl("text", {
-    class: "city-name-text", x: (w + LEGW) / 2, y: 30, "text-anchor": "middle",
+    class: "city-name-text", ...(opts.townId !== undefined ? { "data-name": `t${opts.townId}` } : {}), x: (w + LEGW) / 2, y: 30, "text-anchor": "middle",
     // the atlas's display face, as the world map's own name wears. Carried as an attribute rather
     // than through the stylesheet: an exported plate takes no CSS with it, and the name was coming
     // out in the body face -- the same one an ordinary region label wears.

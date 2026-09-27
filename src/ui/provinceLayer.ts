@@ -207,7 +207,7 @@ export function provinceLayer(
     const lg = svgEl("g", { class: "province-labels" });
     for (const prov of [...provinces].sort((a, b) => b.cells - a.cells)) {
       const tx = svgEl("text", {
-        class: "province-label", x: prov.centroid[0] + 4, y: prov.centroid[1] + 3,
+        class: "province-label", "data-name": `p${prov.id}`, x: prov.centroid[0] + 4, y: prov.centroid[1] + 3,
         "text-anchor": "start", "font-size": 7,
       });
       tx.textContent = provinceName(prov);

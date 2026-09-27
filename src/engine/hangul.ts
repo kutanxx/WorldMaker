@@ -164,8 +164,19 @@ interface Syl { on: string; nuc: string; coda: string; fromVowel: boolean }
  * sentence-building, and `toHangul` itself takes no language argument to thread through.
  */
 export function properNoun(ko: boolean, word: string): string {
+  if (word.startsWith(OWN_MARK)) return plainName(word);
   return ko ? toHangul(word) : word;
 }
+
+/**
+ * A name the READER gave: written as typed, in either language. It carries this mark — U+2060, a word
+ * joiner, zero wide and invisible — so the transliteration passes it through: the token tables are a
+ * closed Latin alphabet, and typed Latin came out of them broken ("Winterfell" -> "w인테르펠르").
+ * Put on by `ownName`, taken off by `plainName`; see src/ui/nameBook.ts.
+ */
+export const OWN_MARK = "\u2060";
+export function ownName(name: string): string { return OWN_MARK + name; }
+export function plainName(name: string): string { return name.startsWith(OWN_MARK) ? name.slice(OWN_MARK.length) : name; }
 
 /**
  * Write a generated Latin name in Hangul. Pure: no rng, no state, the same word always the same
@@ -173,6 +184,7 @@ export function properNoun(ko: boolean, word: string): string {
  * label with it.
  */
 export function toHangul(word: string): string {
+  if (word.startsWith(OWN_MARK)) return plainName(word);   // the reader's own name, as typed
   const w = word.toLowerCase();
   const parts: (Syl | string)[] = [];
   let i = 0;

@@ -56,7 +56,7 @@ export function cultureLayer(
   for (const [id, c] of cents) {
     if (c.cells < MIN_LABEL_CELLS || !cultures[id]) continue;
     const t = svgEl("text", {
-      class: "culture-label", x: c.x.toFixed(1), y: c.y.toFixed(1), "text-anchor": "middle",
+      class: "culture-label", "data-name": `c${id}`, x: c.x.toFixed(1), y: c.y.toFixed(1), "text-anchor": "middle",
       "font-size": 13, fill: "#2a2118", stroke: "#f3ead2", "stroke-width": 2.6,
       "paint-order": "stroke", "stroke-linejoin": "round",
     });

@@ -1,7 +1,7 @@
 import type { World } from "../types/world";
 import type { History, HistoryEventType } from "./history";
 import { withJosa } from "./korean";
-import { properNoun } from "./hangul";
+import { properNoun, OWN_MARK } from "./hangul";
 import { buildDynasties, rulerAt, type Reign } from "./dynasty";
 import { eventText } from "./eventText";
 import { naturalHistory } from "./naturalHistory";
@@ -312,5 +312,7 @@ export function buildChronicle(world: World, history: History, lang: ChronicleLa
   told.forEach((t, i) => ((t as ChronicleLine & { i: number }).i = i));
   told.sort((a, b) => a.year - b.year || a.rank - b.rank
     || ((a as ChronicleLine & { i: number }).i - (b as ChronicleLine & { i: number }).i));
+  // a name the reader gave carries an invisible mark (hangul.ts OWN_MARK); a sentence leaves without it
+  for (const t of told) { t.text = t.text.split(OWN_MARK).join(""); if (t.short) t.short = t.short.split(OWN_MARK).join(""); }
   return told;
 }

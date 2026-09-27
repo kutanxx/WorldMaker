@@ -1058,3 +1058,14 @@ describe("a road says where it goes where it leaves the plate", () => {
     }
   });
 });
+
+// A reader renames a town by clicking its name (nameBook.ts), on the world map or on its plate: the
+// plate's title says which town it names, when the page tells it.
+describe("the plate's title says which town it names", () => {
+  const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });
+  const layout = generateCityLayout(cityContext(world.cities[3]), 1);
+  it("carries the town's key when given its id, and nothing when not", () => {
+    expect(renderCity(layout, "ko", { townId: 3 }).querySelector(".city-name-text")?.getAttribute("data-name")).toBe("t3");
+    expect(renderCity(layout, "ko").querySelector(".city-name-text")?.hasAttribute("data-name")).toBe(false);
+  });
+});
