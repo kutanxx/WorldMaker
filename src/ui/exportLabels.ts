@@ -1,5 +1,5 @@
 import { deconflictLabels } from "./deconflict";
-import { applyLabelScale, applyMarkerScale } from "./labelScale";
+import { applyPageScale } from "./labelScale";
 
 // Everything the exported file is read at: one size, all at once. There is no zoom in a PNG, so
 // nothing waits for one — every tier is in play, and a name only loses its place to another name.
@@ -22,6 +22,9 @@ export function layOutLabelsForExport(
   // the drawing's own arrangement of its names, run while the file is measurable, at the size it
   // is read at, and before the cull — a plate sets its districts' names beside their signs
   beforeCull?: (svg: SVGSVGElement) => void,
+  // how many times less of the world the page holds than the whole map's (regionPage.ts): its names are
+  // set at the whole map's page size and kept apart by the page's air
+  z = 1,
 ): void {
   const vb = (svg.getAttribute("viewBox") || "0 0 1000 700").split(/[\s,]+/).map(Number);
   const holder = document.createElement("div");
@@ -33,10 +36,9 @@ export function layOutLabelsForExport(
   document.body.appendChild(holder);
   try {
     // the sizes a reader sees when they lean in far enough to be shown these names at all
-    applyLabelScale(svg, 1);
-    applyMarkerScale(svg, 1);
+    applyPageScale(svg, z);
     beforeCull?.(svg);
-    deconflictLabels(svg, EVERY_TIER);
+    deconflictLabels(svg, EVERY_TIER, { room: 1 / z });
   } finally {
     svg.remove();
     holder.remove();

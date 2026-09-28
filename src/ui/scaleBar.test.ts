@@ -15,6 +15,18 @@ describe("the maps say how far", () => {
     expect(g.querySelector("text")?.textContent).toBe("360 km");
   });
 
+  // A region's page (regionPage.ts) measures its bar again — a third of the world across is 100 km on a
+  // bar a third shorter — and sets its words in the whole map's type, not in type sized by the new length.
+  it("sets a shorter bar's words in the type of the bar it stands for", () => {
+    const g = scaleBar(450, 674, 100, "100 km", "도보 3일", 120);
+    const chain = [...g.querySelectorAll("rect")].slice(1);
+    const right = Math.max(...chain.map((r) => Number(r.getAttribute("x")) + Number(r.getAttribute("width"))));
+    expect(right - 450, "the bar is as long as its distance").toBeCloseTo(100, 6);
+    expect(Number(g.querySelector(".scale-bar-text")!.getAttribute("font-size")), "the whole map's caption").toBeCloseTo(9, 6);
+    expect(Number(g.querySelector(".scale-bar-sub")!.getAttribute("font-size"))).toBeCloseTo(7.8, 6);
+    expect(Number(chain[0].getAttribute("height")), "the whole map's chain").toBeCloseTo(4.2, 6);
+  });
+
   it("keeps a town the size a walled town was", () => {
     // the wall's radius is 60 + 12*size, so a size-3 market town is 192 units across
     expect(192 * METRES_PER_UNIT).toBeGreaterThan(400);

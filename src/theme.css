@@ -382,12 +382,26 @@ svg.world.lang-en .nation-label { font-variant: small-caps; letter-spacing: 0.10
    274 in English — and that is what pushed the language toggle onto a second row in BOTH languages.
    (The toolbar's width comes from #app's 1040px cap, so the window's size never entered into it.)
    One segmented control, the same shape as the view toggle, with the verb carried by the arrow. */
-.export-group { display: inline-flex; align-items: center; gap: 0; }
+.export-group { display: inline-flex; align-items: center; gap: 0; position: relative; }
 .export-group .export-icon { padding: 0 5px 0 1px; color: #6b5a3f; cursor: default; }
-.export-group button { border-radius: 0; }
-.export-group button:first-of-type { border-radius: 4px 0 0 4px; }
-.export-group button:last-of-type { border-radius: 0 4px 4px 0; }
-.export-group button:not(:first-of-type) { border-left: none; }
+.export-group > button { border-radius: 0; }
+.export-group > button:first-of-type { border-radius: 4px 0 0 4px; }
+.export-group > button:last-of-type { border-radius: 0 4px 4px 0; }
+.export-group > button:not(:first-of-type) { border-left: none; }
+/* Zoomed in, PNG and SVG ask whether the file is the whole map or the part on screen (app.ts,
+   askWhatToExport) — a small menu under the formats, in the name box's paper and shadow. */
+.export-choice {
+  position: absolute; top: calc(100% + 4px); right: 0; z-index: 20;
+  display: flex; flex-direction: column; gap: 2px; padding: 4px;
+  background: #fffaf0; border: 1px solid #b7a071; border-radius: 6px;
+  box-shadow: 0 2px 10px rgba(40, 28, 10, 0.3);
+}
+.export-choice button {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 14px;
+  border: 0; border-radius: 4px; background: none; padding: 6px 10px; text-align: left; white-space: nowrap;
+}
+.export-choice button:hover, .export-choice button:focus-visible { background: #efe6cf; }
+.export-choice .export-choice-size { color: #6b5d42; font-size: 12px; }
 
 .view-toggle { display: inline-flex; gap: 0; }
 .view-toggle button { border-radius: 0; }

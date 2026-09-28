@@ -68,6 +68,21 @@ describe("layOutLabelsForExport", () => {
   });
 });
 
+// A region of the map on its own page (regionPage.ts) is laid out by the page's law: its names at the whole
+// map's page size, kept apart by the page's air.
+describe("a region's page, laid out", () => {
+  it("sets its names at the whole map's page size and keeps them apart by the page's air", () => {
+    const { svg, region, town } = build();
+    // the region's name 16 tall at 100..116, the town's 8 at 102..110: at a third of the size they part
+    (region as unknown as { getBBox: () => Box }).getBBox = () => ({ x: 100, y: 100, width: 40, height: 5.3 });
+    (town as unknown as { getBBox: () => Box }).getBBox = () => ({ x: 100, y: 108, width: 20, height: 4 });
+    layOutLabelsForExport(svg, undefined, 3);
+    expect(Number(town.getAttribute("font-size")), "8, at its reading size 1.5, over 3").toBeCloseTo(4, 2);
+    expect(Number(region.getAttribute("font-size"))).toBeCloseTo(5.33, 2);
+    expect(town.style.visibility, "2.7 below the region's name: clear of a third of the air").toBe("");
+  });
+});
+
 // A plate's names step off their signs before they are culled (clearMarks), on the screen and in
 // the file alike — so the export takes the plate's own pass, run at the size the file is read at.
 describe("a drawing's own pass before the cull", () => {

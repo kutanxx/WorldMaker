@@ -100,6 +100,7 @@ export const UI: Record<Lang, Record<string, string>> = {
     moreToggle: "More", lessToggle: "Less", moreShow: "More controls", moreHide: "Fewer controls",
     zoomIn: "Zoom in", zoomOut: "Zoom out", zoomReset: "Reset view", play: "Play", pause: "Pause",
     focusEnter: "Map only", focusExit: "✕ Leave", focusEnterHint: "Give the window to the map", focusExitHint: "Back to the page (Esc)",
+    exportChoice: "What to export", exportWhole: "Whole map", exportVisible: "Visible area",
     // the front page. It used to print every line in both languages at once, so neither read well.
     landingTagline: "A procedural fantasy atlas & chronicle", chronicleAlso: " and {n} more that year",
     landingCardTitle: "Create a World",
@@ -138,6 +139,7 @@ export const UI: Record<Lang, Record<string, string>> = {
     moreToggle: "더 보기", lessToggle: "접기", moreShow: "컨트롤 더 보기", moreHide: "컨트롤 접기",
     zoomIn: "확대", zoomOut: "축소", zoomReset: "전체 보기", play: "재생", pause: "일시정지",
     focusEnter: "지도만", focusExit: "✕ 닫기", focusEnterHint: "화면을 지도에 내어준다", focusExitHint: "원래 화면으로 (Esc)",
+    exportChoice: "내보낼 범위", exportWhole: "전체 지도", exportVisible: "보이는 부분",
     landingTagline: "절차적으로 만들어지는 판타지 지도와 연대기", chronicleAlso: " 외 {n}건",
     landingCardTitle: "세계 만들기",
     landingCardDesc: "무작위 판타지 세계를 만들고 — 지도, 도시, 강, 역사, 가제티어를 살펴봅니다.",

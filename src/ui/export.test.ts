@@ -2,8 +2,41 @@
 import { describe, it, expect } from "vitest";
 import { DEFAULT_PARAMS } from "../types/world";
 import { generateWorld } from "../engine/world";
-import { worldToJSON } from "./export";
+import { worldToJSON, svgToPngBlob } from "./export";
 import { simulateHistory } from "../engine/history";
+
+// A file for print is a number of pixels chosen for the page — 3000 across is ten inches at 300dpi.
+// The PNG was drawn at that size TIMES the screen's pixel ratio, so the same map came out 3000px wide on
+// one computer and 4500 on a laptop at 150%: a file whose size depended on who pressed the button.
+describe("a PNG is the size it is asked for", () => {
+  it("draws exactly the pixels asked for, whatever the screen's pixel ratio", async () => {
+    // jsdom has no canvas and loads no images: stand-ins for those two, the rest is the real function
+    const drawnAt: [number, number][] = [];
+    const saved = {
+      image: globalThis.Image, getContext: HTMLCanvasElement.prototype.getContext, toBlob: HTMLCanvasElement.prototype.toBlob,
+      url: URL.createObjectURL, revoke: URL.revokeObjectURL, dpr: Object.getOwnPropertyDescriptor(window, "devicePixelRatio"),
+    };
+    class Loaded { onload: (() => void) | null = null; onerror: (() => void) | null = null; set src(_: string) { setTimeout(() => this.onload?.(), 0); } }
+    globalThis.Image = Loaded as unknown as typeof Image;
+    HTMLCanvasElement.prototype.getContext = (() => ({ scale() {}, drawImage() {} })) as unknown as typeof HTMLCanvasElement.prototype.getContext;
+    HTMLCanvasElement.prototype.toBlob = function (this: HTMLCanvasElement, cb: BlobCallback) { drawnAt.push([this.width, this.height]); cb(new Blob()); };
+    URL.createObjectURL = (() => "blob:svg") as typeof URL.createObjectURL;
+    URL.revokeObjectURL = (() => {}) as typeof URL.revokeObjectURL;
+    Object.defineProperty(window, "devicePixelRatio", { value: 1.5, configurable: true });
+    try {
+      const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg") as SVGSVGElement;
+      await svgToPngBlob(svg, 3000, 2100);
+      expect(drawnAt).toEqual([[3000, 2100]]);
+    } finally {
+      globalThis.Image = saved.image;
+      HTMLCanvasElement.prototype.getContext = saved.getContext;
+      HTMLCanvasElement.prototype.toBlob = saved.toBlob;
+      URL.createObjectURL = saved.url; URL.revokeObjectURL = saved.revoke;
+      if (saved.dpr) Object.defineProperty(window, "devicePixelRatio", saved.dpr);
+      else delete (window as unknown as Record<string, unknown>).devicePixelRatio;
+    }
+  });
+});
 
 describe("export", () => {
   it("serializes a world to parseable JSON", () => {

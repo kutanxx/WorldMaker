@@ -63,6 +63,9 @@ export function downloadBlob(name: string, blob: Blob): void {
   URL.revokeObjectURL(url);
 }
 
+// `width` x `height` pixels, exactly: a file is sized for the page it is going to, and the screen it was
+// made on has nothing to say about that. (It used to be drawn at the screen's pixel ratio over, so a
+// laptop at 150% wrote the same map half as large again as a desktop did.)
 export function svgToPngBlob(svg: SVGSVGElement, width: number, height: number): Promise<Blob> {
   const data = svgToString(svg);
   const svgBlob = new Blob([data], { type: "image/svg+xml" });
@@ -71,12 +74,10 @@ export function svgToPngBlob(svg: SVGSVGElement, width: number, height: number):
     const img = new Image();
     img.onload = () => {
       const canvas = document.createElement("canvas");
-      const dpr = window.devicePixelRatio || 1;
-      canvas.width = width * dpr;
-      canvas.height = height * dpr;
+      canvas.width = width;
+      canvas.height = height;
       const ctx = canvas.getContext("2d");
       if (!ctx) return reject(new Error("no 2d context"));
-      ctx.scale(dpr, dpr);
       ctx.drawImage(img, 0, 0, width, height);
       URL.revokeObjectURL(url);
       canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("toBlob failed"))), "image/png");

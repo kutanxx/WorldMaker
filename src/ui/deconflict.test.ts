@@ -114,6 +114,64 @@ describe("deconflictLabels air gap", () => {
   });
 });
 
+// A region of the map on its own page (regionExport.ts) holds `z` times less of the world across the same
+// width. The air a name keeps and its margin from the frame are set in map units for the whole map's page;
+// on the region's they are `room` = 1/z of that, or its names would stand three times further apart than
+// the world's do, and a third of them would be culled for it.
+describe("deconflictLabels on a region's page", () => {
+  it("keeps names apart by the page's air, not the whole map's", () => {
+    const pair = () => {
+      const svg = document.createElementNS(NS, "svg") as SVGSVGElement;
+      const upper = mkLabel(svg, "region-label", { x: 0, y: 0, width: 100, height: 14 });
+      const below = mkLabel(svg, "region-label", { x: 10, y: 17, width: 90, height: 14 });   // 3 below it
+      return { svg, upper, below };
+    };
+    const world = pair();
+    deconflictLabels(world.svg, 4);
+    expect(world.below.style.visibility, "the whole map's air (4) is what a page of it keeps").toBe("hidden");
+    const region = pair();
+    deconflictLabels(region.svg, 4, { room: 1 / 3 });
+    expect(region.upper.style.visibility).toBe("");
+    expect(region.below.style.visibility, "a third of that air is 1.33, and 3 clears it").toBe("");
+  });
+
+  it("brings a spilling name inside the frame by the page's margin", () => {
+    const svg = document.createElementNS(NS, "svg") as SVGSVGElement;
+    svg.setAttribute("viewBox", "300 200 333.33 233.33");
+    const west = mkLabel(svg, "region-label", { x: 298, y: 300, width: 60, height: 10 });
+    west.setAttribute("x", "330");
+    deconflictLabels(svg, 4, { room: 1 / 3 });
+    expect(Number(west.getAttribute("x")), "10/3 inside the frame, not 10").toBeCloseTo(335.33, 2);
+  });
+
+  // The whole map's key, compass, title and scale bar are carried onto the region's page as one group, at
+  // their page size: `data-x`, `data-y` and `data-k` say where the page's corner is and how many map units
+  // a page unit is. A name must keep off where they stand on the page, not where their own numbers say.
+  it("keeps names off the key and the compass where they stand on the region's page", () => {
+    const svg = document.createElementNS(NS, "svg") as SVGSVGElement;
+    svg.setAttribute("viewBox", "300 200 333.33 233.33");
+    const furniture = document.createElementNS(NS, "g");
+    furniture.setAttribute("class", "page-furniture");
+    for (const [k, v] of [["data-x", "300"], ["data-y", "200"], ["data-k", String(1 / 3)]]) furniture.setAttribute(k, v);
+    const stub = (cls: string, box: Box) => {
+      const g = document.createElementNS(NS, "g");
+      g.setAttribute("class", cls);
+      (g as unknown as { getBBox: () => Box }).getBBox = () => box;
+      furniture.appendChild(g);
+    };
+    stub("legend biome-legend", { x: 9, y: 520, width: 120, height: 170 });   // on the region's page: 303..343 x 373.3..430
+    stub("compass", { x: 10, y: 5, width: 32, height: 37 });                   // 303.3..314 x 201.7..214
+    svg.appendChild(furniture);
+    const underKey = mkLabel(svg, "region-label", { x: 310, y: 380, width: 20, height: 5 });
+    const underCompass = mkLabel(svg, "city-label city-town", { x: 305, y: 205, width: 12, height: 3 });
+    const clear = mkLabel(svg, "region-label", { x: 400, y: 300, width: 20, height: 5 });
+    deconflictLabels(svg, 4, { room: 1 / 3 });
+    expect(underKey.style.visibility, "a name under the key").toBe("hidden");
+    expect(underCompass.style.visibility, "a name under the compass").toBe("hidden");
+    expect(clear.style.visibility).toBe("");
+  });
+});
+
 describe("deconflictLabels and the world's title", () => {
   it("reserves the title's space, so a region name cannot sit under it", () => {
     const svg = document.createElementNS(NS, "svg") as SVGSVGElement;

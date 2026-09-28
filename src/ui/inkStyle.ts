@@ -18,6 +18,7 @@ import { settlementKeyRows } from "./settlementKey";
 import { ALPINE, TAIGA, TEMPERATE_FOREST, TROPICAL, WETLAND, DESERT } from "../engine/biome";
 import { OCEAN } from "../engine/terrain";
 import { pointInPolygon, type Point } from "../engine/geometry";
+import { type Page, PAGE_MARGIN, cellHash, onPage, spreadInCell } from "./regionPage";
 
 export const INK = "#1b1612";
 export const PAPER = "#ffffff";
@@ -36,47 +37,47 @@ const HILL_BAND = 0.07;
 const BORDER_W = 1.6, BORDER_DASH = "6 2 1.5 2", HALO_EXTRA = 2.2;
 
 const f1 = (v: number) => v.toFixed(1);
-const hash = (i: number, k: number) => {
-  let h = (Math.imul(i + 1, 374761393) + Math.imul(k + 1, 668265263)) >>> 0;
-  h = Math.imul(h ^ (h >>> 13), 1274126177) >>> 0;
-  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
-};
+const f2 = (v: number) => v.toFixed(2);
+const hash = cellHash;
 
 type Kind = "peak" | "hill" | "broadleaf" | "conifer" | "palm" | "marsh" | "dune";
 
-// One mark, standing on (x, y) — the foot of a peak or a tree, the middle of a tuft or a dot.
-function mark(kind: Kind, x: number, y: number, w = 12): SVGElement {
+// One mark, standing on (x, y) — the foot of a peak or a tree, the middle of a tuft or a dot. `s` draws it
+// at that share of its size, for a region's page (regionPage.ts), finer-grained there since it is smaller.
+function mark(kind: Kind, x: number, y: number, w = 12, s = 1): SVGElement {
+  const f = s === 1 ? f1 : f2;
   const stroke = { stroke: INK, "stroke-linejoin": "round", "stroke-linecap": "round" };
   if (kind === "peak") {
-    const ht = w * 0.78, g = svgEl("g", { class: "ink-peak" });
-    g.appendChild(svgEl("path", { d: `M${f1(x - w / 2)},${f1(y)}L${f1(x)},${f1(y - ht)}L${f1(x + w / 2)},${f1(y)}Z`, fill: PAPER }));
+    const W = w * s, ht = W * 0.78, g = svgEl("g", { class: "ink-peak" });
+    g.appendChild(svgEl("path", { d: `M${f(x - W / 2)},${f(y)}L${f(x)},${f(y - ht)}L${f(x + W / 2)},${f(y)}Z`, fill: PAPER }));
     // the shadowed flank: solid ink, a narrow light edge left along the ridge (the Tolkien peak)
-    g.appendChild(svgEl("path", { d: `M${f1(x)},${f1(y - ht)}L${f1(x + w / 2)},${f1(y)}L${f1(x + w * 0.1)},${f1(y)}Z`, fill: INK }));
-    g.appendChild(svgEl("path", { d: `M${f1(x - w / 2)},${f1(y)}L${f1(x)},${f1(y - ht)}L${f1(x + w / 2)},${f1(y)}`, fill: "none", ...stroke, "stroke-width": 0.9 }));
+    g.appendChild(svgEl("path", { d: `M${f(x)},${f(y - ht)}L${f(x + W / 2)},${f(y)}L${f(x + W * 0.1)},${f(y)}Z`, fill: INK }));
+    g.appendChild(svgEl("path", { d: `M${f(x - W / 2)},${f(y)}L${f(x)},${f(y - ht)}L${f(x + W / 2)},${f(y)}`, fill: "none", ...stroke, "stroke-width": 0.9 * s }));
     return g;
   }
-  if (kind === "hill") return svgEl("path", { class: "ink-hill", d: `M${f1(x - 4)},${f1(y)}Q${f1(x)},${f1(y - 4.2)} ${f1(x + 4)},${f1(y)}`, fill: PAPER, ...stroke, "stroke-width": 0.6 });
+  if (kind === "hill") return svgEl("path", { class: "ink-hill", d: `M${f(x - 4 * s)},${f(y)}Q${f(x)},${f(y - 4.2 * s)} ${f(x + 4 * s)},${f(y)}`, fill: PAPER, ...stroke, "stroke-width": 0.6 * s });
   if (kind === "marsh") {
     return svgEl("path", {
-      class: "ink-marsh", fill: "none", ...stroke, "stroke-width": 0.5,
-      d: `M${f1(x - 3)},${f1(y)}L${f1(x + 3)},${f1(y)}M${f1(x - 1.6)},${f1(y)}L${f1(x - 2.3)},${f1(y - 2)}M${f1(x)},${f1(y)}L${f1(x)},${f1(y - 2.8)}M${f1(x + 1.6)},${f1(y)}L${f1(x + 2.3)},${f1(y - 2)}`,
+      class: "ink-marsh", fill: "none", ...stroke, "stroke-width": 0.5 * s,
+      d: `M${f(x - 3 * s)},${f(y)}L${f(x + 3 * s)},${f(y)}M${f(x - 1.6 * s)},${f(y)}L${f(x - 2.3 * s)},${f(y - 2 * s)}M${f(x)},${f(y)}L${f(x)},${f(y - 2.8 * s)}M${f(x + 1.6 * s)},${f(y)}L${f(x + 2.3 * s)},${f(y - 2 * s)}`,
     });
   }
-  if (kind === "dune") return svgEl("circle", { class: "ink-dune", cx: f1(x), cy: f1(y), r: 0.45, fill: INK });
+  if (kind === "dune") return svgEl("circle", { class: "ink-dune", cx: f(x), cy: f(y), r: 0.45 * s, fill: INK });
   const g = svgEl("g", { class: `ink-tree ink-${kind}` });
   if (kind === "conifer") {
-    g.appendChild(svgEl("path", { d: `M${f1(x)},${f1(y - 7.3)}L${f1(x - 2.4)},${f1(y - 1)}L${f1(x + 2.4)},${f1(y - 1)}Z`, fill: PAPER, ...stroke, "stroke-width": 0.5 }));
+    g.appendChild(svgEl("path", { d: `M${f(x)},${f(y - 7.3 * s)}L${f(x - 2.4 * s)},${f(y - 1 * s)}L${f(x + 2.4 * s)},${f(y - 1 * s)}Z`, fill: PAPER, ...stroke, "stroke-width": 0.5 * s }));
   } else if (kind === "broadleaf") {
-    g.appendChild(svgEl("ellipse", { cx: f1(x), cy: f1(y - 4.1), rx: 2.4, ry: 3.1, fill: PAPER, ...stroke, "stroke-width": 0.5 }));
+    g.appendChild(svgEl("ellipse", { cx: f(x), cy: f(y - 4.1 * s), rx: 2.4 * s, ry: 3.1 * s, fill: PAPER, ...stroke, "stroke-width": 0.5 * s }));
   } else {
     // a palm: a leaning trunk and its fronds
+    const P = (dx: number, dy: number) => `${f(x + dx * s)},${f(y + dy * s)}`;
     g.appendChild(svgEl("path", {
-      fill: "none", ...stroke, "stroke-width": 0.5,
-      d: `M${f1(x)},${f1(y)}Q${f1(x + 1.1)},${f1(y - 2.6)} ${f1(x + 0.6)},${f1(y - 5.4)}M${f1(x + 0.6)},${f1(y - 5.4)}L${f1(x - 2.2)},${f1(y - 4.4)}M${f1(x + 0.6)},${f1(y - 5.4)}L${f1(x - 1.6)},${f1(y - 6.9)}M${f1(x + 0.6)},${f1(y - 5.4)}L${f1(x + 0.8)},${f1(y - 7.6)}M${f1(x + 0.6)},${f1(y - 5.4)}L${f1(x + 3)},${f1(y - 6.6)}M${f1(x + 0.6)},${f1(y - 5.4)}L${f1(x + 3.3)},${f1(y - 4.2)}`,
+      fill: "none", ...stroke, "stroke-width": 0.5 * s,
+      d: `M${P(0, 0)}Q${P(1.1, -2.6)} ${P(0.6, -5.4)}M${P(0.6, -5.4)}L${P(-2.2, -4.4)}M${P(0.6, -5.4)}L${P(-1.6, -6.9)}M${P(0.6, -5.4)}L${P(0.8, -7.6)}M${P(0.6, -5.4)}L${P(3, -6.6)}M${P(0.6, -5.4)}L${P(3.3, -4.2)}`,
     }));
     return g;
   }
-  g.appendChild(svgEl("path", { d: `M${f1(x)},${f1(y - 1)}L${f1(x)},${f1(y)}`, ...stroke, "stroke-width": 0.5 }));
+  g.appendChild(svgEl("path", { d: `M${f(x)},${f(y - 1 * s)}L${f(x)},${f(y)}`, ...stroke, "stroke-width": 0.5 * s }));
   return g;
 }
 
@@ -86,15 +87,38 @@ function mark(kind: Kind, x: number, y: number, w = 12): SVGElement {
  * desert's. Each stands inside its own cell — a point off the cell's middle by a hash of the cell,
  * drawn back toward the middle until it is inside — so none stands out over the sea.
  */
-export function inkMarks(world: World): SVGGElement {
+export function inkMarks(world: World, page?: Page): SVGGElement {
   const g = world.grid;
   const shown = displayBiomes(g, world.biome);
   const hillFrom = world.params.mountainLevel - HILL_BAND;
   const placed: { y: number; x: number; el: SVGElement }[] = [];
+  const dense = page && page.z > 1 ? page : null;
   for (let i = 0; i < g.count; i++) {
     if (world.terrain[i] === OCEAN) continue;
     const poly = g.polygons[i] as Point[];
     const cx = g.points[i * 2], cy = g.points[i * 2 + 1];
+    if (dense) {
+      // A region's page (regionPage.ts): as thick on the page as the whole map has them — z^2 to a cell,
+      // 1/z the size, each keeping its page's room from the next — for the cells on the page only.
+      if (!onPage(dense, cx, cy, PAGE_MARGIN)) continue;
+      const s = 1 / dense.z, times = dense.z * dense.z;
+      const scatter = (kind: Kind, n: number, gap: number, salt: number, w?: number) => {
+        for (const [x, y] of spreadInCell(poly, i, Math.round(n * times), gap * s, salt)) {
+          const el = mark(kind, x, y, w, s);
+          el.setAttribute("data-cell", String(i));
+          el.setAttribute("data-x", f2(x)); el.setAttribute("data-y", f2(y));
+          placed.push({ y, x, el });
+        }
+      };
+      const b = shown[i], h = world.heights[i];
+      const trees = TREES.get(b);
+      if (b === ALPINE) scatter("peak", 1, 7, 1000, 10 + 5 * Math.min(1, Math.max(0, (h - world.params.mountainLevel) / 0.4)));
+      else if (trees) scatter(b === TAIGA ? "conifer" : b === TROPICAL ? "palm" : "broadleaf", trees, b === TROPICAL ? 4 : 4.2, 2000);
+      else if (b === WETLAND) scatter("marsh", 1, 6, 3000);
+      else if (b === DESERT) scatter("dune", DUNE_DOTS, 2.5, 4000);
+      else if (h >= hillFrom) scatter("hill", 1, 7, 5000);
+      continue;
+    }
     // (to the tenth of a unit it is drawn at, and tested there: a point inside that rounds outside is not)
     const at = (k: number, spread: number): Point => {
       let dx = (hash(i, k) - 0.5) * spread, dy = (hash(i, k + 97) - 0.5) * spread;
@@ -220,7 +244,7 @@ export function forPrint(svg: SVGSVGElement, k: number): void {
 }
 
 /** The world map as `renderWorld` drew it, re-inked for print (see the head of this file). */
-export function inkWorld(svg: SVGSVGElement, world: World, lang: Lang): void {
+export function inkWorld(svg: SVGSVGElement, world: World, lang: Lang, page?: Page): void {
   svg.classList.add("ink");
   const ground = svg.querySelector(":scope > rect");
   ground?.setAttribute("fill", PAPER);
@@ -238,7 +262,7 @@ export function inkWorld(svg: SVGSVGElement, world: World, lang: Lang): void {
   if (biomes) { biomes.removeAttribute("opacity"); for (const p of biomes.children) p.setAttribute("fill", PAPER); }
   svg.querySelector(".relief-shade")?.remove();
   svg.querySelector(".reliefs")?.remove();
-  const marks = inkMarks(world);
+  const marks = inkMarks(world, page);
   (biomes ?? ground)?.after(marks);
   if (coast) { coast.setAttribute("stroke", INK); coast.setAttribute("stroke-width", String(COAST_W)); }
   const slot = svg.querySelector(".political-slot");

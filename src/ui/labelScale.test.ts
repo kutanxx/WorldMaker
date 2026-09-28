@@ -1,8 +1,80 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from "vitest";
-import { applyLabelScale, applyMarkerScale, floorLabelSize } from "./labelScale";
+import { applyLabelScale, applyMarkerScale, floorLabelSize, applyPageScale } from "./labelScale";
 
 const NS = "http://www.w3.org/2000/svg";
+
+// A region of the map written to a file holds `z` times less of the world across the same page. Its
+// names, marks and the gaps between them keep the size they have on the whole map's page — a chapter's
+// map and the world's, printed the same size, are set in the same type — where the screen lets a name
+// grow a little as the reader leans in.
+describe("applyPageScale", () => {
+  function page() {
+    const svg = document.createElementNS(NS, "svg") as SVGSVGElement;
+    const add = (tag: string, attrs: Record<string, string>) => {
+      const e = document.createElementNS(NS, tag);
+      for (const k in attrs) e.setAttribute(k, attrs[k]);
+      svg.appendChild(e);
+      return e;
+    };
+    // a town's dot at (100,50), its name set 5 right and 3 down of it, as the renderer sets it
+    const town = add("text", { class: "city-label city-town", x: "105", y: "53", "font-size": "8", "stroke-width": "1.6" });
+    const capital = add("text", { class: "city-label city-capital", x: "25", y: "23", "font-size": "10", "stroke-width": "1.6" });
+    const region = add("text", { class: "region-label region-land", x: "500", y: "300", "font-size": "16", "letter-spacing": "2.6", "stroke-width": "2" });
+    // a river's name lifted 5 (half its size) off the water at (300,400), up the normal of a 30-degree run
+    const river = add("text", { class: "river-label", x: "302.5", y: "395.7", "font-size": "10", "stroke-width": "1.8", transform: "rotate(30.0 302.5 395.7)" });
+    const star = add("path", { class: "marker-capital", d: "M200,76L201,79Z", "data-cx": "200.0", "data-cy": "80.0" });
+    const dot = add("circle", { class: "free-city-dot", cx: "400", cy: "300", r: "1.7" });
+    const banner = add("path", { class: "free-city-banner", d: "M400.0,298.3L400.0,293.0L404.0,294.0L400.0,295.0" });
+    const freeName = add("text", { class: "free-city-label", x: "400", y: "305.5", "font-size": "6.5" });
+    return { svg, town, capital, region, river, star, dot, banner, freeName };
+  }
+  const num = (e: Element, a: string) => Number(e.getAttribute(a));
+
+  it("gives a file of the whole map exactly what the whole map's file has always had", () => {
+    const a = page(), b = page();
+    applyPageScale(a.svg, 1);
+    applyLabelScale(b.svg, 1); applyMarkerScale(b.svg, 1);
+    expect(a.svg.outerHTML).toBe(b.svg.outerHTML);
+  });
+
+  it("sets a region's names, their halos and their tracking at the whole map's page size", () => {
+    const { svg, town, capital, region } = page();
+    applyPageScale(svg, 3);
+    expect(num(town, "font-size")).toBeCloseTo(4, 2);          // 8, at the reading size 1.5, over 3
+    expect(num(town, "stroke-width")).toBeCloseTo(0.8, 2);
+    expect(num(capital, "font-size")).toBeCloseTo(4.33, 2);    // 10 x 1.3 / 3
+    expect(num(region, "font-size")).toBeCloseTo(5.33, 2);
+    expect(num(region, "letter-spacing"), "the tracking stayed at the whole map's width").toBeCloseTo(0.87, 2);
+  });
+
+  it("keeps a town's name its page distance from its dot", () => {
+    const { svg, town } = page();
+    applyPageScale(svg, 3);
+    expect(num(town, "x")).toBeCloseTo(101.67, 2);
+    expect(num(town, "y")).toBeCloseTo(51, 2);
+  });
+
+  it("keeps a river's name its page distance off the water, turned as it was", () => {
+    const { svg, river } = page();
+    applyPageScale(svg, 3);
+    expect(num(river, "font-size")).toBeCloseTo(4.33, 2);
+    expect(num(river, "x")).toBeCloseTo(300.83, 1);
+    expect(num(river, "y")).toBeCloseTo(398.59, 1);
+    const [deg, cx, cy] = (river.getAttribute("transform") ?? "").match(/-?\d+(\.\d+)?/g)!.map(Number);
+    expect(deg).toBeCloseTo(30, 6);
+    expect([cx, cy], "turned about where it no longer stands").toEqual([num(river, "x"), num(river, "y")]);
+  });
+
+  it("holds a mark, and a free city's banner and name, at their page size about their own point", () => {
+    const { svg, star, dot, banner, freeName } = page();
+    applyPageScale(svg, 3);
+    expect(star.getAttribute("transform")).toBe("translate(200.0,80.0) scale(0.3333) translate(-200,-80)");
+    expect(dot.getAttribute("transform")).toBe("translate(400,300) scale(0.3333) translate(-400,-300)");
+    expect(banner.getAttribute("transform")).toBe("translate(400,300) scale(0.3333) translate(-400,-300)");
+    expect(freeName.getAttribute("transform")).toBe("translate(400,300) scale(0.3333) translate(-400,-300)");
+  });
+});
 function build() {
   const svg = document.createElementNS(NS, "svg") as SVGSVGElement;
   const mk = (cls: string, fs: number, sw?: number) => {

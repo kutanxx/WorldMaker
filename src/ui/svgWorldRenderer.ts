@@ -1,7 +1,7 @@
 import type { World } from "../types/world";
 import { svgEl, legendPanel, legendRow, starPath, compassRose, mapFrame, INK, PARCHMENT, LEGEND_TITLE_H, LEGEND_TEXT, LEGEND_ROW, LEGEND_SWATCH, LEGEND_GAP, LEGEND_W_FIXED, CITY_LABEL_DX, ROAD_INK, ROAD_W, ROAD_CASING_W, roadMark, SEA_ROUTE_INK, SEA_ROUTE_W, SEA_ROUTE_DASH, seaRouteMark, FREE_PORT_FILL, FREE_PORT_EDGE, diamondPath } from "./renderer";
 import { settlementKeyRows } from "./settlementKey";
-import { scaleBar, KM_PER_UNIT, KM_PER_WALKING_DAY } from "./scaleBar";
+import { scaleBar, KM_PER_UNIT, WORLD_BAR_UNITS, walkCaption } from "./scaleBar";
 import { displayBiomes } from "./displayBiome";
 import { OCEAN, ALPINE, BIOME_COLORS } from "../engine/biome";
 import { reliefBands } from "./relief";
@@ -14,6 +14,9 @@ import { featureLabel, worldNameIn } from "../engine/featureLabel";
 import { riverSize } from "../engine/rivers";
 import { waysInUse } from "../engine/worldRoads";
 import { inkWorld } from "./inkStyle";
+import { type Page, PAGE_MARGIN, onPage, spreadInCell } from "./regionPage";
+import { riverNameAt, riverNameSize } from "./riverName";
+import type { Point } from "../engine/geometry";
 
 /** How the map is drawn: in its colours, or in one ink on white paper for print (inkStyle.ts). */
 export type MapStyle = "colour" | "ink";
@@ -71,7 +74,9 @@ function named<T extends SVGElement>(el: T, text: string): T {
 // use ONE colouring: this draws `world.polityOf` (the eight realms of year zero) while the scrubber
 // redraws from the history's snapshots, and a realm that changed colour between the two would be a
 // drift bug of exactly the kind the shared chronicle assembler was built to end.
-export function renderWorld(world: World, view: MapView = "terrain", econZones: number[] = [], lang: Lang = "en", unfounded: ReadonlySet<number> = new Set(), colorOf?: (id: number) => string, labelOf: (id: number, name: string) => string = polityLabeller(lang), style: MapStyle = "colour"): SVGSVGElement {
+// `page`: a region of the map on its own page (regionPage.ts) — the glyphs a cell stands for are drawn for
+// the cells on it only, z^2 as thick at 1/z the size. Without one, the whole map, as it has always been drawn.
+export function renderWorld(world: World, view: MapView = "terrain", econZones: number[] = [], lang: Lang = "en", unfounded: ReadonlySet<number> = new Set(), colorOf?: (id: number) => string, labelOf: (id: number, name: string) => string = polityLabeller(lang), style: MapStyle = "colour", page?: Page): SVGSVGElement {
   const grid = world.grid;
   // Every proper noun this function draws goes through one of two doors, and which door is not a
   // choice: a name with a common noun IN it (the world's, a region's, a river's) is rebuilt from
@@ -165,11 +170,21 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
   // mountain relief: a small peak glyph on each alpine cell so ranges read as mountains rather
   // than a flat grey fill (antique/fantasy convention). Above the overlay fills, below rivers/labels.
   let reliefD = "";
+  const dense = page && page.z > 1 ? page : null;
   for (let i = 0; i < grid.count; i++) {
     if (shownBiome[i] !== ALPINE) continue;
     if (!grid.neighbors[i].some((nb) => shownBiome[nb] === ALPINE)) continue; // skip lone peaks in the plains — only draw where mountains cluster into a range
     const x = grid.points[i * 2], y = grid.points[i * 2 + 1];
-    reliefD += `M${(x - 3).toFixed(1)},${(y + 2).toFixed(1)}L${x.toFixed(1)},${(y - 2.6).toFixed(1)}L${(x + 3).toFixed(1)},${(y + 2).toFixed(1)}`;
+    if (!dense) {
+      reliefD += `M${(x - 3).toFixed(1)},${(y + 2).toFixed(1)}L${x.toFixed(1)},${(y - 2.6).toFixed(1)}L${(x + 3).toFixed(1)},${(y + 2).toFixed(1)}`;
+      continue;
+    }
+    // a region's page: the range as thick on the page as the whole map has it, z^2 peaks to a cell
+    if (!onPage(dense, x, y, PAGE_MARGIN)) continue;
+    const k = 1 / dense.z;
+    for (const [px, py] of spreadInCell(grid.polygons[i] as Point[], i, Math.round(dense.z * dense.z), 5 * k, 6000)) {
+      reliefD += `M${(px - 3 * k).toFixed(2)},${(py + 2 * k).toFixed(2)}L${px.toFixed(2)},${(py - 2.6 * k).toFixed(2)}L${(px + 3 * k).toFixed(2)},${(py + 2 * k).toFixed(2)}`;
+    }
   }
   if (reliefD) {
     root.appendChild(svgEl("g", { class: "reliefs" })).appendChild(svgEl("path", {
@@ -283,16 +298,8 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
   // just off the line, never upside-down — the standard hydrographic labelling treatment.
   const riverLabels = svgEl("g", { class: "river-labels" });
   for (const [vi, r] of world.rivers.entries()) {
-    const i = Math.floor(r.path.length / 2);
-    const mid = r.path[i];
-    const a = r.path[Math.max(0, i - 1)], b = r.path[Math.min(r.path.length - 1, i + 1)];
-    const dx = b[0] - a[0], dy = b[1] - a[1], len = Math.hypot(dx, dy) || 1;
-    let deg = (Math.atan2(dy, dx) * 180) / Math.PI;
-    if (deg > 90) deg -= 180; else if (deg < -90) deg += 180; // keep it readable
-    const fs = 9 + Math.min(3, r.flux / 60);   // between the settlements and the regions
-    // offset perpendicular to the flow, toward the upper side
-    let nx = -dy / len, ny = dx / len; if (ny > 0) { nx = -nx; ny = -ny; }
-    const lx = mid[0] + nx * fs * 0.5, ly = mid[1] + ny * fs * 0.5;
+    const fs = riverNameSize(r.flux);   // between the settlements and the regions
+    const { x: lx, y: ly, deg } = riverNameAt(r.path, Math.floor(r.path.length / 2), fs);
     const t = svgEl("text", {
       class: "river-label", "data-name": `v${vi}`, x: lx.toFixed(1), y: ly.toFixed(1),
       "text-anchor": "middle", "font-size": fs.toFixed(1), fill: "#3f5d78",
@@ -494,17 +501,13 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
   // beside it. Drawn in map units so it grows with the zoom, as a scale bar should — it says how
   // far the ground is, and the ground does not change when the reader leans in.
   {
-    const units = 120;
+    const units = WORLD_BAR_UNITS;
     const km = Math.round(units * KM_PER_UNIT);
-    const days = km / KM_PER_WALKING_DAY;
-    const sub = days >= 1.5
-      ? t(lang, "walkDays").replace("{d}", String(Math.round(days)))
-      : t(lang, "walkDay");
-    root.appendChild(scaleBar(grid.width / 2 - units / 2, grid.height - 26, units, `${km} km`, sub));
+    root.appendChild(scaleBar(grid.width / 2 - units / 2, grid.height - 26, units, `${km} km`, walkCaption(km, lang)));
   }
   root.appendChild(mapFrame(grid.width, grid.height));
 
   // ...and for print, the same map in one ink on white paper (inkStyle.ts)
-  if (style === "ink") inkWorld(root, world, lang);
+  if (style === "ink") inkWorld(root, world, lang, page);
   return root;
 }

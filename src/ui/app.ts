@@ -26,6 +26,7 @@ import { provinceLayer, snapOwnersToProvinces } from "./provinceLayer";
 import { deconflictLabels, clearMarks, clearCastleName, coveredBy, placeRoadEnds } from "./deconflict";
 import { applyLabelScale, applyMarkerScale, floorLabelSize } from "./labelScale";
 import { layOutLabelsForExport } from "./exportLabels";
+import { type Page, pageOf, putOnPage } from "./regionPage";
 import { type Lang, t } from "./i18n";
 import { makeFold, readFoldPref, writeFoldPref, type Fold } from "./fold";
 import { legendSheet, placeLegend } from "./legendSheet";
@@ -264,14 +265,15 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     saveLang(lang);
     applyLang();
     // re-render the live screen — in place: a language is not a place to go back to, and a push
-    // here gave Back one more stop per press, at the same plate in the other language
-    if (openCityId !== null) openCity(openCityId, "replace"); else showWorld();
+    // here gave Back one more stop per press, at the same plate in the other language. The zoom holds
+    // through it, as it does through a view or the ink: a region framed for a file stays framed.
+    if (openCityId !== null) openCity(openCityId, "replace", cityZoom?.viewBox()); else showWorld(worldZoom?.viewBox());
   });
 
   function setView(v: MapView): void {
     if (v === currentView) return;
     currentView = v;
-    showWorld(); // re-render at the current year in the new view
+    showWorld(worldZoom?.viewBox()); // re-render at the current year in the new view, zoomed where it was
   }
   terrainBtn.addEventListener("click", () => setView("terrain"));
   politicalBtn.addEventListener("click", () => setView("political"));
@@ -281,7 +283,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     mapStyle = mapStyle === "ink" ? "colour" : "ink";
     inkBtn.setAttribute("aria-pressed", String(mapStyle === "ink"));
     inkBtn.classList.toggle("active", mapStyle === "ink");
-    showWorld();
+    showWorld(worldZoom?.viewBox());
   });
   // whether a name on the map opens a box to type in (see addRenameToggle)
   let renaming = false;
@@ -1278,10 +1280,12 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
   // its own and nothing like the world's.
   interface ScreenExport { svg: SVGSVGElement; name: string; width: number; height: number }
 
-  const INK_PNG_SCALE = 3;
+  // A world map's PNG is for print, in colour or in ink: 3000px across, ten inches at 300dpi, whether it holds
+  // the whole map or a region of it (regionPage.ts). The screen's own 1000 came out 8.5cm wide in print.
+  const PRINT_PX = 3000;
   const CITY_PNG_SCALE = 2;   // a city is drawn small; at 1:1 its 7px ward names come out unreadable
 
-  function exportScreenSvg(): ScreenExport {
+  function exportScreenSvg(page?: Page): ScreenExport {
     if (openCityId !== null) {
       const marker = generated.world.cities.find((c) => c.id === openCityId);
       if (marker) {
@@ -1294,19 +1298,21 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
         };
       }
     }
-    // an ink map is for print: its PNG is drawn three times over (3000px across for the usual world, ten
-    // inches at 300dpi), where the screen's copy stays at the map's own size
-    const k = mapStyle === "ink" ? INK_PNG_SCALE : 1;
-    return { svg: exportWorldSvg(), name: "world", width: params.width * k, height: params.height * k };
+    return {
+      svg: exportWorldSvg(page), name: page ? "world-region" : "world",
+      width: PRINT_PX, height: Math.round((PRINT_PX * params.height) / params.width),
+    };
   }
 
-  // Export the world at the year + view the timeline is currently showing.
-  function exportWorldSvg(): SVGSVGElement {
-    const svg = renderWorld(generated.world, currentView, history.economicZones.map((z) => z.cell), lang, unfoundedAt(currentYearIndex), colorOf, polityLabeller(lang, governmentForms), mapStyle);
+  // Export the world at the year + view the timeline is currently showing — the whole of it, or the region
+  // of it the reader had zoomed to, on its own page (regionPage.ts).
+  function exportWorldSvg(page?: Page): SVGSVGElement {
+    const svg = renderWorld(generated.world, currentView, history.economicZones.map((z) => z.cell), lang, unfoundedAt(currentYearIndex), colorOf, polityLabeller(lang, governmentForms), mapStyle, page);
     fillSlot(svg.querySelector(".political-slot") as SVGGElement, currentView, currentYearIndex);
+    if (page) putOnPage(svg, page, generated.world, lang);
     // This is a fresh render that has never been in the document, so its labels have never been laid
     // out against each other — left alone, every name in the world goes into the file, stacked.
-    layOutLabelsForExport(svg);
+    layOutLabelsForExport(svg, undefined, page?.z ?? 1);
     // what each name names is for renaming on the screen, not for the file
     for (const el of svg.querySelectorAll("[data-name]")) el.removeAttribute("data-name");
     return svg;
@@ -1314,8 +1320,8 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
 
   // The embedded Cinzel woff2 (~20 KB) is only needed when exporting, so it lives in a lazy chunk —
   // keeps the initial map bundle lean for the majority who never export.
-  async function exportScreenSvgWithFonts(): Promise<ScreenExport> {
-    const out = exportScreenSvg();
+  async function exportScreenSvgWithFonts(page?: Page): Promise<ScreenExport> {
+    const out = exportScreenSvg(page);
     const { embedExportFonts } = await import("./exportFont");
     embedExportFonts(out.svg); // standalone SVG/PNG carry the Cinzel display face (no external stylesheet)
     return out;
@@ -1326,21 +1332,83 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
   jsonBtn.addEventListener("click", () =>
     downloadBlob("world.json", new Blob([worldToJSON(generated.world, history)], { type: "application/json" }))
   );
-  pngBtn.addEventListener("click", async () => {
+  const writePng = async (page?: Page) => {
     try {
-      const { svg, name, width, height } = await exportScreenSvgWithFonts();
-      // the ink map's PNG is drawn INK_PNG_SCALE times over (exportScreenSvg), and its screen-pinned lines
-      // with it — the SVG is vector and keeps them as drawn
-      if (mapStyle === "ink" && openCityId === null) forPrint(svg, INK_PNG_SCALE);
+      const world = openCityId === null;
+      const { svg, name, width, height } = await exportScreenSvgWithFonts(page);
+      // a world map's PNG is drawn PRINT_PX across (exportScreenSvg), and its screen-pinned lines with it —
+      // the SVG is vector and keeps them as drawn
+      if (world) forPrint(svg, width / params.width);
       downloadBlob(`${name}.png`, await svgToPngBlob(svg, width, height));
     } catch (e) {
       console.error("PNG export failed", e);
     }
-  });
-  svgBtn.addEventListener("click", async () => {
-    const { svg, name } = await exportScreenSvgWithFonts();
+  };
+  const writeSvg = async (page?: Page) => {
+    const { svg, name } = await exportScreenSvgWithFonts(page);
     downloadBlob(`${name}.svg`, new Blob([svgToString(svg)], { type: "image/svg+xml" }));
-  });
+  };
+  pngBtn.addEventListener("click", () => askWhatToExport(pngBtn, writePng));
+  svgBtn.addEventListener("click", () => askWhatToExport(svgBtn, writeSvg));
+
+  /**
+   * Zoomed in on the world map, a file can be the whole map or the part on screen — a region for a book's
+   * chapter — and the reader is asked which: FMG writes the visible part without asking, and a reader who
+   * expected the whole map got part of it. Not zoomed in, or on a town's plate, there is nothing to ask and
+   * the file is written as it always was.
+   */
+  let exportChoice: { menu: HTMLElement; trigger: HTMLButtonElement; away: (e: Event) => void } | null = null;
+  function closeExportChoice(): void {
+    if (!exportChoice) return;
+    const { menu, trigger, away } = exportChoice;
+    exportChoice = null;
+    document.removeEventListener("pointerdown", away, true);
+    trigger.setAttribute("aria-expanded", "false");
+    menu.remove();
+  }
+  function askWhatToExport(trigger: HTMLButtonElement, write: (page?: Page) => void): void {
+    closeExportChoice();
+    const page = openCityId === null && worldZoom ? pageOf(worldZoom.viewBox(), params.width) : null;
+    if (!page) { write(); return; }
+    const menu = document.createElement("div");
+    menu.className = "export-choice";
+    menu.setAttribute("role", "menu");
+    menu.setAttribute("aria-label", t(lang, "exportChoice"));
+    const item = (scope: "whole" | "visible", label: string, detail?: string) => {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.setAttribute("role", "menuitem");
+      b.dataset.scope = scope;
+      b.textContent = label;
+      if (detail) {
+        const size = document.createElement("span");
+        size.className = "export-choice-size";
+        size.textContent = detail;
+        b.append(size);
+      }
+      b.addEventListener("click", () => { closeExportChoice(); trigger.focus(); write(scope === "visible" ? page : undefined); });
+      return b;
+    };
+    // how much ground the part on screen holds, which is what tells it from the whole
+    const km = `${Math.round(page.w * KM_PER_UNIT)}×${Math.round(page.h * KM_PER_UNIT)} km`;
+    menu.append(item("whole", t(lang, "exportWhole")), item("visible", t(lang, "exportVisible"), km));
+    const items = [...menu.querySelectorAll<HTMLButtonElement>("button")];
+    menu.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") { e.preventDefault(); closeExportChoice(); trigger.focus(); return; }
+      if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+      e.preventDefault();
+      const at = items.indexOf(document.activeElement as HTMLButtonElement);
+      items[(at + (e.key === "ArrowDown" ? 1 : items.length - 1)) % items.length].focus();
+    });
+    // it closes as a menu does: elsewhere pressed, or the keyboard gone on to something else
+    menu.addEventListener("focusout", (e) => { if (e.relatedTarget && !menu.contains(e.relatedTarget as Node)) closeExportChoice(); });
+    const away = (e: Event) => { if (!menu.contains(e.target as Node)) closeExportChoice(); };
+    document.addEventListener("pointerdown", away, true);
+    exportGroup.appendChild(menu);
+    trigger.setAttribute("aria-expanded", "true");
+    exportChoice = { menu, trigger, away };
+    items[0].focus();
+  }
   gazBtn.addEventListener("click", () => {
     // The exported document follows the language the user is reading the app in — a Korean
     // session was producing an English gazetteer with Korean chronicle lines inside it.

@@ -98,6 +98,19 @@ describe("the ink map", () => {
     expect(svgToString(inked())).toBe(svgToString(svg));
   });
 
+  // A region of the map, exported, is drawn at its own page's scale (regionExport.ts): its marks come
+  // denser and smaller. Pinned before that was built: the whole map, which is what every screen and every
+  // unzoomed file draws, comes out byte for byte as it did, in every view (names' `data-name` taken out,
+  // as the colour map's pin does).
+  it("draws world 1's whole ink map exactly as it did, in every view", () => {
+    const hashes = (["terrain", "political", "culture", "province"] as const).map((v) => {
+      const map = inked(v);
+      for (const el of map.querySelectorAll("[data-name]")) el.removeAttribute("data-name");
+      return fnv(svgToString(map));
+    });
+    expect(hashes).toEqual([737587710, 3864053538, 182143499, 2924723875]);
+  });
+
   // The colour key lists colours, which an ink map does not have: the ink key lists its marks, drawn as
   // the map draws them, and the road and the sea route in ink.
   it("keys its marks, not the colours it no longer has", () => {

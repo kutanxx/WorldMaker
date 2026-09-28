@@ -11,6 +11,8 @@
 // Sizes are written as attributes rather than styles because the SVG and PNG exports carry no
 // external CSS, and an export taken while zoomed should look like what the reader was looking at.
 
+import { CITY_LABEL_DX } from "./renderer";
+
 const SELECTOR = ".region-label, .city-label, .river-label, .nation-label, .province-label, .ward-label, .road-end, .culture-label";
 
 // A town's name was set at 8px so that a hundred of them could be crammed onto the resting map, and
@@ -128,16 +130,81 @@ export function floorLabelSize(
 // diamond are paths built around a point, so the renderer records that point for them.
 const MARKS = ".marker-capital, .marker-town, .econ-zone, .econ-zone-halo, .province-seat, .free-city-dot";
 
-export function applyMarkerScale(svg: SVGSVGElement, scale: number): void {
-  if (!(scale > 0)) return;
+// About the mark's own point, so it changes size in place instead of sliding toward the origin.
+const aboutItsPoint = (cx: string, cy: string, k: number) =>
+  `translate(${cx},${cy}) scale(${k.toFixed(4)}) translate(${-Number(cx)},${-Number(cy)})`;
+
+function scaleMarks(svg: SVGSVGElement, k: number): void {
   for (const el of svg.querySelectorAll<SVGGraphicsElement>(MARKS)) {
     const cx = el.getAttribute("cx") ?? el.dataset.cx;
     const cy = el.getAttribute("cy") ?? el.dataset.cy;
     if (cx === undefined || cy === undefined || cx === null || cy === null) continue;
-    // About the mark's own point, so it changes size in place instead of sliding toward the origin,
-    // and by the same law the lettering follows — a mark that held still while its name grew would
-    // read as a pin dropped beside a word rather than as the settlement the word names.
-    const k = growth(scale) / scale;
-    el.setAttribute("transform", `translate(${cx},${cy}) scale(${k.toFixed(4)}) translate(${-Number(cx)},${-Number(cy)})`);
+    el.setAttribute("transform", aboutItsPoint(cx, cy, k));
+  }
+}
+
+export function applyMarkerScale(svg: SVGSVGElement, scale: number): void {
+  if (!(scale > 0)) return;
+  // by the same law the lettering follows — a mark that held still while its name grew would read as
+  // a pin dropped beside a word rather than as the settlement the word names
+  scaleMarks(svg, growth(scale) / scale);
+}
+
+/**
+ * The page's law, for a file (regionExport.ts). A region written to a page holds `z` times less of the
+ * world across the same width, and everything the whole map sizes by its page keeps that size: a name and
+ * its halo, a region name's tracking, a town's mark and the gap between it and its name, a river's name's
+ * lift off its water, a free city's banner. A chapter's map and the world's, printed the same size, are
+ * set in the same type. (On the screen a name grows a little as the reader leans in — `applyLabelScale`;
+ * a page has no leaning in.)
+ *
+ * At z = 1 it is exactly what the whole map's file has always been given. ⚠ Once, on a fresh drawing: the
+ * gaps are moved from where the renderer set them.
+ */
+export function applyPageScale(svg: SVGSVGElement, z: number): void {
+  if (!(z > 0)) return;
+  if (z === 1) { applyLabelScale(svg, 1); applyMarkerScale(svg, 1); return; }
+  for (const el of svg.querySelectorAll<SVGGraphicsElement>(SELECTOR)) {
+    const base = el.dataset.fs ?? el.getAttribute("font-size");
+    if (base === null) continue;
+    el.dataset.fs = base;
+    const k = readerSize(el) / z;
+    el.setAttribute("font-size", (Number(base) * k).toFixed(2));
+    const hw = el.dataset.sw ?? el.getAttribute("stroke-width");
+    if (hw !== null) {
+      el.dataset.sw = hw;
+      el.setAttribute("stroke-width", (Number(hw) * k).toFixed(2));
+    }
+    // the tracking is set in map units, as a share of the name's own size
+    const ls = Number(el.getAttribute("letter-spacing"));
+    if (ls) el.setAttribute("letter-spacing", (ls / z).toFixed(2));
+  }
+  // a town's name stands CITY_LABEL_DX right of its dot and 3 below it (svgWorldRenderer)
+  for (const el of svg.querySelectorAll(".city-label")) {
+    const x = Number(el.getAttribute("x")), y = Number(el.getAttribute("y"));
+    el.setAttribute("x", (x - CITY_LABEL_DX + CITY_LABEL_DX / z).toFixed(2));
+    el.setAttribute("y", (y - 3 + 3 / z).toFixed(2));
+  }
+  // a river's name is lifted half its size off the water, up the normal of its turn (svgWorldRenderer)
+  for (const el of svg.querySelectorAll<SVGGraphicsElement>(".river-label")) {
+    const turn = /rotate\(\s*(-?[\d.]+)/.exec(el.getAttribute("transform") ?? "");
+    if (!turn) continue;
+    const deg = Number(turn[1]), rad = (deg * Math.PI) / 180;
+    const lift = Number(el.dataset.fs ?? el.getAttribute("font-size")) * 0.5;
+    const nx = Math.sin(rad), ny = -Math.cos(rad);
+    const x = Number(el.getAttribute("x")) - nx * lift + (nx * lift) / z;
+    const y = Number(el.getAttribute("y")) - ny * lift + (ny * lift) / z;
+    el.setAttribute("x", x.toFixed(2));
+    el.setAttribute("y", y.toFixed(2));
+    el.setAttribute("transform", `rotate(${turn[1]} ${x.toFixed(2)} ${y.toFixed(2)})`);
+  }
+  scaleMarks(svg, 1 / z);
+  // a free city's banner and name stand on its dot, and go with it (politicalLayer draws them after it)
+  for (const dot of svg.querySelectorAll(".free-city-dot")) {
+    const cx = dot.getAttribute("cx"), cy = dot.getAttribute("cy");
+    if (cx === null || cy === null) continue;
+    for (let el = dot.nextElementSibling; el && !el.classList.contains("free-city-dot"); el = el.nextElementSibling) {
+      el.setAttribute("transform", aboutItsPoint(cx, cy, 1 / z));
+    }
   }
 }

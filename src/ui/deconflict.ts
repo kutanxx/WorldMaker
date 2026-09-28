@@ -22,8 +22,13 @@ const AREA_NAMES = ".nation-label, .region-label, .province-label, .culture-labe
  *
  * The thresholds below are the one place in this pass with hand-chosen numbers. Everything else
  * follows from what fits.
+ *
+ * `room` is for a region of the map on its own page (regionExport.ts), which holds 1/room times less of
+ * the world across the same width: the air a name keeps and its margin from the frame, set in map units
+ * for the whole map's page, shrink by as much, or the region's names would stand that much further apart.
  */
-export function deconflictLabels(svg: SVGSVGElement, scale = 1, opts: { clear?: Box[] } = {}): void {
+export function deconflictLabels(svg: SVGSVGElement, scale = 1, opts: { clear?: Box[]; room?: number } = {}): void {
+  const room = opts.room ?? 1;
   // selector, priority when they compete, and the zoom at which the name is worth the room.
   // A capital's name waits for no zoom either. It used to wait for 1.5x, which meant the map opened
   // as a field of unnamed specks -- 0 of 28 names on screen at rest -- with its best feature, the
@@ -71,7 +76,7 @@ export function deconflictLabels(svg: SVGSVGElement, scale = 1, opts: { clear?: 
   // their boxes did not strictly intersect. A label needs air around it, not just the absence of a
   // collision. Only the candidate is grown when culling, so the clearance asked for is AIR and not
   // twice it, and the legend goes on occupying exactly the space it covers.
-  const AIR = NAME_AIR;
+  const AIR = NAME_AIR * room;
 
   // separation pass, before any culling: a nation's name sits at the centroid of its territory and
   // its capital usually sits near that centroid too, so the two overlap — and the capital, being the
@@ -82,7 +87,7 @@ export function deconflictLabels(svg: SVGSVGElement, scale = 1, opts: { clear?: 
   // before the clamp pass so a name lifted past the frame is brought back inside.
   // Must clear AIR (the culling gap below), or the separation pass lifts a nation's name off its
   // capital only for the culling pass to delete it for sitting too close to what it just cleared.
-  const CAPITAL_GAP = AIR + 1;
+  const CAPITAL_GAP = AIR + room;
   const capitals = labels.filter((l) => l.el.classList.contains("city-capital"));
   if (capitals.length) {
     // How much else a name would sit on top of, if it moved by dy. Moving a nation's name off its
@@ -120,7 +125,7 @@ export function deconflictLabels(svg: SVGSVGElement, scale = 1, opts: { clear?: 
   const vb = (svg.dataset.baseViewbox || "").split(/[\s,]+/).map(Number);
   if (vb.length === 4 && vb.every(Number.isFinite)) {
     const [vx, vy, vw, vh] = vb;
-    const PAD = FRAME_PAD;
+    const PAD = FRAME_PAD * room;
     for (const l of labels) {
       if (l.el.classList.contains("river-label")) continue;
       let dx = 0, dy = 0;
@@ -139,9 +144,19 @@ export function deconflictLabels(svg: SVGSVGElement, scale = 1, opts: { clear?: 
   // from the other side: it was invisible to this pass, so it neither ceded space nor claimed any,
   // and a region name would come to rest just below it and read as a subtitle. Seeding both as
   // already-occupied lets the culling below reason about the room that is actually free.
+  // On a region's own page (regionExport.ts) the whole map's furniture — its key, title, compass and
+  // scale bar — is carried to the page's corners as one group, drawn in the whole map's page units:
+  // `data-x`/`data-y` are where that page's corner stands and `data-k` how many map units a page unit
+  // is, and a box measured inside the group is carried out by as much.
   const furniture: DOMRect[] = [];
-  for (const panel of svg.querySelectorAll<SVGGraphicsElement>(".legend, .world-name-text")) {
-    try { furniture.push(panel.getBBox()); } catch { /* no layout (jsdom): nothing to reserve */ }
+  for (const panel of svg.querySelectorAll<SVGGraphicsElement>(".legend, .world-name-text, .page-furniture .compass, .page-furniture .scale-bar")) {
+    try {
+      const b = panel.getBBox();
+      const page = panel.closest(".page-furniture");
+      if (!page) { furniture.push(b); continue; }
+      const k = Number(page.getAttribute("data-k")), px = Number(page.getAttribute("data-x")), py = Number(page.getAttribute("data-y"));
+      furniture.push({ x: px + b.x * k, y: py + b.y * k, width: b.width * k, height: b.height * k } as DOMRect);
+    } catch { /* no layout (jsdom): nothing to reserve */ }
   }
 
   // ★ The page's controls stand ON the drawing — "Map only" at the world map's top right, +/−/↺ at
@@ -159,13 +174,13 @@ export function deconflictLabels(svg: SVGSVGElement, scale = 1, opts: { clear?: 
   if (clear.length) {
     // one unit past the cull's air, for the reason CAPITAL_GAP gives: a name set exactly AIR from
     // what it left sits a rounding error inside the cull's reach, and was deleted there
-    const STEP = AIR + 1;
+    const STEP = AIR + room;
     const grow = (b: Box, by: number) =>
       ({ x: b.x - by, y: b.y - by, width: b.width + by * 2, height: b.height + by * 2 }) as DOMRect;
     const under = (b: Box) => clear.some((c) => hit(b as DOMRect, grow(c, AIR)));
     const onMap = (b: Box) => vb.length !== 4 || !vb.every(Number.isFinite) || (
-      b.x >= vb[0] + FRAME_PAD && b.x + b.width <= vb[0] + vb[2] - FRAME_PAD
-      && b.y >= vb[1] + FRAME_PAD && b.y + b.height <= vb[1] + vb[3] - FRAME_PAD);
+      b.x >= vb[0] + FRAME_PAD * room && b.x + b.width <= vb[0] + vb[2] - FRAME_PAD * room
+      && b.y >= vb[1] + FRAME_PAD * room && b.y + b.height <= vb[1] + vb[3] - FRAME_PAD * room);
     const free = (self: (typeof labels)[number], b: Box) => {
       if (!onMap(b) || under(b)) return false;
       const room = grow(b, STEP);

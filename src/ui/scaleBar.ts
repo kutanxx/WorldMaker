@@ -1,4 +1,5 @@
 import { svgEl, INK, PARCHMENT } from "./renderer";
+import { t, type Lang } from "./i18n";
 
 /**
  * How far a map unit is on the ground.
@@ -22,15 +23,27 @@ export const METRES_PER_UNIT = 3;
 export const KM_PER_UNIT = 3;
 export const KM_PER_WALKING_DAY = 30;
 
+/** The world map's bar, in map units: 360 km, twelve days on foot. A region's page measures its own again (regionPage.ts). */
+export const WORLD_BAR_UNITS = 120;
+
+/** How far `km` is on foot, as a bar's second line says it. */
+export function walkCaption(km: number, lang: Lang): string {
+  const days = km / KM_PER_WALKING_DAY;
+  return days >= 1.5 ? t(lang, "walkDays").replace("{d}", String(Math.round(days))) : t(lang, "walkDay");
+}
+
 /**
  * A bar of `units` map units, ticked in halves, captioned with what that distance is.
  *
  * Drawn in map units, so it grows with the zoom — which is what a scale bar is for: it says how far
  * the ground is, and the ground does not change when the reader leans in.
+ *
+ * `type` is the length its chain's height and its words are sized by: its own, unless it stands for
+ * another bar — a region's page (regionPage.ts) measures the bar again, shorter, in the whole map's type.
  */
-export function scaleBar(x: number, y: number, units: number, caption: string, sub?: string): SVGElement {
+export function scaleBar(x: number, y: number, units: number, caption: string, sub?: string, type = units): SVGElement {
   const g = svgEl("g", { class: "scale-bar" });
-  const h = units * 0.035;
+  const h = type * 0.035;
   g.appendChild(svgEl("rect", {
     x: x - 3, y: y - h - 11, width: units + 6, height: h + (sub ? 26 : 18),
     fill: PARCHMENT, "fill-opacity": 0.9, stroke: "none",
@@ -44,14 +57,14 @@ export function scaleBar(x: number, y: number, units: number, caption: string, s
   }
   const label = svgEl("text", {
     class: "scale-bar-text", x: x + units / 2, y: y + h * 0.6 + 6,
-    "text-anchor": "middle", "font-size": units * 0.075, fill: INK,
+    "text-anchor": "middle", "font-size": type * 0.075, fill: INK,
   });
   label.textContent = caption;
   g.appendChild(label);
   if (sub) {
     const s = svgEl("text", {
-      class: "scale-bar-sub", x: x + units / 2, y: y + h * 0.6 + 6 + units * 0.085,
-      "text-anchor": "middle", "font-size": units * 0.065, fill: "#6b5d42", "font-style": "italic",
+      class: "scale-bar-sub", x: x + units / 2, y: y + h * 0.6 + 6 + type * 0.085,
+      "text-anchor": "middle", "font-size": type * 0.065, fill: "#6b5d42", "font-style": "italic",
     });
     s.textContent = sub;
     g.appendChild(s);
