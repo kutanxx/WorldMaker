@@ -352,3 +352,16 @@ describe("the scrubber and the front page's toggle, as the page draws everything
     expect(inset, "the toggle's column is not the picture's").toBe(picture / 2);
   });
 });
+
+// ★ The front page ran 23px past a 1440x900 window (measured live, 2026-09-28), and 62px of it stood
+// between the card and the name row under it: the card's block kept a 44px foot from the days when the
+// page ended there, and the name row's own 18px came on top. The card has the same room under it as
+// over it now, and the page fits.
+describe("the front page's card", () => {
+  it("has as much room under it as over it", () => {
+    const pad = /padding:\s*(\d+)px\s+\d+px\s+(\d+)px/.exec(ruleIn(css(), ".landing"));
+    const nameTop = Number(/margin:\s*(\d+)px/.exec(ruleIn(css(), ".landing-name"))?.[1]);
+    expect(pad, "no padding on the card's block").not.toBeNull();
+    expect(Number(pad![2]) + nameTop, "room under the card").toBe(Number(pad![1]));
+  });
+});

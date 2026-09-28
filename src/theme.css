@@ -422,8 +422,11 @@ svg.world.lang-en .nation-label { font-variant: small-caps; letter-spacing: 0.10
 .landing-hero { position: relative; text-align: center; padding: 8px 16px 0; }
 .landing-tagline { margin: 2px 0 0; color: #6b5a3f; font-style: italic; font-size: 14px; letter-spacing: .02em; }
 
+/* ...with as much room under the card as over it: its block kept a 44px foot from when the page ended
+   there, and with the name row's own 18px on top the card stood 62px off the row, which took the page
+   23px past a 1440x900 window (measured live, 2026-09-28). 8 + 18 is the 26 above it. */
 .landing {
-  max-width: 760px; margin: 0 auto; padding: 26px 16px 44px;
+  max-width: 760px; margin: 0 auto; padding: 26px 16px 8px;
   display: flex; gap: 22px; flex-wrap: wrap; justify-content: center; align-items: stretch;
 }
 
