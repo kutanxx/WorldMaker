@@ -64,3 +64,39 @@ describe("a scale bar's caption can be read", () => {
     expect(drawn(460, 720).outerHTML).toBe(before);   // a desktop plate: 1.57 px to the unit
   });
 });
+
+// ★ The world map's bar carries a second line under its caption — how many days on foot — and the page
+// held neither at a minimum: measured on the live site at 1440x900 (the map 871px across for 1000
+// units), "360 km" came out 7.8px and "도보 12일" 6.8px, under the 8px every other name on the map is
+// held at. The second line is held at the same minimum, under the first, on the same tablet.
+describe("the world map's scale bar can be read, both its lines", () => {
+  const world = (drawnPx: number) => {
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg") as SVGSVGElement;
+    svg.setAttribute("viewBox", "0 0 1000 700");
+    const g = scaleBar(430, 674, 120, "360 km", "도보 12일");
+    svg.appendChild(g);
+    floorScaleCaption(svg, 8, drawnPx);
+    return g;
+  };
+  const num = (el: Element | null, a: string) => Number(el!.getAttribute(a));
+
+  it("raises the days on foot to the minimum too", () => {
+    const g = world(871);
+    const k = 871 / 1000;
+    expect(num(g.querySelector(".scale-bar-text"), "font-size") * k).toBeCloseTo(8, 1);
+    expect(num(g.querySelector(".scale-bar-sub"), "font-size") * k, "the days on foot stayed small").toBeCloseTo(8, 1);
+  });
+
+  it("keeps the second line under the first, and both on the tablet", () => {
+    const g = world(871);
+    const text = g.querySelector(".scale-bar-text"), sub = g.querySelector(".scale-bar-sub"), back = g.querySelector("rect");
+    const subTop = num(sub, "y") - 0.8 * num(sub, "font-size");
+    expect(subTop, "the second line rides up onto the first").toBeGreaterThanOrEqual(num(text, "y"));
+    expect(num(back, "y") + num(back, "height"), "the second line hangs off its tablet").toBeGreaterThan(num(sub, "y") + 0.2 * num(sub, "font-size"));
+  });
+
+  it("leaves a bar already big enough exactly as it was", () => {
+    const before = scaleBar(430, 674, 120, "360 km", "도보 12일").outerHTML;
+    expect(world(1400).outerHTML).toBe(before);
+  });
+});

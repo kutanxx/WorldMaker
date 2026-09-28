@@ -333,3 +333,22 @@ describe("a district answers to its name wherever the pointer rests on it", () =
     }
   });
 });
+
+// ★ From a review of the live site at 1440x900 (2026-09-28): the one slider every reader meets — the
+// scrubber under the map — was the browser's own blue, beside world settings' sliders already set in
+// the site's brown. And the front page's language toggle stood 10px past the edge of the picture under
+// it: it was lined up with a 640px column, and the picture is 620px.
+describe("the scrubber and the front page's toggle, as the page draws everything else", () => {
+  it("gives the scrubber the settings' sliders' ink", () => {
+    const accent = (sel: string) => /accent-color:\s*([^;]+);/.exec(ruleIn(css(), sel))?.[1]?.trim();
+    expect(accent(".advanced-row input[type=range]"), "the settings' sliders lost their ink").toBeTruthy();
+    expect(accent(".timeline-slider"), "the scrubber in the browser's own colour").toBe(accent(".advanced-row input[type=range]"));
+  });
+
+  it("lines the toggle up with the edge of the picture under it", () => {
+    const picture = Number(/max-width:\s*(\d+)px/.exec(ruleIn(css(), ".landing-preview"))?.[1]);
+    const inset = Number(/right:\s*max\(\s*16px,\s*(?:calc\()?\s*50%\s*-\s*(\d+)px/.exec(ruleIn(css(), ".landing-lang"))?.[1]);
+    expect(picture, "no width for the picture").toBeGreaterThan(0);
+    expect(inset, "the toggle's column is not the picture's").toBe(picture / 2);
+  });
+});

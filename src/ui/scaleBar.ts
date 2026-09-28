@@ -75,12 +75,28 @@ export function floorScaleCaption(svg: SVGSVGElement, minPx: number, drawnPx: nu
     const back = g.querySelector("rect");            // the first rect is the tablet
     if (!text || !back) continue;
     const fs = Number(text.getAttribute("font-size"));
+    if (!(fs > 0)) continue;
     const want = minPx / pxPerUnit;
-    if (!(fs > 0) || want <= fs) continue;
-    const baseline = Number(text.getAttribute("y")) + (want - fs) * 0.8;
-    text.setAttribute("font-size", want.toFixed(2));
-    text.setAttribute("y", baseline.toFixed(2));
-    const bottom = Math.max(Number(back.getAttribute("y")) + Number(back.getAttribute("height")), baseline + want * 0.3);
+    // ★ The world map's bar has a second line, the days on foot, smaller than the first: 6.8px at
+    // 1440x900. It is held at the same minimum, and moves down by all the first line grew, so the gap
+    // between them holds.
+    const sub = g.querySelector(".scale-bar-sub");
+    const sfs = Number(sub?.getAttribute("font-size"));
+    const grow = Math.max(0, want - fs), subGrow = sub && sfs > 0 ? Math.max(0, want - sfs) : 0;
+    if (!grow && !subGrow) continue;
+    let bottom = Number(back.getAttribute("y")) + Number(back.getAttribute("height"));
+    if (grow) {
+      const baseline = Number(text.getAttribute("y")) + grow * 0.8;
+      text.setAttribute("font-size", want.toFixed(2));
+      text.setAttribute("y", baseline.toFixed(2));
+      bottom = Math.max(bottom, baseline + want * 0.3);
+    }
+    if (sub && sfs > 0) {
+      const size = sfs + subGrow, subBase = Number(sub.getAttribute("y")) + grow + subGrow * 0.8;
+      if (subGrow) sub.setAttribute("font-size", size.toFixed(2));
+      sub.setAttribute("y", subBase.toFixed(2));
+      bottom = Math.max(bottom, subBase + size * 0.3);
+    }
     back.setAttribute("height", (bottom - Number(back.getAttribute("y"))).toFixed(2));
   }
 }

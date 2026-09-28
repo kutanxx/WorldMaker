@@ -297,8 +297,10 @@ body.map-focus .stage.plate > .map-frame { width: min(100%, calc(100vh - 16px));
    at 94->276. ⚠ And a border is exactly what a content-box height adds on top, so the finger's
    44 came out 46 while it was there. Measured: an 18px band to grab becomes a 44px one, the marks
    do not move sideways at all, and the scrubber row grows 66px -> 79px on a phone. */
+/* in the site's ink, as world settings' sliders are: left alone it was the browser's own blue, the one
+   colour on the page that was not the page's (measured live, 2026-09-28) */
 .timeline-slider {
-  width: 100%; padding: 0; margin: 0; border: 0;
+  width: 100%; padding: 0; margin: 0; border: 0; accent-color: #7a5a3a;
   min-height: var(--control-h); box-sizing: border-box;
 }
 /* The century marks sit UNDER the track, positioned by their fraction of the run. `left` is the
@@ -499,8 +501,10 @@ svg.world.lang-en .nation-label { font-variant: small-caps; letter-spacing: 0.10
 }
 @keyframes wm-preview-in { from { opacity: 0; } to { opacity: 1; } }
 /* the language toggle sits with the title rather than in the flow of the choices */
+/* lined up with the right edge of today's world under it: half of `.landing-preview`'s 620px (it was a
+   640px column, and stood 10px past the picture) */
 .landing-lang {
-  position: absolute; top: 22px; right: max(16px, calc(50% - 320px));
+  position: absolute; top: 22px; right: max(16px, calc(50% - 310px));
   padding: 4px 10px; font-size: 13px; background: #f3ead2;
   border: 1px solid #b7a071; border-radius: 4px; color: #3c2f1c; cursor: pointer;
 }

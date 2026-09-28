@@ -137,6 +137,9 @@ export function fillPreview(root: HTMLElement, day: Date, lang: Lang = "en"): vo
   // came after them. The label the link already carries is what a reader needs here.
   const picture = renderWorld(world, "terrain", [], lang);
   picture.setAttribute("aria-hidden", "true");
+  // ...and without the map's key, which stood on a corner of the picture — measured on the live front
+  // page, a town and its name under it (2026-09-28). The map it opens keeps its key beside the map.
+  picture.querySelector(".legend")?.remove();
   for (const el of picture.querySelectorAll('[role="button"], [tabindex]')) {
     el.removeAttribute("role");
     el.removeAttribute("tabindex");

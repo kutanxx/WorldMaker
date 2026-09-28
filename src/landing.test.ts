@@ -322,3 +322,18 @@ describe("the front page's picture is not a field of buttons", () => {
     root.remove();
   });
 });
+
+// ★ The picture of today's world came with the map's key drawn in its corner — measured on the live
+// front page (2026-09-28), a town and its name under it. The map page took its key off the drawing for
+// that reason long ago; a picture that opens the map has no use for one.
+describe("the front page's picture of today's world", () => {
+  it("is drawn without the key on it, and keeps its compass", () => {
+    const root = document.createElement("div");
+    renderChooser(root);
+    fillPreview(root, new Date("2026-09-28T00:00:00Z"), "ko");
+    const picture = root.querySelector(".landing-preview-link svg");
+    expect(picture, "no picture").not.toBeNull();
+    expect(picture!.querySelector(".legend") === null, "the key is on the picture").toBe(true);
+    expect(picture!.querySelector(".compass") === null, "the compass went with it").toBe(false);
+  });
+});

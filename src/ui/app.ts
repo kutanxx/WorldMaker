@@ -967,8 +967,12 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     // floor is worked out from the size the drawing ends up
     caption.setYear(history.snapshots[currentYearIndex].year);
     fitWorldChrome();
+    // The scale bar is drawn in map units too, and at 1440x900 its two lines came out 7.8 and 6.8px:
+    // held at the names' minimum, for the size the drawing ended up (and again when the window changes)
+    floorScaleCaption(svg, WORLD_LABEL_FLOOR.minPx);
     relayoutLabels = () => {
       const z = worldZoom?.scale() ?? 1;
+      floorScaleCaption(svg, WORLD_LABEL_FLOOR.minPx);
       applyLabelScale(svg, z, WORLD_LABEL_FLOOR);
       applyMarkerScale(svg, z);
       deconflictLabels(svg, z, { clear: underControls() });
