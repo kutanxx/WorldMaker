@@ -1193,6 +1193,22 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     cityZoom?.destroy();
     // the ward names hold their size here for the same reason the world's names do
     let cityRelayout = 0, cityScale = 1;
+    // ★ The zoom's buttons go on the plate BEFORE its names are laid out, at the view it opens with, so
+    // the names can keep out from under them: put on after, they stood on a road's destination on 7 of
+    // 34 plates at 1440x900 (measured live, 2026-09-28). The view the reader had zoomed to, when the
+    // plate is drawn again in place, comes back once the names are laid out.
+    cityZoom = attachZoomPan(citySvg, frame, {
+      labels: zoomLabels(),
+      onScale: (scale) => {
+        cityScale = scale;
+        if (cityRelayout) return;
+        cityRelayout = requestAnimationFrame(() => {
+          cityRelayout = 0;
+          applyLabelScale(citySvg, cityScale);
+          deconflictLabels(citySvg);
+        });
+      },
+    });
     // the plan's own names have to be laid out too — it is in the document by now, so they can
     // be measured
     //
@@ -1214,22 +1230,10 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     clearMarks(citySvg);
     clearCastleName(citySvg);
     // ...and where each road goes, beside its road where it leaves the plate, off the plate's own name —
-    // and out from under the chips over its corner
-    placeRoadEnds(citySvg, { clear: coveredBy(citySvg, frame.querySelectorAll(":scope > .focus-toggle, :scope > .rename-toggle")) });
+    // and out from under what the page floats over it: the chips in one corner, the zoom in the other
+    placeRoadEnds(citySvg, { clear: coveredBy(citySvg, frame.querySelectorAll(":scope > .focus-toggle, :scope > .rename-toggle, :scope > .map-zoom-controls")) });
     deconflictLabels(citySvg);
-    cityZoom = attachZoomPan(citySvg, frame, {
-      restore,
-      labels: zoomLabels(),
-      onScale: (scale) => {
-        cityScale = scale;
-        if (cityRelayout) return;
-        cityRelayout = requestAnimationFrame(() => {
-          cityRelayout = 0;
-          applyLabelScale(citySvg, cityScale);
-          deconflictLabels(citySvg);
-        });
-      },
-    });
+    if (restore) cityZoom.restore(restore);
     // ★ The keyboard goes with the reader. Opening a plate throws away the screen they were on — the
     // list row, the dot or the neighbour chip they pressed — and focus fell to <body>, so the next
     // Tab started over at the top of the page (measured live, 2026-09-25). It lands on the way back,

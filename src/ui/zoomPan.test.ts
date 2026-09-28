@@ -120,6 +120,27 @@ describe("attachZoomPan", () => {
     zp2.destroy();
   });
 
+  // A plate lays its names out at the view it opens with — clear of these very buttons, which must be
+  // on it by then — and only then goes back to where the reader had zoomed (app.ts, openCity). So a
+  // saved view is restored on a map already attached, the same as one handed to attachZoomPan.
+  it("restores a saved view on a map it is already attached to, as a restore at attach would", () => {
+    const zp = attachZoomPan(svg, container);
+    (container.querySelectorAll(".map-zoom-controls button")[0] as HTMLButtonElement).click();
+    (container.querySelectorAll(".map-zoom-controls button")[0] as HTMLButtonElement).click();
+    const saved = zp.viewBox();
+    zp.destroy();
+    const fresh = makeSvg();
+    const scales: number[] = [];
+    const zp2 = attachZoomPan(fresh.svg, fresh.container, { onScale: (s) => scales.push(s) });
+    zp2.restore(saved);
+    expect(zp2.viewBox()).toBe(saved);
+    expect(fresh.svg.getAttribute("viewBox")).toBe(saved);
+    expect(scales[scales.length - 1], "the lettering was not told the new scale").toBeCloseTo(zp2.scale(), 9);
+    zp2.restore("not a box");   // nothing to go back to: the view stays where it is
+    expect(zp2.viewBox()).toBe(saved);
+    zp2.destroy();
+  });
+
   it("garbage restore starts at base; over-zoomed restore clamps to MAX_SCALE", () => {
     const a = attachZoomPan(svg, container, { restore: "not a box" });
     expect(a.viewBox()).toBe("0 0 100 100");

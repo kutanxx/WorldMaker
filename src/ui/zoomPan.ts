@@ -1,7 +1,9 @@
 // viewBox-based zoom/pan for an SVG map (world or city). Simple visual zoom — markers/labels
 // scale with the map. No dependencies. Read/write the viewBox as an attribute string (jsdom
 // does not implement svg.viewBox.baseVal).
-export interface ZoomPan { reset(): void; destroy(): void; viewBox(): string; scale(): number; }
+// `restore` goes back to a saved box (a `viewBox()`) on a map already attached — a plate lays its names out
+// at the view it opens with, clear of these buttons, and only then returns to where the reader had zoomed.
+export interface ZoomPan { reset(): void; destroy(): void; viewBox(): string; scale(): number; restore(box: string): void; }
 
 const MIN_SCALE = 1, MAX_SCALE = 8;
 // straight-line px from the press point beyond which a pointer sequence is a drag (pan), not a
@@ -158,8 +160,9 @@ export function attachZoomPan(
 
   // restore a saved box (the play map is rebuilt every render): in-range boxes are copied
   // verbatim so a save/restore round-trip is exact; out-of-range scales clamp; garbage is ignored
-  const r = opts?.restore ? parse(opts.restore) : null;
-  if (r && [r.x, r.y, r.w, r.h].every(Number.isFinite) && r.w > 0 && r.h > 0) {
+  const restoreBox = (saved: string | null | undefined): void => {
+    const r = saved ? parse(saved) : null;
+    if (!r || ![r.x, r.y, r.w, r.h].every(Number.isFinite) || !(r.w > 0) || !(r.h > 0)) return;
     const scale = base.w / r.w;
     if (scale >= MIN_SCALE && scale <= MAX_SCALE) {
       const expectH = r.w * (base.h / base.w);
@@ -170,7 +173,8 @@ export function attachZoomPan(
       cur = { x: r.x, y: r.y, w: base.w / s, h: base.h / s };
     }
     clampPan();
-  }
+  };
+  restoreBox(opts?.restore);
   apply(); // normalizes the attribute and sets the initial touch-action either way
 
 
@@ -206,6 +210,7 @@ export function attachZoomPan(
   return {
     reset,
     viewBox() { return `${cur.x} ${cur.y} ${cur.w} ${cur.h}`; },
+    restore(box: string) { restoreBox(box); apply(); },
     scale() { return base.w / cur.w; },
     destroy() {
       endDrag(); // tear down any in-progress drag's window listeners

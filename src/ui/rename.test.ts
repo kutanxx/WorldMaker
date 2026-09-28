@@ -129,6 +129,9 @@ describe("the reader's names", () => {
       const app = createApp(root, params);
       await tick();
       app.openCity(town);
+      // zoomed in first: the plate is drawn again under the new name, at the view the reader was at
+      (root.querySelector(".stage.plate .map-zoom-controls .zoom-in") as HTMLButtonElement).click();
+      const view = root.querySelector("svg.city")!.getAttribute("viewBox");
       (root.querySelector(".rename-toggle") as HTMLButtonElement).click();
       (root.querySelector(".city-name-text") as SVGTextElement).dispatchEvent(new MouseEvent("click", { bubbles: true }));
       const editor = root.querySelector(".name-editor") as HTMLInputElement;
@@ -137,6 +140,7 @@ describe("the reader's names", () => {
       editor.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
       await tick();
       expect(root.querySelector(".city-name-text")?.textContent).toBe("새 이름");
+      expect(root.querySelector("svg.city")!.getAttribute("viewBox"), "the plate lost the reader's zoom").toBe(view);
       app.showWorld();
       await tick();
       expect(root.querySelector(`svg.world text.city-label[data-name='t${town}']`)?.textContent).toBe("새 이름");
