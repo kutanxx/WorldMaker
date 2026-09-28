@@ -263,14 +263,25 @@ describe("exported chronicle is byte-stable across the shared-assembler move", (
   //      — which stayed on `say`, unchanged, by the same label-vs-clause rule item 7 already drew for
   //      a realm's name). Confirmed empirically: the full suite ran green with the wiring in place, on
   //      the first pass, with no pin in this file or `history.test.ts` touched.
+  //  10. A free port is named in the year its town stands (2026-09-28, chronicleLines.ts). The zones
+  //      are chosen from every town the world will have, and seeds 1 and 2 named one at year 0 that
+  //      the same chronicle founds later: Khainzaz (1, founded 390) and Syanvai (2, founded 50).
+  //      EXACTLY FOUR LINES MOVE — those two namings, in each language — each to its town's year and
+  //      right after the line that founds it, with only the year in the sentence changed. Diffed line by
+  //      line against the commit before (probe `chronsect`): no other line changed or moved, the line
+  //      counts hold at 120/109/106 in both languages, and seed 3, whose ports all stand at year 0,
+  //      keeps both its hashes. The recorded events are untouched (`eventText.test.ts` still reads
+  //      "Year 0 — Khainzaz is named a free port" off the record, as the simulation wrote it).
   const pins: Record<number, { en: number; ko: number; lines: number }> = {
     // 2026-09-12: re-pinned because the TOWNS moved, and the chronicle names towns. The land did
     // not move — world.test.ts's `polityOf` anchor reproduced byte-identical — so this is the same
     // licence the 2026-09-06 re-pin in history.test.ts claims: the world was meant to change here
     // and nowhere else. Towns used to be thrown at the claimed land uniformly (the pool is 26.8%
     // coastal and they came out 27% coastal) and are drawn toward water now. See world.ts.
-    1: { en: 3757333055, ko:  339626473, lines: 120 },
-    2: { en: 4274064693, ko: 2405378887, lines: 109 },
+    // 2026-09-28: seeds 1 and 2 re-pinned for item 10 (a free port named when its town stands) —
+    // were en 3757333055 / ko 339626473 and en 4274064693 / ko 2405378887.
+    1: { en: 2881444985, ko: 4071964961, lines: 120 },
+    2: { en:  217041030, ko: 3848576118, lines: 109 },
     3: { en: 2048031766, ko: 1094646887, lines: 106 },
   };
   for (const seed of [1, 2, 3]) {

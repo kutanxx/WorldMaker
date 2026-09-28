@@ -507,6 +507,12 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     for (const el of svg.querySelectorAll<SVGElement>(".sea-routes [data-sea]")) {
       el.style.display = inUse.sea[Number(el.getAttribute("data-sea"))] ? "" : "none";
     }
+    // ...and a free port's diamond with its town: it stood alone on empty land where the chronicle
+    // founds the town centuries later (6 of 12 worlds at year 0, 5 still at year 300)
+    const unbuilt = new Set(generated.world.cities.filter((c) => hidden.has(c.id)).map((c) => c.cell));
+    for (const el of svg.querySelectorAll<SVGElement>(".econ-zones [data-zone]")) {
+      el.style.display = unbuilt.has(Number(el.getAttribute("data-zone"))) ? "none" : "";
+    }
     // ★ ...and the list beside it. It offered every town at every year while the map hid the ones
     // not founded: world 1 opens at year 0 with its 8 capitals on the map and 28 towns in the list,
     // each wearing a realm, and over twelve worlds 170 of 336 towns were listed in a year before

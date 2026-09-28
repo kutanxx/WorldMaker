@@ -90,6 +90,18 @@ describe("renderWorld biomes", () => {
     expect(pol.querySelectorAll(".region-label").length).toBeGreaterThan(0);
     expect(pol.querySelector(".world-name-text")?.textContent).toBe(world.name);
   });
+  // A free port's diamond stands on its town, and the chronicle founds some of those towns centuries
+  // after year 0: a map drawn for a year before that (the exported one) drew the diamond alone on empty
+  // land. And the screen, which draws every diamond once and hides them by year, has to know which
+  // zone each piece belongs to — the halo under the diamond as well as the diamond.
+  it("draws no free-port diamond where its town is not founded yet, and marks both pieces with their zone", () => {
+    const [early, late] = [world.cities[0], world.cities[1]];
+    const map = renderWorld(world, "terrain", [early.cell, late.cell], "en", new Set([late.id]));
+    expect(map.querySelectorAll(`.econ-zones [data-zone="${late.cell}"]`).length, "a diamond before its town").toBe(0);
+    expect([...map.querySelectorAll(`.econ-zones [data-zone="${early.cell}"]`)].map((e) => e.getAttribute("class")))
+      .toEqual(["econ-zone-halo", "econ-zone"]);
+  });
+
   it("draws an economic-zone marker per zone cell when given some", () => {
     const zones = [world.cities[0].cell, world.cities[1].cell];
     const withZones = renderWorld(world, "terrain", zones);

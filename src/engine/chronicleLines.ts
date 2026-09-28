@@ -289,9 +289,24 @@ export function buildChronicle(world: World, history: History, lang: ChronicleLa
   const groupedFoundYear = founded.length >= 3 ? founded[0].year : null;
   const groupedAllSameYear = groupedFoundYear !== null && founded.every((e) => e.year === groupedFoundYear);
 
+  // A free port is named in the year its town stands. The zones are chosen from every town the world
+  // will have (historySim), and the chronicle founds some of them centuries later: 6 of 12 worlds opened
+  // on "Year 0 — Khainzaz is named a free port" for a town the same chronicle founds in 390, while the
+  // map drew its diamond on empty land. The record keeps what the simulation did; the sentence waits for
+  // the town, and follows the line that founds it (told after every recorded event, so it sorts after).
+  const foundedIn = new Map(history.cityFoundings.map((f) => [f.cityId, f.year]));
+  const standsFrom = new Map(world.cities.map((c) => [c.cell, foundedIn.get(c.id) ?? 0]));
+  const whenItStands: ChronicleLine[] = [];
+
   // The recorded events and the moments mined out of the snapshots are one chronicle, told in order.
   const told: ChronicleLine[] = [];
   for (const ev of history.events) {
+    const stands = ev.type === "staple" && ev.cell !== undefined ? standsFrom.get(ev.cell) ?? 0 : 0;
+    if (stands > ev.year) {
+      const named = { ...ev, year: stands };
+      whenItStands.push({ year: stands, rank: 0, kind: ev.type, text: eventText(named, history.polities, lang) });
+      continue;
+    }
     if (groupedAllSameYear && ev.type === "found") {
       if (ev !== founded[0]) continue;            // the rest are folded into the line below
       const names = founded
@@ -305,6 +320,7 @@ export function buildChronicle(world: World, history: History, lang: ChronicleLa
     }
     told.push({ year: ev.year, rank: 0, kind: ev.type, text: eventText(ev, history.polities, lang) });
   }
+  told.push(...whenItStands);
   told.push(...mined(world, history, lang, dyn, forms));
   told.push(...naturalHistory(world, history, lang));
   // Stable: year, then kind, then the order each was produced in — no comparison falls through to

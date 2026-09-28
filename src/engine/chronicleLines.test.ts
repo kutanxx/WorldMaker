@@ -4,6 +4,7 @@ import { DEFAULT_PARAMS } from "../types/world";
 import { simulateHistory } from "./history";
 import { buildChronicle, isMoment } from "./chronicleLines";
 import { classifyGovernments } from "./government";
+import { properNoun } from "./hangul";
 
 const build = (seed: number) => {
   const { world } = generateWorld({ ...DEFAULT_PARAMS, seed });
@@ -251,5 +252,39 @@ describe("a line with a detail carries its headline too", () => {
     const { world, history } = build(1);
     const founding = buildChronicle(world, history, "ko").find((l) => l.kind === "foundings")!;
     expect(founding.text, "the names left the gazetteer's line too").toMatch(/ — .+, .+/);
+  });
+});
+
+// The free ports are chosen from every town the world will have, and the chronicle founds some of them
+// centuries later: measured over 12 worlds, 6 opened on "Year 0 — Khainzaz is named a free port" for a
+// town the same chronicle founds in 390 (and the map drew its diamond on empty land until then). The
+// record keeps what the simulation did; the chronicle tells the naming in the year the port stands,
+// after the line that founds it.
+describe("a free port is named when its town stands", () => {
+  it("never before its town is founded, and after the line that founds it", () => {
+    let later = 0;
+    for (let seed = 1; seed <= 12; seed++) {
+      const { world, history } = build(seed);
+      const founded = new Map(history.cityFoundings.map((f) => [f.cityId, f.year]));
+      for (const lang of ["en", "ko"] as const) {
+        const lines = buildChronicle(world, history, lang);
+        for (const z of history.economicZones) {
+          const town = world.cities.find((c) => c.cell === z.cell)!;
+          const since = founded.get(town.id) ?? 0;
+          const name = properNoun(lang === "ko", town.name);
+          const at = lines.findIndex((l) => l.kind === "staple" && l.text.includes(name));
+          expect(at, `world ${seed} ${lang}: no free-port line for ${town.name}`).toBeGreaterThan(-1);
+          expect(lines[at].year, `world ${seed} ${lang}: ${town.name} named a free port before it stood`).toBe(Math.max(0, since));
+          expect(lines[at].text.startsWith(lang === "en" ? `Year ${since} ` : `${since}년,`), `world ${seed} ${lang}: the sentence keeps the old year`).toBe(true);
+          if (since > 0 && lang === "en") {
+            later++;
+            const built = lines.findIndex((l) => l.kind === "newCity" && l.year === since && l.text.includes(town.name));
+            expect(built, `world ${seed}: no line founds ${town.name}`).toBeGreaterThan(-1);
+            expect(at, `world ${seed}: ${town.name} is a free port before it is founded`).toBeGreaterThan(built);
+          }
+        }
+      }
+    }
+    expect(later, "free ports whose towns come later").toBe(6);
   });
 });

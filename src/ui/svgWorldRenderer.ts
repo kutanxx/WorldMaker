@@ -427,11 +427,16 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
     root.appendChild(legend);
   }
 
-  // economic special zones (free ports / staple towns): a gold diamond on the city
+  // economic special zones (free ports / staple towns): a gold diamond on the city — and only once the
+  // city stands: the zones are chosen from every town the world will have, and the chronicle founds
+  // some of them centuries later (6 of 12 worlds; a diamond alone on empty land until then). Both
+  // pieces carry their zone, so the screen, which draws every diamond once, can hide them by year.
+  const unbuilt = new Set(world.cities.filter((c) => unfounded.has(c.id)).map((c) => c.cell));
   if (econZones.length) {
     const eg = svgEl("g", { class: "econ-zones", style: "pointer-events:none" }); // badge only; don't block city clicks
 
     for (const cell of econZones) {
+      if (unbuilt.has(cell)) continue;
       const x = grid.points[cell * 2], y = grid.points[cell * 2 + 1];
       const d = `M${x.toFixed(1)},${(y - 4).toFixed(1)}L${(x + 4).toFixed(1)},${y.toFixed(1)}L${x.toFixed(1)},${(y + 4).toFixed(1)}L${(x - 4).toFixed(1)},${y.toFixed(1)}Z`;
       const at = { "data-cx": x.toFixed(1), "data-cy": y.toFixed(1) };
@@ -441,7 +446,7 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
       // on the map: the parchment ring lifts it off the dark biomes, its dark outline off the pale
       // ones, and the gold is left to say what the mark MEANS rather than to be seen.
       eg.appendChild(svgEl("path", {
-        class: "econ-zone-halo", ...at, d,
+        class: "econ-zone-halo", "data-zone": cell, ...at, d,
         fill: "none", stroke: PARCHMENT, "stroke-width": 2.6, "stroke-linejoin": "round",
       }));
       eg.appendChild(svgEl("path", {
