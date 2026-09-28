@@ -14,6 +14,7 @@ import type { World } from "../types/world";
 import { biomeName, t, type Lang } from "./i18n";
 import { svgEl, legendPanel, legendRow, LEGEND_ROW, LEGEND_SWATCH, LEGEND_GAP, LEGEND_TEXT, LEGEND_TITLE_H, LEGEND_W_FIXED } from "./renderer";
 import { displayBiomes } from "./displayBiome";
+import { settlementKeyRows } from "./settlementKey";
 import { ALPINE, TAIGA, TEMPERATE_FOREST, TROPICAL, WETLAND, DESERT } from "../engine/biome";
 import { OCEAN } from "../engine/terrain";
 import { pointInPolygon, type Point } from "../engine/geometry";
@@ -123,8 +124,10 @@ export function inkMarks(world: World): SVGGElement {
   return layer;
 }
 
-// A key for the ink map: the marks it draws, drawn as it draws them, and its road and sea route.
-function inkKey(marks: SVGGElement, lang: Lang, height: number, road: boolean, sea: boolean): SVGGElement {
+// A key for the ink map: the marks it draws, drawn as it draws them, its road and sea route — and the marks
+// over them all, the capitals, the towns and the free ports, drawn in colour here and inked by `twoInks` as
+// the map's own are.
+function inkKey(marks: SVGGElement, lang: Lang, height: number, road: boolean, sea: boolean, freePorts: boolean): SVGGElement {
   const has = (cls: string) => marks.querySelector(`.${cls}`) !== null;
   const rows: [string, (x: number, y: number) => SVGElement[]][] = [];
   const two = (kind: Kind) => (x: number, y: number) => [mark(kind, x + 3.2, y + 1.5), mark(kind, x + 8.8, y + 1.5)];
@@ -140,6 +143,7 @@ function inkKey(marks: SVGGElement, lang: Lang, height: number, road: boolean, s
     svgEl("line", { x1: x, y1: y - 3, x2: x + 12, y2: y - 3, stroke: INK, "stroke-width": 0.9, "stroke-dasharray": "4 1.6" }),
   ]]);
   if (sea) rows.push([t(lang, "keySeaRoute"), (x, y) => [svgEl("line", { x1: x, y1: y - 3, x2: x + 12, y2: y - 3, stroke: INK, "stroke-width": 0.9, "stroke-dasharray": "1.2 2.4", "stroke-linecap": "round" })]]);
+  for (const [word, mark] of settlementKeyRows(lang, freePorts)) rows.push([word, (x, y) => [mark(x, y)]]);
   const legend = svgEl("g", { class: "legend biome-legend ink-legend" }) as SVGGElement;
   const x0 = 14, y0 = height - 14 - rows.length * LEGEND_ROW;
   legend.appendChild(legendPanel(x0 - 5, y0 - 10 - LEGEND_TITLE_H, LEGEND_W_FIXED, rows.length * LEGEND_ROW + 14 + LEGEND_TITLE_H, t(lang, "legendTerrain")));
@@ -245,6 +249,6 @@ export function inkWorld(svg: SVGSVGElement, world: World, lang: Lang): void {
   for (const p of svg.querySelectorAll(".road")) { p.setAttribute("stroke", INK); p.setAttribute("stroke-width", "0.9"); p.setAttribute("stroke-dasharray", "4 1.6"); }
   for (const text of svg.querySelectorAll("text")) { text.setAttribute("fill", INK); if (text.getAttribute("stroke")) text.setAttribute("stroke", PAPER); }
   const key = svg.querySelector(":scope > .biome-legend");
-  if (key) key.replaceWith(inkKey(marks, lang, world.grid.height, world.roads.length > 0, (world.seaRoutes?.length ?? 0) > 0));
+  if (key) key.replaceWith(inkKey(marks, lang, world.grid.height, world.roads.length > 0, (world.seaRoutes?.length ?? 0) > 0, svg.querySelector(".econ-zones") !== null));
   twoInks(svg);
 }

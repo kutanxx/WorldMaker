@@ -1,5 +1,6 @@
 import type { World } from "../types/world";
-import { svgEl, legendPanel, legendRow, starPath, compassRose, mapFrame, INK, PARCHMENT, LEGEND_TITLE_H, LEGEND_TEXT, LEGEND_ROW, LEGEND_SWATCH, LEGEND_GAP, LEGEND_W_FIXED, CITY_LABEL_DX, ROAD_INK, ROAD_W, ROAD_CASING_W, roadMark, SEA_ROUTE_INK, SEA_ROUTE_W, SEA_ROUTE_DASH, seaRouteMark } from "./renderer";
+import { svgEl, legendPanel, legendRow, starPath, compassRose, mapFrame, INK, PARCHMENT, LEGEND_TITLE_H, LEGEND_TEXT, LEGEND_ROW, LEGEND_SWATCH, LEGEND_GAP, LEGEND_W_FIXED, CITY_LABEL_DX, ROAD_INK, ROAD_W, ROAD_CASING_W, roadMark, SEA_ROUTE_INK, SEA_ROUTE_W, SEA_ROUTE_DASH, seaRouteMark, FREE_PORT_FILL, FREE_PORT_EDGE, diamondPath } from "./renderer";
+import { settlementKeyRows } from "./settlementKey";
 import { scaleBar, KM_PER_UNIT, KM_PER_WALKING_DAY } from "./scaleBar";
 import { displayBiomes } from "./displayBiome";
 import { OCEAN, ALPINE, BIOME_COLORS } from "../engine/biome";
@@ -28,10 +29,12 @@ export const OVERLAY_BIOME_OPACITY = 0.6;
 // `labelOf` follows `colorOf`: politicalLayer is given the finished answer rather than the language
 // to work it out from, so the layer never learns about Hangul or about the i18n table.
 export function politicalOpts(view: MapView, lang: Lang = "en", colorOf?: (id: number) => string,
-                              labelOf: (id: number, name: string) => string = polityLabeller(lang)): PoliticalOpts {
-  // the title comes in as a finished string so politicalLayer stays free of the i18n table
+                              labelOf: (id: number, name: string) => string = polityLabeller(lang),
+                              freePorts = false): PoliticalOpts {
+  // the title comes in as a finished string so politicalLayer stays free of the i18n table — and so do
+  // the rows under the realms, which say what the marks drawn over them are
   return view === "political"
-    ? { fills: true, labels: true, legend: true, legendTitle: t(lang, "legendRealms"), colorOf, labelOf }
+    ? { fills: true, labels: true, legend: true, legendTitle: t(lang, "legendRealms"), colorOf, labelOf, keyRows: settlementKeyRows(lang, freePorts) }
     : { labelOf };
 }
 
@@ -145,16 +148,18 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
     fill: "none", stroke: "#4a6373", "stroke-width": 2.4, "vector-effect": "non-scaling-stroke",
   }));
   const slot = svgEl("g", { class: "political-slot" });
+  // every view's key ends with the marks drawn over its ground (settlementKey.ts)
+  const marksKey = settlementKeyRows(lang, econZones.length > 0);
   slot.appendChild(
-    view === "culture" ? cultureLayer(grid, world.cultureOf, world.cultures, lang)
-      : view === "province" ? provinceLayer(grid, world.provinceOf, world.provinces, { owner: world.polityOf, legend: true, lang, roads: world.roads.length > 0, seaRoutes: (world.seaRoutes?.length ?? 0) > 0 })
+    view === "culture" ? cultureLayer(grid, world.cultureOf, world.cultures, lang, marksKey)
+      : view === "province" ? provinceLayer(grid, world.provinceOf, world.provinces, { owner: world.polityOf, legend: true, lang, roads: world.roads.length > 0, seaRoutes: (world.seaRoutes?.length ?? 0) > 0, keyRows: marksKey })
         // terrain/political: snap nation ownership to whole provinces so borders (and political fills)
         // fall on province edges — the SAME geometry the province view uses, so views stay consistent.
         // ⚠ No `keep` set here, and none needed: this draws `world.polityOf`, the ownership of year
         // ZERO, and a free city is something the simulation declares later — `world.polities` has no
         // `free` flag at all. The per-year layer app.ts swaps into this slot is where free realms
         // have to survive the snap; see snapOwnersToProvinces.
-        : politicalLayer(grid, snapOwnersToProvinces(grid.count, world.provinceOf, world.provinces, world.polityOf), world.polities, politicalOpts(view, lang, colorOf, labelOf)));
+        : politicalLayer(grid, snapOwnersToProvinces(grid.count, world.provinceOf, world.provinces, world.polityOf), world.polities, politicalOpts(view, lang, colorOf, labelOf, econZones.length > 0)));
   root.appendChild(slot);
 
   // mountain relief: a small peak glyph on each alpine cell so ranges read as mountains rather
@@ -395,7 +400,9 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
     // ...and under the ground's colours, the lines on it a reader cannot tell by their colour: the road,
     // and the sea route
     const seaRoutes = (world.seaRoutes?.length ?? 0) > 0;
-    const rows = present.length + (world.roads.length ? 1 : 0) + (seaRoutes ? 1 : 0);
+    // ...and under those, the marks drawn over the ground: the capitals, the towns, the free ports
+    const lines = present.length + (world.roads.length ? 1 : 0) + (seaRoutes ? 1 : 0);
+    const rows = lines + marksKey.length;
     const legend = svgEl("g", { class: "legend biome-legend" });
     const x0 = 14, y0 = grid.height - 14 - rows * LEGEND_ROW;
     // the heading grows the panel UPWARD so the key stays anchored to the map's bottom-left corner
@@ -419,11 +426,17 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
       labelled(row, y, t(lang, "keyRoad"));
     }
     if (seaRoutes) {
-      const y = y0 + (rows - 1) * LEGEND_ROW;
+      const y = y0 + (lines - 1) * LEGEND_ROW;
       const row = legendRow(LEGEND_ROW);
       row.appendChild(seaRouteMark(x0, y));
       labelled(row, y, t(lang, "keySeaRoute"));
     }
+    marksKey.forEach(([word, mark], k) => {
+      const y = y0 + (lines + k) * LEGEND_ROW;
+      const row = legendRow(LEGEND_ROW);
+      row.appendChild(mark(x0, y));
+      labelled(row, y, word);
+    });
     root.appendChild(legend);
   }
 
@@ -438,7 +451,7 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
     for (const cell of econZones) {
       if (unbuilt.has(cell)) continue;
       const x = grid.points[cell * 2], y = grid.points[cell * 2 + 1];
-      const d = `M${x.toFixed(1)},${(y - 4).toFixed(1)}L${(x + 4).toFixed(1)},${y.toFixed(1)}L${x.toFixed(1)},${(y + 4).toFixed(1)}L${(x - 4).toFixed(1)},${y.toFixed(1)}Z`;
+      const d = diamondPath(x, y);
       const at = { "data-cx": x.toFixed(1), "data-cy": y.toFixed(1) };
       // Gold has almost no value contrast on a tan or green biome — measured, #e0a83a came to 1.13:1
       // against grassland, where a graphical mark wants 3:1 — and no single colour can clear that
@@ -451,7 +464,7 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
       }));
       eg.appendChild(svgEl("path", {
         class: "econ-zone", "data-zone": cell, ...at, d,
-        fill: "#d69a2c", stroke: "#3d2c08", "stroke-width": 1, "stroke-linejoin": "round",
+        fill: FREE_PORT_FILL, stroke: FREE_PORT_EDGE, "stroke-width": 1, "stroke-linejoin": "round",
       }));
     }
     root.appendChild(eg);

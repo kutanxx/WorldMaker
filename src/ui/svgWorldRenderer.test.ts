@@ -961,3 +961,39 @@ describe("the ranges carry bulk", () => {
     expect(political!.getAttribute("opacity")).toBe(String(OVERLAY_BIOME_OPACITY));
   });
 });
+
+// Every view draws the same marks over its ground — a capital's star, a town's dot, a free port's gold
+// diamond — and no key said what they were: the terrain key named the ground, the realms' key the realms,
+// and a reader was left to guess the diamond (found reviewing the live site, 2026-09-28). Each key now
+// ends with them, drawn as the map draws them.
+describe("the marks every view draws, in its key", () => {
+  const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });
+  const zones = [world.cities[0].cell];
+  const words = { ko: ["수도", "도시", "자유무역항"], en: ["Capital", "Town", "Free port"] };
+  const keyRows = (map: SVGSVGElement) => [...map.querySelectorAll(".legend .legend-row")];
+  for (const view of ["terrain", "political", "culture", "province"] as const) {
+    it(`closes the ${view} key with a capital, a town and a free port`, () => {
+      for (const lang of ["ko", "en"] as const) {
+        const rows = keyRows(renderWorld(world, view, zones, lang));
+        expect(rows.slice(-3).map((r) => r.querySelector("text")?.textContent), `${view} ${lang}`).toEqual(words[lang]);
+        expect(rows.slice(-3).map((r) => ["capital-key", "town-key", "free-port-key"].find((k) => r.querySelector(`.${k}`) !== null)))
+          .toEqual(["capital-key", "town-key", "free-port-key"]);
+        expect(rows.length, `${view} ${lang}: the key lost its own rows`).toBeGreaterThan(3);
+      }
+    });
+  }
+  it("names no free port on a map that shows none", () => {
+    const words = keyRows(renderWorld(world, "terrain", [], "ko")).map((r) => r.querySelector("text")?.textContent);
+    expect(words.slice(-2)).toEqual(["수도", "도시"]);
+    expect(words).not.toContain("자유무역항");
+  });
+  it("draws them as the map draws them", () => {
+    const map = renderWorld(world, "terrain", zones, "en");
+    const same = (a: Element | null, b: Element | null, attrs: string[]) =>
+      a !== null && b !== null && attrs.every((k) => a.getAttribute(k) === b.getAttribute(k));
+    expect(same(map.querySelector(".legend .capital-key"), map.querySelector(".markers .marker-capital"), ["fill", "stroke", "stroke-width"]), "the star").toBe(true);
+    expect(same(map.querySelector(".legend .town-key"), map.querySelector(".markers .marker-town"), ["r", "fill", "stroke", "stroke-width"]), "the dot").toBe(true);
+    expect(same(map.querySelector(".legend .free-port-key .free-port-diamond"), map.querySelector(".econ-zones .econ-zone"), ["fill", "stroke", "stroke-width"]), "the diamond").toBe(true);
+    expect(same(map.querySelector(".legend .free-port-key .free-port-halo"), map.querySelector(".econ-zones .econ-zone-halo"), ["stroke", "stroke-width"]), "its halo").toBe(true);
+  });
+});

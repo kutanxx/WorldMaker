@@ -91,7 +91,11 @@ describe("the map and its legend carry a realm's form of government", () => {
 
   it("labels the legend rows the same way", () => {
     const root = openKoreanPoliticalAtYear13();
-    const rows = [...root.querySelectorAll(".nation-legend text:not(.legend-title)")].map((e) => e.textContent ?? "");
+    // the realms' rows — the ones with a realm's colour swatch; under them the key names the marks drawn
+    // over the realms (수도, 도시, 자유무역항 — settlementKey.ts), which are not realms
+    const rows = [...root.querySelectorAll(".nation-legend .legend-row")]
+      .filter((r) => r.querySelector(".legend-item") !== null)
+      .map((r) => r.querySelector("text")?.textContent ?? "");
     expect(rows.length).toBeGreaterThan(2);
     for (const l of rows) expect(l, l).toMatch(/(왕국|자유도시|제국)$/);
     expect(rows.some((l) => l.endsWith("자유도시")), rows.join(", ")).toBe(true);

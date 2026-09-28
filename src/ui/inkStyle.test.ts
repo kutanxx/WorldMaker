@@ -18,16 +18,26 @@ const inked = (view: "terrain" | "political" | "culture" | "province" = "terrain
 // the colour map comes out byte for byte as it did, in every view.
 // ...and since renaming (nameBook.ts) every name says what it names in a `data-name` attribute, which
 // is all the colour map gained: hashed with those taken out, it is still the same map to the byte.
+// ...and since 2026-09-28 every view's key ends with the marks drawn over the ground (settlementKey.ts —
+// a capital, a town; no free port here, where no zones are passed), which moved all four hashes: they were
+// [1017043680, 3220428649, 1509237278, 3613793555]. With the keys taken out as well, the four came out
+// the same before and after that change (probe `colourmap`, run on the commit before), and they are pinned
+// here too, so the next change to a key can show it touched nothing else.
 describe("the colour map, untouched by the ink style", () => {
   it("draws world 1 exactly as it did, in every view", () => {
+    const keyless: number[] = [];
     const hashes = (["terrain", "political", "culture", "province"] as const).map((v) => {
       const svg = renderWorld(world, v, [], "ko");
       const named = svg.querySelectorAll("[data-name]");
       expect(named.length, v).toBeGreaterThan(0);
       for (const el of named) el.removeAttribute("data-name");
-      return fnv(svgToString(svg));
+      const full = fnv(svgToString(svg));
+      for (const el of svg.querySelectorAll(".legend")) el.remove();
+      keyless.push(fnv(svgToString(svg)));
+      return full;
     });
-    expect(hashes).toEqual([1017043680, 3220428649, 1509237278, 3613793555]);
+    expect(keyless, "the map moved, not only its key").toEqual([391966426, 872358456, 1667286081, 1237781876]);
+    expect(hashes).toEqual([4282211430, 427055371, 1972975115, 4294735063]);
   });
 });
 
@@ -95,9 +105,10 @@ describe("the ink map", () => {
       const map = inked("terrain", lang);
       const rows = [...map.querySelectorAll(".legend .legend-row")];
       const words = rows.map((r) => r.querySelector("text")?.textContent);
+      // (and under them the settlements' marks — see "the ink key names the settlements' marks" below)
       expect(words, lang).toEqual(lang === "ko"
-        ? ["고산", "언덕", "숲", "타이가", "열대", "습지", "사막", "길", "뱃길"].filter((w) => words.includes(w))
-        : ["Alpine", "Hills", "Forest", "Taiga", "Tropical", "Wetland", "Desert", "Road", "Sea route"].filter((w) => words.includes(w)));
+        ? ["고산", "언덕", "숲", "타이가", "열대", "습지", "사막", "길", "뱃길", "수도", "도시", "자유무역항"].filter((w) => words.includes(w))
+        : ["Alpine", "Hills", "Forest", "Taiga", "Tropical", "Wetland", "Desert", "Road", "Sea route", "Capital", "Town", "Free port"].filter((w) => words.includes(w)));
       expect(words.length, lang).toBeGreaterThanOrEqual(6);
       for (const r of rows) expect(r.querySelector("rect[fill]:not([fill='none'])"), `${lang}: a colour swatch`).toBeNull();
     }
@@ -133,5 +144,19 @@ describe("the ink map", () => {
       expect(Number(halo?.getAttribute("stroke-width"))).toBeGreaterThan(Number(b.getAttribute("stroke-width")));
     }
     for (const t of map.querySelectorAll(".political-slot .territory")) expect(t.getAttribute("fill")).toBe("none");
+  });
+});
+
+// ...and the ink key ends with the same marks as the colour keys (svgWorldRenderer.test.ts), in ink as the
+// ink map draws them: the star and the dot in ink, the free port's diamond paper-white in an ink edge.
+describe("the ink key names the settlements' marks", () => {
+  it("closes with a capital, a town and a free port, drawn in ink", () => {
+    const map = renderWorld(world, "terrain", [world.cities[0].cell], "ko", new Set(), undefined, undefined, "ink");
+    const rows = [...map.querySelectorAll(".legend .legend-row")];
+    expect(rows.slice(-3).map((r) => r.querySelector("text")?.textContent)).toEqual(["수도", "도시", "자유무역항"]);
+    const diamond = map.querySelector(".legend .free-port-key .free-port-diamond");
+    expect(diamond?.getAttribute("fill")).toBe(PAPER);
+    expect(diamond?.getAttribute("stroke")).toBe(INK);
+    expect(map.querySelector(".legend .capital-key")?.getAttribute("fill")).toBe(INK);
   });
 });

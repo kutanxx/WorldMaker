@@ -1,5 +1,5 @@
 import type { World } from "../types/world";
-import { svgEl, legendPanel, legendRow, INK, LEGEND_TITLE_H, LEGEND_TEXT, LEGEND_ROW, LEGEND_SWATCH, LEGEND_GAP, LEGEND_W_NAMED } from "./renderer";
+import { svgEl, legendPanel, legendRow, INK, LEGEND_TITLE_H, LEGEND_TEXT, LEGEND_ROW, LEGEND_SWATCH, LEGEND_GAP, LEGEND_W_NAMED, type KeyRow } from "./renderer";
 import { t } from "./i18n";
 import type { Lang } from "./i18n";
 import { cellPath, segPath } from "./svgPaths";
@@ -24,6 +24,8 @@ export function cultureLayer(
   cultureOf: ArrayLike<number>,
   cultures: { name: string; color: string }[],
   lang: Lang = "en",
+  // rows the key carries under the peoples, worded and drawn by the caller (settlementKey.ts)
+  keyRows: KeyRow[] = [],
 ): SVGGElement {
   const g = svgEl("g", { class: "culture" }) as SVGGElement;
 
@@ -70,8 +72,9 @@ export function cultureLayer(
   // bottom-LEFT, matching the biome legend: only one legend is drawn per view, and the
       // bottom-right corner belongs to the zoom controls, which were sitting on top of this one.
       const x0 = 14;
-  const y0 = grid.height - 14 - present.length * LEGEND_ROW;
-  legend.appendChild(legendPanel(x0 - 5, y0 - 10 - LEGEND_TITLE_H, LEGEND_W, present.length * LEGEND_ROW + 14 + LEGEND_TITLE_H, t(lang, "legendCultures")));
+  const count = present.length + keyRows.length;
+  const y0 = grid.height - 14 - count * LEGEND_ROW;
+  legend.appendChild(legendPanel(x0 - 5, y0 - 10 - LEGEND_TITLE_H, LEGEND_W, count * LEGEND_ROW + 14 + LEGEND_TITLE_H, t(lang, "legendCultures")));
   present.forEach((id, i) => {
     const y = y0 + i * LEGEND_ROW;
     const row = legendRow(LEGEND_ROW);
@@ -80,6 +83,16 @@ export function cultureLayer(
     const cname = cultures[id]?.name;
     t.textContent = cname === undefined ? "" : peopleLabel(lang, cname);
     row.appendChild(t);
+    legend.appendChild(row);
+  });
+  // ...and under the peoples, the marks drawn over their land (the capitals, the towns, the free ports)
+  keyRows.forEach(([word, mark], k) => {
+    const y = y0 + (present.length + k) * LEGEND_ROW;
+    const row = legendRow(LEGEND_ROW);
+    row.appendChild(mark(x0, y));
+    const tx = svgEl("text", { x: x0 + LEGEND_SWATCH + LEGEND_GAP, y, "font-size": LEGEND_TEXT, fill: "#42341f", "letter-spacing": 0.3 });
+    tx.textContent = word;
+    row.appendChild(tx);
     legend.appendChild(row);
   });
   g.appendChild(legend);

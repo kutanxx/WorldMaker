@@ -3,6 +3,7 @@ import { DEFAULT_PARAMS } from "../types/world";
 import { generateWorld } from "../engine/world";
 import { waysInUse } from "../engine/worldRoads";
 import { renderWorld, politicalOpts, type MapView, type MapStyle } from "./svgWorldRenderer";
+import { settlementKeyRows } from "./settlementKey";
 import { inkSlot, forPrint } from "./inkStyle";
 import { renderCity, CITY_LEGEND_ROW, fitTitle } from "./svgCityRenderer";
 import { generateCityLayout, cityContext, type CityLayout } from "../engine/city";
@@ -530,15 +531,17 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
   function fillSlot(slot: SVGGElement, view: MapView, yearIndex: number): void {
     const world = generated.world;
     const snap = history.snapshots[yearIndex];
+    // every key ends with the marks drawn over the ground, as renderWorld's own do (settlementKey.ts)
+    const freePorts = history.economicZones.length > 0;
     if (view === "culture") {
-      slot.replaceChildren(cultureLayer(world.grid, world.cultureOf, world.cultures, lang)); // time-independent
+      slot.replaceChildren(cultureLayer(world.grid, world.cultureOf, world.cultures, lang, settlementKeyRows(lang, freePorts))); // time-independent
     } else if (view === "province") {
       // provinces are geography (time-independent); nation borders track the scrubbed year via snap.owner
-      slot.replaceChildren(provinceLayer(world.grid, world.provinceOf, world.provinces, { owner: snap.owner, legend: true, lang, roads: world.roads.length > 0, seaRoutes: (world.seaRoutes?.length ?? 0) > 0 }));
+      slot.replaceChildren(provinceLayer(world.grid, world.provinceOf, world.provinces, { owner: snap.owner, legend: true, lang, roads: world.roads.length > 0, seaRoutes: (world.seaRoutes?.length ?? 0) > 0, keyRows: settlementKeyRows(lang, freePorts) }));
     } else {
       // nation ownership snapped to whole provinces so terrain/political borders match the province view
       const snapped = snapOwnersToProvinces(world.grid.count, world.provinceOf, world.provinces, snap.owner, freeRealms);
-      slot.replaceChildren(politicalLayer(world.grid, snapped, history.polities, politicalOpts(view, lang, colorOf, polityLabeller(lang, governmentForms))));
+      slot.replaceChildren(politicalLayer(world.grid, snapped, history.polities, politicalOpts(view, lang, colorOf, polityLabeller(lang, governmentForms), freePorts)));
     }
     // the year's layer arrives in its colours; on an ink map it goes into ink with the rest
     if (mapStyle === "ink") inkSlot(slot);

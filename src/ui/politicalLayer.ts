@@ -1,5 +1,5 @@
 import type { World } from "../types/world";
-import { svgEl, legendPanel, legendRow, INK, LEGEND_TITLE_H, LEGEND_TEXT, LEGEND_ROW, LEGEND_SWATCH, LEGEND_GAP, LEGEND_W_NAMED } from "./renderer";
+import { svgEl, legendPanel, legendRow, INK, LEGEND_TITLE_H, LEGEND_TEXT, LEGEND_ROW, LEGEND_SWATCH, LEGEND_GAP, LEGEND_W_NAMED, type KeyRow } from "./renderer";
 import { cellPath, segPath } from "./svgPaths";
 import { politicalBorders } from "../engine/borders";
 import { nationColor, nationCentroids } from "./nationPalette";
@@ -29,6 +29,8 @@ export interface PoliticalOpts {
    * lives in the history, is looked up by id, and reaches the map through this same seam.
    */
   labelOf?: (id: number, name: string) => string;
+  /** rows the key carries under the realms, worded and drawn by the caller (settlementKey.ts) */
+  keyRows?: KeyRow[];
 }
 
 const MIN_LABEL_CELLS = 25;
@@ -142,8 +144,10 @@ export function politicalLayer(
       // bottom-LEFT, matching the biome legend: only one legend is drawn per view, and the
       // bottom-right corner belongs to the zoom controls, which were sitting on top of this one.
       const x0 = 14;
-      const y0 = grid.height - 14 - rows.length * LEGEND_ROW;
-      legend.appendChild(legendPanel(x0 - 5, y0 - 10 - LEGEND_TITLE_H, LEGEND_W, rows.length * LEGEND_ROW + 14 + LEGEND_TITLE_H, opts.legendTitle));
+      const extra = opts.keyRows ?? [];
+      const count = rows.length + extra.length;
+      const y0 = grid.height - 14 - count * LEGEND_ROW;
+      legend.appendChild(legendPanel(x0 - 5, y0 - 10 - LEGEND_TITLE_H, LEGEND_W, count * LEGEND_ROW + 14 + LEGEND_TITLE_H, opts.legendTitle));
       rows.forEach(([id], i) => {
         const y = y0 + i * LEGEND_ROW;
         const row = legendRow(LEGEND_ROW);
@@ -154,6 +158,16 @@ export function politicalLayer(
         const t = svgEl("text", { x: x0 + LEGEND_SWATCH + LEGEND_GAP, y, "font-size": LEGEND_TEXT, fill: "#42341f", "letter-spacing": 0.3 });
         t.textContent = nameOf(id) ?? "";
         row.appendChild(t);
+        legend.appendChild(row);
+      });
+      // ...and under the realms, the marks drawn over them (the capitals, the towns, the free ports)
+      extra.forEach(([word, mark], k) => {
+        const y = y0 + (rows.length + k) * LEGEND_ROW;
+        const row = legendRow(LEGEND_ROW);
+        row.appendChild(mark(x0, y));
+        const tx = svgEl("text", { x: x0 + LEGEND_SWATCH + LEGEND_GAP, y, "font-size": LEGEND_TEXT, fill: "#42341f", "letter-spacing": 0.3 });
+        tx.textContent = word;
+        row.appendChild(tx);
         legend.appendChild(row);
       });
       g.appendChild(legend);

@@ -49,6 +49,33 @@ export function seaRouteMark(x: number, y: number): SVGElement {
   return g;
 }
 
+/** A row of a key: its word, and the mark it names drawn at (x, y) — as roadMark and seaRouteMark are. */
+export type KeyRow = [string, (x: number, y: number) => SVGElement];
+
+// A free port on the world map: a gold diamond on a parchment halo — gold says what it is, the halo and
+// its dark edge let it be seen on any ground (see svgWorldRenderer). The map's and the keys' draw from here.
+export const FREE_PORT_FILL = "#d69a2c";
+export const FREE_PORT_EDGE = "#3d2c08";
+export function diamondPath(x: number, y: number, r = 4): string {
+  return `M${x.toFixed(1)},${(y - r).toFixed(1)}L${(x + r).toFixed(1)},${y.toFixed(1)}L${x.toFixed(1)},${(y + r).toFixed(1)}L${(x - r).toFixed(1)},${y.toFixed(1)}Z`;
+}
+
+// The marks every view of the world draws over its ground, as keys draw them: a capital's star, a town's
+// dot, a free port's diamond — the same shapes, sizes and colours as the map's (svgWorldRenderer).
+export function capitalMark(x: number, y: number): SVGElement {
+  return svgEl("path", { class: "legend-symbol capital-key", d: starPath(x + 6, y - 3, 5, 4.2, 1.9), fill: INK, stroke: PARCHMENT, "stroke-width": 0.7 });
+}
+export function townMark(x: number, y: number): SVGElement {
+  return svgEl("circle", { class: "legend-symbol town-key", cx: x + 6, cy: y - 3, r: 2.3, fill: INK, stroke: PARCHMENT, "stroke-width": 0.9 });
+}
+export function freePortMark(x: number, y: number): SVGElement {
+  const g = svgEl("g", { class: "legend-symbol free-port-key" });
+  const d = diamondPath(x + 6, y - 3);
+  g.appendChild(svgEl("path", { class: "free-port-halo", d, fill: "none", stroke: PARCHMENT, "stroke-width": 2.6, "stroke-linejoin": "round" }));
+  g.appendChild(svgEl("path", { class: "free-port-diamond", d, fill: FREE_PORT_FILL, stroke: FREE_PORT_EDGE, "stroke-width": 1, "stroke-linejoin": "round" }));
+  return g;
+}
+
 // The enclosure a legend sits in. Every legend on this map — biomes, nations, cultures — used to be
 // a rounded white card with a thin tan edge: the one thing on the page that looked like browser UI
 // rather than cartography, next to a compass rose and a double-ruled border. Historically the box
