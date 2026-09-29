@@ -26,7 +26,7 @@ import { provinceLayer, snapOwnersToProvinces } from "./provinceLayer";
 import { deconflictLabels, clearMarks, clearCastleName, coveredBy, placeRoadEnds } from "./deconflict";
 import { applyLabelScale, applyMarkerScale, floorLabelSize } from "./labelScale";
 import { layOutLabelsForExport } from "./exportLabels";
-import { type Page, pageOf, putOnPage } from "./regionPage";
+import { type Page, pageOf, putOnPage, fitRiverNames } from "./regionPage";
 import { type Lang, t } from "./i18n";
 import { makeFold, readFoldPref, writeFoldPref, type Fold } from "./fold";
 import { legendSheet, placeLegend } from "./legendSheet";
@@ -1312,7 +1312,8 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     if (page) putOnPage(svg, page, generated.world, lang);
     // This is a fresh render that has never been in the document, so its labels have never been laid
     // out against each other — left alone, every name in the world goes into the file, stacked.
-    layOutLabelsForExport(svg, undefined, page?.z ?? 1);
+    // (on a region's page, a river's name that would run past the edge moves along the river first)
+    layOutLabelsForExport(svg, page ? (s) => fitRiverNames(s, page, generated.world.rivers) : undefined, page?.z ?? 1);
     // what each name names is for renaming on the screen, not for the file
     for (const el of svg.querySelectorAll("[data-name]")) el.removeAttribute("data-name");
     return svg;

@@ -58,8 +58,20 @@ The whole map is untouched: the colour map's four views keep their FNV pins, and
 were pinned before `inkMarks` changed ([737587710, 3864053538, 182143499, 2924723875]). World and plate
 byte-locks untouched (no engine change).
 
+## After a census (2026-09-30)
+
+576 pages (worlds 1–12, four views, colour and ink, 2x/4x/8x, two pages a world; `regioncensus.ts`, jsdom with
+estimated glyph widths): no throw, no town named off its page — but a river's name, turned along its water, ran
+past the page's edge and was cut on 42 pages, and a name stood on the title's rule beside its words on 30 (the
+whole map's 48 had none). Fixed: a river's name that would cross the frame moves along the river's course on the
+page to the point nearest that course's middle where it fits, or the river is not named (`fitRiverNames`, run
+before the cull — 72 of 664 names moved, none dropped); the page keeps its whole title clear, words and rule.
+After: 0 and 0. Seen and left, by the reader's choice: an ink page at 8x takes about a second to draw (up to 3 s
+measured in jsdom), and the region's SVG carries the rest of the world hidden outside its viewBox (2–6 MB).
+
 ## Limits
 
 - An area whose name stands off the page is not named on it, even when much of the area is on it (regions
   carry a centroid, not their cells).
-- A rotated river name's box is its unrotated one, on the page as on the screen.
+- The cull still measures a turned river name by its unturned box against other names, on the page as on the
+  screen (only its fit inside the frame is measured turned).

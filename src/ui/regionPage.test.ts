@@ -7,7 +7,7 @@ import { displayBiomes } from "./displayBiome";
 import { ALPINE, TEMPERATE_FOREST, TAIGA, TROPICAL, DESERT } from "../engine/biome";
 import { OCEAN } from "../engine/terrain";
 import { pointInPolygon, type Point } from "../engine/geometry";
-import { putOnPage, type Page } from "./regionPage";
+import { putOnPage, fitRiverNames, type Page } from "./regionPage";
 
 const world = generateWorld({ ...DEFAULT_PARAMS, seed: 1 }).world;
 const g = world.grid;
@@ -59,6 +59,51 @@ describe("a region's page draws its ground at the page's size", () => {
       expect(pointInPolygon(at(m), g.polygons[cell] as Point[]), `a mark outside cell ${cell}`).toBe(true);
     }
     expect(marks.every((m) => inside(...at(m), 30)), "marks drawn far off the page").toBe(true);
+  });
+});
+
+// A river's name is turned along its water, and the cull cannot slide a turned name back inside the frame the way it
+// slides an upright one: set at the middle of the river's crossing, it ran past the page's edge and was cut on 42 pages
+// of 576 (`regioncensus.ts`). Measured at its page size, a name that would cross the frame moves along the river's
+// course on the page, nearest that course's middle first; with nowhere it fits, the river is not named on the page.
+describe("fitRiverNames", () => {
+  // a 10x page 100 across, and a river running east along y = 110 from x = 120 to 260, out past its east side
+  const p10: Page = { x: 100, y: 100, w: 100, h: 70, z: 10 };
+  const course = Array.from({ length: 15 }, (_, i): [number, number] => [120 + 10 * i, 110]);
+  const named = (x: number, width: number) => {
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg") as SVGSVGElement;
+    const t = document.createElementNS("http://www.w3.org/2000/svg", "text") as unknown as SVGGraphicsElement;
+    // at the course's middle (190,110), lifted 9/2 off it on the whole map and a tenth of that on this page
+    for (const [k, v] of [["class", "river-label"], ["data-name", "v0"], ["data-fs", "9"], ["font-size", "1.17"],
+      ["x", String(x)], ["y", "109.55"], ["transform", `rotate(0.0 ${x} 109.55)`]]) t.setAttribute(k, v);
+    // a name `width` across, centred on its point, measured where it stands now
+    (t as unknown as { getBBox: () => Box }).getBBox = () =>
+      ({ x: Number(t.getAttribute("x")) - width / 2, y: Number(t.getAttribute("y")) - 1, width, height: 1.4 });
+    svg.appendChild(t);
+    return { svg, t };
+  };
+  type Box = { x: number; y: number; width: number; height: number };
+
+  it("moves a name that would run past the page's edge along the river, to where it fits", () => {
+    const { svg, t } = named(190, 24);                     // 178..202: past the east side at 200
+    fitRiverNames(svg, p10, [{ path: course, flux: 0 }]);
+    expect(svg.contains(t), "the name was taken off").toBe(true);
+    // the course on the page is 120..200; its middle, 160, holds a name 24 across with a frame of 1 to spare
+    expect(Number(t.getAttribute("x"))).toBeCloseTo(160, 6);
+    expect(Number(t.getAttribute("y")), "lifted as far off the water as before").toBeCloseTo(109.55, 6);
+    expect(t.getAttribute("transform")).toBe("rotate(0.0 160 109.55)");
+  });
+
+  it("leaves a name that already fits where it stands", () => {
+    const { svg, t } = named(170, 24);
+    fitRiverNames(svg, p10, [{ path: course, flux: 0 }]);
+    expect(t.getAttribute("x")).toBe("170");
+  });
+
+  it("does not name a river whose name fits nowhere on its page", () => {
+    const { svg, t } = named(190, 120);                    // wider than the page
+    fitRiverNames(svg, p10, [{ path: course, flux: 0 }]);
+    expect(svg.contains(t), "a name cut by the page's edge").toBe(false);
   });
 });
 

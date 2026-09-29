@@ -8,7 +8,7 @@ import { CITY_LABEL_DX } from "./renderer";
 // the air one name keeps from another, or the cull takes one of them (see deconflictLabels)
 const NAME_AIR = 4;
 // how far inside the map's edge a name stays: the decorative border is inset 8, plus a little air
-const FRAME_PAD = 10;
+export const FRAME_PAD = 10;
 
 // The names of AREAS: a realm's, a region's, a province's, a culture's may stand anywhere inside
 // what they name, so they can step aside. A town's name belongs to its dot and cannot.
@@ -148,8 +148,10 @@ export function deconflictLabels(svg: SVGSVGElement, scale = 1, opts: { clear?: 
   // scale bar — is carried to the page's corners as one group, drawn in the whole map's page units:
   // `data-x`/`data-y` are where that page's corner stands and `data-k` how many map units a page unit
   // is, and a box measured inside the group is carried out by as much.
+  // (On the page the title is kept clear with its rule, which runs past the words either side: a name stood on it
+  // beside them on 30 pages of 576. The whole map's 48 had none, and keep their words-only box.)
   const furniture: DOMRect[] = [];
-  for (const panel of svg.querySelectorAll<SVGGraphicsElement>(".legend, .world-name-text, .page-furniture .compass, .page-furniture .scale-bar")) {
+  for (const panel of svg.querySelectorAll<SVGGraphicsElement>(".legend, .world-name-text, .page-furniture .world-name, .page-furniture .compass, .page-furniture .scale-bar")) {
     try {
       const b = panel.getBBox();
       const page = panel.closest(".page-furniture");

@@ -170,6 +170,34 @@ describe("deconflictLabels on a region's page", () => {
     expect(underCompass.style.visibility, "a name under the compass").toBe("hidden");
     expect(clear.style.visibility).toBe("");
   });
+
+  // The title is its name and the rule under it, and the rule runs past the name either side (140 across
+  // under a name of 60). Only the name was kept clear, so on a region's page a name could stand on the rule
+  // beside it: 30 pages of 576 in the census (`regioncensus.ts`), none on the whole map's 48.
+  it("keeps names off the title's rule on a region's page, not only off its words", () => {
+    const svg = document.createElementNS(NS, "svg") as SVGSVGElement;
+    svg.setAttribute("viewBox", "300 200 333.33 233.33");
+    const furniture = document.createElementNS(NS, "g");
+    furniture.setAttribute("class", "page-furniture");
+    for (const [k, v] of [["data-x", "300"], ["data-y", "200"], ["data-k", String(1 / 3)]]) furniture.setAttribute(k, v);
+    const title = document.createElementNS(NS, "g");
+    title.setAttribute("class", "world-name");
+    const words = document.createElementNS(NS, "text");
+    words.setAttribute("class", "world-name-text");
+    const rule = document.createElementNS(NS, "line");
+    (words as unknown as { getBBox: () => Box }).getBBox = () => ({ x: 470, y: 18, width: 60, height: 22 });
+    (rule as unknown as { getBBox: () => Box }).getBBox = () => ({ x: 430, y: 43.5, width: 140, height: 1 });
+    (title as unknown as { getBBox: () => Box }).getBBox = () => ({ x: 430, y: 18, width: 140, height: 26.5 });
+    title.append(words, rule);
+    furniture.appendChild(title);
+    svg.appendChild(furniture);
+    // on the region's page the words stand at 456.7..476.7 x 206..213.3 and the rule at 443.3..490 x 214.5
+    const onRule = mkLabel(svg, "city-label city-town", { x: 446, y: 213.5, width: 6, height: 2 });
+    const clear = mkLabel(svg, "city-label city-town", { x: 446, y: 240, width: 6, height: 2 });
+    deconflictLabels(svg, 4, { room: 1 / 3 });
+    expect(onRule.style.visibility, "a name on the rule, beside the words").toBe("hidden");
+    expect(clear.style.visibility).toBe("");
+  });
 });
 
 describe("deconflictLabels and the world's title", () => {

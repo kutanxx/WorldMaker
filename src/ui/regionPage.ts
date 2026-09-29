@@ -14,6 +14,7 @@ import { svgEl } from "./renderer";
 import { scaleBar, KM_PER_UNIT, WORLD_BAR_UNITS, walkCaption } from "./scaleBar";
 import type { Lang } from "./i18n";
 import { riverNameAt, riverNameSize } from "./riverName";
+import { FRAME_PAD } from "./deconflict";
 
 /** The part of the world a page holds (map units), and how many times less of it than the whole map's page. */
 export interface Page { x: number; y: number; w: number; h: number; z: number }
@@ -125,16 +126,70 @@ export function putOnPage(svg: SVGSVGElement, page: Page, world: World, lang: La
     const middle = river.path[Math.floor(river.path.length / 2)];
     if (onPage(page, middle[0], middle[1])) continue;
     // the longest run of its course on the page, and its name at that run's middle
-    let best: [number, number] = [0, 0], from = -1;
-    river.path.forEach(([x, y], i) => {
-      if (!onPage(page, x, y)) { from = -1; return; }
-      if (from < 0) from = i;
-      if (i - from + 1 > best[1] - best[0]) best = [from, i + 1];
-    });
-    if (best[1] - best[0] < RIVER_RUN) { el.remove(); continue; }
-    const at = riverNameAt(river.path, Math.floor((best[0] + best[1] - 1) / 2), riverNameSize(river.flux));
+    const [from, to] = longestRun(page, river.path);
+    if (to - from < RIVER_RUN) { el.remove(); continue; }
+    const at = riverNameAt(river.path, Math.floor((from + to - 1) / 2), riverNameSize(river.flux));
     el.setAttribute("x", num(at.x));
     el.setAttribute("y", num(at.y));
     el.setAttribute("transform", `rotate(${at.deg.toFixed(1)} ${num(at.x)} ${num(at.y)})`);
+  }
+}
+
+// the longest run of a course's points on the page, as [first, past the last]
+function longestRun(page: Page, path: [number, number][]): [number, number] {
+  let best: [number, number] = [0, 0], from = -1;
+  path.forEach(([x, y], i) => {
+    if (!onPage(page, x, y)) { from = -1; return; }
+    if (from < 0) from = i;
+    if (i - from + 1 > best[1] - best[0]) best = [from, i + 1];
+  });
+  return best;
+}
+
+// the points of a course on the page, the middle of its longest run on the page first
+function crossingOrder(page: Page, path: [number, number][]): number[] {
+  const [from, to] = longestRun(page, path), mid = (from + to - 1) / 2;
+  return path.map((_, i) => i).filter((i) => onPage(page, path[i][0], path[i][1])).sort((a, b) => Math.abs(a - mid) - Math.abs(b - mid) || a - b);
+}
+
+/**
+ * A river's name wholly on its page, or not on it. Turned along its water, a name set at the middle of the
+ * river's crossing could still run past the page's edge and be cut there — 42 pages of 576 in the census
+ * (`regioncensus.ts`) — and the cull cannot slide a turned name back inside the way it slides an upright one.
+ * Run with the names at their page size and laid out (exportLabels.ts, before the cull): a name that would
+ * cross the frame moves along the river's course on the page, to the point nearest the middle of that course
+ * where it fits, lifted off the water as far as the page lifts it; with no such point the river is not named.
+ */
+export function fitRiverNames(svg: SVGSVGElement, page: Page, rivers: { path: [number, number][]; flux: number }[]): void {
+  const pad = FRAME_PAD / page.z;
+  const inFrame = (x: number, y: number) => x >= page.x + pad && x <= page.x + page.w - pad && y >= page.y + pad && y <= page.y + page.h - pad;
+  for (const el of [...svg.querySelectorAll<SVGGraphicsElement>(".river-label")]) {
+    let box: DOMRect;
+    try { box = el.getBBox(); } catch { return; }   // no layout: nothing to measure
+    const x = Number(el.getAttribute("x")), y = Number(el.getAttribute("y"));
+    const turned = Number(/rotate\(\s*(-?[\d.]+)/.exec(el.getAttribute("transform") ?? "")?.[1] ?? 0);
+    // the name's box, as it would be drawn standing on (px, py) turned by `deg` about that point
+    const fits = (px: number, py: number, deg: number) => {
+      const a = (deg * Math.PI) / 180, c = Math.cos(a), s = Math.sin(a);
+      const x0 = box.x - x, y0 = box.y - y;
+      return [[x0, y0], [x0 + box.width, y0], [x0, y0 + box.height], [x0 + box.width, y0 + box.height]]
+        .every(([dx, dy]) => inFrame(px + dx * c - dy * s, py + dx * s + dy * c));
+    };
+    if (fits(x, y, turned)) continue;
+    const river = rivers[Number((el.getAttribute("data-name") ?? "").slice(1))];
+    // the whole map's size, which the lift off the water is set by (labelScale.ts keeps it in data-fs)
+    const fs = Number(el.dataset.fs ?? el.getAttribute("font-size"));
+    let moved = false;
+    for (const i of river ? crossingOrder(page, river.path) : []) {
+      const at = riverNameAt(river.path, i, fs), [wx, wy] = river.path[i];
+      const px = wx + (at.x - wx) / page.z, py = wy + (at.y - wy) / page.z;
+      if (!fits(px, py, at.deg)) continue;
+      el.setAttribute("x", num(px));
+      el.setAttribute("y", num(py));
+      el.setAttribute("transform", `rotate(${at.deg.toFixed(1)} ${num(px)} ${num(py)})`);
+      moved = true;
+      break;
+    }
+    if (!moved) el.remove();
   }
 }
