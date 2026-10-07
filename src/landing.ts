@@ -5,7 +5,11 @@ import { t, type Lang } from "./ui/i18n";
 
 import { initialParams, initialSeedName } from "./ui/urlState";
 import { generateWorld } from "./engine/world";
+import { simulateHistory } from "./engine/history";
 import { renderWorld } from "./ui/svgWorldRenderer";
+import { deconflictLabels } from "./ui/deconflict";
+import { applyLabelScale, applyMarkerScale } from "./ui/labelScale";
+import { floorScaleCaption } from "./ui/scaleBar";
 import { worldNameIn } from "./engine/featureLabel";
 import type { WorldParams } from "./types/world";
 
@@ -125,7 +129,14 @@ export function previewTitle(day: Date): string | undefined {
 export function fillPreview(root: HTMLElement, day: Date, lang: Lang = "en"): void {
   const slot = root.querySelector(".landing-preview") as HTMLElement | null;
   if (!slot) return;
-  const { world } = generateWorld(previewParams(day), previewTitle(day));
+  const params = previewParams(day);
+  const { world } = generateWorld(params, previewTitle(day));
+  // ★ The map as it opens, which is its first year: the towns standing then, the roads between them and the
+  // free ports among them. Drawn from the world alone it showed every town the chronicle will ever found —
+  // 28 on 2026-10-07's world, against the 14 the map it opens had.
+  const history = simulateHistory(world, params.seed);
+  const first = history.snapshots[0].year;
+  const unfounded = new Set(history.cityFoundings.filter((f) => f.year > first).map((f) => f.cityId));
   const link = document.createElement("a");
   link.className = "landing-preview-link";
   link.href = dailyTarget(day);
@@ -135,7 +146,7 @@ export function fillPreview(root: HTMLElement, day: Date, lang: Lang = "en"): vo
   // appends that same drawing inside ONE anchor: measured on the live front page, 28 of its 34
   // focus stops were those dots, none of them doing anything, and both buttons that do something
   // came after them. The label the link already carries is what a reader needs here.
-  const picture = renderWorld(world, "terrain", [], lang);
+  const picture = renderWorld(world, "terrain", history.economicZones.map((z) => z.cell), lang, unfounded);
   picture.setAttribute("aria-hidden", "true");
   // ...and without the map's key, which stood on a corner of the picture — measured on the live front
   // page, a town and its name under it (2026-09-28). The map it opens keeps its key beside the map.
@@ -150,7 +161,17 @@ export function fillPreview(root: HTMLElement, day: Date, lang: Lang = "en"): vo
   cap.textContent = `${t(lang, "landingPreviewOf")} · ${dailyName(day).slice(6)} — ${worldNameIn(world, lang)}`;
   slot.replaceChildren(link, cap);
   slot.hidden = false;
+  // ...and its names set the way the map sets them at rest, now that the picture has a size to set them for:
+  // no smaller than the map's floor, then the ones that do not fit put away. Drawn raw, 9 pairs of its 46
+  // names stood on each other and a sea's name hung past the frame (live, 2026-10-08).
+  floorScaleCaption(picture, PREVIEW_LABEL_FLOOR);
+  applyLabelScale(picture, 1, { minPx: PREVIEW_LABEL_FLOOR });
+  applyMarkerScale(picture, 1);
+  deconflictLabels(picture, 1);
 }
+
+// the world map's own floor for a name on screen (app.ts WORLD_LABEL_FLOOR)
+const PREVIEW_LABEL_FLOOR = 8;
 
 const root = document.getElementById("landing");
 if (root) {

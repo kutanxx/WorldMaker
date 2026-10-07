@@ -2,19 +2,19 @@ import type { WorldParams, GeneratedWorld, CityMarker } from "../types/world";
 import { DEFAULT_PARAMS } from "../types/world";
 import { generateWorld } from "../engine/world";
 import { waysInUse } from "../engine/worldRoads";
-import { renderWorld, politicalOpts, type MapView, type MapStyle } from "./svgWorldRenderer";
+import { renderWorld, restyleTowns, politicalOpts, type MapView, type MapStyle, type TownYear } from "./svgWorldRenderer";
 import { settlementKeyRows } from "./settlementKey";
 import { inkSlot, forPrint } from "./inkStyle";
 import { renderCity, CITY_LEGEND_ROW, fitTitle } from "./svgCityRenderer";
 import { generateCityLayout, cityContext, type CityLayout } from "../engine/city";
 import { cityFacts } from "./cityFacts";
 import { KM_PER_UNIT, floorScaleCaption } from "./scaleBar";
-import { encodeParams, randomSeed, initialCity, initialNames, initialParams } from "./urlState";
+import { encodeParams, randomSeed, initialCity, initialNames, initialParams, initialSeedName } from "./urlState";
 import { applyNames, encodeNames, generatedNames, NAME_MAX, type NameBook, type GeneratedNames } from "./nameBook";
 import { hashStringToSeed } from "../engine/rng";
 import { worldToJSON, svgToString, svgToPngBlob, downloadBlob } from "./export";
 import { worldToGazetteer } from "../engine/gazetteer";
-import { simulateHistory } from "../engine/history";
+import { simulateHistory, standingSeats } from "../engine/history";
 import { assignNationColors, nationColor } from "./nationPalette";
 import { classifyGovernments, type GovernmentForm } from "../engine/government";
 import { renderChronicleCaption } from "./chronicle";
@@ -35,7 +35,6 @@ import { LEGEND_ROW } from "./renderer";
 import { detectLang, saveLang } from "./lang";
 import { properName, polityLabeller } from "./properName";
 import { featureLabel, worldNameIn } from "../engine/featureLabel";
-import { plainName } from "../engine/hangul";
 
 /** whether two sets of parameters make the same world */
 function sameWorld(a: WorldParams, b: WorldParams): boolean {
@@ -132,11 +131,35 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
   exportIcon.className = "export-icon";
   exportIcon.textContent = "⬇";
   const jsonBtn = document.createElement("button");
+  // the world's data: on a town's plate the PNG and the SVG are the plate, and this was still the world's
+  jsonBtn.className = "world-only";
   const pngBtn = document.createElement("button");
   const svgBtn = document.createElement("button");
   exportGroup.append(exportIcon, jsonBtn, pngBtn, svgBtn);
   const gazBtn = document.createElement("button");
   gazBtn.className = "gazetteer";
+  // ★ The link is the save: the world and every name the reader gave it ride in the address and nowhere else,
+  // and nothing on the page said so but a tooltip on the rename chip. Copying it is the one way to keep a
+  // world beyond this tab; the browser's own address bar is a step a reader has to know about.
+  const linkBtn = document.createElement("button");
+  linkBtn.type = "button";
+  linkBtn.className = "copy-link";
+  let copiedFor = 0;
+  linkBtn.addEventListener("click", async () => {
+    const url = location.href;
+    try {
+      await navigator.clipboard.writeText(url);
+    } catch {
+      // no clipboard to write to (an old browser, a page not served over https): the link, to copy by hand
+      window.prompt(t(lang, "copyLinkManual"), url);
+      return;
+    }
+    // said on the button pressed, at the button's own width, and then it is a button again
+    linkBtn.style.minWidth = `${linkBtn.offsetWidth}px`;
+    linkBtn.textContent = "✓ " + t(lang, "copyLinkDone");
+    window.clearTimeout(copiedFor);
+    copiedFor = window.setTimeout(() => { linkBtn.textContent = "🔗 " + t(lang, "copyLink"); linkBtn.style.minWidth = ""; }, 2000);
+  });
   const langBtn = document.createElement("button");
   langBtn.className = "lang-toggle";
   const viewToggle = document.createElement("div");
@@ -180,7 +203,10 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     read.textContent = String(params[key]);
     input.addEventListener("input", () => { read.textContent = input.value; });
     // regenerate on release, not on every pixel of the drag: a world is a second of work
-    input.addEventListener("change", () => regenerate({ ...params, [key]: Number(input.value) }));
+    input.addEventListener("change", () => {
+      // ...and back where it was if the reader chose to stay in the world they renamed
+      if (!regenerate({ ...params, [key]: Number(input.value) })) { input.value = String(params[key]); read.textContent = input.value; }
+    });
     row.append(name, input, read);
     advanced.appendChild(row);
     return { key, name, input, read };
@@ -206,6 +232,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
   viewToggle.classList.add("world-only");
   exportGroup.classList.add("secondary");
   gazBtn.classList.add("secondary");
+  linkBtn.classList.add("secondary");
   langBtn.classList.add("secondary");
   const moreBtn = document.createElement("button");
   moreBtn.type = "button";
@@ -228,7 +255,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
   // box used to stand in front of the die, so opening the fold at 390x844 moved "새 세계" from x=76
   // to x=216 — the one control that must never move under a thumb. On a wide window the zone reads
   // the same either way round: the die, then the way to a particular world.
-  controls.append(homeBtn, backBtn, randomBtn, seedGroup, viewToggle, inkBtn, moreBtn, exportGroup, gazBtn, langBtn);
+  controls.append(homeBtn, backBtn, randomBtn, seedGroup, viewToggle, inkBtn, moreBtn, exportGroup, gazBtn, linkBtn, langBtn);
   syncMore(false);
   root.appendChild(advanced);
 
@@ -247,10 +274,14 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     regenBtn.textContent = t(lang, "generate");
     randomBtn.textContent = "🎲 " + t(lang, "newWorld");
     jsonBtn.textContent = t(lang, "exportJson");
+    // a data file that looks like a save and is not one: nothing here can open it again
+    jsonBtn.title = t(lang, "exportJsonTitle");
     pngBtn.textContent = t(lang, "exportPng");
     svgBtn.textContent = t(lang, "exportSvg");
     exportIcon.title = t(lang, "exportLabel"); // the verb, said once for the group
     gazBtn.textContent = "📜 " + t(lang, "gazetteer");
+    linkBtn.textContent = "🔗 " + t(lang, "copyLink");
+    linkBtn.title = t(lang, "copyLinkTitle");
     terrainBtn.textContent = t(lang, "terrain");
     politicalBtn.textContent = t(lang, "political");
     cultureBtn.textContent = t(lang, "culture");
@@ -470,15 +501,34 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
   // The list must name the realm the MAP shows holding the town, so it reads the same
   // province-snapped ownership the political layer paints from — not the raw snapshot, which can
   // disagree with the picture at a province's edge.
-  // The realms whose ground is smaller than a province and must survive the snap. Built once: it is
-  // a property of the history, not of the year being looked at.
-  const freeRealms = new Set(history.polities.filter((p) => p.free).map((p) => p.id));
+  // The realms whose ground is smaller than a province and must survive the snap: a property of the
+  // history, not of the year being looked at — so built once per world (regenerate builds it again).
+  const freeRealmsOf = () => new Set(history.polities.filter((p) => p.free).map((p) => p.id));
+  let freeRealms = freeRealmsOf();
 
-  function showCityRealms(yearIndex: number): void {
+  /**
+   * The towns as they stand in a year — who holds each (ownership snapped to provinces, as the map paints it)
+   * and which are the seats of the realms standing then. The one place the map's stars, its tooltips, the town
+   * list and an exported file ask; each used to answer from year zero on its own.
+   */
+  interface TownsIn { owner: ArrayLike<number>; seats: Set<number>; at: (c: CityMarker) => TownYear }
+  function townsIn(yearIndex: number): TownsIn {
+    const world = generated.world, snap = history.snapshots[yearIndex];
+    const owner = snapOwnersToProvinces(world.grid.count, world.provinceOf, world.provinces, snap.owner, freeRealms);
+    const seats = standingSeats(history.polities, snap.year);
+    const labelOf = polityLabeller(lang, governmentForms);
+    return {
+      owner, seats,
+      at: (c) => {
+        const o = owner[c.cell];
+        const name = o >= 0 ? history.polities[o]?.name : undefined;
+        return { seat: seats.has(c.cell), realm: name === undefined ? null : labelOf(o, name) };
+      },
+    };
+  }
+
+  function showCityRealms(towns: TownsIn): void {
     if (realmCells.size === 0) return;
-    const world = generated.world;
-    const owner = snapOwnersToProvinces(world.grid.count, world.provinceOf, world.provinces,
-                                        history.snapshots[yearIndex].owner, freeRealms);
     // The list is a column of realm NAMES — a label, not a sentence — so it takes the same
     // government suffix the map does, through the same seam. Built once outside the loop: every
     // city in the list shares one labeller, and a fresh closure per row bought nothing but a
@@ -488,10 +538,31 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     // not even a column heading. The map does not ask for it; see polityLabeller.
     const labelOf = polityLabeller(lang, governmentForms, true);
     for (const [cell, el] of realmCells) {
-      const o = owner[cell];
+      const o = towns.owner[cell];
       const realm = o >= 0 ? history.polities[o]?.name : undefined;
       el.textContent = realm === undefined ? "" : labelOf(o, realm);
     }
+    // ...and which towns are the year's capitals: set as capitals, and at the head of the list, as the
+    // map stars them. Rows move only when the order changes (a capital falls, a free city rises), and
+    // the row the keyboard is on keeps it.
+    const world = generated.world;
+    const seat = (id: number) => towns.seats.has(world.cities[id]?.cell ?? -1);
+    for (const [id, li] of listRows) li.querySelector(".city-list-item")?.classList.toggle("is-capital", seat(id));
+    const order = [...listRows.keys()].sort((a, b) => cityOrder(world.cities[a], world.cities[b], seat));
+    const ul = listRows.values().next().value?.parentElement;
+    if (!ul || order.every((id, k) => ul.children[k] === listRows.get(id))) return;
+    const focused = document.activeElement;
+    ul.append(...order.map((id) => listRows.get(id)!));
+    if (focused instanceof HTMLElement && ul.contains(focused) && document.activeElement !== focused) focused.focus({ preventScroll: true });
+  }
+
+  // Capitals first, then by size, because that is the order a reader cares about. The tiebreaker sorts by the
+  // name actually ON THE BUTTON, not the underlying Latin `c.name` — in Korean that RENDERS as
+  // `properName(lang, c.name)`, and sorting by the untransliterated name instead put same-size Korean towns in
+  // an order that reads as arbitrary to the reader who never sees the Latin form at all.
+  function cityOrder(a: CityMarker, b: CityMarker, seat: (id: number) => boolean): number {
+    return Number(seat(b.id)) - Number(seat(a.id)) || b.size - a.size
+      || properName(lang, a.name).localeCompare(properName(lang, b.name));
   }
 
   function showFoundedCities(svg: SVGSVGElement, yearIndex: number): void {
@@ -828,13 +899,9 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     const ul = document.createElement("ul");
     realmCells.clear();
     listRows.clear();
-    // The tiebreaker sorts by the name actually ON THE BUTTON, not the underlying Latin `c.name` —
-    // in Korean that RENDERS as `properName(lang, c.name)`, and sorting by the untransliterated name
-    // instead put same-size Korean towns in an order that reads as arbitrary to the reader who never
-    // sees the Latin form at all.
+    // (in the order of year zero; the year drawn puts its own capitals first — showCityRealms)
     const ordered = [...generated.world.cities].sort((a, b) =>
-      Number(b.isCapital) - Number(a.isCapital) || b.size - a.size
-      || properName(lang, a.name).localeCompare(properName(lang, b.name)));
+      cityOrder(a, b, (id) => generated.world.cities[id]?.isCapital ?? false));
     for (const c of ordered) {
       const li = document.createElement("li");
       const b = document.createElement("button");
@@ -944,8 +1011,11 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
       currentYearIndex = index;
       const snap = history.snapshots[index];
       fillSlot(slot, currentView, index);
+      // the towns as they stand this year: their stars, their names' rank and what they say on hover
+      const towns = townsIn(index);
+      restyleTowns(svg, generated.world, lang, towns.at);
       showFoundedCities(svg, index);
-      showCityRealms(index);
+      showCityRealms(towns);
       caption.setYear(snap.year);
       // Scrubbing a year replaces the political layer, so its labels arrive at their base size.
       // Bring them to whatever zoom the reader is at before working out what fits, or a nation's
@@ -1256,22 +1326,42 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     if (record !== "replace" && focusLost()) backBtn.focus({ preventScroll: true });
   }
 
-  function regenerate(p: WorldParams): void {
+  /**
+   * Make the world `p` and show it.
+   *
+   * ★ A new world is a place in the history. It used to take the old one's place in the address, so Back
+   * left the site instead of returning to the world before — and with it every name the reader had given
+   * there, since the names live in that address and nowhere else (measured live, 2026-10-08: renamed, then
+   * "New world", and neither Back nor the same seed brought them back). So a reader's "new world" is pushed,
+   * and Back (`how: "back"`, from popstate) rebuilds the world before from its address, names and all.
+   * Leaving a world whose places were renamed asks first, and says how to come back.
+   * @returns false when the reader chose to stay
+   */
+  function regenerate(p: WorldParams, how: "push" | "back" = "push", back?: { names: NameBook; title: string | null }): boolean {
+    const another = !sameWorld(p, params);
+    const renamed = Object.keys(names).length;
+    if (another && how === "push" && renamed > 0 && !window.confirm(t(lang, "leaveRenamed").replace("{n}", String(renamed)))) return false;
     // a new world starts with its own names; the same world made again keeps the reader's
-    if (!sameWorld(p, params)) names = {};
+    if (another) names = back?.names ?? {};
     params = { ...p };
     seedInput.value = String(params.seed);
     for (const d of dialRows) { d.input.value = String(params[d.key]); d.read.textContent = String(params[d.key]); }
-    // a new seed is a new world, and it is not the one the reader named
-    if (params.seed !== hashStringToSeed(worldTitle ?? "")) worldTitle = null;
+    // a new seed is a new world, and it is not the one the reader named — unless it is the one they named,
+    // come back to
+    if (back) worldTitle = back.title;
+    else if (params.seed !== hashStringToSeed(worldTitle ?? "")) worldTitle = null;
     generated = generateWorld(params, worldTitle ?? undefined);
     history = simulateHistory(generated.world, params.seed);
     bornNames = generatedNames(generated.world, history);
     applyNames(generated.world, history, bornNames, names);
     nationColors = assignNationColors(generated.world.grid.neighbors, history.snapshots.map((s) => s.owner));
     governmentForms = classifyGovernments(generated.world, history);
+    freeRealms = freeRealmsOf();
     currentYearIndex = 0;
+    // a new place in the history (showWorld then writes the same address over it)
+    if (another && how === "push") window.history.pushState(null, "", "#" + worldHash() + namesPart());
     showWorld();
+    return true;
   }
 
   // What a reader means by "export" is the map in front of them. Drilled into a city, that is the
@@ -1293,21 +1383,41 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
         layOutLabelsForExport(svg, (s) => { fitTitle(s); clearMarks(s); clearCastleName(s); placeRoadEnds(s); });
         const [, , w, h] = (svg.getAttribute("viewBox") || "0 0 1000 700").split(/[\s,]+/).map(Number);
         return {
-          svg, name: plainName(marker.name).replace(/[^\p{L}\p{N}_-]+/gu, "_").replace(/^_+|_+$/g, "") || "city",
+          svg, name: fileStem([worldNameIn(generated.world, lang), properName(lang, marker.name)]),
           width: Math.round(w * CITY_PNG_SCALE), height: Math.round(h * CITY_PNG_SCALE),
         };
       }
     }
+    // ...and the world's file says what is not the map's first: the view, the year, the ink, a region
+    const year = history.snapshots[currentYearIndex]?.year ?? 0;
     return {
-      svg: exportWorldSvg(page), name: page ? "world-region" : "world",
+      svg: exportWorldSvg(page),
+      name: fileStem([
+        worldNameIn(generated.world, lang),
+        currentView !== "terrain" && t(lang, currentView),
+        year > 0 && t(lang, "year").replace("{y}", String(year)),
+        mapStyle === "ink" && t(lang, "inkToggle"),
+        page && t(lang, "fileRegion"),
+      ]),
       width: PRINT_PX, height: Math.round((PRINT_PX * params.height) / params.width),
     };
+  }
+
+  /**
+   * What a file is called: the world's name as the reader reads it, and after it whatever tells this file from
+   * the world's other ones. Every map file used to be world.png / world.svg / world.json, so a second world's
+   * came down as "world (1).png" — while the gazetteer alone took the world's name, in Latin letters on a
+   * Korean page. Letters and digits of any script are kept (a name the reader gave may be in any).
+   */
+  function fileStem(parts: (string | false | null | undefined)[]): string {
+    const safe = (s: string) => s.replace(/[^\p{L}\p{N}]+/gu, "_").replace(/^_+|_+$/g, "");
+    return parts.filter((p): p is string => !!p).map(safe).filter(Boolean).join("_") || "world";
   }
 
   // Export the world at the year + view the timeline is currently showing — the whole of it, or the region
   // of it the reader had zoomed to, on its own page (regionPage.ts).
   function exportWorldSvg(page?: Page): SVGSVGElement {
-    const svg = renderWorld(generated.world, currentView, history.economicZones.map((z) => z.cell), lang, unfoundedAt(currentYearIndex), colorOf, polityLabeller(lang, governmentForms), mapStyle, page);
+    const svg = renderWorld(generated.world, currentView, history.economicZones.map((z) => z.cell), lang, unfoundedAt(currentYearIndex), colorOf, polityLabeller(lang, governmentForms), mapStyle, page, townsIn(currentYearIndex).at);
     fillSlot(svg.querySelector(".political-slot") as SVGGElement, currentView, currentYearIndex);
     if (page) putOnPage(svg, page, generated.world, lang);
     // This is a fresh render that has never been in the document, so its labels have never been laid
@@ -1328,12 +1438,36 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     return out;
   }
 
-  regenBtn.addEventListener("click", () => regenerate({ ...params, seed: Number(seedInput.value) }));
+  regenBtn.addEventListener("click", () => {
+    if (!regenerate({ ...params, seed: Number(seedInput.value) })) seedInput.value = String(params.seed);
+  });
   randomBtn.addEventListener("click", () => regenerate({ ...params, seed: randomSeed() }));
   jsonBtn.addEventListener("click", () =>
-    downloadBlob("world.json", new Blob([worldToJSON(generated.world, history)], { type: "application/json" }))
+    downloadBlob(`${fileStem([worldNameIn(generated.world, lang)])}.json`, new Blob([worldToJSON(generated.world, history)], { type: "application/json" }))
   );
-  const writePng = async (page?: Page) => {
+
+  /**
+   * One file at a time, and the page says one is on its way. A PNG takes seconds to draw — measured live,
+   * 1.5-1.8s for the whole map and 3.4s for a region in ink — and nothing on the page moved meanwhile, so a
+   * reader who pressed again got the file twice. The busy look is let onto the screen before the drawing
+   * starts, since the first of that drawing holds the page.
+   */
+  let writing = false;
+  const oneFileAtATime = async (write: () => Promise<void>): Promise<void> => {
+    if (writing) return;
+    writing = true;
+    exportGroup.setAttribute("aria-busy", "true");
+    exportGroup.classList.add("busy");
+    try {
+      await new Promise<void>((r) => setTimeout(r, 40));
+      await write();
+    } finally {
+      writing = false;
+      exportGroup.removeAttribute("aria-busy");
+      exportGroup.classList.remove("busy");
+    }
+  };
+  const writePng = (page?: Page) => oneFileAtATime(async () => {
     try {
       const world = openCityId === null;
       const { svg, name, width, height } = await exportScreenSvgWithFonts(page);
@@ -1344,11 +1478,11 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     } catch (e) {
       console.error("PNG export failed", e);
     }
-  };
-  const writeSvg = async (page?: Page) => {
+  });
+  const writeSvg = (page?: Page) => oneFileAtATime(async () => {
     const { svg, name } = await exportScreenSvgWithFonts(page);
     downloadBlob(`${name}.svg`, new Blob([svgToString(svg)], { type: "image/svg+xml" }));
-  };
+  });
   pngBtn.addEventListener("click", () => askWhatToExport(pngBtn, writePng));
   svgBtn.addEventListener("click", () => askWhatToExport(svgBtn, writeSvg));
 
@@ -1414,15 +1548,21 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     // The exported document follows the language the user is reading the app in — a Korean
     // session was producing an English gazetteer with Korean chronicle lines inside it.
     const md = worldToGazetteer(generated.world, history, lang);
-    // (a name the reader gave may be in any script)
-    const fname = (generated.world.name.replace(/[^\p{L}\p{N}]+/gu, "_").replace(/^_+|_+$/g, "") || "gazetteer") + ".md";
-    downloadBlob(fname, new Blob([md], { type: "text/markdown" }));
+    downloadBlob(`${fileStem([worldNameIn(generated.world, lang)])}.md`, new Blob([md], { type: "text/markdown" }));
   });
 
   // follow the browser: Back off a plate returns to the world, Forward opens it again
   window.addEventListener("popstate", () => {
     // a screen that has been taken out of the document does not answer the browser any more
     if (!root.isConnected) return;
+    // ...and Back past a new world is the world before it, made again from its address as it was left: its
+    // dials, its names, and the name it was asked for
+    if (location.hash.length > 1) {
+      const there = initialParams(location.hash);
+      if (!sameWorld(there, params)) {
+        regenerate(there, "back", { names: initialNames(location.hash), title: initialSeedName(location.hash) });
+      }
+    }
     const id = initialCity(location.hash);
     if (id === null) { if (openCityId !== null) showWorld(); return; }
     if (id !== openCityId) openCity(id, "none");

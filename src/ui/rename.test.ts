@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach, vi } from "vitest";
 import { DEFAULT_PARAMS } from "../types/world";
 import { createApp } from "./app";
 import { initialCity, initialNames, encodeParams } from "./urlState";
@@ -232,7 +232,10 @@ describe("the reader's names", () => {
     try {
       const app = createApp(root, params);
       await tick();
+      // (leaving a renamed world asks first — keepWork.test — and the reader says yes)
+      const ask = vi.spyOn(window, "confirm").mockReturnValue(true);
       app.regenerate({ ...params, seed: 6 });
+      ask.mockRestore();
       await tick();
       expect(initialNames(location.hash)).toEqual({});
       expect(visible(root)).not.toContain("아르델");

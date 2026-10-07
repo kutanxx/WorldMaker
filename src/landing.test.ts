@@ -337,3 +337,73 @@ describe("the front page's picture of today's world", () => {
     expect(picture!.querySelector(".compass") === null, "the compass went with it").toBe(false);
   });
 });
+
+// ★ The picture is the first thing anyone sees, and it was drawn raw: every name the world has, at the size
+// the generator set, none of them laid out. Measured on the live front page (2026-10-08): 46 names, 9 pairs
+// of them on top of each other, towns' names 6-8px, and a sea's name hanging out past the frame. And it
+// showed every town and road the world will EVER have, while the map it opens — year zero — had 14 of its
+// 28 towns and 23 of its 28 roads. A picture of the map is the map as it opens.
+describe("the front page's picture is the map as it opens", () => {
+  const day = new Date("2026-10-07T00:00:00Z");
+  const visible = (el: Element) => (el as SVGElement).style.display !== "none" && (el as SVGElement).style.visibility !== "hidden"
+    && !el.closest('[style*="display: none"]');
+
+  it("shows the towns, the roads and the free ports the map shows in its first year", async () => {
+    const { createApp } = await import("./ui/app");
+    const app = document.createElement("div");
+    document.body.appendChild(app);
+    location.hash = "";
+    createApp(app, previewParams(day));
+    const ofMap = (sel: string, attr: string) => new Set([...app.querySelectorAll(`svg.world ${sel}`)].filter(visible).map((e) => e.getAttribute(attr)));
+    const root = document.createElement("div");
+    renderChooser(root);
+    fillPreview(root, day, "ko");
+    const picture = root.querySelector(".landing-preview-link svg")!;
+    const ofPicture = (sel: string, attr: string) => new Set([...picture.querySelectorAll(sel)].filter(visible).map((e) => e.getAttribute(attr)));
+    for (const [sel, attr] of [[".marker-hit", "data-city"], [".roads .road", "data-road"], [".econ-zone", "data-zone"]]) {
+      const want = [...ofMap(sel, attr)].sort(), got = [...ofPicture(sel, attr)].sort();
+      expect(got, `${sel}: the picture is not the map`).toEqual(want);
+    }
+    expect(ofMap(".marker-hit", "data-city").size, "the map draws no town — nothing compared").toBeGreaterThan(5);
+    app.remove();
+    location.hash = "";
+  }, 20000);
+
+  it("sets its names as the map does at rest: none over another, none past the frame", () => {
+    // jsdom has no layout: a name's box is estimated from where it stands and how big it is set — a
+    // Hangul syllable about as wide as it is tall, a Latin letter about 0.6 of that
+    type Box = { x: number; y: number; width: number; height: number };
+    const proto = SVGElement.prototype as unknown as { getBBox?: () => Box };
+    const had = proto.getBBox;
+    proto.getBBox = function (this: SVGElement): Box {
+      const fs = Number(this.getAttribute("font-size") ?? 0);
+      const x = Number(this.getAttribute("x") ?? 0), y = Number(this.getAttribute("y") ?? 0);
+      const w = [...(this.textContent ?? "")].reduce((s, ch) => s + (/[가-힣]/.test(ch) ? 1 : 0.6) * fs, 0);
+      const anchor = this.getAttribute("text-anchor");
+      const left = anchor === "middle" ? x - w / 2 : anchor === "end" ? x - w : x;
+      return { x: left, y: y - fs * 0.8, width: w, height: fs };
+    };
+    try {
+      const root = document.createElement("div");
+      renderChooser(root);
+      fillPreview(root, day, "ko");
+      const picture = root.querySelector(".landing-preview-link svg") as SVGSVGElement;
+      const [, , vw, vh] = picture.getAttribute("viewBox")!.split(/[\s,]+/).map(Number);
+      const names = [...picture.querySelectorAll<SVGGraphicsElement>(".city-label, .region-label, .world-name-text")].filter(visible);
+      expect(names.length, "no names on the picture").toBeGreaterThan(5);
+      const boxes = names.map((n) => ({ n: n.textContent, b: n.getBBox() }));
+      for (const { n, b } of boxes) {
+        expect(b.x >= 0 && b.y >= 0 && b.x + b.width <= vw && b.y + b.height <= vh, `"${n}" runs past the frame`).toBe(true);
+      }
+      const over: string[] = [];
+      boxes.forEach((p, i) => boxes.slice(i + 1).forEach((q) => {
+        if (p.b.x < q.b.x + q.b.width && q.b.x < p.b.x + p.b.width && p.b.y < q.b.y + q.b.height && q.b.y < p.b.y + p.b.height) over.push(`${p.n} / ${q.n}`);
+      }));
+      expect(over, "names on top of each other").toEqual([]);
+      // ...and a town's or a river's name waits for a zoom here as it does on the map
+      expect([...picture.querySelectorAll(".city-town, .river-label")].filter(visible).length).toBe(0);
+    } finally {
+      if (had) proto.getBBox = had; else delete proto.getBBox;
+    }
+  });
+});

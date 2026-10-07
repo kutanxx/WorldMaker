@@ -350,7 +350,10 @@ describe("export follows the screen", () => {
     const svgBtn = [...root.querySelectorAll("button")].find((b) => /SVG/i.test(b.textContent || ""))!;
     const got = await captureDownload(() => svgBtn.click());
     expect(got!.name).not.toBe("world.svg");
-    expect(got!.name).toMatch(/^[\w-]+\.svg$/);
+    // letters of any script: the file takes the names as the reader reads them (exportFiles.test)
+    expect(got!.name).toMatch(/^[\p{L}\p{N}_-]+\.svg$/u);
+    const town = root.querySelector(".city-name-text")!.textContent!.replace(/[^\p{L}\p{N}]+/gu, "_").replace(/^_+|_+$/g, "");
+    expect(got!.name, "the plate's file does not say which town").toContain(town);
   });
 
   it("still writes the world when that is what is on screen", async () => {
@@ -362,7 +365,9 @@ describe("export follows the screen", () => {
     const got = await captureDownload(() => svgBtn.click());
     const text = got!.text;
     expect(text).toContain('class="world');
-    expect(got!.name).toBe("world.svg");
+    // named for the world, as the tab is (it was "world.svg" for every world)
+    const world = document.title.split(" — ")[0].replace(/[^\p{L}\p{N}]+/gu, "_").replace(/^_+|_+$/g, "");
+    expect(got!.name).toBe(`${world}.svg`);
   });
 });
 
@@ -1116,14 +1121,23 @@ describe("the towns arrive as the chronicle founds them", () => {
     const listed = () => [...root.querySelectorAll<HTMLLIElement>(".city-list li")].filter((li) => !li.hidden)
       .map((li) => Number(li.querySelector(".city-list-item")!.getAttribute("data-city")));
     const count = () => root.querySelector(".city-list .fold-count")!.textContent;
-    const order = [...root.querySelectorAll(".city-list-item")].map((b) => Number(b.getAttribute("data-city")));
+    const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });
     for (const v of ["0", "11", "30", slider.max, "0"]) {   // back to the dawn too, as ▶ does from the end
       at(v);
       const ids = listed();
       expect(new Set(ids), `year index ${v}`).toEqual(onMap());
       expect(count(), `year index ${v}: the head counts what the list shows`).toBe(String(ids.length));
-      // a town arrives in its own place in the list, capitals first then by size — not at the end
-      expect(ids, `year index ${v}`).toEqual(order.filter((id) => ids.includes(id)));
+      // a town arrives in its own place in the list — the year's capitals first, then by size — not at
+      // the end (the year's: a capital that falls goes back among the towns, see yearCapitals.test)
+      const rows = [...root.querySelectorAll<HTMLLIElement>(".city-list li")].filter((li) => !li.hidden)
+        .map((li) => li.querySelector(".city-list-item")!);
+      const capital = rows.map((b) => b.classList.contains("is-capital"));
+      const firstTown = capital.indexOf(false);
+      expect(firstTown === -1 || capital.slice(firstTown).every((x) => !x), `year index ${v}: a capital listed after a town`).toBe(true);
+      const size = (b: Element) => world.cities[Number(b.getAttribute("data-city"))].size;
+      for (let k = 1; k < rows.length; k++) {
+        if (capital[k] === capital[k - 1]) expect(size(rows[k]), `year index ${v}, row ${k}: out of size order`).toBeLessThanOrEqual(size(rows[k - 1]));
+      }
     }
     at("0");
     expect(listed().length, "world 1 opens on its 8 capitals").toBe(8);
@@ -1297,6 +1311,36 @@ describe("the city list is in the same century as the map", () => {
       }
     }
     expect(checked).toBeGreaterThan(60);
+  });
+
+  // The free cities a world keeps out of the province snap were read once, from the FIRST world the page
+  // made: after a new world the list (and the map) snapped the new world's free cities into the realms
+  // around them, by the old world's free-city ids.
+  it("names the realms right in a world made after the first", () => {
+    const first = { ...DEFAULT_PARAMS, seed: 9 };
+    const { world } = generateWorld(params);
+    const history = simulateHistory(world, params.seed);
+    const freeOf = (h: typeof history) => new Set(h.polities.filter((p) => p.free).map((p) => p.id));
+    const firstFree = freeOf(simulateHistory(generateWorld(first).world, first.seed));
+    const lastIndex = history.snapshots.length - 1;
+    const holder = (keep: Set<number>) => snapOwnersToProvinces(world.grid.count, world.provinceOf, world.provinces,
+      history.snapshots[lastIndex].owner, keep);
+    const right = holder(freeOf(history)), stale = holder(firstFree);
+    expect(world.cities.some((c) => right[c.cell] !== stale[c.cell]), "the two worlds' free cities name no town differently — the test proves nothing").toBe(true);
+
+    const root = document.createElement("div");
+    createApp(root, first);
+    (root.querySelector(".controls input[type=number]") as HTMLInputElement).value = String(params.seed);
+    ([...root.querySelectorAll<HTMLButtonElement>(".controls button")].find((b) => b.textContent === "Generate")!).click();
+    const slider = root.querySelector(".timeline-slider") as HTMLInputElement;
+    slider.value = String(lastIndex);
+    slider.dispatchEvent(new Event("input", { bubbles: true }));
+    for (const { id, realm } of listed(root)) {
+      const c = world.cities.find((x) => x.id === id)!;
+      const o = right[c.cell];
+      const expected = o >= 0 ? history.polities[o].name : "";
+      expect(realm === expected || realm.startsWith(expected + " "), `${c.name}: "${realm}" is not ${expected}`).toBe(true);
+    }
   });
 
   it("never names a realm that has already fallen", () => {

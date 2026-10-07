@@ -207,6 +207,15 @@ function twoInks(root: Element): void {
   }
 }
 
+/** A piece drawn in colour after the map was inked (a town's new mark for another year), put into the two inks. */
+export function reInk(el: Element): void {
+  for (const text of [el, ...el.querySelectorAll("*")].filter((e) => e.tagName.toLowerCase() === "text")) {
+    text.setAttribute("fill", INK);
+    if (text.getAttribute("stroke")) text.setAttribute("stroke", PAPER);
+  }
+  twoInks(el);
+}
+
 /**
  * The overlay slot in ink — the realms', the peoples' or the provinces' layer for a year: no fills, its
  * borders heavy and dashed on a band of paper, its names in ink, and no key of colours it no longer has.

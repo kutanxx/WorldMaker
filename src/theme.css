@@ -388,6 +388,11 @@ svg.world.lang-en .nation-label { font-variant: small-caps; letter-spacing: 0.10
 .export-group > button:first-of-type { border-radius: 4px 0 0 4px; }
 .export-group > button:last-of-type { border-radius: 0 4px 4px 0; }
 .export-group > button:not(:first-of-type) { border-left: none; }
+/* a file on its way (app.ts oneFileAtATime): the formats stand down until it is written — a PNG takes
+   seconds, and pressed again it used to be written twice */
+.export-group.busy > button, .export-group.busy .export-icon { opacity: .55; cursor: progress; }
+/* on a plate the world's data file is not offered, so the plate's PNG leads the group */
+.controls.plate .export-group > .world-only + button { border-left: 1px solid #b7a071; border-radius: 4px 0 0 4px; }
 /* Zoomed in, PNG and SVG ask whether the file is the whole map or the part on screen (app.ts,
    askWhatToExport) — a small menu under the formats, in the name box's paper and shadow. */
 .export-choice {

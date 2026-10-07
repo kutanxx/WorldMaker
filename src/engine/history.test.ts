@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { generateWorld } from "./world";
 import { DEFAULT_PARAMS } from "../types/world";
-import { simulateHistory } from "./history";
+import { simulateHistory, standingSeats } from "./history";
 import { eventText } from "./eventText";
 
 function build(seed: number) {
@@ -374,5 +374,41 @@ describe("no realm swallows the world", () => {
   it("never hands one realm nearly the whole map", () => {
     const worst = Math.max(...shares.map((s) => s.top));
     expect(worst).toBeLessThan(0.75);            // was 0.953
+  });
+});
+
+// A realm's seat is its capital for as long as the realm stands, and only then: the simulation ends a
+// realm in the year its capital falls (a conquest takes the seat with it) and records the year's map
+// after, and a realm born in a civil war or a secession is on the map of the year it was born. The map's
+// stars, a town's tooltip and the town list all ask this one question of a year.
+describe("the seats of the realms standing in a year", () => {
+  const realms = [
+    { capital: 10, foundedYear: 0, endedYear: null },
+    { capital: 20, foundedYear: 0, endedYear: 40 },
+    { capital: 30, foundedYear: 50, endedYear: null },
+    { capital: 40, foundedYear: 50, endedYear: 120 },
+  ];
+  const seats = (year: number) => [...standingSeats(realms, year)].sort((a, b) => a - b);
+
+  it("holds every seat of the first year", () => {
+    expect(seats(0)).toEqual([10, 20]);
+  });
+  it("drops a seat in the year its realm fell", () => {
+    expect(seats(30)).toEqual([10, 20]);
+    expect(seats(40)).toEqual([10]);
+  });
+  it("adds a seat in the year its realm was born, and drops it again when that realm falls", () => {
+    expect(seats(50)).toEqual([10, 30, 40]);
+    expect(seats(110)).toEqual([10, 30, 40]);
+    expect(seats(120)).toEqual([10, 30]);
+  });
+  it("reads a real history: in the year a capital is conquered, its seat is gone", () => {
+    const w = build(1);
+    const h = simulateHistory(w, 1);
+    const conquest = h.events.find((e) => e.type === "conquer" && e.otherId !== undefined);
+    expect(conquest, "seed 1 has no conquest — nothing to read").toBeDefined();
+    const fallen = h.polities[conquest!.otherId!];
+    expect(standingSeats(h.polities, conquest!.year - 10).has(fallen.capital)).toBe(true);
+    expect(standingSeats(h.polities, conquest!.year).has(fallen.capital)).toBe(false);
   });
 });

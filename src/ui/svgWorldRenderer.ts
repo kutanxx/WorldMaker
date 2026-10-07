@@ -13,7 +13,7 @@ import { properName, polityLabeller } from "./properName";
 import { featureLabel, worldNameIn } from "../engine/featureLabel";
 import { riverSize } from "../engine/rivers";
 import { waysInUse } from "../engine/worldRoads";
-import { inkWorld } from "./inkStyle";
+import { inkWorld, reInk } from "./inkStyle";
 import { type Page, PAGE_MARGIN, onPage, spreadInCell } from "./regionPage";
 import { riverNameAt, riverNameSize } from "./riverName";
 import type { Point } from "../engine/geometry";
@@ -66,6 +66,79 @@ function named<T extends SVGElement>(el: T, text: string): T {
 }
 
 /**
+ * A town as it stands in the year a map is drawn for: whether it is the seat of a realm standing then, and the
+ * name of the realm that holds it then (as the map labels realms), or null where no realm does. The world
+ * alone knows only year zero, which is what a map drawn without a year shows.
+ */
+export interface TownYear { seat: boolean; realm: string | null }
+
+/** What a town's mark says on hover: "Kaag (capital) · Korbruk". */
+function townTitle(lang: Lang, name: string, y: TownYear): string {
+  const seat = y.seat ? ` (${t(lang, "capitalSeat")})` : "";
+  return y.realm ? `${name}${seat} · ${y.realm}` : `${name}${seat}`;
+}
+
+/** A settlement's mark: a star for a seat, a dot for any other town. */
+function townMarker(c: { id: number; x: number; y: number }, seat: boolean): SVGElement {
+  return seat
+    ? svgEl("path", {
+      class: "marker-capital", d: starPath(c.x, c.y, 5, 4.2, 1.9), "data-cx": c.x.toFixed(1), "data-cy": c.y.toFixed(1),
+      fill: INK, stroke: PARCHMENT, "stroke-width": 0.7,
+      "data-city": c.id, style: "cursor:pointer",
+    })
+    : svgEl("circle", {
+      class: "marker-town", cx: c.x, cy: c.y, r: 2.3,
+      fill: INK, stroke: PARCHMENT, "stroke-width": 0.9,
+      "data-city": c.id, style: "cursor:pointer",
+    });
+}
+
+// settlement hierarchy: capitals promoted (larger, bold, dark ink); towns demoted (smaller, muted brown) so the
+// eye reads the capitals first
+const townLabelLook = (seat: boolean) => seat
+  ? { cls: "city-capital", size: 10, weight: 600, fill: "#2a2118" }
+  : { cls: "city-town", size: 8, weight: 400, fill: "#6b5d42" };
+
+/**
+ * A drawn map's towns brought to another year in place: each mark a star or a dot as its town is a seat or not,
+ * each name set as a capital's or a town's, and each tooltip naming the realm that holds the town then. In
+ * place, because the page scrubs the year under a reader's pointer: only a town whose standing changed gets a
+ * new mark, and nothing a click may be landing on is thrown away. A map in ink keeps its ink.
+ */
+export function restyleTowns(svg: SVGSVGElement, world: World, lang: Lang, towns: (c: World["cities"][number]) => TownYear): void {
+  const ink = svg.classList.contains("ink");
+  const retitle = (el: Element, text: string) => {
+    const tl = el.querySelector(":scope > title");
+    if (tl) tl.textContent = text; else named(el as SVGElement, text);
+  };
+  for (const c of world.cities) {
+    const hit = svg.querySelector(`.markers .marker-hit[data-city="${c.id}"]`);
+    if (!hit) continue;
+    const y = towns(c);
+    const title = townTitle(lang, properName(lang, c.name), y);
+    retitle(hit, title);
+    hit.setAttribute("aria-label", title);
+    const mark = svg.querySelector<SVGElement>(`.markers .marker-capital[data-city="${c.id}"], .markers .marker-town[data-city="${c.id}"]`);
+    if (mark && mark.classList.contains("marker-capital") !== y.seat) {
+      const next = named(townMarker(c, y.seat), title);
+      if (ink) reInk(next);
+      next.style.display = mark.style.display;
+      mark.replaceWith(next);
+    } else if (mark) retitle(mark, title);
+    const label = svg.querySelector<SVGElement>(`.markers .city-label[data-city="${c.id}"]`);
+    if (label && label.classList.contains("city-capital") !== y.seat) {
+      const was = townLabelLook(!y.seat), look = townLabelLook(y.seat);
+      label.classList.replace(was.cls, look.cls);
+      // the size the zoom works from (labelScale.ts keeps it in data-fs): the page scales it again after
+      label.dataset.fs = String(look.size);
+      label.setAttribute("font-size", String(look.size));
+      label.setAttribute("font-weight", String(look.weight));
+      if (!ink) label.setAttribute("fill", look.fill);
+    }
+  }
+}
+
+/**
  * @param sinceFounded city ids the chronicle has not founded yet at the year being shown. They are
  * on the map from year 0 as far as the generator is concerned — the history is what says when they
  * came to be — so the timeline holds them back rather than the world omitting them.
@@ -76,7 +149,8 @@ function named<T extends SVGElement>(el: T, text: string): T {
 // drift bug of exactly the kind the shared chronicle assembler was built to end.
 // `page`: a region of the map on its own page (regionPage.ts) — the glyphs a cell stands for are drawn for
 // the cells on it only, z^2 as thick at 1/z the size. Without one, the whole map, as it has always been drawn.
-export function renderWorld(world: World, view: MapView = "terrain", econZones: number[] = [], lang: Lang = "en", unfounded: ReadonlySet<number> = new Set(), colorOf?: (id: number) => string, labelOf: (id: number, name: string) => string = polityLabeller(lang), style: MapStyle = "colour", page?: Page): SVGSVGElement {
+// `towns`: each town as it stands in the year drawn (see TownYear) — without it, as the world made it, in year zero.
+export function renderWorld(world: World, view: MapView = "terrain", econZones: number[] = [], lang: Lang = "en", unfounded: ReadonlySet<number> = new Set(), colorOf?: (id: number) => string, labelOf: (id: number, name: string) => string = polityLabeller(lang), style: MapStyle = "colour", page?: Page, towns?: (c: World["cities"][number]) => TownYear): SVGSVGElement {
   const grid = world.grid;
   // Every proper noun this function draws goes through one of two doors, and which door is not a
   // choice: a name with a common noun IN it (the world's, a region's, a river's) is rebuilt from
@@ -321,11 +395,8 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
     const name = p >= 0 ? world.polities.find((q) => q.id === p)?.name : undefined;
     return name === undefined ? null : labelOf(p, name);
   };
-  const markerTitle = (c: { name: string; cell: number; isCapital: boolean }) => {
-    const nation = nationOf(c);
-    const seat = c.isCapital ? ` (${t(lang, "capitalSeat")})` : "";
-    return nation ? `${nm(c.name)}${seat} · ${nation}` : `${nm(c.name)}${seat}`;
-  };
+  const standing = towns ?? ((c: World["cities"][number]): TownYear => ({ seat: c.isCapital, realm: nationOf(c) }));
+  const markerTitle = (c: World["cities"][number]) => townTitle(lang, nm(c.name), standing(c));
   // ★ Two passes, targets then marks, and a target that stops short of its neighbour.
   //
   // The target is invisible and 28 units across on a 1000-unit map, and towns are not that far
@@ -370,29 +441,17 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
     }), markerTitle(c)));
   }
   for (const c of shown) {
-    if (c.isCapital) {
-      markers.appendChild(named(svgEl("path", {
-        class: "marker-capital", d: starPath(c.x, c.y, 5, 4.2, 1.9), "data-cx": c.x.toFixed(1), "data-cy": c.y.toFixed(1),
-        fill: INK, stroke: PARCHMENT, "stroke-width": 0.7,
-        "data-city": c.id, style: "cursor:pointer",
-      }), markerTitle(c)));
-    } else {
-      markers.appendChild(named(svgEl("circle", {
-        class: "marker-town", cx: c.x, cy: c.y, r: 2.3,
-        fill: INK, stroke: PARCHMENT, "stroke-width": 0.9,
-        "data-city": c.id, style: "cursor:pointer",
-      }), markerTitle(c)));
-    }
-    // settlement hierarchy: capitals promoted (larger, bold, dark ink); towns demoted
-    // (smaller, muted brown) so the eye reads the capitals first.
+    const seat = standing(c).seat;
+    markers.appendChild(named(townMarker(c, seat), markerTitle(c)));
     // the name opens the city too: it is several times the area of the dot beside it, and a reader
     // who can see a name is far likelier to aim at it than at the speck
+    const look = townLabelLook(seat);
     const label = svgEl("text", {
-      class: "city-label " + (c.isCapital ? "city-capital" : "city-town"),
+      class: "city-label " + look.cls,
       "data-city": c.id, "data-name": `t${c.id}`, style: "cursor:pointer",
-      x: c.x + CITY_LABEL_DX, y: c.y + 3, "font-size": c.isCapital ? 10 : 8,
-      "font-weight": c.isCapital ? 600 : 400,
-      fill: c.isCapital ? "#2a2118" : "#6b5d42",
+      x: c.x + CITY_LABEL_DX, y: c.y + 3, "font-size": look.size,
+      "font-weight": look.weight,
+      fill: look.fill,
       stroke: PARCHMENT, "stroke-width": 1.6, "paint-order": "stroke",
     });
     label.textContent = nm(c.name);
