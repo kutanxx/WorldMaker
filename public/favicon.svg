@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- a compass rose on parchment, in the map's own inks (the rose the world map draws in its corner) -->
+  <circle cx="16" cy="16" r="14.6" fill="#f3ead2" stroke="#3c2f1c" stroke-width="2"/>
+  <path d="M16 3.6 L19 13 L28.4 16 L19 19 L16 28.4 L13 19 L3.6 16 L13 13 Z" fill="#3c2f1c"/>
+  <path d="M16 3.6 L19 13 L16 16 Z M28.4 16 L19 19 L16 16 Z M16 28.4 L13 19 L16 16 Z M3.6 16 L13 13 L16 16 Z" fill="#b7975a"/>
+  <circle cx="16" cy="16" r="1.9" fill="#f3ead2" stroke="#3c2f1c" stroke-width="0.8"/>
+</svg>

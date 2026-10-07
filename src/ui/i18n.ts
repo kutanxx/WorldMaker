@@ -107,6 +107,8 @@ export const UI: Record<Lang, Record<string, string>> = {
     exportChoice: "What to export", exportWhole: "Whole map", exportVisible: "Visible area",
     // the link is where a world and the reader's names for it are kept
     fileRegion: "region",
+    firstHint: "New here? A town's dot (or a row of the list) opens its city plan · the wheel zooms · ▶ plays 500 years · names you change with ✎ are kept in the link — copy it with the chain by the files",
+    firstHintClose: "Close — not shown again",
     exportJsonTitle: "The world's data as JSON, for other programs. It cannot be opened here again — to keep a world, copy its link.",
     advancedNote: "Changing one makes a new world — the browser's Back brings this one again.",
     seaLevelTitle: "Higher: more of the world under the sea", mountainLevelTitle: "The height land becomes mountain at — higher: fewer mountains",
@@ -159,6 +161,8 @@ export const UI: Record<Lang, Record<string, string>> = {
     focusEnter: "지도만", focusExit: "✕ 닫기", focusEnterHint: "지도만 크게 보기 (Esc로 돌아오기)", focusExitHint: "원래 화면으로 (Esc)",
     exportChoice: "내보낼 범위", exportWhole: "전체 지도", exportVisible: "보이는 부분",
     fileRegion: "부분",
+    firstHint: "처음이라면 — 지도의 점(읍)이나 오른쪽 목록을 누르면 도시 도면 · 휠로 확대 · ▶는 500년 역사 · ✎로 바꾼 이름은 링크에 담기니, 파일 옆 사슬 버튼으로 링크를 복사해 두세요",
+    firstHintClose: "닫기 — 다시 보이지 않습니다",
     exportJsonTitle: "세계의 데이터를 JSON 파일로 — 다른 프로그램에서 쓰는 용도예요. 이 사이트로 다시 불러올 수는 없으니, 세계를 보관하려면 링크를 복사해 두세요.",
     advancedNote: "바꾸면 새 세계가 만들어집니다 — 브라우저의 '뒤로'로 이 세계에 돌아올 수 있어요.",
     seaLevelTitle: "높일수록 바다가 넓어집니다", mountainLevelTitle: "땅이 산이 되는 높이 — 높일수록 산이 적어집니다",

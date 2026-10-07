@@ -449,6 +449,37 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     const edge = (parseFloat(cs.paddingBottom) || 0) + (parseFloat(cs.borderBottomWidth) || 0);
     fitChrome(root, "--plate-chrome", () => measureChrome(plate, stage, window.scrollY, edge), 3, PLATE_RESERVE_FLOOR);
   };
+  /**
+   * ★ What the map does, said once where the map is. It was said only in tooltips — that a town's dot opens
+   * its plan, that the wheel zooms, that ▶ plays five hundred years, that a renamed place is kept in the
+   * link — and a reader who arrives by a shared link never sees the front page's words either (audit,
+   * 2026-10-08). Help where the work is, offered once and put away for good: Azgaar's status line does the
+   * same, and help shown up front and in the way is what readers skip (NN/g). It costs the map its height
+   * while it stands, and gives it back when closed.
+   */
+  const HINT_KEY = "wm:hint";
+  const hintWanted = (): boolean => { try { return localStorage.getItem(HINT_KEY) !== "off"; } catch { return true; } };
+  function addFirstHint(): void {
+    if (!hintWanted()) return;
+    const bar = document.createElement("div");
+    bar.className = "first-hint";
+    bar.setAttribute("role", "note");
+    const words = document.createElement("span");
+    words.textContent = t(lang, "firstHint");
+    const close = document.createElement("button");
+    close.type = "button";
+    close.textContent = "✕";
+    close.setAttribute("aria-label", t(lang, "firstHintClose"));
+    close.title = t(lang, "firstHintClose");
+    close.addEventListener("click", () => {
+      try { localStorage.setItem(HINT_KEY, "off"); } catch { /* privacy mode: closed for this page only */ }
+      bar.remove();
+      refitChrome();
+    });
+    bar.append(words, close);
+    stage.prepend(bar);
+  }
+
   // the screen that is showing lays its names out again for its new size (set by showWorld)
   let relayoutLabels: (() => void) | null = null;
   const refitChrome = (): void => {
@@ -990,6 +1021,8 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     side.append(legendFold.section, list);
     withList.append(frame, side);
     stage.appendChild(withList);
+    // a first visit is told how the map is used, above it (see addFirstHint)
+    addFirstHint();
     cityZoom?.destroy(); cityZoom = null;
     worldZoom?.destroy();
     // What the page's own controls cover of the map — the focus chip and the +/−/↺ mount — asked

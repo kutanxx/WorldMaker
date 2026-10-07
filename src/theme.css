@@ -158,6 +158,16 @@ a.home:hover { background: #e7cf9c; }
   box-shadow: 0 1px 4px rgba(60,47,28,.15);
 }
 .map-frame { position: relative; }
+/* a first visit is told how the map is used (app.ts addFirstHint) — once, above the map, until closed */
+.first-hint {
+  display: flex; align-items: center; gap: 10px; margin: 0 0 8px; padding: 4px 4px 4px 12px;
+  font-size: 13px; line-height: 1.45; color: #3c2f1c;
+  background: #efe3c4; border: 1px solid #cbb784; border-radius: 4px;
+}
+.first-hint > span { flex: 1; }
+.first-hint > button { padding: 2px 9px; font-size: 12px; background: none; border-color: transparent; color: #6b5a3f; }
+.first-hint > button:hover { background: #e7d9b6; }
+body.map-focus .first-hint { display: none; }
 /* The controls float over the map's own bottom-right corner, where a sea name or a coastal town
    likes to sit — and the map moves UNDER them, so there is no square of map that can be reserved
    against them at every zoom. What a printed atlas does instead is give the furniture a mount: the
