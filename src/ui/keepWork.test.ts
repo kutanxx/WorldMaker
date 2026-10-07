@@ -124,12 +124,14 @@ describe("the link is the way to keep a world", () => {
     const root = open(renamed);
     const copy = root.querySelector<HTMLButtonElement>(".controls .copy-link")!;
     expect(copy, "no way to copy the link").not.toBeNull();
-    const idle = copy.textContent;
+    expect(copy.getAttribute("aria-label"), "the button does not say what it does").toBeTruthy();
     copy.click();
     await new Promise((r) => setTimeout(r, 0));
     expect(writeText).toHaveBeenCalledWith(location.href);
     expect(location.href).toContain("names=");
-    expect(copy.textContent, "nothing said the link was copied").not.toBe(idle);
+    // said beside the button, without moving the bar
+    const said = root.querySelector('.controls [role="status"]');
+    expect(said?.textContent, "nothing said the link was copied").toBeTruthy();
   });
 
   it("copies a town's plate as the plate's own address", async () => {

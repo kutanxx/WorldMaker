@@ -12,6 +12,7 @@ import { realmLabelKo, peopleLabelKo } from "./nameSuffix";
 // 는 was hardcoded after the world's title. It was harmless while the title was Latin and the rule
 // went by the final letter; a Hangul title is chosen by its final consonant, and 소덴드 takes 은.
 import { withJosa } from "./korean";
+import { cellsToKm2, formatArea } from "./area";
 
 // Declared here rather than imported from `src/ui/i18n.ts`: the engine is DOM-free and must not
 // depend on the presentation layer. The union is deliberately the same one the UI uses, so the app
@@ -311,7 +312,7 @@ export function worldToGazetteer(world: World, history: History, lang: Gazetteer
       L.push(`${where}${seat}`.trim());
       const born = parent ? `${p.foundedYear}년 ${parent}에서 갈라져 나왔고` : p.free ? `${p.foundedYear}년 자유도시로 독립했고` : `${p.foundedYear}년에 서서`;
       const died = ended !== null ? `${ended}년에 무너졌다` : `${history.years}년까지 서 있다`;
-      L.push(`${born}, ${died}.` + (peak > 0 ? ` 최대 판도는 ${peakYear}년의 ${peak}칸.` : ""));
+      L.push(`${born}, ${died}.` + (peak > 0 ? ` 최대 판도는 ${peakYear}년의 ${formatArea(cellsToKm2(peak, world.params), "ko")}.` : ""));
       if (form.form === "empire") {
         L.push(bornImperial ? "선 날부터 다른 민족의 땅을 거느린 제국이었다."
           : `${since}년, 두 번째 민족의 땅을 품으며 제국이 되었다.`);
@@ -330,7 +331,7 @@ export function worldToGazetteer(world: World, history: History, lang: Gazetteer
       L.push(`${where}${seat}`.trim());
       const born = parent ? `Broke from ${parent} in ${p.foundedYear}` : p.free ? `Declared itself free in ${p.foundedYear}` : `Stood from ${p.foundedYear}`;
       const died = ended !== null ? `and fell in ${ended}` : `and was still standing at ${history.years}`;
-      L.push(`${born} ${died}.` + (peak > 0 ? ` At its greatest, ${peak} tiles in ${peakYear}.` : ""));
+      L.push(`${born} ${died}.` + (peak > 0 ? ` At its greatest, ${formatArea(cellsToKm2(peak, world.params), "en")} in ${peakYear}.` : ""));
       if (form.form === "empire") {
         L.push(bornImperial ? "An empire from its first day, holding land that was never its own people's."
           : `An empire from ${since}, when a second people's land came under it.`);

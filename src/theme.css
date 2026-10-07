@@ -86,6 +86,14 @@ body {
 
 /* The seed box and its button, welded: one control that means "take me to this world". */
 .seed-group { display: inline-flex; align-items: center; gap: 0; }
+/* the box's own word, wrapping it (app.ts): "번호 [967042] 열기" rather than a bare number */
+.seed-label { display: inline-flex; align-items: center; gap: 6px; cursor: text; }
+.seed-label > span { font-size: 13px; color: #6b5a3f; }
+/* ...said only to a screen reader in English: "Seed" is the word a map tool's English reader already has,
+   and the English bar had no 28px to spare for it (measured at 1440x900, it took the bar to two rows) */
+html:lang(en) .seed-label > span {
+  position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+}
 .seed-group input[type=number] { border-radius: 4px 0 0 4px; }
 .seed-group button { border-radius: 0 4px 4px 0; border-left: none; }
 
@@ -390,7 +398,15 @@ svg.world.lang-en .nation-label { font-variant: small-caps; letter-spacing: 0.10
 .export-group > button:not(:first-of-type) { border-left: none; }
 /* a file on its way (app.ts oneFileAtATime): the formats stand down until it is written — a PNG takes
    seconds, and pressed again it used to be written twice */
-.export-group.busy > button, .export-group.busy .export-icon { opacity: .55; cursor: progress; }
+.export-group.busy > button:not(.copy-link), .export-group.busy .export-icon { opacity: .55; cursor: progress; }
+.export-group .copy-link { display: inline-flex; align-items: center; justify-content: center; padding-inline: 9px; }
+.export-group .copy-link svg { display: block; }
+/* "the link was copied", said under the chain over the page, so nothing in the bar moves (app.ts linkBtn) */
+.export-group .copy-done {
+  position: absolute; top: calc(100% + 5px); right: 0; z-index: 30; pointer-events: none; white-space: nowrap;
+  padding: 3px 9px; border-radius: 4px; font-size: 12.5px; background: #3c2f1c; color: #f6efdd;
+  box-shadow: 0 1px 4px rgba(60,47,28,.25);
+}
 /* on a plate the world's data file is not offered, so the plate's PNG leads the group */
 .controls.plate .export-group > .world-only + button { border-left: 1px solid #b7a071; border-radius: 4px 0 0 4px; }
 /* Zoomed in, PNG and SVG ask whether the file is the whole map or the part on screen (app.ts,
@@ -506,7 +522,13 @@ svg.world.lang-en .nation-label { font-variant: small-caps; letter-spacing: 0.10
    under a `max-height` keeps its 100% width and scales its content down inside it, so the map sat
    in a band of cream. 620px wide is a 1000x700 map at 434 tall, which leaves the card and both
    buttons above the fold. */
-.landing-preview { max-width: 620px; margin: 14px auto 0; padding: 0 16px; }
+/* ★ ...and by the window's height too, still through the width (so it never letterboxes): at 1366x650 a
+   620px picture left the card 53px deep at the window's foot (live, 2026-10-08). The card's foot stands
+   328px under the picture's height — the title and tagline 112 above it, its caption and frame 26, the
+   card's own 26 + 156, and 8 to spare — and the picture is 7/10 as tall as it is wide, inside its 2px frame
+   (the 16px gutters come on top: this box is content-box). 900 tall it is 620 wide as before; 650 tall, 462. */
+#landing { --preview-w: max(300px, min(620px, calc((100vh - 328px) * 10 / 7 + 2px))); }
+.landing-preview { max-width: var(--preview-w); margin: 14px auto 0; padding: 0 16px; }
 /* `color: inherit` because this is an <a>: it was carrying the browser's default link blue
    (measured rgb(0,0,238)). Nothing shows it today — the link holds only an SVG — but the moment a
    word lands inside it would arrive in a colour this atlas does not own. */
@@ -526,7 +548,7 @@ svg.world.lang-en .nation-label { font-variant: small-caps; letter-spacing: 0.10
 /* lined up with the right edge of today's world under it: half of `.landing-preview`'s 620px (it was a
    640px column, and stood 10px past the picture) */
 .landing-lang {
-  position: absolute; top: 22px; right: max(16px, calc(50% - 310px));
+  position: absolute; top: 22px; right: max(16px, calc(50% - var(--preview-w, 620px) / 2));
   padding: 4px 10px; font-size: 13px; background: #f3ead2;
   border: 1px solid #b7a071; border-radius: 4px; color: #3c2f1c; cursor: pointer;
 }
@@ -635,7 +657,9 @@ svg.city .wall-seg, svg.city .wall-seg-inner, svg.city .tower, svg.city .gate { 
   transform: rotate(-90deg); transition: transform .12s;
 }
 .advanced[open] > summary::after { transform: none; }
-.advanced-row { display: grid; grid-template-columns: 92px 1fr 56px; align-items: center; gap: 10px; padding: 3px 2px; }
+/* (the names say which way a dial goes now — "산 (높을수록 적게)" — so their column is wider than 92px) */
+.advanced-row { display: grid; grid-template-columns: 170px 1fr 56px; align-items: center; gap: 10px; padding: 3px 2px; }
+.advanced-note { margin: 2px 2px 6px; color: #6b5d42; font-size: 12.5px; }
 .advanced-row output { font-variant-numeric: tabular-nums; text-align: right; color: #6b5d42; }
 /* ⚠ A slider is not a text field — the scrubber's lesson again. The global `button, input` rule gave
    these its padding and border on top of a content-box height: measured 46px on a phone. */
@@ -1006,6 +1030,7 @@ svg.city .wall-seg, svg.city .wall-seg-inner, svg.city .tower, svg.city .gate { 
    `var()`, and a declaration with a `var()` is accepted at parse time — on a browser without `svh`
    it fails at computed time and drops to the property's initial value, not back to the `vh` line. */
 @supports (height: 100svh) {
+  #landing { --preview-w: max(300px, min(620px, calc((100svh - 328px) * 10 / 7 + 2px))); }
   #app { --page: max(620px, calc((100svh - var(--chrome, 290px)) * 10 / 7 + 222px)); }
   #app { --plate-page: calc(100svh - var(--plate-chrome, 150px) + 222px); }
   .stage.plate > .map-frame { max-width: min(100%, calc(100svh - var(--plate-chrome, 150px))); }

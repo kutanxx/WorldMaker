@@ -16,6 +16,10 @@ const small = { ...DEFAULT_PARAMS, width: 300, height: 300, cellCount: 400, town
 // The address is shared state in jsdom: a test that leaves `#...&city=2` behind makes the next
 // createApp open onto a city plate, and the one after it finds no world map to click.
 afterEach(() => { location.hash = ""; });
+// ...and a page a test left in the document still answers the browser: since a world in the address is one
+// Back can return to (keepWork.test), an app left behind remade its world from the next test's address and
+// took the keyboard with it. One page at a time, as a browser has.
+afterEach(() => { document.body.replaceChildren(); });
 
 describe("createApp", () => {
   it("renders a world svg on init", () => {
@@ -164,7 +168,7 @@ describe("createApp", () => {
     const root = document.createElement("div");
     createApp(root, small);
     const btns = [...root.querySelectorAll(".view-toggle button")] as HTMLButtonElement[];
-    const province = btns.find((b) => /Provinces|영토/.test(b.textContent || ""))!;
+    const province = btns.find((b) => /Provinces|영토|행정 구역/.test(b.textContent || ""))!;
     const political = btns.find((b) => b.textContent === "Political")!;
     province.click();
     const provBorder = root.querySelector(".province .nation-border")?.getAttribute("d");
@@ -195,7 +199,7 @@ describe("createApp", () => {
     const root = document.createElement("div");
     createApp(root, small);
     const btns = [...root.querySelectorAll(".view-toggle button")] as HTMLButtonElement[];
-    const prov = btns.find((b) => /Provinces|영토/.test(b.textContent || ""));
+    const prov = btns.find((b) => /Provinces|영토|행정 구역/.test(b.textContent || ""));
     expect(prov).not.toBeUndefined();
     prov!.click();
     expect(root.querySelector("svg .province")).not.toBeNull();
@@ -303,7 +307,7 @@ describe("export follows the screen", () => {
     createApp(root, { ...DEFAULT_PARAMS, seed: 5 });
     await new Promise((r) => setTimeout(r, 0));
     // an earlier test in this file persists a language choice, so the toggle may read either word
-    const btn = [...root.querySelectorAll("button")].find((b) => /provinces|영토/i.test(b.textContent ?? ""))!;
+    const btn = [...root.querySelectorAll("button")].find((b) => /provinces|영토|행정 구역/i.test(b.textContent ?? ""))!;
     expect(btn, "no province view to switch to").toBeDefined();
     btn.click();
     await new Promise((r) => setTimeout(r, 0));
@@ -332,7 +336,8 @@ describe("export follows the screen", () => {
     createApp(root, small);
     const group = root.querySelector(".export-group");
     expect(group).not.toBeNull();
-    const btns = [...group!.querySelectorAll("button")];
+    // (the link's chain stands at the group's end since 2026-10-08 — a way out, not a format: keepWork.test)
+    const btns = [...group!.querySelectorAll<HTMLButtonElement>("button:not(.copy-link)")];
     expect(btns.map((b) => b.textContent)).toEqual(["JSON", "PNG", "SVG"]);
     // the word "export" is said once for the group, not once per button
     expect(group!.textContent).not.toMatch(/내보내기|Export/);
@@ -1331,7 +1336,7 @@ describe("the city list is in the same century as the map", () => {
     const root = document.createElement("div");
     createApp(root, first);
     (root.querySelector(".controls input[type=number]") as HTMLInputElement).value = String(params.seed);
-    ([...root.querySelectorAll<HTMLButtonElement>(".controls button")].find((b) => b.textContent === "Generate")!).click();
+    ([...root.querySelectorAll<HTMLButtonElement>(".controls button")].find((b) => b.textContent === "Open")!).click();
     const slider = root.querySelector(".timeline-slider") as HTMLInputElement;
     slider.value = String(lastIndex);
     slider.dispatchEvent(new Event("input", { bubbles: true }));
@@ -1373,27 +1378,57 @@ describe("the map's legend folds away", () => {
 
   beforeEach(() => { try { localStorage.removeItem("wm:legend"); } catch { /* private mode */ } });
 
-  it("starts folded, with a control to unfold it", () => {
+  // ★ It started folded at every width, a rule from when the key stood ON the map and covered it. Beside a
+  // wide window's map it costs the drawing nothing — measured live at 1440x900 (2026-10-08), the column under
+  // the town list stood ~300px empty at year 0 while the colours went unexplained to a first-time reader.
+  // A narrow window stands it under the map, where it costs the map its height, and there it starts folded.
+  it("starts open beside a wide window's map, with a control to fold it", () => {
     const root = open();
     expect(legendHead(root)).not.toBeNull();
-    expect(legendVisible(root)).toBe(false);
-    expect(root.querySelector(".legend-fold .legend-sheet .legend"), "the key is drawn, only folded").not.toBeNull();
+    expect(legendVisible(root)).toBe(true);
+    expect(legendHead(root).getAttribute("aria-expanded")).toBe("true");
   });
 
-  it("unfolds and folds again on the control", () => {
+  it("starts folded under a narrow window's map", () => {
+    (window as unknown as { matchMedia: unknown }).matchMedia = (media: string) => ({
+      media, matches: true, addEventListener() {}, removeEventListener() {},
+    });
+    try {
+      const root = open();
+      expect(legendVisible(root)).toBe(false);
+      expect(root.querySelector(".legend-fold .legend-sheet .legend"), "the key is drawn, only folded").not.toBeNull();
+    } finally {
+      delete (window as unknown as { matchMedia?: unknown }).matchMedia;
+    }
+  });
+
+  // ...but not where the column is short: in a 1366x650 laptop window it is 322px, the key takes 283 of it,
+  // and the town list — the one sign that the towns open — kept its head and no row (measured, 2026-10-08)
+  it("starts folded beside a short window's map, where the town list needs the column", () => {
+    (window as unknown as { matchMedia: unknown }).matchMedia = (media: string) => ({
+      media, matches: false, addEventListener() {}, removeEventListener() {},
+    });
+    try {
+      expect(legendVisible(open())).toBe(false);
+    } finally {
+      delete (window as unknown as { matchMedia?: unknown }).matchMedia;
+    }
+  });
+
+  it("folds and unfolds again on the control", () => {
     const root = open();
     const btn = legendHead(root);
     btn.click();
-    expect(legendVisible(root)).toBe(true);
-    btn.click();
     expect(legendVisible(root)).toBe(false);
+    btn.click();
+    expect(legendVisible(root)).toBe(true);
   });
 
-  it("remembers that it was unfolded, into the next world", () => {
+  it("remembers that it was folded, into the next world", () => {
     const first = open();
     legendHead(first).click();
-    expect(localStorage.getItem("wm:legend")).toBe("on");
-    expect(legendVisible(open())).toBe(true);
+    expect(localStorage.getItem("wm:legend")).toBe("off");
+    expect(legendVisible(open())).toBe(false);
   });
 
   // ⚠ Two things were wrong with the key on the map, and the second is why it is off the map now.
@@ -1414,9 +1449,9 @@ describe("the map's legend folds away", () => {
   it("says which way it will go", () => {
     const root = open();
     const btn = legendHead(root);
-    expect(btn.getAttribute("aria-expanded")).toBe("false");
-    btn.click();
     expect(btn.getAttribute("aria-expanded")).toBe("true");
+    btn.click();
+    expect(btn.getAttribute("aria-expanded")).toBe("false");
   });
 });
 

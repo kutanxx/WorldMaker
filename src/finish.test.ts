@@ -345,11 +345,12 @@ describe("the scrubber and the front page's toggle, as the page draws everything
     expect(accent(".timeline-slider"), "the scrubber in the browser's own colour").toBe(accent(".advanced-row input[type=range]"));
   });
 
+  // (the picture's width follows the window's height since 2026-10-08 — one variable, `--preview-w`, sizes
+  // the picture and places the toggle, so the two cannot part)
   it("lines the toggle up with the edge of the picture under it", () => {
-    const picture = Number(/max-width:\s*(\d+)px/.exec(ruleIn(css(), ".landing-preview"))?.[1]);
-    const inset = Number(/right:\s*max\(\s*16px,\s*(?:calc\()?\s*50%\s*-\s*(\d+)px/.exec(ruleIn(css(), ".landing-lang"))?.[1]);
-    expect(picture, "no width for the picture").toBeGreaterThan(0);
-    expect(inset, "the toggle's column is not the picture's").toBe(picture / 2);
+    expect(ruleIn(css(), ".landing-preview"), "the picture is not sized by the shared width").toMatch(/max-width:\s*var\(--preview-w\)/);
+    expect(ruleIn(css(), ".landing-lang"), "the toggle's column is not the picture's")
+      .toMatch(/right:\s*max\(\s*16px,\s*calc\(\s*50%\s*-\s*var\(--preview-w(?:,\s*620px)?\)\s*\/\s*2\s*\)\s*\)/);
   });
 });
 

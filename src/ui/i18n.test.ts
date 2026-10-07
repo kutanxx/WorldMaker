@@ -4,8 +4,10 @@ import { TEMPERATE_FOREST } from "../engine/biome";
 
 describe("i18n", () => {
   it("localises UI strings for both languages", () => {
-    expect(t("en", "generate")).toBe("Generate");
-    expect(t("ko", "generate")).toBe("생성");
+    // the seed box's button opens the world of that number ("생성" beside "새 세계" read as a second way to
+    // make a world — plainWords.test)
+    expect(t("en", "generate")).toBe("Open");
+    expect(t("ko", "generate")).toBe("열기");
     expect(t("en", "compassN")).toBe("N");
     expect(t("ko", "compassN")).toBe("북");
   });

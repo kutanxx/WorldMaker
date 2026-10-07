@@ -20,7 +20,8 @@ import { t, type Lang } from "./i18n";
  * continent at 3000km and leaves neighbouring towns a day or two apart on foot.
  */
 export const METRES_PER_UNIT = 3;
-export const KM_PER_UNIT = 3;
+// one scale for the map's distances and its areas (the gazetteer's km², engine/area.ts)
+export { KM_PER_UNIT } from "../engine/area";
 export const KM_PER_WALKING_DAY = 30;
 
 /** The world map's bar, in map units: 360 km, twelve days on foot. A region's page measures its own again (regionPage.ts). */

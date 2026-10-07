@@ -6,6 +6,7 @@ import { buildDynasties, rulerAt, type Reign } from "./dynasty";
 import { eventText } from "./eventText";
 import { naturalHistory } from "./naturalHistory";
 import { classifyGovernments, type GovernmentForm } from "./government";
+import { cellsToKm2, formatArea, formatAreaChange } from "./area";
 
 // One chronicle, assembled once, read by two readers. The downloaded gazetteer and the panel on the
 // site were filling their chronicles from different code: the gazetteer told the recorded events
@@ -86,6 +87,9 @@ function mined(world: World, history: History, lang: ChronicleLang,
   // transliterating it, and the record keeps one name for both languages.
   const say = (s: string) => properNoun(ko, s);
   const nameOf = (p: number) => say(history.polities[p]?.name ?? String(p));
+  // land in km², by the map's own scale (area.ts) — the map's cells were the unit here, which no reader can picture
+  const area = (cells: number) => formatArea(cellsToKm2(cells, world.params), lang);
+  const change = (a: number, b: number) => formatAreaChange(cellsToKm2(a, world.params), cellsToKm2(b, world.params), lang);
   // Who held the realm when it happened. A peak or a collapse with a name on it is a person's
   // reign; without one it is a statistic.
   const underOf = (p: number, year: number) => {
@@ -103,8 +107,8 @@ function mined(world: World, history: History, lang: ChronicleLang,
     if (best < 20 || bestT <= 0 || bestT >= series.length - 1) continue;
     const year = history.snapshots[bestT].year;
     out.push({ year, rank: 2, kind: "peak", text: ko
-      ? `${year}년, ${withJosa(nameOf(p), "이/가")} 최대 판도에 이르다 — ${best}칸${underOf(p, year)}`
-      : `Year ${year} — ${nameOf(p)} reaches its greatest extent, ${best} tiles${underOf(p, year)}` });
+      ? `${year}년, ${withJosa(nameOf(p), "이/가")} 최대 판도에 이르다 — ${area(best)}${underOf(p, year)}`
+      : `Year ${year} — ${nameOf(p)} reaches its greatest extent, ${area(best)}${underOf(p, year)}` });
   }
 
   // Sudden losses and gains between two snapshots. A cooldown keeps one long decline from being
@@ -123,16 +127,16 @@ function mined(world: World, history: History, lang: ChronicleLang,
         const falls = b === 0;
         const fallHead = ko ? `${year}년, ${withJosa(nameOf(p), "이/가")} 멸망하다` : `Year ${year} — ${nameOf(p)} falls`;
         out.push({ year, rank: 3, kind: falls ? "fall" : "loss", text: falls
-          ? (ko ? `${fallHead} — ${a}칸을 지키던 끝${underOf(p, year - 10)}`
-                : `${fallHead}, holding ${a} tiles to the last${underOf(p, year - 10)}`)
-          : (ko ? `${year}년, ${withJosa(nameOf(p), "이/가")} 한 세대 만에 영토의 ${share}%를 잃다 (${a} → ${b}칸)`
-                : `Year ${year} — ${nameOf(p)} loses ${share}% of its land in a generation (${a} → ${b} tiles)`),
+          ? (ko ? `${fallHead} — ${area(a)}를 지키던 끝${underOf(p, year - 10)}`
+                : `${fallHead}, holding ${area(a)} to the last${underOf(p, year - 10)}`)
+          : (ko ? `${year}년, ${withJosa(nameOf(p), "이/가")} 한 세대 만에 영토의 ${share}%를 잃다 (${change(a, b)})`
+                : `Year ${year} — ${nameOf(p)} loses ${share}% of its land in a generation (${change(a, b)})`),
           ...(falls ? { short: fallHead } : {}) });
       } else if (a >= 10 && b >= a * 1.5 && t - lastGain[p] >= 3) {
         lastGain[p] = t;
         out.push({ year, rank: 3, kind: "surge", text: ko
-          ? `${year}년, ${withJosa(nameOf(p), "이/가")} 영토를 크게 넓히다 (${a} → ${b}칸)`
-          : `Year ${year} — ${nameOf(p)} expands sharply (${a} → ${b} tiles)` });
+          ? `${year}년, ${withJosa(nameOf(p), "이/가")} 영토를 크게 넓히다 (${change(a, b)})`
+          : `Year ${year} — ${nameOf(p)} expands sharply (${change(a, b)})` });
       }
     }
   }
@@ -176,12 +180,14 @@ function mined(world: World, history: History, lang: ChronicleLang,
     if (alive === 0) continue;
     // the headline stops before the tile counts: with them this was the one line still three deep
     // under a phone's map
+    // ...said as of its year, not as "now" (현재): the caption carries a line forward to the next, and at 250
+    // "200년 현재" told the reader what stood "now" in 200
     const head = ko
-      ? `${year}년 현재 — ${alive}개 나라가 서 있고, 가장 큰 나라는 ${nameOf(top)}`
+      ? `${year}년 — ${alive}개 나라가 서 있고, 가장 큰 나라는 ${nameOf(top)}`
       : `Year ${year} — ${alive} realms stand; the greatest is ${nameOf(top)}`;
     out.push({ year, rank: -1, kind: "century", short: head, text: ko
-      ? `${head}(${tv}칸). 사람의 땅은 ${held}칸.`
-      : `${head} at ${tv} tiles, of ${held} tiles settled.` });
+      ? `${head}(${area(tv)}). 사람이 사는 땅은 ${area(held)}.`
+      : `${head} at ${area(tv)}, of ${area(held)} settled.` });
   }
 
   // Which peoples a realm comes to rule. The generator gives every world five cultures and the

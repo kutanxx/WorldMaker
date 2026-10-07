@@ -36,8 +36,11 @@ describe("the colour map, untouched by the ink style", () => {
       keyless.push(fnv(svgToString(svg)));
       return full;
     });
-    expect(keyless, "the map moved, not only its key").toEqual([391966426, 872358456, 1667286081, 1237781876]);
-    expect(hashes).toEqual([4282211430, 427055371, 1972975115, 4294735063]);
+    // 2026-10-08: the province view's Korean words changed — "영토" became "행정 구역" (the view's name, its
+    // description in <desc>, its key's title, "구역 경계") — and only its two hashes moved, from 1237781876 /
+    // 4294735063. Proved by substitution: the new drawing with the old words put back hashes to exactly those.
+    expect(keyless, "the map moved, not only its key").toEqual([391966426, 872358456, 1667286081, 2501423208]);
+    expect(hashes).toEqual([4282211430, 427055371, 1972975115, 3969858647]);
   });
 });
 
@@ -108,7 +111,9 @@ describe("the ink map", () => {
       for (const el of map.querySelectorAll("[data-name]")) el.removeAttribute("data-name");
       return fnv(svgToString(map));
     });
-    expect(hashes).toEqual([737587710, 3864053538, 182143499, 2924723875]);
+    // (the province view's ink map re-pinned with the colour map's, for the same words: was 2924723875, and the
+    // new drawing with the old words put back hashes to exactly that)
+    expect(hashes).toEqual([737587710, 3864053538, 182143499, 3970976761]);
   });
 
   // The colour key lists colours, which an ink map does not have: the ink key lists its marks, drawn as

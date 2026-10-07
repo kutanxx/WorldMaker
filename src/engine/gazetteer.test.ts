@@ -6,6 +6,7 @@ import { worldToGazetteer, anArticle } from "./gazetteer";
 import { eventText } from "./eventText";
 import { classifyGovernments } from "./government";
 import { realmLabelKo, peopleLabelKo } from "./nameSuffix";
+import { cellsToKm2, formatArea } from "./area";
 
 describe("worldToGazetteer", () => {
   const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });
@@ -127,7 +128,8 @@ describe("worldToGazetteer", () => {
       const section = nextHeader > 0 ? body.slice(0, nextHeader) : body;
       expect((section.match(/^- /gm) ?? []).length).toBeGreaterThan(0);
     }
-    expect(chron).toContain("년 현재 —");
+    // a century's standing, said as of its year (it read "N년 현재 —" until 2026-10-08; see area.test)
+    expect(chron).toMatch(/년 — \d+개 나라가 서 있고/);
   });
 
   it("names the people who ruled, not only the realms", () => {
@@ -272,6 +274,13 @@ describe("exported chronicle is byte-stable across the shared-assembler move", (
   //      counts hold at 120/109/106 in both languages, and seed 3, whose ports all stand at year 0,
   //      keeps both its hashes. The recorded events are untouched (`eventText.test.ts` still reads
   //      "Year 0 — Khainzaz is named a free port" off the record, as the simulation wrote it).
+  //  11. Land is told in km², not in the map's cells (2026-10-08, area.ts): a realm's greatest extent,
+  //      its fall, a loss or a surge, a century's standing ("362칸" → "약 57만 ㎢", "41 → 23 tiles" →
+  //      "about 64,000 → 36,000 km²"), and a century's head drops "현재" ("200년 현재 —" → "200년 —"; the
+  //      caption carries it to later years). EVERY HASH MOVES AND NO LINE COUNT DOES (120/109/106). Proved
+  //      by substitution against the commit before (2901463): each old line, its cell counts written in
+  //      the new wording and that one word dropped, equals the new line byte for byte — 152 lines of 670
+  //      changed that way, 518 untouched, 0 otherwise.
   const pins: Record<number, { en: number; ko: number; lines: number }> = {
     // 2026-09-12: re-pinned because the TOWNS moved, and the chronicle names towns. The land did
     // not move — world.test.ts's `polityOf` anchor reproduced byte-identical — so this is the same
@@ -280,9 +289,11 @@ describe("exported chronicle is byte-stable across the shared-assembler move", (
     // coastal and they came out 27% coastal) and are drawn toward water now. See world.ts.
     // 2026-09-28: seeds 1 and 2 re-pinned for item 10 (a free port named when its town stands) —
     // were en 3757333055 / ko 339626473 and en 4274064693 / ko 2405378887.
-    1: { en: 2881444985, ko: 4071964961, lines: 120 },
-    2: { en:  217041030, ko: 3848576118, lines: 109 },
-    3: { en: 2048031766, ko: 1094646887, lines: 106 },
+    // 2026-10-08: all six re-pinned for item 11 (km², and no "현재") — were en 2881444985 / ko 4071964961,
+    // en 217041030 / ko 3848576118, en 2048031766 / ko 1094646887.
+    1: { en: 2720932359, ko: 1487162437, lines: 120 },
+    2: { en: 3410705202, ko: 2596010991, lines: 109 },
+    3: { en: 3821733539, ko:   77264004, lines: 106 },
   };
   for (const seed of [1, 2, 3]) {
     it(`reproduces the pinned chronicle for seed ${seed}`, () => {
@@ -415,7 +426,8 @@ describe("the Realms section describes the realms the world actually had", () =>
       }
       if (best === 0) continue;
       const e = entryFor(md, p.name);
-      expect(e, `${p.name} peak ${best}`).toContain(`${best} tiles`);
+      // in km² now, by the map's scale (area.test pins the wording against literals)
+      expect(e, `${p.name} peak ${best}`).toContain(formatArea(cellsToKm2(best, w.params), "en"));
       expect(e, `${p.name} peak year ${bestYear}`).toContain(`${bestYear}`);
       checked++;
     }

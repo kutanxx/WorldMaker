@@ -109,7 +109,16 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
   seedInput.type = "number";
   seedInput.value = String(params.seed);
   const regenBtn = document.createElement("button");
-  seedGroup.append(seedInput, regenBtn);
+  // ★ The box says what it holds. It was a bare number beside "생성", next to "새 세계" — two ways to make a
+  // world and nothing to say what the number was (live, 2026-10-08). The word wraps the box, so it is the
+  // box's label wherever it stands, with no id to collide with another page's.
+  const seedLabel = document.createElement("label");
+  seedLabel.className = "seed-label";
+  const seedWord = document.createElement("span");
+  seedLabel.append(seedWord, seedInput);
+  seedGroup.append(seedLabel, regenBtn);
+  // ...and a number typed and entered opens its world, as the button beside it does
+  seedInput.addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.isComposing) { e.preventDefault(); regenBtn.click(); } });
   // The primary action, and the only one in the bar: a die always yields a world you have not seen.
   // World-only: on a plate it threw the plate AND its world away, and Back then left the address on
   // the old world with the new one on screen.
@@ -141,9 +150,28 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
   // ★ The link is the save: the world and every name the reader gave it ride in the address and nowhere else,
   // and nothing on the page said so but a tooltip on the rename chip. Copying it is the one way to keep a
   // world beyond this tab; the browser's own address bar is a step a reader has to know about.
+  // It stands at the end of the files, the other way a world leaves this page, as a sign with its words in
+  // its tooltip: the bar had no room for them in English (measured at 1440x900, any copy button with words
+  // took the English bar to two rows).
   const linkBtn = document.createElement("button");
   linkBtn.type = "button";
   linkBtn.className = "copy-link";
+  // two links of a chain, in the bar's own ink (the 🔗 emoji came out a pale lilac beside the formats' words)
+  {
+    const NS = "http://www.w3.org/2000/svg";
+    const icon = document.createElementNS(NS, "svg");
+    icon.setAttribute("viewBox", "0 0 16 16");
+    icon.setAttribute("width", "15");
+    icon.setAttribute("height", "15");
+    icon.setAttribute("aria-hidden", "true");
+    // two pills along one diagonal, each through the other's end
+    for (const [cx, cy] of [[5.4, 10.6], [10.6, 5.4]]) {
+      const link = document.createElementNS(NS, "rect");
+      for (const [k, v] of Object.entries({ x: cx - 4.6, y: cy - 2.3, width: 9.2, height: 4.6, rx: 2.3, fill: "none", stroke: "currentColor", "stroke-width": 1.6, transform: `rotate(-45 ${cx} ${cy})` })) link.setAttribute(k, String(v));
+      icon.appendChild(link);
+    }
+    linkBtn.appendChild(icon);
+  }
   let copiedFor = 0;
   linkBtn.addEventListener("click", async () => {
     const url = location.href;
@@ -154,11 +182,15 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
       window.prompt(t(lang, "copyLinkManual"), url);
       return;
     }
-    // said on the button pressed, at the button's own width, and then it is a button again
-    linkBtn.style.minWidth = `${linkBtn.offsetWidth}px`;
-    linkBtn.textContent = "✓ " + t(lang, "copyLinkDone");
+    // said beside the button, over the page rather than in the bar, so nothing in the bar moves
+    exportGroup.querySelector(".copy-done")?.remove();
+    const said = document.createElement("span");
+    said.className = "copy-done";
+    said.setAttribute("role", "status");
+    said.textContent = t(lang, "copyLinkDone");
+    exportGroup.appendChild(said);
     window.clearTimeout(copiedFor);
-    copiedFor = window.setTimeout(() => { linkBtn.textContent = "🔗 " + t(lang, "copyLink"); linkBtn.style.minWidth = ""; }, 2000);
+    copiedFor = window.setTimeout(() => said.remove(), 2500);
   });
   const langBtn = document.createElement("button");
   langBtn.className = "lang-toggle";
@@ -183,6 +215,10 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
   advanced.className = "advanced";
   const advancedSummary = document.createElement("summary");
   advanced.appendChild(advancedSummary);
+  // what moving one does, said before it is done: a setting is a new world, and Back brings this one again
+  const advancedNote = document.createElement("p");
+  advancedNote.className = "advanced-note";
+  advanced.appendChild(advancedNote);
   const dials: { key: keyof WorldParams; min: number; max: number; step: number }[] = [
     { key: "seaLevel", min: 0.15, max: 0.55, step: 0.01 },
     { key: "mountainLevel", min: 0.4, max: 0.8, step: 0.01 },
@@ -232,7 +268,6 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
   viewToggle.classList.add("world-only");
   exportGroup.classList.add("secondary");
   gazBtn.classList.add("secondary");
-  linkBtn.classList.add("secondary");
   langBtn.classList.add("secondary");
   const moreBtn = document.createElement("button");
   moreBtn.type = "button";
@@ -255,7 +290,8 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
   // box used to stand in front of the die, so opening the fold at 390x844 moved "새 세계" from x=76
   // to x=216 — the one control that must never move under a thumb. On a wide window the zone reads
   // the same either way round: the die, then the way to a particular world.
-  controls.append(homeBtn, backBtn, randomBtn, seedGroup, viewToggle, inkBtn, moreBtn, exportGroup, gazBtn, linkBtn, langBtn);
+  exportGroup.appendChild(linkBtn);
+  controls.append(homeBtn, backBtn, randomBtn, seedGroup, viewToggle, inkBtn, moreBtn, exportGroup, gazBtn, langBtn);
   syncMore(false);
   root.appendChild(advanced);
 
@@ -267,20 +303,28 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     // map.html declares lang="ko" and it used to stay that way whatever the toggle said
     document.documentElement.lang = lang;
     advancedSummary.textContent = t(lang, "advanced");
-    for (const d of dialRows) d.name.textContent = t(lang, d.key as never);
+    advancedNote.textContent = t(lang, "advancedNote");
+    for (const d of dialRows) { d.name.textContent = t(lang, d.key as never); d.name.title = t(lang, `${d.key}Title`); }
     homeBtn.textContent = t(lang, "home");
     backBtn.textContent = "← " + t(lang, "backToWorld");
     homeBtn.title = t(lang, "homeLabel"); // the house carries it; the word cost the toolbar a second row
     regenBtn.textContent = t(lang, "generate");
+    regenBtn.title = t(lang, "seedTitle");
+    seedWord.textContent = t(lang, "seedLabel");
+    seedInput.title = t(lang, "seedTitle");
     randomBtn.textContent = "🎲 " + t(lang, "newWorld");
     jsonBtn.textContent = t(lang, "exportJson");
     // a data file that looks like a save and is not one: nothing here can open it again
     jsonBtn.title = t(lang, "exportJsonTitle");
     pngBtn.textContent = t(lang, "exportPng");
     svgBtn.textContent = t(lang, "exportSvg");
+    // what each format is for, for a reader who has never had to choose between them
+    pngBtn.title = t(lang, "exportPngTitle");
+    svgBtn.title = t(lang, "exportSvgTitle");
     exportIcon.title = t(lang, "exportLabel"); // the verb, said once for the group
     gazBtn.textContent = "📜 " + t(lang, "gazetteer");
-    linkBtn.textContent = "🔗 " + t(lang, "copyLink");
+    gazBtn.title = t(lang, "gazetteerTitle");
+    linkBtn.setAttribute("aria-label", t(lang, "copyLink"));
     linkBtn.title = t(lang, "copyLinkTitle");
     terrainBtn.textContent = t(lang, "terrain");
     politicalBtn.textContent = t(lang, "political");
@@ -421,8 +465,19 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
   void document.fonts?.ready.then(() => refitChrome());
   /** drops the world screen's width watcher; see the listener leak note in showWorld */
   let dropWidthWatch: (() => void) | null = null;
+  // Unread, the key opens beside a wide window's map where the column has the room (measured live at
+  // 1440x900: ~300px of it empty under the town list at year 0, while the colours went unexplained). It
+  // stays folded under a narrow window's map, where it would cost the map its height, and beside a short
+  // one's: the column is the map's height, 322px at 1366x650, and the key's 283 left the town list its head
+  // and no row. 760 tall is where the key, the list's head and four rows fit beside a two-row bar.
+  // A reader's choice wins.
+  const TALL = "(min-height: 760px)";
+  const legendRoom = (): boolean => !isNarrowWindow() && (typeof matchMedia !== "function" || matchMedia(TALL).matches);
   function readLegendPref(): boolean {
-    try { return localStorage.getItem(LEGEND_KEY) === "on"; } catch { return false; }
+    try {
+      const v = localStorage.getItem(LEGEND_KEY);
+      return v === null ? legendRoom() : v === "on";
+    } catch { return legendRoom(); }
   }
   function writeLegendPref(on: boolean): void {
     try { localStorage.setItem(LEGEND_KEY, on ? "on" : "off"); } catch { /* privacy mode */ }
