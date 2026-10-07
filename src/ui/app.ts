@@ -33,6 +33,7 @@ import { legendSheet, placeLegend } from "./legendSheet";
 import { measureChrome, fitChrome } from "./chromeBudget";
 import { LEGEND_ROW } from "./renderer";
 import { detectLang, saveLang } from "./lang";
+import { rememberWorld } from "./recentWorlds";
 import { properName, polityLabeller } from "./properName";
 import { featureLabel, worldNameIn } from "../engine/featureLabel";
 
@@ -855,6 +856,12 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     // the same screen, at the zoom and the year the reader was at
     if (openCityId !== null) openCity(openCityId, "replace", cityZoom?.viewBox());
     else showWorld(worldZoom?.viewBox());
+    // ...and kept for them in this browser, as the link that opens it with its names (recentWorlds.ts) — or
+    // let go, when the last of them was given back
+    rememberWorld({
+      key: worldHash(), url: `map.html#${worldHash()}${namesPart()}`,
+      name: worldNameIn(generated.world, lang), count: Object.keys(names).length, at: Date.now(),
+    });
   }
 
   // While renaming, a click on a name opens its box instead of the place it names (the maps' own click

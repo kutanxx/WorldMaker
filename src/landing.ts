@@ -10,6 +10,7 @@ import { renderWorld } from "./ui/svgWorldRenderer";
 import { deconflictLabels } from "./ui/deconflict";
 import { applyLabelScale, applyMarkerScale } from "./ui/labelScale";
 import { floorScaleCaption } from "./ui/scaleBar";
+import { readRecent, forgetWorld, clearRecent, whenSaid, RECENT_SHOW } from "./ui/recentWorlds";
 import { worldNameIn } from "./engine/featureLabel";
 import type { WorldParams } from "./types/world";
 
@@ -77,6 +78,7 @@ export function renderChooser(root: HTMLElement, storage?: StorageLike | null, n
       <input class="name-seed" maxlength="40" placeholder="${esc(s("landingNamePlaceholder"))}" />
       <button class="name-map">🗺 ${esc(s("landingCreate"))}</button>
     </div>
+    <section class="landing-recent"></section>
     <div class="landing-daily">
       <button class="name-daily">🗓 ${esc(s("landingDaily"))} — ${dailyName(new Date()).slice(6)}</button>
       <p class="landing-daily-sub">${esc(s("landingDailySub"))}</p>
@@ -90,6 +92,7 @@ export function renderChooser(root: HTMLElement, storage?: StorageLike | null, n
   (root.querySelector(".name-map") as HTMLButtonElement).addEventListener("click", go);
   (root.querySelector(".name-daily") as HTMLButtonElement).addEventListener("click", () => location.assign(dailyTarget(new Date())));
   input.addEventListener("keydown", (e) => { if (e.key === "Enter") go(); });
+  fillRecent(root.querySelector(".landing-recent") as HTMLElement, lang, store);
   (root.querySelector(".landing-lang") as HTMLButtonElement).addEventListener("click", () => {
     const next: Lang = lang === "ko" ? "en" : "ko";
     if (store === undefined) saveLang(next); else saveLang(next, store);
@@ -101,6 +104,51 @@ export function renderChooser(root: HTMLElement, storage?: StorageLike | null, n
     // into the new language.
     if (hadPreview) fillPreview(root, new Date(), next);
   });
+}
+
+/**
+ * The worlds the reader named (recentWorlds.ts), under the ways in: nothing on a first visit, the newest
+ * five after, each line the link that opens its world with its names, each one removable, and a word that
+ * they live in this browser only. A name is the reader's own text — set as words, never as markup.
+ */
+function fillRecent(slot: HTMLElement | null, lang: Lang, storage: StorageLike | null | undefined): void {
+  if (!slot) return;
+  const store = storage === undefined ? undefined : storage;
+  const worlds = readRecent(store).slice(0, RECENT_SHOW);
+  slot.replaceChildren();
+  if (!worlds.length) return;
+  const el = <K extends keyof HTMLElementTagNameMap>(tag: K, cls?: string, text?: string) => {
+    const e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text !== undefined) e.textContent = text;
+    return e;
+  };
+  const again = () => fillRecent(slot, lang, storage);
+  const head = el("div", "recent-head");
+  const clear = el("button", "recent-clear", t(lang, "recentClear"));
+  clear.type = "button";
+  clear.addEventListener("click", () => {
+    if (!window.confirm(t(lang, "recentClearAsk"))) return;
+    clearRecent(store);
+    again();
+  });
+  head.append(el("h2", undefined, t(lang, "recentTitle")), clear);
+  const list = el("ul");
+  const now = Date.now();
+  for (const w of worlds) {
+    const li = el("li");
+    const a = el("a", undefined, w.name);
+    a.href = w.url;
+    const meta = el("span", "recent-meta", `${t(lang, "recentNames").replace("{n}", String(w.count))} · ${whenSaid(w.at, now, lang)}`);
+    const drop = el("button", "recent-forget", "✕");
+    drop.type = "button";
+    drop.title = t(lang, "recentForget");
+    drop.setAttribute("aria-label", `${t(lang, "recentForget")} — ${w.name}`);
+    drop.addEventListener("click", () => { forgetWorld(w.key, store); again(); });
+    li.append(a, meta, drop);
+    list.appendChild(li);
+  }
+  slot.append(head, list, el("p", "recent-note", t(lang, "recentNote")));
 }
 
 /**

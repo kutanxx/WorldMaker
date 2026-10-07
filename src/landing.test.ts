@@ -407,3 +407,57 @@ describe("the front page's picture is the map as it opens", () => {
     }
   });
 });
+
+// The worlds a reader named (recentWorlds.ts), under the ways in: nothing on a first visit, the newest five
+// after, each line the link that opens its world with its names, and each one removable.
+describe("the worlds a reader named, on the front page", () => {
+  const storeWith = (worlds: object[]) => {
+    const m = new Map<string, string>([["wm:recent:v1", JSON.stringify(worlds)]]);
+    return { getItem: (k: string) => m.get(k) ?? null, setItem: (k: string, v: string) => { m.set(k, v); }, m };
+  };
+  const line = (i: number, name = `세계 ${i}`) => ({ key: `seed=${i}`, url: `map.html#seed=${i}&names=x${i}`, name, count: i + 1, at: 1_700_000_000_000 + i * 60_000 });
+
+  it("shows nothing on a first visit", () => {
+    const root = document.createElement("div");
+    renderChooser(root, storeWith([]), "ko");
+    expect(root.querySelector(".landing-recent li")).toBeNull();
+    expect((root.querySelector(".landing-recent")?.textContent ?? "").trim()).toBe("");
+  });
+
+  it("lists the newest five, each opening its world — its name set as words, never as markup", () => {
+    const sneaky = '<img src=x onerror="window.__owned=1">';
+    const s = storeWith([0, 1, 2, 3, 4, 5].map((i) => line(i, i === 5 ? sneaky : undefined)));
+    const root = document.createElement("div");
+    renderChooser(root, s, "ko");
+    const rows = [...root.querySelectorAll(".landing-recent li")];
+    expect(rows.length).toBe(5);
+    const first = rows[0].querySelector("a")!;
+    expect(first.getAttribute("href")).toBe("map.html#seed=5&names=x5");
+    expect(first.textContent).toBe(sneaky);
+    expect(root.querySelector(".landing-recent img"), "a name was read as markup").toBeNull();
+    expect(rows[0].textContent).toMatch(/6개/);
+    expect(rows.some((r) => r.textContent?.includes("세계 0")), "the oldest of six is still shown").toBe(false);
+  });
+
+  it("forgets a line, and the whole list on the reader's yes", () => {
+    const s = storeWith([0, 1, 2].map((i) => line(i)));
+    const root = document.createElement("div");
+    renderChooser(root, s, "ko");
+    (root.querySelector(".landing-recent li button") as HTMLButtonElement).click();
+    expect(root.querySelectorAll(".landing-recent li").length).toBe(2);
+    expect(JSON.parse(s.m.get("wm:recent:v1")!).length).toBe(2);
+    const clear = root.querySelector(".landing-recent .recent-clear") as HTMLButtonElement;
+    const ask = window.confirm;
+    try {
+      window.confirm = () => false;
+      clear.click();
+      expect(root.querySelectorAll(".landing-recent li").length, "cleared though the reader said no").toBe(2);
+      window.confirm = () => true;
+      clear.click();
+      expect(root.querySelectorAll(".landing-recent li").length).toBe(0);
+      expect(JSON.parse(s.m.get("wm:recent:v1")!)).toEqual([]);
+    } finally {
+      window.confirm = ask;
+    }
+  });
+});
