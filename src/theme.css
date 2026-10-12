@@ -632,7 +632,7 @@ svg.lang-ko .region-land { font-weight: 700; }
    building, the rest on streets and walls, none of which has a name. They are ink, not places, so
    the pointer goes through them to the district. What has a name of its own keeps it (the castle,
    a church, the well). Dragging is untouched: the press still lands inside the drawing. */
-svg.city .building, svg.city .road-main, svg.city .road-main-casing, svg.city .road-minor,
+svg.city .building, svg.city .building-shadow, svg.city .tree-shadow, svg.city .waterline, svg.city .road-main, svg.city .road-main-casing, svg.city .road-minor,
 svg.city .road-minor-casing, svg.city .tree, svg.city .stilt, svg.city .ward-label,
 svg.city .wall-seg, svg.city .wall-seg-inner, svg.city .tower, svg.city .gate { pointer-events: none; }
 

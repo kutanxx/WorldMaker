@@ -47,8 +47,12 @@ describe("the colour map, untouched by the ink style", () => {
     // (.claude/probes/restyle.ts): with those layers taken out, the biome fills blanked and the face's name put
     // back, the old and new maps hash the same in all four views, colour and ink — and with their keys left in,
     // the same but for the terrain key, which now draws each ground's marks on its swatch and has a row for hills.
-    expect(keyless, "the map moved, not only its key").toEqual([2534590636, 4051381434, 2451977897, 1352958026]);
-    expect(hashes).toEqual([2174265014, 454917732, 347861692, 1096912656]);
+    // (Then the frame took a paper mat over everything outside its inner rule — a port plate's sea showed round
+    // it — and every view moved again, colour and ink; with the frame taken out, as restyle.ts does, nothing
+    // else did. Were full [2174265014, 454917732, 347861692, 1096912656], keyless [2534590636, 4051381434,
+    // 2451977897, 1352958026], ink [1227265283, 663341094, 1528629615, 4017222218].)
+    expect(keyless, "the map moved, not only its key").toEqual([3579962823, 1867888997, 3390429026, 3960239445]);
+    expect(hashes).toEqual([3173089081, 4265279183, 2636380727, 2647918915]);
   });
 });
 
@@ -124,7 +128,7 @@ describe("the ink map", () => {
     // (2026-10-12: re-pinned with the colour map's restyle — the ink map took its rivers, frame, rose and title
     // ornaments; its marks came out byte for byte as they were (.claude/probes/inkmarks.ts). Was [737587710,
     // 3864053538, 182143499, 3970976761].)
-    expect(hashes).toEqual([1227265283, 663341094, 1528629615, 4017222218]);
+    expect(hashes).toEqual([2366848923, 370124978, 1707344935, 1616361766]);
   });
 
   // The colour key lists colours, which an ink map does not have: the ink key lists its marks, drawn as

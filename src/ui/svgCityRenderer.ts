@@ -1,4 +1,5 @@
 import { svgEl, legendPanel, legendRow, compassRose, mapFrame, INK, PARCHMENT } from "./renderer";
+import { paintedPeak } from "./inkStyle";
 import { scaleBar, METRES_PER_UNIT } from "./scaleBar";
 import type { CityLayout } from "../engine/city";
 import type { WardType } from "../engine/city/zoning";
@@ -40,6 +41,9 @@ function spacedTowers(ring: Point[], minGap: number, target = 8): Point[] {
 // The castle is built of the town's own masonry, only more of it: the same warm stone as the town
 // wall and its drum towers, so the two read as one world, and heavier, so the lord's enceinte is
 // plainly the strongest thing on the plate rather than the faintest line on it.
+// the plate's paper, and its water
+const PLATE_PAPER = "#f3efe4";
+const DEEP_WATER = "#9fc1d6", SHALLOW_WATER = "#bfd8e4";
 const CASTLE_STONE = "#43392d";
 const CASTLE_TOWER = "#8a7858";
 // A drawn thing that can say what it is. SVG <title> is the map's own tooltip — it needs no CSS,
@@ -76,7 +80,26 @@ function treeGlyph(p: Point, kind: "round" | "conifer" | "palm", cls: string, r:
     }
     return g;
   }
-  return svgEl("circle", { class: cls, cx: x, cy: y, r, fill: cls === "orchard-tree" ? "#8fae6e" : "#7d9b62", stroke: cls === "orchard-tree" ? "#5d7a45" : "#55703f", "stroke-width": 0.3 });
+  // two greens, by where the tree stands: no wood is one green
+  const leaf = cls === "orchard-tree" ? "#8fae6e" : (Math.round(x * 3 + y * 7) % 2 ? "#7d9b62" : "#6f8f57");
+  return svgEl("circle", { class: cls, cx: x, cy: y, r, fill: leaf, stroke: cls === "orchard-tree" ? "#5d7a45" : "#55703f", "stroke-width": 0.3 });
+}
+
+// A tree's shadow, thrown to the south-east as the houses' are; `data-of` names the tree it belongs to.
+function treeShadow(p: Point, kind: "round" | "conifer" | "palm", r: number): SVGElement {
+  const [x, y] = p, of = `${x},${y}`;
+  const look = { fill: SHADOW.fill, "fill-opacity": 0.26, "data-of": of };
+  if (kind === "conifer") {
+    const h = r * 2.6, w = r * 0.95, dx = r * 0.55, dy = r * 0.35;
+    return svgEl("polygon", { class: "tree-shadow", points: `${x + dx},${y - h * 0.62 + dy} ${x + w + dx},${y + h * 0.38 + dy} ${x - w + dx},${y + h * 0.38 + dy}`, ...look });
+  }
+  if (kind === "palm") return svgEl("ellipse", { class: "tree-shadow", cx: x + r * 0.6, cy: y + r * 1.15, rx: r * 0.9, ry: r * 0.35, ...look });
+  return svgEl("circle", { class: "tree-shadow", cx: x + r * 0.45, cy: y + r * 0.45, r, ...look });
+}
+
+// A tree with its shadow under it.
+function shadedTree(p: Point, kind: "round" | "conifer" | "palm", cls: string, r: number): SVGElement[] {
+  return [treeShadow(p, kind, r), treeGlyph(p, kind, cls, r)];
 }
 
 function named<T extends SVGElement>(el: T, text: string): T {
@@ -107,6 +130,22 @@ const TINT: Partial<Record<WardType, string>> = {
   military: "#cfa898",   // garrison — muted red-brown
   park: "#b8d29a",       // green space
 };
+
+// Two colours mixed, `k` of the way from a to b.
+function mix(a: string, b: string, k: number): string {
+  const c = (h: string, i: number) => parseInt(h.slice(i, i + 2), 16);
+  return "#" + [1, 3, 5].map((i) => Math.round(c(a, i) + (c(b, i) - c(a, i)) * k).toString(16).padStart(2, "0")).join("");
+}
+// A quarter's roofs: its wash taken deeper toward a roof's brown, each house a shade of its own (by where
+// it stands, so the same plate is the same plate) — no row of houses is one colour.
+const ROOF_BROWN = "#7a5236";
+const roofOf = (tint: string, at: number) => mix(tint, ROOF_BROWN, 0.26 + 0.1 * at);
+const ROOF_EDGE = "#5a4532";
+// how much of its wash a quarter's ground keeps under its houses, and where the light comes from: the
+// north-west, as on the world map's peaks, so every house throws its shadow to the south-east
+const WASH = 0.5;
+const SHADOW = { dx: 0.9, dy: 0.9, fill: "#3c2f1c", opacity: 0.28 };
+const shadeAt = (poly: Polygon) => { const [x, y] = avg(poly); const v = Math.sin(x * 12.9898 + y * 78.233) * 43758.5453; return v - Math.floor(v); };
 
 /**
  * A guess at a name's drawn width, for a plate that cannot be measured (jsdom, a file never shown):
@@ -209,7 +248,9 @@ export function renderCity(layout: CityLayout, lang: Lang = "en", opts: CityRend
   const rootDesc = svgEl("desc");
   rootDesc.textContent = `${layout.archetype.id} · ${layout.wards.length} ${t(lang, "legendDistricts")}`;
   root.appendChild(rootDesc);
-  root.appendChild(svgEl("rect", { x: 0, y: 0, width: w + LEGW, height: h, fill: "#f3efe4" }));
+  root.appendChild(svgEl("rect", { x: 0, y: 0, width: w + LEGW, height: h, fill: PLATE_PAPER }));
+  // the country round the town, in the town's own ground (a forest's greener, a desert's sand), out to the frame
+  root.appendChild(svgEl("rect", { class: "country", x: 0, y: 0, width: w, height: h, fill: layout.features.groundColor }));
 
   const clipId = "cityclip";
   const defs = svgEl("defs", {});
@@ -218,10 +259,30 @@ export function renderCity(layout: CityLayout, lang: Lang = "en", opts: CityRend
   defs.appendChild(clip);
   root.appendChild(defs);
 
+  // The banks of every body of water as a drawn plan rings them (the world map's coasts too): the shallows
+  // along the shore, a line on the water inside them and a fainter one at their edge — each a band of its
+  // colour with what lies inside drawn back over its middle, the outermost first, clipped to the water so
+  // only the water's side shows. All within 8 of the bank, so where a sea meets the plate's edge they lie
+  // under the frame's paper and draw no line along it.
+  const waterLines = (into: Element, tag: string) => layout.water.bodies.forEach((body, i) => {
+    const id = `water-${tag}-${i}`;
+    const cp = svgEl("clipPath", { id });
+    cp.appendChild(svgEl("polygon", { points: pts(body) }));
+    defs.appendChild(cp);
+    const g = svgEl("g", { class: "waterlines", "data-clip": id });
+    const ring = (cls: string, stroke: string, width: number) => g.appendChild(svgEl("polygon", { class: cls, points: pts(body), fill: "none", stroke, "stroke-width": width, "stroke-linejoin": "round", "clip-path": `url(#${id})` }));
+    ring("waterline", "#86a9bf", 2 * 6.6 + 0.5); ring("water-back", DEEP_WATER, 2 * 6.6 - 0.5);
+    ring("water-shallows", SHALLOW_WATER, 2 * 5);
+    ring("waterline", "#7398b0", 2 * 3 + 0.6); ring("water-back", SHALLOW_WATER, 2 * 3 - 0.6);
+    ring("water-bank", "#5f8aa3", 1.2);
+    into.appendChild(g);
+  });
+
   // Every body's shallows, then every body's deep water: drawn body by body, a river running out into
   // the sea laid its pale shallows over the sea's deep water, a seam across the sea to the plate's edge.
   for (const body of layout.water.bodies) root.appendChild(svgEl("polygon", { class: "water-shallow", points: pts(body), fill: "#bfd8e4" }));
-  for (const body of layout.water.bodies) root.appendChild(svgEl("polygon", { class: "water", points: pts(body), fill: "#9fc1d6", transform: "scale(0.985)", "transform-origin": `${w / 2} ${h / 2}` }));
+  for (const body of layout.water.bodies) root.appendChild(svgEl("polygon", { class: "water", points: pts(body), fill: DEEP_WATER }));
+  waterLines(root, "out");
 
   // harbor: breakwater/mole + lighthouse + piers + moored boats (on the sea)
   if (layout.harbor) {
@@ -302,6 +363,25 @@ export function renderCity(layout: CityLayout, lang: Lang = "en", opts: CityRend
           if (pointInPolygon([px, py], m.polygon)) tick(px, py, len * 0.7);
         }
       }
+      // ...and over them, the world map's own painted peaks (inkStyle.ts), on a loose staggered lattice shaken
+      // well off its points, some left out, each a size of its own by where it stands — a lattice kept regular
+      // read as stamped rows — drawn back (north) to front
+      const PEAK_STEP = 22, peaks: [number, number, number][] = [];
+      row = 0;
+      for (let py = y0 + PEAK_STEP * 0.8; py < y1; py += PEAK_STEP * 0.8, row++) {
+        for (let px = x0 + (row % 2 ? PEAK_STEP / 2 : 0); px < x1; px += PEAK_STEP) {
+          const hash = (k: number) => { const j = Math.sin(px * 12.9898 + py * 78.233 + k * 37.719) * 43758.5453; return j - Math.floor(j); };
+          if (hash(3) < 0.25) continue;
+          const r = hash(0);
+          // (to the tenth it is written at, and tested there)
+          const at: [number, number] = [Number((px + (hash(1) - 0.5) * PEAK_STEP * 0.8).toFixed(1)), Number((py + (hash(2) - 0.5) * PEAK_STEP * 0.5).toFixed(1))];
+          // the whole peak on the rock — its feet and its summit — so none stands over what lies beside the mass
+          const pw = 10 + r * 10, on = (q: [number, number]) => pointInPolygon(q, m.polygon);
+          if (on(at) && on([at[0] - pw / 2, at[1]]) && on([at[0] + pw / 2, at[1]]) && on([at[0], at[1] - pw * 0.78])) peaks.push([at[0], at[1], pw]);
+        }
+      }
+      peaks.sort((a, b) => a[1] - b[1]);
+      for (const [px, py, pw] of peaks) mg.appendChild(paintedPeak(px, py, pw));
     }
     root.appendChild(mg);
   }
@@ -342,9 +422,14 @@ export function renderCity(layout: CityLayout, lang: Lang = "en", opts: CityRend
       env.appendChild(treeGlyph(t2, cs.vocabulary.tree === "palm" ? "palm" : "round", "orchard-tree", 1.4));
     }
   }
+  // each tree of a wood stands in a copse: two smaller trees about it, a little either side and behind
   for (const t2 of cs.woods) {
-    env.appendChild(treeGlyph(t2, cs.vocabulary.tree, "wood-tree",
-      1.6 + ((t2[0] * 7 + t2[1] * 13) % 10) / 12));
+    const r = 1.6 + ((t2[0] * 7 + t2[1] * 13) % 10) / 12, k = r * 0.75;
+    const copse: [Point, number, string][] = [
+      [[t2[0] - 1.5, t2[1] - 0.9], k, "wood-copse"], [[t2[0] + 1.4, t2[1] - 0.6], k * 0.9, "wood-copse"], [t2, r, "wood-tree"],
+    ];
+    for (const [q, rr] of copse) env.appendChild(treeShadow(q, cs.vocabulary.tree, rr));
+    for (const [q, rr, cls] of copse) env.appendChild(treeGlyph(q, cs.vocabulary.tree, cls, rr));
   }
   // (numbered, so the name of where one goes can find its road: see the road-end labels below)
   layout.suburbRoads.forEach((r, i) => {
@@ -479,7 +564,7 @@ export function renderCity(layout: CityLayout, lang: Lang = "en", opts: CityRend
     // is still something there to ask
     clipped.appendChild(named(svgEl("polygon", {
       class: "ward", points: pts(ward.polygon),
-      ...(tint ? { fill: tint, "fill-opacity": 0.7 } : { fill: "none", "pointer-events": "all" }),
+      ...(tint ? { fill: tint, "fill-opacity": WASH } : { fill: "none", "pointer-events": "all" }),
     }), WARD_NAME[lang][ward.type] ?? ward.type));
   }
 
@@ -495,13 +580,18 @@ export function renderCity(layout: CityLayout, lang: Lang = "en", opts: CityRend
   // the wall, picked up again on the far side, and the stilt houses stood on dry land.
   // (all the shallows first, as under the town)
   for (const body of layout.water.bodies) clipped.appendChild(svgEl("polygon", { class: "water-shallow", points: pts(body), fill: "#bfd8e4" }));
-  for (const body of layout.water.bodies) clipped.appendChild(svgEl("polygon", { class: "water", points: pts(body), fill: "#9fc1d6", transform: "scale(0.985)", "transform-origin": `${w / 2} ${h / 2}` }));
+  for (const body of layout.water.bodies) clipped.appendChild(svgEl("polygon", { class: "water", points: pts(body), fill: DEEP_WATER }));
+  waterLines(clipped, "in");
 
+  // every house's shadow, one path under them all
+  let shadowD = "";
+  for (const ward of layout.wards) for (const b of ward.buildings) shadowD += "M" + b.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join("L") + "Z";
+  if (shadowD) clipped.appendChild(svgEl("path", { class: "building-shadow", d: shadowD, fill: SHADOW.fill, "fill-opacity": SHADOW.opacity, transform: `translate(${SHADOW.dx} ${SHADOW.dy})` }));
   for (const ward of layout.wards) {
-    // colour the buildings by their district so the whole zone reads as its hue (otherwise
-    // cream buildings cover the ground tint and the districts blur together)
-    const fill = TINT[ward.type] ?? "#e6dcc8";
-    for (const b of ward.buildings) clipped.appendChild(svgEl("polygon", { class: "building", points: pts(b), fill, stroke: "#8a7a60", "stroke-width": 0.4 }));
+    // roofed in their district's hue, deeper than its wash, so the whole zone reads as its colour and
+    // each house stands on its street
+    const tint = TINT[ward.type] ?? "#e6dcc8";
+    for (const b of ward.buildings) clipped.appendChild(svgEl("polygon", { class: "building", points: pts(b), fill: roofOf(tint, shadeAt(b) - 0.5), stroke: ROOF_EDGE, "stroke-width": 0.4, "stroke-linejoin": "round" }));
   }
   // The buildings a town has one of stand out of their ward's tint in its deeper tone, with the
   // ridge of the roof drawn along them: a cross-shaped church reads as a church before any label.
@@ -513,7 +603,7 @@ export function renderCity(layout: CityLayout, lang: Lang = "en", opts: CityRend
     clipped.appendChild(g);
   }
   // a park is its trees, in the country's own kind
-  for (const t2 of layout.parkTrees) clipped.appendChild(treeGlyph(t2, layout.countryside.vocabulary.tree, "park-tree", 2.1));
+  for (const t2 of layout.parkTrees) clipped.append(...shadedTree(t2, layout.countryside.vocabulary.tree, "park-tree", 2.1));
 
   // roads drawn ON TOP of buildings so the street network always reads (never buried under a block)
   const road = (cls: string, r: Polyline, stroke: string, wd: number) =>
@@ -623,7 +713,7 @@ export function renderCity(layout: CityLayout, lang: Lang = "en", opts: CityRend
   if (layout.features.trees.length) {
     const treesG = svgEl("g", { class: "trees", "clip-path": `url(#${clipId})` });
     // in the kind the country round it grows — a taiga town's trees are the conifers of its woods
-    for (const t of layout.features.trees) treesG.appendChild(treeGlyph(t, layout.countryside.vocabulary.tree, "tree", 2.2));
+    for (const t of layout.features.trees) treesG.append(...shadedTree(t, layout.countryside.vocabulary.tree, "tree", 2.2));
     root.appendChild(treesG);
   }
 
@@ -793,7 +883,7 @@ export function renderCity(layout: CityLayout, lang: Lang = "en", opts: CityRend
   const order: WardType[] = ["plaza", "market", "guildhall", "cathedral", "castle", "merchant", "patriciate", "craftsmen", "slum", "military", "park"];
   const present = order.filter((wt) => TINT[wt] && layout.wards.some((wd) => wd.type === wt));
   const items: [string, string, WardType?][] = [
-    ...present.map((wt) => [TINT[wt]!, WARD_NAME[lang][wt] ?? "", wt] as [string, string, WardType]),
+    ...present.map((wt) => [roofOf(TINT[wt]!, 0), WARD_NAME[lang][wt] ?? "", wt] as [string, string, WardType]),
     ["#9fc1d6", t(lang, "water")], ["#d8b65e", t(lang, "mainRoad")],
   ];
   // ★ ...and the plate's own marks, drawn as the plate draws them, each where the plate has one: the
@@ -992,7 +1082,7 @@ export function renderCity(layout: CityLayout, lang: Lang = "en", opts: CityRend
     // the plate's legend lives in the right-hand strip, so the bottom-left corner is free here
     root.appendChild(scaleBar(20, h - 18, units, `${Math.round(units * METRES_PER_UNIT)} m`));
   }
-  root.appendChild(mapFrame(w + LEGW, h));
+  root.appendChild(mapFrame(w + LEGW, h, PLATE_PAPER));
 
   return root;
 }

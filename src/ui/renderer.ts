@@ -210,8 +210,11 @@ export function compassRose(cx: number, cy: number, r: number, north: string): S
 
 // The frame as an old map's border: a heavy outer rule, a band of alternating ink and paper (the degree
 // scale of an engraved map's neatline), a fine inner rule — the drawing's edge at 8, as it always was.
-export function mapFrame(w: number, h: number): SVGElement {
+// Under them, the sheet's own paper over everything outside that edge: a port's sea runs to the plate's edge,
+// and it showed round the outer rule and through every gap in the band.
+export function mapFrame(w: number, h: number, paper: string = PARCHMENT): SVGElement {
   const g = svgEl("g", { class: "map-frame" });
+  g.appendChild(svgEl("path", { class: "frame-mat", d: `M0,0H${w}V${h}H0ZM8,8V${h - 8}H${w - 8}V8Z`, fill: paper, "fill-rule": "evenodd" }));
   g.appendChild(svgEl("rect", { x: 4, y: 4, width: w - 8, height: h - 8, fill: "none", stroke: INK, "stroke-width": 1.4 }));
   const IN = 4.7, OUT = 7.3, STEP = 25;
   let d = "";

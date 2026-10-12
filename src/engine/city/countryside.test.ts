@@ -3,7 +3,7 @@ import { mulberry32 } from "../rng";
 import { generateCountryside } from "./countryside";
 import { pointInPolygon, centroid, polysOverlap, pointSegDist } from "../geometry";
 import type { Polygon } from "../geometry";
-import { GRASSLAND, DESERT, TAIGA, TUNDRA, ALPINE, TROPICAL } from "../biome";
+import { GRASSLAND, DESERT, TAIGA, TUNDRA, ALPINE, TROPICAL, TEMPERATE_FOREST } from "../biome";
 import { buildWater } from "./water";
 import type { CountrysideOpts } from "./countryside";
 
@@ -307,6 +307,40 @@ describe("the countryside speaks the biome's vocabulary", () => {
       const a = generateCountryside(mulberry32(4), { ...plainOpts(), biome });
       const b = generateCountryside(mulberry32(4), { ...plainOpts(), biome });
       expect(JSON.stringify(a)).toBe(JSON.stringify(b));
+    }
+  });
+});
+
+// A town in a forest was drawn as a town in an empty field: its woods were a thin fringe along the plate's
+// edge (four to thirty-four units in), and between the farmland and that fringe lay a third of the plate of
+// bare paper. A wooded country is wooded beyond its farmland — the trees fill the open country past the belt
+// of fields round the town — while open country keeps only its fringe.
+describe("a wooded country is wooded beyond its farmland", () => {
+  const small = (biome: number): CountrysideOpts => {
+    const boundary = [] as [number, number][];
+    for (let k = 0; k < 24; k++) { const a = (k / 24) * Math.PI * 2; boundary.push([230 + Math.cos(a) * 45, 230 + Math.sin(a) * 45]); }
+    return { ...plainOpts(), boundary, biome };
+  };
+  const inland = (p: [number, number]) => Math.min(p[0], p[1], 460 - p[0], 460 - p[1]) > 40;
+  for (const biome of [TEMPERATE_FOREST, TAIGA, TROPICAL]) {
+    it(`fills the open country with trees (biome ${biome})`, () => {
+      const cs = generateCountryside(mulberry32(5), small(biome));
+      const deep = cs.woods.filter(inland);
+      expect(deep.length, "the forest stops at the plate's edge").toBeGreaterThan(80);
+      // ...past the farmland: none in the belt of fields round the walls
+      for (const p of deep) expect(Math.hypot(p[0] - 230, p[1] - 230)).toBeGreaterThan(45 + 50);
+    });
+  }
+  it("leaves open country its fringe only", () => {
+    const cs = generateCountryside(mulberry32(5), small(GRASSLAND));
+    expect(cs.woods.filter(inland).length).toBe(0);
+  });
+  it("keeps every tree off the fields, the pastures and the roads", () => {
+    const cs = generateCountryside(mulberry32(5), small(TEMPERATE_FOREST));
+    const patches = [...cs.fields.map((f) => f.polygon), ...cs.pastures.map((p) => p.fence), ...cs.orchards.map((o) => o.polygon)];
+    for (const p of cs.woods) {
+      for (const poly of patches) expect(pointInPolygon(p, poly)).toBe(false);
+      for (const r of small(TEMPERATE_FOREST).roads) for (let i = 0; i + 1 < r.length; i++) expect(pointSegDist(p, r[i], r[i + 1])).toBeGreaterThanOrEqual(3);
     }
   });
 });

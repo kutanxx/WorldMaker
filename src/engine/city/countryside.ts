@@ -72,6 +72,9 @@ export function countryVocabulary(biome: number): CountryVocabulary {
   };
 }
 
+// a wooded country's forest past its farmland: how many trees at most, and how far past the walls it starts
+const DEEP_WOODS = 320, DEEP_WOODS_CLEARING = 50;
+
 interface Profile { fields: number; pastures: number; orchards: number; woods: number; dry: boolean; animal: "sheep" | "cattle" }
 export function countrysideProfile(biome: number, size: number): Profile {
   const base: Profile = { fields: 3 + size, pastures: 2 + Math.floor(size / 2), orchards: 2, woods: 40, dry: false, animal: "sheep" };
@@ -445,6 +448,24 @@ export function generateCountryside(rng: Rng, opts: CountrysideOpts): Countrysid
     if (woods.some((w2) => Math.hypot(w2[0] - p[0], w2[1] - p[1]) < 5)) continue;
     if (onClaimed(p) || distToRoads(p) < 3) continue;
     woods.push(p);
+  }
+
+  // ...and in a wooded country, the forest itself: the open country past the belt of farmland round the
+  // walls is woodland, not bare ground — a forest town drawn with a fringe of trees at the plate's edge and
+  // a third of the plate empty read as a town in a field. Drawn last, after everything it must keep off, and
+  // from the end of the stream, so nothing else on the plate moves. (Open country keeps only its fringe.)
+  if (opts.biome === TAIGA || opts.biome === TEMPERATE_FOREST || opts.biome === TROPICAL) {
+    const clearing = wallR + moatOff + DEEP_WOODS_CLEARING;
+    for (let tries = 0, deep = 0; tries < DEEP_WOODS * 8 && deep < DEEP_WOODS; tries++) {
+      const p: Point = [8 + rng() * (bounds.w - 16), 8 + rng() * (bounds.h - 16)];
+      if (Math.hypot(p[0] - bc[0], p[1] - bc[1]) < clearing) continue;
+      if (blocked(p)) continue;
+      if (obstacles.some((o) => Math.hypot(o[0] - p[0], o[1] - p[1]) < 7)) continue;
+      if (woods.some((w2) => Math.hypot(w2[0] - p[0], w2[1] - p[1]) < 5.5)) continue;
+      if (onClaimed(p) || distToRoads(p) < 3) continue;
+      woods.push(p);
+      deep++;
+    }
   }
 
   return { gardens, fields, pastures, farmsteads, orchards, villages, woods, dry: prof.dry, vocabulary: vocab };

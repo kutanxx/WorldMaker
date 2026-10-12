@@ -28,7 +28,8 @@ describe("renderCity organic", () => {
   it("clips content to the boundary and draws wall segments + roads + buildings", () => {
     const layout = generateCityLayout(cityContext(marker), 7);
     const svg = renderCity(layout);
-    expect(svg.querySelectorAll("clipPath").length).toBe(1);
+    // the town's clip (each body of water has its own too, for the lines along its banks)
+    expect(svg.querySelector("clipPath#cityclip")).not.toBeNull();
     expect(svg.querySelectorAll(".boundary").length).toBe(1);
     expect(svg.querySelectorAll(".wall-seg").length).toBe(layout.wall ? layout.wall.segments.length : 0);
     expect(svg.querySelectorAll(".road-main").length).toBe(layout.mainRoads.length);
@@ -272,6 +273,23 @@ describe("renderCity wears the same atlas chrome as the world", () => {
     expect(svg.querySelectorAll(".map-frame").length).toBe(1);
     expect(svg.querySelectorAll(".compass").length).toBe(1);
     expect(svg.querySelector(".compass-n")?.textContent).toBe("N");
+  });
+
+  // The sea of a port runs to the plate's edge, and it showed past the frame — round its outer rule and
+  // through every gap of the engraved band. The frame lays paper over everything outside its inner rule.
+  it("shows nothing of the drawing outside the frame's inner rule", () => {
+    const mat = svg.querySelector(".map-frame .frame-mat");
+    expect(mat, "no paper round the drawing").not.toBeNull();
+    expect(mat!.getAttribute("fill-rule")).toBe("evenodd");
+    const [W, H] = (svg.getAttribute("viewBox") ?? "").split(" ").slice(2).map(Number);
+    const nums = (mat!.getAttribute("d") ?? "").match(/-?[0-9.]+/g)!.map(Number);
+    expect(Math.min(...nums)).toBeLessThanOrEqual(0);                 // from the sheet's edge
+    expect(Math.max(...nums)).toBeGreaterThanOrEqual(Math.max(W, H));
+    expect(nums).toContain(8);                                        // to the inner rule
+    const fill = mat!.getAttribute("fill");
+    expect(fill, "the mat is not the plate's own paper").toBe(svg.querySelector(":scope > rect")!.getAttribute("fill"));
+    const kids = [...svg.querySelector(".map-frame")!.children];
+    expect(kids.indexOf(mat!), "the mat must lie under the band and the rules").toBe(0);
   });
 
   it("draws the frame and compass last, so nothing is drawn over them", () => {
@@ -1067,5 +1085,123 @@ describe("the plate's title says which town it names", () => {
   it("carries the town's key when given its id, and nothing when not", () => {
     expect(renderCity(layout, "ko", { townId: 3 }).querySelector(".city-name-text")?.getAttribute("data-name")).toBe("t3");
     expect(renderCity(layout, "ko").querySelector(".city-name-text")?.hasAttribute("data-name")).toBe(false);
+  });
+});
+
+// A town plan read as a coloured district map: every house the colour of its quarter's ground, outlined in
+// a hair of brown. A drawn plan sets ROOFS on the ground — a deeper tone than the quarter's wash, each a
+// shade of its own, with a shadow to the south-east (the light from the north-west, as on the world map's
+// peaks) — so the houses stand on the street instead of being lines on it.
+describe("renderCity draws its houses as roofs standing on the ground", () => {
+  const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });
+  const layout = generateCityLayout(cityContext(world.cities[5]), 1);
+  const svg = renderCity(layout, "en");
+  const lum = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)).reduce((a, b) => a + b) / 3;
+  it("roofs each house darker than its quarter's wash", () => {
+    const wards = [...svg.querySelectorAll<SVGElement>(".ward[fill]")].filter((w) => w.getAttribute("fill") !== "none");
+    expect(wards.length).toBeGreaterThan(3);
+    const washes = new Set(wards.map((w) => w.getAttribute("fill")));
+    const roofs = [...svg.querySelectorAll(".building")].map((b) => b.getAttribute("fill")!);
+    for (const r of roofs) expect(washes.has(r), `a roof the colour of its ground: ${r}`).toBe(false);
+    expect(Math.max(...roofs.map(lum))).toBeLessThan(Math.max(...[...washes].map((w) => lum(w!))));
+  });
+  it("gives the houses of one quarter more than one shade", () => {
+    const ward = layout.wards.find((w) => w.buildings.length > 10)!;
+    const shades = new Set([...svg.querySelectorAll(".building")].slice(0, 200).map((b) => b.getAttribute("fill")));
+    expect(ward).toBeTruthy();
+    expect(shades.size).toBeGreaterThan(layout.wards.filter((w) => w.buildings.length).length);
+  });
+  it("casts every house's shadow to the south-east, under the houses", () => {
+    const shadow = svg.querySelector(".building-shadow");
+    expect(shadow, "no shadows").not.toBeNull();
+    const all = [...svg.querySelectorAll("*")];
+    expect(all.indexOf(shadow!)).toBeLessThan(all.indexOf(svg.querySelector(".building")!));
+    const t = /translate\(([-0-9.]+)[ ,]+([-0-9.]+)\)/.exec(shadow!.getAttribute("transform") ?? "");
+    expect(t, "the shadow is not offset").not.toBeNull();
+    expect(Number(t![1])).toBeGreaterThan(0);
+    expect(Number(t![2])).toBeGreaterThan(0);
+  });
+});
+
+// A wood round a town was a scatter of single flat dots: a reader saw specks, not trees. Each wood is now a
+// copse — the tree the engine placed with two smaller ones about it — and every tree throws its shadow to the
+// south-east, under it, as the houses do.
+describe("the plate's woods are copses that stand on the ground", () => {
+  const m: CityMarker = { ...marker, biome: GRASSLAND, size: 5, coastal: false, river: false };
+  const layout = generateCityLayout(cityContext(m), 7);
+  const svg = renderCity(layout);
+  it("draws two more trees about every tree of a wood", () => {
+    expect(svg.querySelectorAll(".wood-tree").length).toBe(layout.countryside.woods.length);
+    expect(svg.querySelectorAll(".wood-copse").length).toBe(2 * layout.countryside.woods.length);
+  });
+  it("shadows every tree, south-east of it and under it", () => {
+    const trees = [...svg.querySelectorAll("circle.wood-tree, circle.wood-copse")];
+    const shadows = [...svg.querySelectorAll(".tree-shadow")];
+    expect(shadows.length).toBeGreaterThanOrEqual(trees.length);
+    const all = [...svg.querySelectorAll("*")];
+    const crown = trees[0], shadow = svg.querySelector(`.tree-shadow[data-of="${crown.getAttribute("cx")},${crown.getAttribute("cy")}"]`);
+    expect(shadow, "a tree with no shadow").not.toBeNull();
+    expect(Number(shadow!.getAttribute("cx"))).toBeGreaterThan(Number(crown.getAttribute("cx")));
+    expect(Number(shadow!.getAttribute("cy"))).toBeGreaterThan(Number(crown.getAttribute("cy")));
+    expect(all.indexOf(shadow!)).toBeLessThan(all.indexOf(crown));
+  });
+});
+
+// The plate's water was two flat blues. A drawn plan rings its banks with lines on the water, each further
+// out fainter, as the world map's coasts are — drawn inside each body of water only (clipped to it).
+describe("the plate's water has lines along its banks", () => {
+  const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });
+  const layout = generateCityLayout(cityContext(world.cities[5]), 1);   // a port
+  const svg = renderCity(layout, "en");
+  it("draws water lines inside every body of water, clipped to it", () => {
+    expect(layout.water.bodies.length).toBeGreaterThan(0);
+    const groups = [...svg.querySelectorAll("g.waterlines")];
+    expect(groups.length).toBeGreaterThanOrEqual(layout.water.bodies.length);
+    for (const g of groups) {
+      const id = g.getAttribute("data-clip");
+      expect(svg.querySelector(`clipPath#${id}`), "water lines not held to their water").not.toBeNull();
+      for (const l of g.children) expect(l.getAttribute("clip-path")).toBe(`url(#${id})`);
+      expect(g.querySelectorAll(".waterline").length).toBeGreaterThanOrEqual(2);
+    }
+  });
+  it("draws them under the houses", () => {
+    const all = [...svg.querySelectorAll("*")];
+    const last = Math.max(...[...svg.querySelectorAll(".waterline")].map((e) => all.indexOf(e)));
+    expect(last).toBeLessThan(all.indexOf(svg.querySelector(".building")!));
+  });
+});
+
+// The country round a town was the bare paper of the sheet, whatever it grew. It is the town's own ground —
+// a forest town's greener, a desert town's sand — so the plate reads as land, out to the frame.
+describe("the plate's country is the colour of its ground", () => {
+  it("lays the town's ground under the country, under everything drawn on it", () => {
+    for (const biome of [GRASSLAND, TAIGA, DESERT]) {
+      const svg = renderCity(generateCityLayout(cityContext({ ...marker, biome, coastal: false }), 7));
+      const country = svg.querySelector(":scope > .country");
+      expect(country, "the country is bare paper").not.toBeNull();
+      expect(country!.getAttribute("fill")).toBe(svg.querySelector(".boundary")!.getAttribute("fill"));
+      const kids = [...svg.children];
+      expect(kids.indexOf(country!)).toBeLessThan(kids.indexOf(svg.querySelector(":scope > .environs")!));
+    }
+  });
+});
+
+// A mountain's mass on a plate was a grey field of hachure ticks; the world map draws the same rock as peaks
+// seen from the side. The plate draws the world's painted peaks over its hachures, so the two maps of one
+// place speak one drawing — each peak standing on the mass.
+describe("the plate's mountains carry the world map's peaks", () => {
+  let mtn: ReturnType<typeof generateCityLayout> | null = null;
+  for (let s = 1; s <= 40 && !mtn; s++) {
+    const l = generateCityLayout(cityContext({ ...marker, coastal: false, elevation: 0.9, biome: 4 }), s);
+    if (l.mountains.length > 0) mtn = l;
+  }
+  it("stands painted peaks on every mass, each foot on the rock", () => {
+    const svg = renderCity(mtn!);
+    const peaks = [...svg.querySelectorAll<SVGElement>(".mountains .paint-peak")];
+    expect(peaks.length, "no peaks on the rock").toBeGreaterThan(mtn!.mountains.length * 3);
+    for (const p of peaks) {
+      const at: [number, number] = [Number(p.getAttribute("data-x")), Number(p.getAttribute("data-y"))];
+      expect(mtn!.mountains.some((m) => pointInPolygon(at, m.polygon)), `a peak off the rock at ${at}`).toBe(true);
+    }
   });
 });

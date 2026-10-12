@@ -2265,6 +2265,13 @@ describe("the roads out of town go where the world's roads go", () => {
 // roads leave by, which had no gate. Its sea now lies opposite that land, round the tip, and its roads
 // leave up the neck by one gate, named for both. Its destinations went from none to [[15, 17], [], []];
 // seed 12 has no such port, and the other 335 plates hashed byte for byte the same.
+//
+// And for the forest past the farmland (countryside.ts, 2026-10-12): a wooded country (taiga, forest, rain
+// forest) now carries up to 320 more trees in its open country, drawn last from the end of the stream. Exactly
+// the 159 plates of those biomes over worlds 1..12 moved (seed 1: 14, seed 12: 16) — and with
+// `countryside.woods` taken out of the hash, all 336 hash byte for byte as before
+// (.claude/probes/platehash2.ts, NOWOODS=1). The
+// roads out did not move. Was seed 1 2771584444, seed 12 1075377656.
 describe("a plate is the same plate, byte for byte", () => {
   const fold = (h: number, c: number) => Math.imul(h ^ c, 16777619) >>> 0;
   const fnv = (s: string) => { let h = 2166136261 >>> 0; for (let i = 0; i < s.length; i++) h = fold(h, s.charCodeAt(i)); return h >>> 0; };
@@ -2277,10 +2284,10 @@ describe("a plate is the same plate, byte for byte", () => {
   const drawing = (l: ReturnType<typeof generateCityLayout>) => JSON.stringify(l, (k, v) => (k === "suburbRoadTo" ? undefined : v));
   const destinations = (l: ReturnType<typeof generateCityLayout>) => JSON.stringify(l.suburbRoadTo ?? null);
   it("draws seed 1's twenty-eight towns exactly as it did", () => {
-    expect(worldHash(1, drawing)).toEqual({ h: 2771584444, n: 28 });
+    expect(worldHash(1, drawing)).toEqual({ h: 3951837943, n: 28 });
   });
   it("draws seed 12's twenty-eight towns exactly as it did", () => {
-    expect(worldHash(12, drawing)).toEqual({ h: 1075377656, n: 28 });
+    expect(worldHash(12, drawing)).toEqual({ h: 1530721427, n: 28 });
   });
   it("sends seed 1's and seed 12's roads out where they went", () => {
     expect([worldHash(1, destinations), worldHash(12, destinations)]).toEqual([{ h: 422798723, n: 28 }, { h: 964394477, n: 28 }]);

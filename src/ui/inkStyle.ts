@@ -194,6 +194,13 @@ export function inkMarks(world: World, page?: Page, pal: MarkPalette = INK_MARKS
   return layer;
 }
 
+/** One painted peak (the colour map's), its foot on (x, y), `w` across — for a town plate's mountains. */
+export function paintedPeak(x: number, y: number, w: number): SVGElement {
+  const el = mark("peak", x, y, w, 1, PAINT_MARKS);
+  el.setAttribute("data-x", x.toFixed(1)); el.setAttribute("data-y", y.toFixed(1));
+  return el;
+}
+
 /**
  * The marks the colour map draws over a kind of ground, drawn onto its swatch in the key (the swatch's top
  * left at (x, y - 9), 12 across) — none for the ground that has none. `hills` for the hills' own row.
