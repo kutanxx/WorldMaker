@@ -49,24 +49,6 @@
 
 데스크톱 브라우저에 맞춰 만들었습니다(휴대폰에서도 열리지만 주 화면은 데스크톱입니다).
 
-### 개발
-
-```bash
-npm install
-npm run dev      # 개발 서버
-npm test         # 테스트 (vitest)
-npm run build    # 타입 검사 + 배포용 빌드
-```
-
-- TypeScript, Vite, d3-delaunay, simplex-noise. 그림은 모두 SVG로 그립니다.
-- `src/engine/` — 세계 생성 엔진(지형·기후·강·문화·역사·도시). DOM에 의존하지 않는 순수 코드입니다.
-- `src/ui/` — 지도·도면 렌더링과 화면.
-- **결정성**: 같은 번호는 어느 브라우저에서나 같은 결과를 내야 하므로, 엔진은 브라우저마다 결과가 다를 수 있는 `Math.sin`·`Math.pow` 같은 함수 대신 정확한 연산으로 만든 `src/engine/dmath.ts`를 씁니다. 세계·역사·도면은 해시 테스트로 고정되어 있습니다.
-
-### 배포
-
-`main`에 푸시하면 GitHub Actions(`.github/workflows/deploy.yml`)가 테스트와 빌드를 거쳐 GitHub Pages에 자동으로 배포합니다.
-
 ---
 
 ## English
@@ -109,21 +91,3 @@ A **fantasy world map generator** for novelists and tabletop game masters. One c
 3. Keep or share the link to a world you like, and export it in the format you need.
 
 Made for desktop browsers (it opens on a phone, but the desktop is the main screen).
-
-### Development
-
-```bash
-npm install
-npm run dev      # dev server
-npm test         # tests (vitest)
-npm run build    # typecheck + production build
-```
-
-- TypeScript, Vite, d3-delaunay and simplex-noise. Everything is drawn as SVG.
-- `src/engine/` — the world generator (terrain, climate, rivers, cultures, history, towns): pure code with no DOM.
-- `src/ui/` — map and plan rendering, and the interface.
-- **Determinism**: a seed must give the same result in every browser, so instead of `Math.sin`, `Math.pow` and other functions whose results can differ between browsers, the engine uses `src/engine/dmath.ts`, built from exact operations. Worlds, histories and plans are pinned by hash tests.
-
-### Deployment
-
-Pushing to `main` runs tests and a build in GitHub Actions (`.github/workflows/deploy.yml`) and deploys to GitHub Pages automatically.
