@@ -67,12 +67,14 @@ describe("renderChooser name input", () => {
 });
 
 describe("renderChooser daily button", () => {
-  it("renders the daily button carrying today's UTC date", () => {
+  it("renders the daily button carrying the reader's own date", () => {
     const root = document.createElement("div");
     renderChooser(root);
     const btn = root.querySelector(".name-daily") as HTMLButtonElement;
     expect(btn).not.toBeNull();
-    expect(btn.textContent).toContain(new Date().toISOString().slice(0, 10));
+    const d = new Date();
+    const p2 = (n: number) => String(n).padStart(2, "0");
+    expect(btn.textContent).toContain(`${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}`);
   });
 });
 
@@ -82,7 +84,9 @@ describe("daily framing copy", () => {
     renderChooser(root);
     const sub = root.querySelector(".landing-daily-sub");
     expect(sub).not.toBeNull();
-    expect(sub!.textContent).toContain("UTC");
+    expect(sub!.textContent).toMatch(/midnight|자정/);
+    // The day turns at the reader's midnight now; a line promising UTC would be telling them wrong.
+    expect(sub!.textContent).not.toContain("UTC");
   });
 });
 
@@ -142,7 +146,7 @@ describe("the landing speaks one language, and the one the reader already chose"
   it("keeps today's world on the page after the language is switched", () => {
     const root = document.createElement("div");
     renderChooser(root, store("en"));
-    fillPreview(root, new Date("2026-09-09T00:00:00Z"), "en");
+    fillPreview(root, new Date(2026, 8, 9, 12), "en");
     expect(root.querySelector(".landing-preview-link")).not.toBeNull();
     (root.querySelector(".landing-lang") as HTMLButtonElement).click();
     expect(root.querySelector(".landing-preview-link"), "the map vanished on toggle").not.toBeNull();
@@ -172,7 +176,7 @@ describe("the landing speaks one language, and the one the reader already chose"
 // codebase has already been bitten by twice.
 describe("the landing shows today's world, and shows the one it links to", () => {
   it("builds the preview from exactly what the daily link resolves to", () => {
-    const day = new Date("2026-09-09T00:00:00Z");
+    const day = new Date(2026, 8, 9, 12);
     const target = dailyTarget(day);                       // "map.html#seed=daily-2026-09-09"
     const hash = target.slice(target.indexOf("#"));
     // what map.html itself would build from that link
@@ -182,9 +186,9 @@ describe("the landing shows today's world, and shows the one it links to", () =>
   });
 
   it("is the same world on the same day and a different one the next", () => {
-    const a = previewParams(new Date("2026-09-09T00:00:00Z"));
-    const b = previewParams(new Date("2026-09-09T23:59:00Z"));
-    const c = previewParams(new Date("2026-09-10T00:00:00Z"));
+    const a = previewParams(new Date(2026, 8, 9, 0, 0));
+    const b = previewParams(new Date(2026, 8, 9, 23, 59));
+    const c = previewParams(new Date(2026, 8, 10, 0, 0));
     expect(a.seed).toBe(b.seed);
     expect(a.seed).not.toBe(c.seed);
   });
@@ -200,11 +204,11 @@ describe("the landing shows today's world, and shows the one it links to", () =>
   it("fills the slot with a map that opens today's world", () => {
     const root = document.createElement("div");
     renderChooser(root);
-    fillPreview(root, new Date("2026-09-09T00:00:00Z"));
+    fillPreview(root, new Date(2026, 8, 9, 12));
     const slot = root.querySelector(".landing-preview") as HTMLElement;
     expect(slot.hasAttribute("hidden")).toBe(false);
     expect(slot.querySelector("svg.world")).not.toBeNull();
-    expect(slot.querySelector("a")!.getAttribute("href")).toBe(dailyTarget(new Date("2026-09-09T00:00:00Z")));
+    expect(slot.querySelector("a")!.getAttribute("href")).toBe(dailyTarget(new Date(2026, 8, 9, 12)));
   });
 
   // The daily world's `world.name` is the generated English composite ("the Hollow Realm") unless a
@@ -214,7 +218,7 @@ describe("the landing shows today's world, and shows the one it links to", () =>
   it("captions the Korean preview in Korean, not the raw generated English name", () => {
     const root = document.createElement("div");
     renderChooser(root);
-    fillPreview(root, new Date("2026-09-09T00:00:00Z"), "ko");
+    fillPreview(root, new Date(2026, 8, 9, 12), "ko");
     const cap = root.querySelector(".landing-preview-cap")!;
     expect(cap.textContent).toMatch(/[가-힣]/);
     expect(cap.textContent).not.toMatch(/[A-Za-z]/);
@@ -301,7 +305,7 @@ describe("the front page's picture is not a field of buttons", () => {
     const root = document.createElement("div");
     document.body.appendChild(root);
     renderChooser(root);
-    fillPreview(root, new Date("2026-09-09T00:00:00Z"), "ko");
+    fillPreview(root, new Date(2026, 8, 9, 12), "ko");
     return root;
   };
 
@@ -330,7 +334,7 @@ describe("the front page's picture of today's world", () => {
   it("is drawn without the key on it, and keeps its compass", () => {
     const root = document.createElement("div");
     renderChooser(root);
-    fillPreview(root, new Date("2026-09-28T00:00:00Z"), "ko");
+    fillPreview(root, new Date(2026, 8, 28, 12), "ko");
     const picture = root.querySelector(".landing-preview-link svg");
     expect(picture, "no picture").not.toBeNull();
     expect(picture!.querySelector(".legend") === null, "the key is on the picture").toBe(true);
@@ -344,7 +348,7 @@ describe("the front page's picture of today's world", () => {
 // showed every town and road the world will EVER have, while the map it opens — year zero — had 14 of its
 // 28 towns and 23 of its 28 roads. A picture of the map is the map as it opens.
 describe("the front page's picture is the map as it opens", () => {
-  const day = new Date("2026-10-07T00:00:00Z");
+  const day = new Date(2026, 9, 7, 12);
   const visible = (el: Element) => (el as SVGElement).style.display !== "none" && (el as SVGElement).style.visibility !== "hidden"
     && !el.closest('[style*="display: none"]');
 

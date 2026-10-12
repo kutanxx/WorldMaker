@@ -1,7 +1,10 @@
-// The daily world — one shared seed per UTC day (the Spelunky Daily pact). Everyone who clicks
-// today gets the same world, so the per-seed legacy annals double as today's hall of fame.
+// The daily world — one shared seed per calendar day. Everyone whose date reads the same gets the
+// same world. The day is the READER's: it was the UTC date once, and in Korea that offered
+// yesterday's world until nine in the morning. The link names its date outright, so a shared daily
+// opens the same world anywhere, whatever the clock where it is opened.
 export function dailyName(d: Date): string {
-  return `daily-${d.toISOString().slice(0, 10)}`;
+  const two = (n: number) => String(n).padStart(2, "0");
+  return `daily-${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())}`;
 }
 
 // map.html, because play.html does not exist: the games were deleted and this repo is the atlas
