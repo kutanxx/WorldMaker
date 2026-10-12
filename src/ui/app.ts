@@ -441,7 +441,11 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     typeof matchMedia === "function" && matchMedia(NARROW).matches;
   // A key standing UNDER its drawing on a narrow window has the width for two columns; one standing
   // in the 210px column beside a wide window's map does not (see legendSheet.ts).
-  const keyColumns = (): number => (isNarrowWindow() ? 2 : 1);
+  // ...and so does the column beside a short, wide window's map, which the card's one-row bar widens
+  // (477px at 1366x650, against the 210 it was built for).
+  const SIDE_WIDE = 360;
+  const sideIsWide = (): boolean => (stage.querySelector<HTMLElement>(".map-side")?.clientWidth ?? 0) >= SIDE_WIDE;
+  const keyColumns = (): number => (isNarrowWindow() || sideIsWide() ? 2 : 1);
 
   /**
    * ★ What the page spends around the drawing, MEASURED and handed to the stylesheet (see
@@ -544,6 +548,10 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
       const v = localStorage.getItem(LEGEND_KEY);
       return v === null ? legendRoom() : v === "on";
     } catch { return legendRoom(); }
+  }
+  /** has the reader folded or opened the key themselves (then theirs is the answer, whatever the room) */
+  function legendPrefSet(): boolean {
+    try { return localStorage.getItem(LEGEND_KEY) !== null; } catch { return false; }
   }
   function writeLegendPref(on: boolean): void {
     try { localStorage.setItem(LEGEND_KEY, on ? "on" : "off"); } catch { /* privacy mode */ }
@@ -1173,6 +1181,14 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     // floor is worked out from the size the drawing ends up
     caption.setYear(history.snapshots[currentYearIndex].year);
     fitWorldChrome();
+    // ★ A short window folds the key (the column is short), but a short WIDE one has the column wide: at
+    // 1366x650 it stood 477x415 with the key folded and eight towns in it, its lower half empty (the
+    // user, 2026-10-13: "오른쪽 칸이 너무 비어 보이는데"). Its width is known only now, laid out; there
+    // the key opens in two columns. Unless the reader has said otherwise — and nothing is remembered.
+    if (!legendPrefSet() && frame.classList.contains("legend-off") && sideIsWide()) {
+      syncLegend(true);
+      placeLegend(svg, sheet, true, 1, keyColumns());
+    }
     // The scale bar is drawn in map units too, and at 1440x900 its two lines came out 7.8 and 6.8px:
     // held at the names' minimum, for the size the drawing ended up (and again when the window changes)
     floorScaleCaption(svg, WORLD_LABEL_FLOOR.minPx);
@@ -1182,6 +1198,8 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
       applyLabelScale(svg, z, WORLD_LABEL_FLOOR);
       applyMarkerScale(svg, z);
       deconflictLabels(svg, z, { clear: underControls() });
+      // the column is wider or narrower now, and the key may want one column or two
+      placeLegend(svg, sheet, true, 1, keyColumns());
     };
     timeline.setIndex(currentYearIndex); // renders the current year in the current view
     // replaceState, not location.hash: re-rendering the same world is not a place to come back to,

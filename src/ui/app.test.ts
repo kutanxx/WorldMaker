@@ -1427,6 +1427,31 @@ describe("the map's legend folds away", () => {
     }
   });
 
+  // ...unless the column is WIDE: a short, wide window grows the card to a one-row bar, and the column beside
+  // the map takes what the card adds — 477x415 at 1366x650, where the folded key and eight towns left its
+  // lower half empty (the user: "오른쪽 칸이 너무 비어 보이는데", 2026-10-13). There the key opens, in two
+  // columns, and the town list keeps the rest.
+  it("starts open, in two columns, beside a short window's map when the column is wide", () => {
+    (window as unknown as { matchMedia: unknown }).matchMedia = (media: string) => ({
+      media, matches: false, addEventListener() {}, removeEventListener() {},
+    });
+    const desc = Object.getOwnPropertyDescriptor(Element.prototype, "clientWidth")!;
+    Object.defineProperty(Element.prototype, "clientWidth", {
+      configurable: true,
+      get(this: Element) { return this.classList.contains("map-side") ? 477 : desc.get!.call(this); },
+    });
+    try {
+      const root = open();
+      expect(legendVisible(root)).toBe(true);
+      expect(legendHead(root).getAttribute("aria-expanded")).toBe("true");
+      // opened for the room, not by the reader: nothing is remembered
+      expect(localStorage.getItem("wm:legend")).toBeNull();
+    } finally {
+      Object.defineProperty(Element.prototype, "clientWidth", desc);
+      delete (window as unknown as { matchMedia?: unknown }).matchMedia;
+    }
+  });
+
   it("folds and unfolds again on the control", () => {
     const root = open();
     const btn = legendHead(root);
