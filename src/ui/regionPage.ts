@@ -63,7 +63,8 @@ export function spreadInCell(poly: Point[], cell: number, n: number, gap: number
 
 // what the whole map stands at its page's edges and corners: its keys (the terrain's, and a view's own in
 // its layer), its title, its compass, its scale bar and its frame
-const FURNITURE = ":scope > .compass, :scope > .world-name, :scope > .scale-bar, :scope > .map-frame, .legend";
+// (and the paper's browned edges, which are the page's edges, not the world's)
+const FURNITURE = ":scope > .compass, :scope > .world-name, :scope > .scale-bar, :scope > .vignette, :scope > .map-frame, .legend";
 const AREA_NAMES = ".region-label, .nation-label, .province-label, .culture-label";
 // a river crossing the page is named again where it crosses, on a run of at least this many of its points
 const RIVER_RUN = 3;

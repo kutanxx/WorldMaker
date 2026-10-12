@@ -860,3 +860,57 @@ describe("placeRoadEnds", () => {
     expect(t.getAttribute("x")).toBe("420");
   });
 });
+
+// A name drawn over the ground's marks — a wood's trees, a range's peaks — reads through them, however
+// thick its halo: an engraver cleared the drawing under a name before cutting it. Each mark carries the
+// spot it stands on (`data-x`/`data-y`, inkStyle.ts), so the pass can find the marks a name covers.
+describe("deconflictLabels clears the ground's marks under a name", () => {
+  const mkMark = (svg: SVGSVGElement, x: number, y: number) => {
+    const g = document.createElementNS(NS, "g");
+    g.setAttribute("data-x", String(x)); g.setAttribute("data-y", String(y));
+    svg.querySelector(".reliefs > g")!.appendChild(g);
+    return g as unknown as SVGGElement;
+  };
+  const setup = () => {
+    const svg = document.createElementNS(NS, "svg") as SVGSVGElement;
+    const layer = document.createElementNS(NS, "g"); layer.setAttribute("class", "reliefs");
+    layer.appendChild(document.createElementNS(NS, "g"));
+    svg.appendChild(layer);
+    return svg;
+  };
+  it("hides the marks a shown name stands on, and only those", () => {
+    const svg = setup();
+    mkLabel(svg, "region-label", { x: 100, y: 100, width: 80, height: 14 });
+    const under = mkMark(svg, 140, 112);    // its foot under the name
+    const below = mkMark(svg, 140, 140);    // well below it
+    const beside = mkMark(svg, 300, 110);
+    deconflictLabels(svg, 1);
+    expect(under.style.visibility).toBe("hidden");
+    expect(below.style.visibility).toBe("");
+    expect(beside.style.visibility).toBe("");
+  });
+  it("keeps the marks under a name the pass hid, and gives them back when the name moves on", () => {
+    const svg = setup();
+    mkLabel(svg, "nation-label", { x: 100, y: 100, width: 80, height: 14 });
+    const hiddenTown = mkLabel(svg, "city-label city-town", { x: 300, y: 100, width: 40, height: 10 });
+    const underTown = mkMark(svg, 320, 108);
+    deconflictLabels(svg, 1);          // a town's name waits for 2.6x: hidden, so its ground stays
+    expect(hiddenTown.style.visibility).toBe("hidden");
+    expect(underTown.style.visibility).toBe("");
+    deconflictLabels(svg, 3);          // now shown: its ground is cleared
+    expect(underTown.style.visibility).toBe("hidden");
+    deconflictLabels(svg, 1);          // and back
+    expect(underTown.style.visibility).toBe("");
+  });
+  it("clears the same in the ink map's marks", () => {
+    const svg = document.createElementNS(NS, "svg") as SVGSVGElement;
+    const layer = document.createElementNS(NS, "g"); layer.setAttribute("class", "ink-marks");
+    svg.appendChild(layer);
+    mkLabel(svg, "region-label", { x: 100, y: 100, width: 80, height: 14 });
+    const g = document.createElementNS(NS, "g");
+    g.setAttribute("data-x", "120"); g.setAttribute("data-y", "110");
+    layer.appendChild(g);
+    deconflictLabels(svg, 1);
+    expect((g as unknown as SVGGElement).style.visibility).toBe("hidden");
+  });
+});

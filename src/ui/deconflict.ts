@@ -227,6 +227,27 @@ export function deconflictLabels(svg: SVGSVGElement, scale = 1, opts: { clear?: 
     if (kept.some((k) => hit(k, withAir(l.box)))) l.el.style.visibility = "hidden";
     else kept.push(l.box);
   }
+  clearGround(svg, kept, room);
+}
+
+// How far a ground mark reaches from the spot it stands on (inkStyle.ts — a peak's foot, a tree's), in map
+// units: the widest peak is 15 across and 12 high, a tree 5 across and 7 high.
+const MARK_HALF = 6, MARK_UP = 10, MARK_DOWN = 1;
+
+/**
+ * Clear the ground's drawing under the names: every mark of the colour map's ground (`.reliefs`) or the ink
+ * map's (`.ink-marks`) that would stand under one of `boxes` is hidden, and every other is shown again —
+ * so it follows the names as a zoom brings them and takes them away. A name over a wood's trees or a
+ * range's peaks reads through them however thick its halo; an engraver cleared the drawing under a name
+ * before cutting it. `room` as for deconflictLabels: a region's page draws its marks that much smaller.
+ */
+export function clearGround(svg: SVGSVGElement, boxes: Box[], room = 1): void {
+  const half = MARK_HALF * room, up = MARK_UP * room, down = MARK_DOWN * room;
+  for (const m of svg.querySelectorAll<SVGElement>(".reliefs [data-x], .ink-marks [data-x]")) {
+    const x = Number(m.getAttribute("data-x")), y = Number(m.getAttribute("data-y"));
+    const covered = boxes.some((b) => x + half > b.x && x - half < b.x + b.width && y + down > b.y && y - up < b.y + b.height);
+    m.style.visibility = covered ? "hidden" : "";
+  }
 }
 
 /** The signs a city plate draws at a district's own place: the cathedral's cross, the market's

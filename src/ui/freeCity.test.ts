@@ -65,5 +65,7 @@ describe("a free city is on the map it is standing on", () => {
     expect(listed.filter(namesOne).every((c) => c.endsWith(" Free City")),
       `a free city in the list is not called one: ${listed.filter(namesOne).join(", ")}`).toBe(true);
     root.remove();
-  });
+    // the whole app, mounted and drawn three times (terrain, political, the last year) with the ground's
+    // drawn marks (some 6,700 of them a map) — jsdom needs more than its default five seconds under a full run
+  }, 20_000);
 });

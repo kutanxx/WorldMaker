@@ -27,15 +27,19 @@ const landOnPage = (is: (i: number) => boolean) => {
 // as the whole map has them: z^2 as many to a cell, 1/z the size. (The reader chose this over the enlarged
 // screen, from the preview `region-preview.html`.)
 describe("a region's page draws its ground at the page's size", () => {
-  it("draws z^2 as many peak glyphs over a range, each a third the size", () => {
+  // the colour map's painted peaks (the ink map's marks in colour, since the colour map drew them too)
+  it("draws z^2 as many peaks over a range, each a third the size", () => {
     const svg = renderWorld(world, "terrain", [], "ko", new Set(), undefined, undefined, "colour", page);
-    const glyphs = (svg.querySelector(".relief")!.getAttribute("d") ?? "").split("M").slice(1)
-      .map((s) => s.split(/[L,]/).map(Number));                      // x1,y1 x2,y2 x3,y3 — foot, peak, foot
-    const onIt = glyphs.filter(([, , x2, y2]) => inside(x2, y2));
-    const ranges = landOnPage((i) => shown[i] === ALPINE && g.neighbors[i].some((n) => shown[n] === ALPINE));
-    expect(ranges.length, "no range on the region").toBeGreaterThan(20);
-    expect(onIt.length / ranges.length, "one to a cell, as the whole map has them").toBeGreaterThan(8);
-    for (const [x1, , , , x3] of onIt.slice(0, 20)) expect(x3 - x1, "6 across on the whole map").toBeCloseTo(2, 1);
+    const peaks = [...svg.querySelectorAll<SVGElement>(".reliefs .paint-peak")]
+      .filter((m) => inside(Number(m.getAttribute("data-x")), Number(m.getAttribute("data-y"))));
+    const range = landOnPage((i) => shown[i] === ALPINE);
+    expect(range.length, "no range on the region").toBeGreaterThan(20);
+    expect(peaks.length / range.length, "one to a cell, as the whole map has them").toBeGreaterThan(8);
+    for (const m of peaks.slice(0, 20)) {
+      const [x1, , , , x3] = (m.querySelector("path")!.getAttribute("d") ?? "").slice(1).split(/[LZ,]/).map(Number);
+      expect(x3 - x1, "10 to 15 across on the whole map").toBeGreaterThanOrEqual(3.3);
+      expect(x3 - x1).toBeLessThanOrEqual(5.01);
+    }
   });
 
   it("draws the ink map's trees, peaks and dunes z^2 as thick, a third the size, each inside its own cell", () => {
@@ -152,7 +156,8 @@ describe("putOnPage", () => {
 
   it("draws the water lines at the whole map's spacing", () => {
     const widths = [...onPageMap().querySelectorAll(".waterlines path")].map((p) => Number(p.getAttribute("stroke-width")));
-    expect(widths).toEqual([3, 2, 1]);                  // 9, 6 and 3 on the whole map
+    const whole = [...renderWorld(world).querySelectorAll(".waterlines path")].map((p) => Number(p.getAttribute("stroke-width")));
+    expect(widths).toEqual(whole.map((w) => Number((w / 3).toFixed(2))));   // the whole map's, at a third
   });
 
   it("names the towns on the page and leaves off the rest", () => {

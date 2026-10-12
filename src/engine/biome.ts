@@ -14,18 +14,21 @@ export const TROPICAL = 6;
 export const WETLAND = 7;
 export const ALPINE = 8;
 
-// muted parchment-friendly palette spread across lightness + hue so all
-// biomes stay distinguishable (every CIELAB pairwise ΔE >= ~20)
+// Washes, not paint: the ground's own marks (a peak, a tree, a tuft, a dot — inkStyle.ts PAINT_MARKS) are
+// drawn over these, so the fills are pale enough for a dark tree to stand on the darkest of them, as an
+// illustrated map lays a light wash under its drawing. Spread across lightness and hue so every pair stays
+// apart (CIELAB ΔE 12.8 at the closest, tundra/sea — the old palette's closest was 11.2, the same pair),
+// and where two washes come near (grassland/desert, forest/rain forest) their marks tell them apart.
 export const BIOME_COLORS: Record<number, string> = {
   [OCEAN]: "#c9dae4",
-  [TUNDRA]: "#dadcd3",
-  [TAIGA]: "#487460",
-  [TEMPERATE_FOREST]: "#87a861",
-  [GRASSLAND]: "#cbbd83",
-  [DESERT]: "#e6bd66",
-  [TROPICAL]: "#2f885a",
-  [WETLAND]: "#77b199",
-  [ALPINE]: "#9c948a",
+  [TUNDRA]: "#e4e2d8",
+  [TAIGA]: "#7a9a8c",
+  [TEMPERATE_FOREST]: "#a9c07f",
+  [GRASSLAND]: "#d6cf9b",
+  [DESERT]: "#f0cb7c",
+  [TROPICAL]: "#7cb586",
+  [WETLAND]: "#a3c9bd",
+  [ALPINE]: "#b4a896",
 };
 
 export const BIOME_NAMES: Record<number, string> = {

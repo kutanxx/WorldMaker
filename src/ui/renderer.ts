@@ -143,7 +143,7 @@ export function legendPanel(x: number, y: number, w: number, h: number, title?: 
   if (title) {
     const t = svgEl("text", {
       class: "legend-title", x: x + 7, y: y + titleSize + 3.5, "font-size": titleSize,
-      fill: INK, "letter-spacing": 0.9, "font-family": "Cinzel, serif", "font-weight": 600,
+      fill: INK, "letter-spacing": 0.9, "font-family": "Cinzel, 'Gowun Batang', serif", "font-weight": 600,
     });
     t.textContent = title;
     g.appendChild(t);
@@ -180,22 +180,54 @@ export function starPath(cx: number, cy: number, points: number, outer: number, 
 // The compass and the frame belong to every map this project draws, not only the world one — a city
 // plan with no border and no north is a drawing, where the same plan inside the same ruled frame is
 // a plate from the same atlas. They live here so both renderers reach for the one implementation.
+// A compass rose as the old charts drew one: a ring of sixteen ticks, eight points — the four winds long,
+// the four between them short — each point split down its middle into a lit half and a shadowed one, so
+// the star stands up off the page. The ring is the first circle (the plate's corner is measured by it).
 export function compassRose(cx: number, cy: number, r: number, north: string): SVGElement {
   const g = svgEl("g", { class: "compass" });
   g.appendChild(svgEl("circle", { cx, cy, r, fill: PARCHMENT, "fill-opacity": 0.55, stroke: INK, "stroke-width": 0.8 }));
-  g.appendChild(svgEl("path", { d: starPath(cx, cy, 4, r * 0.92, r * 0.3), fill: INK }));
+  g.appendChild(svgEl("circle", { cx, cy, r: (r * 0.8).toFixed(2), fill: "none", stroke: INK, "stroke-width": 0.35 }));
+  const at = (a: number, d: number) => `${(cx + d * Math.cos(a)).toFixed(2)},${(cy + d * Math.sin(a)).toFixed(2)}`;
+  let ticks = "";
+  for (let k = 0; k < 16; k++) {
+    const a = (k * Math.PI) / 8;
+    ticks += `M${at(a, r * (k % 4 === 0 ? 0.62 : 0.8))}L${at(a, r)}`;
+  }
+  g.appendChild(svgEl("path", { class: "compass-ticks", d: ticks, stroke: INK, "stroke-width": 0.35, fill: "none" }));
+  // between winds first, so the four winds lie over them
+  for (const k of [1, 3, 5, 7, 0, 2, 4, 6]) {
+    const a = -Math.PI / 2 + (k * Math.PI) / 4, len = r * (k % 2 ? 0.62 : 0.98), waist = r * (k % 2 ? 0.13 : 0.19);
+    const tip = at(a, len), left = at(a - Math.PI / 4, waist), right = at(a + Math.PI / 4, waist), mid = at(a, 0);
+    g.appendChild(svgEl("path", { d: `M${mid}L${tip}L${left}Z`, fill: PARCHMENT, stroke: INK, "stroke-width": 0.35, "stroke-linejoin": "round" }));
+    g.appendChild(svgEl("path", { d: `M${mid}L${tip}L${right}Z`, fill: INK, stroke: INK, "stroke-width": 0.35, "stroke-linejoin": "round" }));
+  }
+  g.appendChild(svgEl("circle", { cx, cy, r: (r * 0.07).toFixed(2), fill: PARCHMENT, stroke: INK, "stroke-width": 0.35 }));
   const n = svgEl("text", { class: "compass-n", x: cx, y: cy - r - 2, "text-anchor": "middle", "font-size": 7, fill: INK });
   n.textContent = north;
   g.appendChild(n);
   return g;
 }
 
+// The frame as an old map's border: a heavy outer rule, a band of alternating ink and paper (the degree
+// scale of an engraved map's neatline), a fine inner rule — the drawing's edge at 8, as it always was.
 export function mapFrame(w: number, h: number): SVGElement {
   const g = svgEl("g", { class: "map-frame" });
-  g.appendChild(svgEl("rect", { x: 4, y: 4, width: w - 8, height: h - 8, fill: "none", stroke: INK, "stroke-width": 2 }));
+  g.appendChild(svgEl("rect", { x: 4, y: 4, width: w - 8, height: h - 8, fill: "none", stroke: INK, "stroke-width": 1.4 }));
+  const IN = 4.7, OUT = 7.3, STEP = 25;
+  let d = "";
+  const band = (from: number, to: number, piece: (a: number, b: number) => string) => {
+    const n = Math.max(1, Math.round((to - from) / STEP)), len = (to - from) / n;
+    for (let i = 0; i < n; i += 2) d += piece(from + i * len, from + (i + 1) * len);
+  };
+  const f = (v: number) => v.toFixed(1);
+  band(8, w - 8, (a, b) => `M${f(a)},${IN}H${f(b)}V${OUT}H${f(a)}Z`);
+  band(8, w - 8, (a, b) => `M${f(w - b)},${h - OUT}H${f(w - a)}V${h - IN}H${f(w - b)}Z`);
+  band(8, h - 8, (a, b) => `M${IN},${f(h - b)}V${f(h - a)}H${OUT}V${f(h - b)}Z`);
+  band(8, h - 8, (a, b) => `M${w - OUT},${f(a)}V${f(b)}H${w - IN}V${f(a)}Z`);
+  g.appendChild(svgEl("path", { class: "frame-scale", d, fill: INK }));
   g.appendChild(svgEl("rect", { x: 8, y: 8, width: w - 16, height: h - 16, fill: "none", stroke: INK, "stroke-width": 0.6 }));
-  for (const [x, y] of [[8, 8], [w - 8, 8], [8, h - 8], [w - 8, h - 8]]) {
-    g.appendChild(svgEl("circle", { cx: x, cy: y, r: 2, fill: INK }));
+  for (const [x, y] of [[4, 4], [w - 8, 4], [4, h - 8], [w - 8, h - 8]]) {
+    g.appendChild(svgEl("rect", { class: "frame-corner", x, y, width: 4, height: 4, fill: INK }));
   }
   return g;
 }

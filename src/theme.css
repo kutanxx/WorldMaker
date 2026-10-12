@@ -4,7 +4,7 @@ body {
      page came to read "무작위 판타지 세계를 만들 / 고". `keep-all` breaks at word boundaries in
      Korean and changes nothing for English. */
   word-break: keep-all;
-  font-family: 'EB Garamond', Georgia, serif;
+  font-family: 'EB Garamond', 'Gowun Batang', Georgia, serif;
   color: #2a2118;
   background-color: #e8dcc0;
   background-image:
@@ -14,7 +14,7 @@ body {
   min-height: 100vh;
 }
 .app-title {
-  font-family: 'Cinzel', serif; font-weight: 600; font-size: 30px; letter-spacing: .12em;
+  font-family: 'Cinzel', 'Gowun Batang', serif; font-weight: 600; font-size: 30px; letter-spacing: .12em;
   text-align: center; padding: 20px 0 8px; margin: 0; color: #3c2f1c;
   text-shadow: 0 1px 0 rgba(255,255,255,.45);
 }
@@ -343,7 +343,7 @@ svg.world .map-frame,
 svg.world .legend { pointer-events: none; }
 /* ...except while renaming, when a name is what a click is for (app.ts, the stage's click) */
 .renaming svg.world text[data-name] { pointer-events: auto; }
-.nation-label { font-family: 'Cinzel', serif; font-weight: 600; }
+.nation-label { font-family: 'Cinzel', 'Gowun Batang', serif; font-weight: 600; }
 /* A country in small caps, tracked, the way a printed atlas sets one — against a region in full
    caps and a town in upper-and-lower, which is three registers for three kinds of place. It is what
    English has instead of Korean's 왕국, and it is FREE: measured across seed 1's seven realms it
@@ -353,9 +353,12 @@ svg.world .legend { pointer-events: none; }
 svg.world.lang-en .nation-label { font-variant: small-caps; letter-spacing: 0.10em; }
 /* The map's own label faces. Sizes are set per-tier on the elements themselves, since they have to
    survive SVG/PNG export, where no stylesheet comes along. */
-.city-label { font-family: 'EB Garamond', Georgia, serif; }
-.region-label { font-family: 'EB Garamond', Georgia, serif; opacity: .85; }
-.world-name-text { font-family: 'Cinzel', serif; font-weight: 600; letter-spacing: .08em; }
+.city-label { font-family: 'EB Garamond', 'Gowun Batang', Georgia, serif; }
+.region-label { font-family: 'EB Garamond', 'Gowun Batang', Georgia, serif; }
+/* A myeongjo's hairlines vanish over the drawn ground at a region name's size: the Korean land names are
+   set in the face's bold, as an atlas sets its area names heavier than its towns' */
+svg.lang-ko .region-land { font-weight: 700; }
+.world-name-text { font-family: 'Cinzel', 'Gowun Batang', serif; font-weight: 600; letter-spacing: .08em; }
 /* ★ The chronicle is ONE LINE under the scrubber, where it used to be a panel of every moment in
    the history under the map — 48 rows, always open on a wide window, and the reader it was built
    for did not read it. The sentence sits with the scrubber because it belongs to the year the
@@ -365,7 +368,7 @@ svg.world.lang-en .nation-label { font-variant: small-caps; letter-spacing: 0.10
 .timeline-strip { margin-top: 12px; }
 .chronicle-caption {
   max-width: 940px; margin: 6px auto 0; padding: 6px 12px; min-height: 1.5em;
-  font-family: 'EB Garamond', Georgia, serif; font-size: 15px; line-height: 1.4; text-align: center;
+  font-family: 'EB Garamond', 'Gowun Batang', Georgia, serif; font-size: 15px; line-height: 1.4; text-align: center;
   color: #4a3f2f; background: #f6efdd; border: 1px solid #cbb784; border-radius: 6px;
 }
 /* `display: flex` on a narrow window would beat the [hidden] the caption sets when it has nothing to say */
@@ -439,7 +442,7 @@ svg.world.lang-en .nation-label { font-variant: small-caps; letter-spacing: 0.10
 .view-toggle button:first-child { border-radius: 4px 0 0 4px; }
 .view-toggle button:last-child { border-radius: 0 4px 4px 0; }
 .view-toggle button:not(:first-child) { border-left: none; }
-.culture-label { font-family: 'Cinzel', serif; font-weight: 600; }
+.culture-label { font-family: 'Cinzel', 'Gowun Batang', serif; font-weight: 600; }
 .view-toggle button.active { background: #d8b25a; font-weight: 600; }
 /* The ink toggle stands beside the views and says it is on the way they do: it is how a view is drawn,
    pressed or not. */
@@ -514,7 +517,7 @@ svg.world.lang-en .nation-label { font-variant: small-caps; letter-spacing: 0.10
 .name-map, .name-daily { background: none; }
 .name-map:hover, .name-daily:hover { background: #efe6cf; }
 .choice-icon { font-size: 40px; line-height: 1; margin-bottom: 10px; }
-.choice-title { font-family: 'Cinzel', serif; font-weight: 600; font-size: 18px; margin: 0 0 4px; color: #3c2f1c; letter-spacing: .03em; }
+.choice-title { font-family: 'Cinzel', 'Gowun Batang', serif; font-weight: 600; font-size: 18px; margin: 0 0 4px; color: #3c2f1c; letter-spacing: .03em; }
 .choice-desc { font-size: 14px; line-height: 1.55; margin: 0; color: #4a3f2c; }
 
 /* landing: start-from-a-name row */

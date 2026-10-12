@@ -776,7 +776,7 @@ export function renderCity(layout: CityLayout, lang: Lang = "en", opts: CityRend
     // the atlas's display face, as the world map's own name wears. Carried as an attribute rather
     // than through the stylesheet: an exported plate takes no CSS with it, and the name was coming
     // out in the body face -- the same one an ordinary region label wears.
-    "font-size": 18, "font-family": "Cinzel, serif", "font-weight": 600, "letter-spacing": 0.06,
+    "font-size": 18, "font-family": "Cinzel, 'Gowun Batang', serif", "font-weight": 600, "letter-spacing": 0.06,
     fill: INK, stroke: PARCHMENT, "stroke-width": 2.5, "paint-order": "stroke",
   });
   title.textContent = townName;

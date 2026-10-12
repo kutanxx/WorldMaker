@@ -9,13 +9,15 @@ const CINZEL_600_WOFF2 =
 
 // Self-contained typography for an exported standalone SVG: the @font-face embeds Cinzel, and the
 // class rules pin the same font stack the on-screen CSS applies (EB Garamond falls back to Georgia,
-// a near-identical serif, so it is left unembedded to keep exports small).
+// a near-identical serif, so it is left unembedded to keep exports small; Gowun Batang, the Korean face,
+// is named for a reader who has it and left unembedded for the same reason — a Hangul face runs to megabytes).
 export const EXPORT_FONT_STYLE =
   `@font-face{font-family:'Cinzel';font-style:normal;font-weight:600;` +
   `src:url(${CINZEL_600_WOFF2}) format('woff2');}` +
-  `text{font-family:'EB Garamond',Georgia,serif;}` +
-  `.nation-label,.culture-label,.world-name-text{font-family:'Cinzel',serif;font-weight:600;}` +
-  `.city-label,.region-label{font-family:'EB Garamond',Georgia,serif;}`;
+  `text{font-family:'EB Garamond','Gowun Batang',Georgia,serif;}` +
+  `.nation-label,.culture-label,.world-name-text{font-family:'Cinzel','Gowun Batang',serif;font-weight:600;}` +
+  `.city-label,.region-label{font-family:'EB Garamond','Gowun Batang',Georgia,serif;}` +
+  `.lang-ko .region-land{font-weight:700;}`;
 
 // Inject the font <style> as the SVG's first child so a serialized export renders the display
 // faces without any external stylesheet. Mutates the (throwaway) export SVG only.

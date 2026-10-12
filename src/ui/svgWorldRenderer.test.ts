@@ -66,7 +66,9 @@ describe("renderWorld biomes", () => {
   // mark a swatch of colour, or for the road the road itself
   it("draws each row of the key as one group that says its own height", () => {
     const rows = svg.querySelectorAll(".legend .legend-row");
-    expect(rows.length).toBe(svg.querySelectorAll(".legend .legend-item, .legend .legend-symbol").length);
+    // (a swatch may carry the marks drawn over its ground too, so a row can hold more than one mark)
+    expect(rows.length).toBeGreaterThan(0);
+    for (const m of svg.querySelectorAll(".legend .legend-item, .legend .legend-symbol")) expect(m.closest(".legend-row"), "a mark outside any row").not.toBeNull();
     for (const r of rows) {
       expect(r.querySelector(".legend-item, .legend-symbol"), "a row without its mark").not.toBeNull();
       expect(r.querySelector("text"), "a row without its word").not.toBeNull();
@@ -247,20 +249,21 @@ describe("renderWorld line weights (legible at the fitted view, stable under zoo
   it("draws the coast as the heaviest line on the map", () => {
     const coast = w(svg.querySelector(".coastline"));
     expect(coast).toBeGreaterThanOrEqual(2);
-    for (const sel of [".relief", ".river", ".nation-border", ".road", ".road-casing"]) {
+    for (const sel of [".river", ".nation-border", ".road", ".road-casing"]) {
       for (const other of widths(sel)) expect(other).toBeLessThanOrEqual(coast);
     }
   });
 
   // Not a ratio band — a hand-tuned number would block a later legitimate retune. What matters is
-  // that the three kinds of line are actually told apart, and that rivers keep their own three
-  // tiers so a great river still outranks a stream.
+  // that the three kinds of line are actually told apart, and that rivers keep their own
+  // widths so a great river still outranks a stream — widening downstream since riverCourse.ts, not in three steps.
   it("gives the coast, a great river and a border three distinct weights", () => {
     const coast = w(svg.querySelector(".coastline"));
     const river = Math.max(...widths(".river"));
     const border = Math.max(...widths(".nation-border"));
     expect(new Set([coast, river, border]).size).toBe(3);
-    expect(new Set(widths(".river")).size).toBe(3);
+    expect(new Set(widths(".river")).size).toBeGreaterThan(3);
+    expect(Math.max(...widths(".river"))).toBeGreaterThanOrEqual(Math.min(...widths(".river")) * 1.5);
   });
 
   it("leaves no line below one screen pixel at the fitted view", () => {
@@ -272,7 +275,8 @@ describe("renderWorld line weights (legible at the fitted view, stable under zoo
   // vector-effect is an ATTRIBUTE, not a stylesheet rule: the SVG and PNG exports carry no external
   // CSS, so a line pinned only in theme.css would come back hairline in an exported file.
   it("pins every map line to the screen so zooming does not fatten it", () => {
-    for (const sel of [".coastline", ".relief", ".river", ".road", ".road-casing"]) {
+    // (the ground's drawn marks — peaks, trees — are pictures, drawn in map units like the ink map's)
+    for (const sel of [".coastline", ".river", ".road", ".road-casing"]) {
       const els = [...svg.querySelectorAll(sel)];
       expect(els.length).toBeGreaterThan(0);
       for (const el of els) expect(el.getAttribute("vector-effect")).toBe("non-scaling-stroke");
@@ -297,12 +301,24 @@ describe("renderWorld sea and ink (the page's own palette)", () => {
     expect(chroma(sea)).toBeLessThanOrEqual(32);   // was 55: #a9c7e0
   });
 
-  it("makes the coastal waterlines visible against it", () => {
-    const ops = [...svg.querySelectorAll(".waterlines path")]
-      .map((p) => Number(p.getAttribute("stroke-opacity")));
-    expect(ops.length).toBe(3);                     // three echoing bands, widest faintest
-    expect(Math.max(...ops)).toBeGreaterThanOrEqual(0.35);
-    expect(ops).toEqual([...ops].sort((a, b) => a - b));
+  // Lines on the water round the coast, each further out than the last and further apart, each fainter —
+  // the draughtsman's ripples — and a paler wash on the shallows between the coast and the first.
+  it("rings the coast with water lines that spread and fade going out to sea", () => {
+    const sea = svg.querySelector("rect")!.getAttribute("fill")!;
+    const paths = [...svg.querySelectorAll(".waterlines path")];
+    const lines = paths.filter((_, i) => i % 2 === 0), gaps = paths.filter((_, i) => i % 2 === 1);
+    expect(lines.length).toBeGreaterThanOrEqual(3);
+    const lum = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)).reduce((x, y) => x + y) / 3;
+    // a line is a band of its colour with the water drawn back over its middle: width 2r + w, then 2r - w
+    const out = lines.map((l, i) => (Number(l.getAttribute("stroke-width")) + Number(gaps[i].getAttribute("stroke-width"))) / 4);
+    expect(out).toEqual([...out].sort((x, y) => y - x));                 // outermost first
+    const spacing = out.slice(0, -1).map((r, i) => r - out[i + 1]);
+    expect(spacing).toEqual([...spacing].sort((x, y) => y - x));         // further apart going out
+    const shade = lines.map((l) => lum(l.getAttribute("stroke")!));
+    expect(shade).toEqual([...shade].sort((x, y) => y - x));             // fainter going out
+    for (const l of shade) expect(l).toBeLessThan(lum(sea));             // every one a line on the water
+    for (const g of gaps.slice(0, -1)) expect(g.getAttribute("stroke")).toBe(sea);
+    expect(lum(gaps[gaps.length - 1].getAttribute("stroke")!)).toBeGreaterThan(lum(sea)); // the shallows
   });
 
   it("darkens a land region's name so the letters carry it, not the halo", () => {
@@ -995,5 +1011,24 @@ describe("the marks every view draws, in its key", () => {
     expect(same(map.querySelector(".legend .town-key"), map.querySelector(".markers .marker-town"), ["r", "fill", "stroke", "stroke-width"]), "the dot").toBe(true);
     expect(same(map.querySelector(".legend .free-port-key .free-port-diamond"), map.querySelector(".econ-zones .econ-zone"), ["fill", "stroke", "stroke-width"]), "the diamond").toBe(true);
     expect(same(map.querySelector(".legend .free-port-key .free-port-halo"), map.querySelector(".econ-zones .econ-zone-halo"), ["stroke", "stroke-width"]), "its halo").toBe(true);
+  });
+});
+
+// The colour map draws its ground's marks (a peak, trees, a tuft, dots, hills), so its key does too: each
+// kind of ground's swatch carries the mark drawn over it on the map, and the hills, which have no colour
+// of their own, have a row.
+describe("renderWorld terrain key shows the ground's marks", () => {
+  const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });
+  const svg = renderWorld(world, "terrain", [], "en");
+  const rows = [...svg.querySelectorAll(".biome-legend .legend-row")];
+  const rowOf = (word: string) => rows.find((r) => r.textContent?.includes(word));
+  it("draws a peak on the mountains' swatch and trees on the woods'", () => {
+    expect(rowOf("Alpine")?.querySelector(".paint-peak") ?? null, "no peak in the key").not.toBeNull();
+    expect(rowOf("Forest")?.querySelectorAll(".paint-broadleaf").length).toBeGreaterThanOrEqual(2);
+    expect(rowOf("Taiga")?.querySelectorAll(".paint-conifer").length).toBeGreaterThanOrEqual(2);
+  });
+  it("gives the hills a row of their own when the map draws any", () => {
+    expect(svg.querySelectorAll(".reliefs .paint-hill").length).toBeGreaterThan(0);
+    expect(rowOf("Hills")?.querySelector(".paint-hill") ?? null, "no hills row").not.toBeNull();
   });
 });

@@ -39,8 +39,16 @@ describe("the colour map, untouched by the ink style", () => {
     // 2026-10-08: the province view's Korean words changed — "영토" became "행정 구역" (the view's name, its
     // description in <desc>, its key's title, "구역 경계") — and only its two hashes moved, from 1237781876 /
     // 4294735063. Proved by substitution: the new drawing with the old words put back hashes to exactly those.
-    expect(keyless, "the map moved, not only its key").toEqual([391966426, 872358456, 1667286081, 2501423208]);
-    expect(hashes).toEqual([4282211430, 427055371, 1972975115, 3969858647]);
+    // 2026-10-12: the map RESTYLED — rivers as tapering curves that end on the coast, the ground's painted marks
+    // (peaks, hills, trees, tufts, dots) for the chevrons, lighter biome washes, ripples round the coast, an
+    // engraved frame, a sixteen-point rose, the title's ornaments, the paper's browned edges, the Korean face in
+    // the key's title. Every view moved, keys and all (were keyless [391966426, 872358456, 1667286081,
+    // 2501423208], full [4282211430, 427055371, 1972975115, 3969858647]). Proved by subtraction
+    // (.claude/probes/restyle.ts): with those layers taken out, the biome fills blanked and the face's name put
+    // back, the old and new maps hash the same in all four views, colour and ink — and with their keys left in,
+    // the same but for the terrain key, which now draws each ground's marks on its swatch and has a row for hills.
+    expect(keyless, "the map moved, not only its key").toEqual([2534590636, 4051381434, 2451977897, 1352958026]);
+    expect(hashes).toEqual([2174265014, 454917732, 347861692, 1096912656]);
   });
 });
 
@@ -113,7 +121,10 @@ describe("the ink map", () => {
     });
     // (the province view's ink map re-pinned with the colour map's, for the same words: was 2924723875, and the
     // new drawing with the old words put back hashes to exactly that)
-    expect(hashes).toEqual([737587710, 3864053538, 182143499, 3970976761]);
+    // (2026-10-12: re-pinned with the colour map's restyle — the ink map took its rivers, frame, rose and title
+    // ornaments; its marks came out byte for byte as they were (.claude/probes/inkmarks.ts). Was [737587710,
+    // 3864053538, 182143499, 3970976761].)
+    expect(hashes).toEqual([1227265283, 663341094, 1528629615, 4017222218]);
   });
 
   // The colour key lists colours, which an ink map does not have: the ink key lists its marks, drawn as

@@ -6,17 +6,16 @@ import { displayBiomes } from "./displayBiome";
 import { OCEAN, ALPINE, BIOME_COLORS } from "../engine/biome";
 import { reliefBands } from "./relief";
 import { type Lang, biomeName, t } from "./i18n";
-import { coastline, type Segment } from "../engine/borders";
+import { coastline } from "../engine/borders";
 import { cellPath, segPath } from "./svgPaths";
 import { politicalLayer, type PoliticalOpts } from "./politicalLayer";
 import { properName, polityLabeller } from "./properName";
 import { featureLabel, worldNameIn } from "../engine/featureLabel";
-import { riverSize } from "../engine/rivers";
+import { riverPaths } from "./riverCourse";
 import { waysInUse } from "../engine/worldRoads";
-import { inkWorld, reInk } from "./inkStyle";
-import { type Page, PAGE_MARGIN, onPage, spreadInCell } from "./regionPage";
+import { inkWorld, reInk, inkMarks, PAINT_MARKS, paintedKey } from "./inkStyle";
+import type { Page } from "./regionPage";
 import { riverNameAt, riverNameSize } from "./riverName";
-import type { Point } from "../engine/geometry";
 
 /** How the map is drawn: in its colours, or in one ink on white paper for print (inkStyle.ts). */
 export type MapStyle = "colour" | "ink";
@@ -28,6 +27,14 @@ export type MapView = "terrain" | "political" | "culture" | "province";
 // How far the biomes are muted under an overlay view. Named because it is one half of what the
 // reader sees through a culture fill; the palette test reads it.
 export const OVERLAY_BIOME_OPACITY = 0.6;
+
+// The water lines round the coast, outermost first: how far out each runs, how heavy it is, its colour.
+// Each further out runs further from the last (4, 5, 6 apart) and is paler, so the lines fade going out.
+const WATER_RINGS: [number, number, string][] = [[15, 0.55, "#a9c0cf"], [9, 0.7, "#95b0c3"], [4, 0.85, "#819fb5"]];
+// the shallows, between the coast and the first line
+const SHALLOWS = "#d8e5ec";
+// the brown the paper's edges go
+const VIGNETTE = "#6b4f2a";
 
 // `labelOf` follows `colorOf`: politicalLayer is given the finished answer rather than the language
 // to work it out from, so the layer never learns about Hangul or about the i18n table.
@@ -182,13 +189,19 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
   // the seaward half shows — the classic antique-atlas figure-ground cue that lifts the coast
   // off a flat ocean. Coastline segments computed once and reused for the crisp line below.
   const coastD = segPath(coastline(grid, world.terrain));
+  // They are the draughtsman's ripples: a line on the water round the coast, then another further out and
+  // further apart, each fainter than the one inside it, and a paler wash on the shallows between the coast
+  // and the first. Each line is a band of its colour with the water drawn back over its middle (the ink
+  // map's way, inkStyle.ts), drawn under the land so only the seaward half of each shows.
   const waterlines = svgEl("g", { class: "waterlines" });
-  for (const [w, op] of [[9, 0.14], [6, 0.24], [3, 0.38]] as const) {
-    waterlines.appendChild(svgEl("path", {
-      d: coastD, fill: "none", stroke: "#7ba2c0", "stroke-width": w, "stroke-opacity": op,
-      "stroke-linecap": "round", "stroke-linejoin": "round",
-    }));
-  }
+  WATER_RINGS.forEach(([r, w, ink], i) => {
+    for (const [stroke, width] of [[ink, 2 * r + w], [i === WATER_RINGS.length - 1 ? SHALLOWS : BIOME_COLORS[OCEAN], 2 * r - w]] as const) {
+      waterlines.appendChild(svgEl("path", {
+        d: coastD, fill: "none", stroke, "stroke-width": width,
+        "stroke-linecap": "round", "stroke-linejoin": "round",
+      }));
+    }
+  });
   root.appendChild(waterlines);
 
   // Specks — half the biome patches on a world are one or two cells, and together they hold a
@@ -222,6 +235,17 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
     root.appendChild(relief);
   }
 
+  // The ground drawn as an illustrated map draws it, from the side: a peak on every mountain cell, hills on
+  // the high ground under them, trees in the woods, tufts on the marshes, dots on the sands — the ink map's
+  // marks in the same places (inkStyle.ts), painted in the colours of what they stand for. They say what the
+  // fills only tint, and they are what tells a hand-drawn map from a coloured grid. Over the realms', the
+  // peoples' and the provinces' colours they are faded with the ground they stand for. The ink map draws
+  // its own (inkWorld), so it is spared drawing these first.
+  if (style !== "ink") {
+    const marks = inkMarks(world, page, PAINT_MARKS);
+    root.appendChild(svgEl("g", view !== "terrain" ? { class: "reliefs", opacity: OVERLAY_BIOME_OPACITY } : { class: "reliefs" })).appendChild(marks);
+  }
+
   root.appendChild(svgEl("path", {
     class: "coastline", d: coastD,
     fill: "none", stroke: "#4a6373", "stroke-width": 2.4, "vector-effect": "non-scaling-stroke",
@@ -241,50 +265,17 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
         : politicalLayer(grid, snapOwnersToProvinces(grid.count, world.provinceOf, world.provinces, world.polityOf), world.polities, politicalOpts(view, lang, colorOf, labelOf, econZones.length > 0)));
   root.appendChild(slot);
 
-  // mountain relief: a small peak glyph on each alpine cell so ranges read as mountains rather
-  // than a flat grey fill (antique/fantasy convention). Above the overlay fills, below rivers/labels.
-  let reliefD = "";
-  const dense = page && page.z > 1 ? page : null;
-  for (let i = 0; i < grid.count; i++) {
-    if (shownBiome[i] !== ALPINE) continue;
-    if (!grid.neighbors[i].some((nb) => shownBiome[nb] === ALPINE)) continue; // skip lone peaks in the plains — only draw where mountains cluster into a range
-    const x = grid.points[i * 2], y = grid.points[i * 2 + 1];
-    if (!dense) {
-      reliefD += `M${(x - 3).toFixed(1)},${(y + 2).toFixed(1)}L${x.toFixed(1)},${(y - 2.6).toFixed(1)}L${(x + 3).toFixed(1)},${(y + 2).toFixed(1)}`;
-      continue;
-    }
-    // a region's page: the range as thick on the page as the whole map has it, z^2 peaks to a cell
-    if (!onPage(dense, x, y, PAGE_MARGIN)) continue;
-    const k = 1 / dense.z;
-    for (const [px, py] of spreadInCell(grid.polygons[i] as Point[], i, Math.round(dense.z * dense.z), 5 * k, 6000)) {
-      reliefD += `M${(px - 3 * k).toFixed(2)},${(py + 2 * k).toFixed(2)}L${px.toFixed(2)},${(py - 2.6 * k).toFixed(2)}L${(px + 3 * k).toFixed(2)},${(py + 2 * k).toFixed(2)}`;
-    }
-  }
-  if (reliefD) {
-    root.appendChild(svgEl("g", { class: "reliefs" })).appendChild(svgEl("path", {
-      class: "relief", d: reliefD, fill: "none", stroke: "#6b5f4c", "stroke-width": 0.9, "vector-effect": "non-scaling-stroke",
-      "stroke-linecap": "round", "stroke-linejoin": "round",
-    }));
-  }
-
   // rivers — above the political/culture fills, below labels & markers; shown in all views
+  // as water runs: a curve from source to sea, widening as it gathers, ending on the coast (riverCourse.ts)
   if (world.riverNet.length) {
-    const maxF = world.riverNet.reduce((m, s) => Math.max(m, s.f), 0);
-    const tierSegs: Segment[][] = [[], [], []];
-    const tierW = [0.9, 1.5, 2.1];
-    for (const s of world.riverNet) {
-      const t = riverSize(s.f, maxF);
-      tierSegs[t].push([[s.x1, s.y1], [s.x2, s.y2]]);
-    }
     const rivers = svgEl("g", { class: "rivers" });
-    tierSegs.forEach((segs, t) => {
-      if (!segs.length) return;
+    for (const [w, d] of [...riverPaths(world)].sort((a, b) => a[0] - b[0])) {
       rivers.appendChild(svgEl("path", {
-        class: "river", d: segPath(segs, false), fill: "none", stroke: "#5b83a6", // rivers run between cell centres, not along cell edges
-        "stroke-width": tierW[t], "vector-effect": "non-scaling-stroke",
+        class: "river", d, fill: "none", stroke: "#5b83a6",
+        "stroke-width": w, "vector-effect": "non-scaling-stroke",
         "stroke-linecap": "round", "stroke-linejoin": "round",
       }));
-    });
+    }
     root.appendChild(rivers);
   }
 
@@ -459,6 +450,17 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
   }
   root.appendChild(markers);
 
+  // The paper browning toward its edges, as an old sheet does — over the land and its names, under the key, the
+  // title and the frame, letting every click through. Every map draws the same gradient under the same id, so the map's
+  // bytes do not depend on how many maps came before it, and two maps on one page find the same gradient.
+  const vid = "wm-vignette";
+  const grad = svgEl("radialGradient", { id: vid, cx: "50%", cy: "50%", r: "75%" });
+  for (const [offset, opacity] of [["55%", 0], ["100%", 0.22]] as const) {
+    grad.appendChild(svgEl("stop", { offset, "stop-color": VIGNETTE, "stop-opacity": opacity }));
+  }
+  root.appendChild(svgEl("defs")).appendChild(grad);
+  root.appendChild(svgEl("rect", { class: "vignette", x: 0, y: 0, width: grid.width, height: grid.height, fill: `url(#${vid})`, "pointer-events": "none" }));
+
   // biome legend: terrain view only (the nation legend, from politicalLayer, replaces
   // it in political view). Rendered conditionally — not CSS-hidden — so exports match.
   if (view === "terrain") {
@@ -467,7 +469,9 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
     // and the sea route
     const seaRoutes = (world.seaRoutes?.length ?? 0) > 0;
     // ...and under those, the marks drawn over the ground: the capitals, the towns, the free ports
-    const lines = present.length + (world.roads.length ? 1 : 0) + (seaRoutes ? 1 : 0);
+    // ...and the hills, which the ground's marks draw (inkStyle.ts) and no colour says
+    const hills = root.querySelector(".reliefs .paint-hill") !== null;
+    const lines = present.length + (hills ? 1 : 0) + (world.roads.length ? 1 : 0) + (seaRoutes ? 1 : 0);
     const rows = lines + marksKey.length;
     const legend = svgEl("g", { class: "legend biome-legend" });
     const x0 = 14, y0 = grid.height - 14 - rows * LEGEND_ROW;
@@ -483,10 +487,17 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
       const y = y0 + i * LEGEND_ROW;
       const row = legendRow(LEGEND_ROW);
       row.appendChild(svgEl("rect", { class: "legend-item", x: x0, y: y - 9, width: LEGEND_SWATCH, height: LEGEND_SWATCH, fill: BIOME_COLORS[bm], stroke: INK, "stroke-width": 0.6, "vector-effect": "non-scaling-stroke" }));
+      for (const m of paintedKey(bm, x0, y)) row.appendChild(m);
       labelled(row, y, biomeName(lang, bm));
     });
-    if (world.roads.length) {
+    if (hills) {
       const y = y0 + present.length * LEGEND_ROW;
+      const row = legendRow(LEGEND_ROW);
+      for (const m of paintedKey("hills", x0, y)) row.appendChild(m);
+      labelled(row, y, t(lang, "keyHills"));
+    }
+    if (world.roads.length) {
+      const y = y0 + (present.length + (hills ? 1 : 0)) * LEGEND_ROW;
       const row = legendRow(LEGEND_ROW);
       row.appendChild(roadMark(x0, y));
       labelled(row, y, t(lang, "keyRoad"));
@@ -539,7 +550,8 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
   // Top-LEFT: the page floats its focus chip over the top-right, and measured at 1440x900 the chip
   // stood on the compass there. The name is centred and the bottom corners hold the scale bar and
   // the zoom controls, so this is the one corner nothing else claims.
-  root.appendChild(compassRose(26, 28, 14, t(lang, "compassN")));
+  // (a rose of sixteen ticks wants room to be read: larger than the first plain star)
+  root.appendChild(compassRose(31, 35, 18, t(lang, "compassN")));
 
   // the world's name, an atlas title cartouche at the top-centre
   const title = svgEl("g", { class: "world-name" });
@@ -553,6 +565,10 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
     x1: grid.width / 2 - 70, y1: 44, x2: grid.width / 2 + 70, y2: 44,
     stroke: INK, "stroke-width": 0.9, "vector-effect": "non-scaling-stroke",
   }));
+  // the rule's ornaments: a lozenge at its middle, a dot at each end
+  const cx = grid.width / 2;
+  title.appendChild(svgEl("path", { class: "title-ornament", d: `M${cx - 5},44L${cx},41L${cx + 5},44L${cx},47Z`, fill: PARCHMENT, stroke: INK, "stroke-width": 0.7 }));
+  for (const x of [cx - 73, cx + 73]) title.appendChild(svgEl("circle", { class: "title-ornament", cx: x, cy: 44, r: 1.4, fill: INK }));
   root.appendChild(title);
 
   // how far the ground is, which neither map said. Bottom CENTRE: the legend has the bottom-left
