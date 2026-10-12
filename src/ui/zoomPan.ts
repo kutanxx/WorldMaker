@@ -1,3 +1,4 @@
+import { dhypot, dpow } from "../engine/dmath";
 // viewBox-based zoom/pan for an SVG map (world or city). Simple visual zoom — markers/labels
 // scale with the map. No dependencies. Read/write the viewBox as an attribute string (jsdom
 // does not implement svg.viewBox.baseVal).
@@ -61,7 +62,7 @@ export function attachZoomPan(
   const onWheel = (e: WheelEvent) => {
     e.preventDefault();
     const { ux, uy } = userAt(e.clientX, e.clientY);
-    setScale((base.w / cur.w) * Math.pow(1.0015, -e.deltaY), ux, uy);
+    setScale((base.w / cur.w) * dpow(1.0015, -e.deltaY), ux, uy);
   };
 
   // NOTE: we do NOT use svg.setPointerCapture — in Chrome capturing the pointer on the svg
@@ -73,7 +74,7 @@ export function attachZoomPan(
     if (!dragging) return;
     const r = rectOf();
     const dx = e.clientX - lastX, dy = e.clientY - lastY; lastX = e.clientX; lastY = e.clientY;
-    if (Math.hypot(e.clientX - startX, e.clientY - startY) > DRAG_PX) wasDrag = true;
+    if (dhypot(e.clientX - startX, e.clientY - startY) > DRAG_PX) wasDrag = true;
     cur.x -= (dx * cur.w) / r.width; cur.y -= (dy * cur.h) / r.height; clampPan(); apply();
   };
   const endDrag = () => {
@@ -108,7 +109,7 @@ export function attachZoomPan(
   let pinch: { dist: number; scale: number; ux: number; uy: number } | null = null;
   const spread = (): number => {
     const [a, b] = [...active.values()];
-    return Math.hypot(a.x - b.x, a.y - b.y);
+    return dhypot(a.x - b.x, a.y - b.y);
   };
   const startPinch = () => {
     const [a, b] = [...active.values()];

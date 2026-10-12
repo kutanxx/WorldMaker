@@ -1,3 +1,4 @@
+import { dfloorLog10, dpow } from "./dmath";
 // Land in square kilometres, by the map's own scale.
 //
 // The gazetteer and the chronicle measured a realm in the map's cells ("362칸", "41 → 23 tiles") — the
@@ -15,7 +16,7 @@ export function cellsToKm2(cells: number, p: { width: number; height: number; ce
 // two significant figures: what a reader can hold, and no more than a hand-drawn map can claim
 function twoFigures(n: number): number {
   if (!(n > 0)) return 0;
-  const step = Math.pow(10, Math.max(0, Math.floor(Math.log10(n)) - 1));
+  const step = dpow(10, Math.max(0, dfloorLog10(n) - 1));
   return Math.round(n / step) * step;
 }
 

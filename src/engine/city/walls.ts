@@ -4,6 +4,7 @@ import type { Water } from "./water";
 import { inWater } from "./water";
 import type { MountainMass } from "./mountain";
 import { inMountains } from "./mountain";
+import { datan2, dcos, dhypot, dsin, sq } from "../dmath";
 
 export interface DefenseWall {
   segments: Polyline[];
@@ -21,7 +22,7 @@ export interface GateRoad { bearing: number; to: number[] }
 // turn 45 degrees toward the road's way from straight out of the town (see city.ts, roadOut)
 const AIM_REACH = Math.PI / 2;
 
-const across = (a: number, b: number) => Math.abs(Math.atan2(Math.sin(a - b), Math.cos(a - b)));
+const across = (a: number, b: number) => Math.abs(datan2(dsin(a - b), dcos(a - b)));
 
 // how far outward a boundary edge probes for the sea: the waterfront itself. It was 36, to bridge
 // the beach a port town used to stand back from its shore by — which also opened every edge of the
@@ -39,7 +40,7 @@ const TOWER_GAP = 9;
 // there, and 45 more ran their outline into its.)
 const GATE_CORE = 2, GATE_REACH = 1.5, TOWER_REACH = 3.0;
 const onGate = (t: Point, g: Point) =>
-  Math.hypot(Math.max(Math.abs(t[0] - g[0]) - GATE_CORE, 0), Math.max(Math.abs(t[1] - g[1]) - GATE_CORE, 0)) < GATE_REACH + TOWER_REACH;
+  dhypot(Math.max(Math.abs(t[0] - g[0]) - GATE_CORE, 0), Math.max(Math.abs(t[1] - g[1]) - GATE_CORE, 0)) < GATE_REACH + TOWER_REACH;
 
 // nearest point on a polyline to p, with its squared distance
 function nearestOnPolyline(p: Point, line: Polyline): { pt: Point; d2: number } {
@@ -51,7 +52,7 @@ function nearestOnPolyline(p: Point, line: Polyline): { pt: Point; d2: number } 
     let t = ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / l2;
     t = Math.max(0, Math.min(1, t));
     const q: Point = [a[0] + dx * t, a[1] + dy * t];
-    const d2 = (p[0] - q[0]) ** 2 + (p[1] - q[1]) ** 2;
+    const d2 = sq(p[0] - q[0]) + sq(p[1] - q[1]);
     if (d2 < bd2) { bd2 = d2; best = q; }
   }
   return { pt: best, d2: bd2 };
@@ -67,7 +68,7 @@ function reduceGates(gates: Point[], max: number): Point[] {
     for (const g of gates) {
       if (chosen.includes(g)) continue;
       let md = Infinity;
-      for (const c of chosen) { const d = (g[0] - c[0]) ** 2 + (g[1] - c[1]) ** 2; if (d < md) md = d; }
+      for (const c of chosen) { const d = sq(g[0] - c[0]) + sq(g[1] - c[1]); if (d < md) md = d; }
       if (md > bd) { bd = md; best = g; }
     }
     if (!best) break;
@@ -91,7 +92,7 @@ function placeGates(
   // that end — beside the water, where the wall stops — on 55 plates of twelve worlds, and 99 gates
   // had no road leaving them at all, their way out running straight into the river or the cliff.
   // Such a spot is passed over while the town has a better one.
-  const good = (g: Point) => !seaGates.some((e) => Math.hypot(e[0] - g[0], e[1] - g[1]) < WET_END) && usable(g);
+  const good = (g: Point) => !seaGates.some((e) => dhypot(e[0] - g[0], e[1] - g[1]) < WET_END) && usable(g);
   const spare: Point[] = [];
   let fallback: Point | null = null, fd2 = Infinity;   // nearest wall point to any street, however far
   for (const r of roads) {
@@ -103,8 +104,8 @@ function placeGates(
         if (d2 < bd2) { bd2 = d2; best = pt; }
         if (d2 < fd2) { fd2 = d2; fallback = pt; }
       }
-      if (best && !gates.some((g) => (g[0] - best![0]) ** 2 + (g[1] - best![1]) ** 2 < MERGE2)
-        && !spare.some((g) => (g[0] - best![0]) ** 2 + (g[1] - best![1]) ** 2 < MERGE2)) {
+      if (best && !gates.some((g) => sq(g[0] - best![0]) + sq(g[1] - best![1]) < MERGE2)
+        && !spare.some((g) => sq(g[0] - best![0]) + sq(g[1] - best![1]) < MERGE2)) {
         (good(best) ? gates : spare).push(best);
       }
     }
@@ -130,7 +131,7 @@ function placeGates(
   if (aims) for (const st of aims.streets) for (const sg of segments) for (let i = 0; i + 1 < sg.length; i++) {
     const p = crossingOf(st[0], st[st.length - 1], sg[i], sg[i + 1]);
     if (!p || !good(p)) continue;
-    if ([...gates, ...crossings].some((g) => (g[0] - p[0]) ** 2 + (g[1] - p[1]) ** 2 < MERGE2)) continue;
+    if ([...gates, ...crossings].some((g) => sq(g[0] - p[0]) + sq(g[1] - p[1]) < MERGE2)) continue;
     crossings.push(p);
   }
   if (gates.length === 0 && crossings.length === 0) {
@@ -152,7 +153,7 @@ function placeGates(
   // AIM_REACH, forking outside it, as roads did. Then the town takes as many more gates as it had, as
   // spread out as they come, for the lanes to its fields.
   const cands = [...gates, ...crossings].map((p) => ({ p }));
-  const dir = (g: Point) => Math.atan2(g[1] - aims.from[1], g[0] - aims.from[0]);
+  const dir = (g: Point) => datan2(g[1] - aims.from[1], g[0] - aims.from[0]);
   const pairs: { c: number; k: number; d: number }[] = [];
   cands.forEach((c, ci) => aims.roads.forEach((r, k) => {
     const d = across(dir(c.p), r.bearing);
@@ -176,7 +177,7 @@ function placeGates(
     gates.forEach((g, gi) => {
       if (chosen.includes(gi)) return;
       let md = Infinity;
-      for (const c of out) md = Math.min(md, (g[0] - c[0]) ** 2 + (g[1] - c[1]) ** 2);
+      for (const c of out) md = Math.min(md, sq(g[0] - c[0]) + sq(g[1] - c[1]));
       if (md > bd) { bd = md; best = gi; }
     });
     if (best < 0) break;
@@ -196,7 +197,7 @@ function placeGates(
 // the world's roads that can leave by a gate: those within AIM_REACH of the way it faces
 function aimsWithin(g: Point, aims?: { from: Point; roads: GateRoad[]; streets: Polyline[] }): number[] {
   if (!aims) return [];
-  const d = Math.atan2(g[1] - aims.from[1], g[0] - aims.from[0]);
+  const d = datan2(g[1] - aims.from[1], g[0] - aims.from[0]);
   return aims.roads.flatMap((r, k) => (across(d, r.bearing) <= AIM_REACH ? [k] : []));
 }
 
@@ -215,10 +216,10 @@ function nearestWayOut(segments: Polyline[], roads: Polyline[], ok: (p: Point) =
   if (!ends.length) return null;
   const spots: { p: Point; d2: number }[] = [];
   for (const s of segments) for (let i = 0; i + 1 < s.length; i++) {
-    const a = s[i], b = s[i + 1], k = Math.max(1, Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) / 4));
+    const a = s[i], b = s[i + 1], k = Math.max(1, Math.ceil(dhypot(b[0] - a[0], b[1] - a[1]) / 4));
     for (let j = 0; j < k; j++) {
       const p: Point = [a[0] + ((b[0] - a[0]) * j) / k, a[1] + ((b[1] - a[1]) * j) / k];
-      spots.push({ p, d2: Math.min(...ends.map((e) => (e[0] - p[0]) ** 2 + (e[1] - p[1]) ** 2)) });
+      spots.push({ p, d2: Math.min(...ends.map((e) => sq(e[0] - p[0]) + sq(e[1] - p[1]))) });
     }
   }
   spots.sort((x, y) => x.d2 - y.d2);
@@ -243,7 +244,7 @@ export function wallFromDefenses(
       // march outward along the edge normal so the WHOLE sea-facing side opens even when the
       // boundary stops a few px short of the shoreline — otherwise the wall seals off the
       // harbour and only a tiny stretch that literally touches the water stays open.
-      const dx = m[0] - c[0], dy = m[1] - c[1], dl = Math.hypot(dx, dy) || 1;
+      const dx = m[0] - c[0], dy = m[1] - c[1], dl = dhypot(dx, dy) || 1;
       for (let d = 2; d <= SEA_PROBE; d += 2) {
         if (inWater(water, [m[0] + (dx / dl) * d, m[1] + (dy / dl) * d])) { bar = 1; break; }
       }
@@ -296,7 +297,7 @@ export function wallFromDefenses(
     let last = -1;
     s.forEach((p, i) => {
       const end = i === s.length - 1;
-      const near = last >= 0 && Math.hypot(p[0] - s[last][0], p[1] - s[last][1]) < TOWER_GAP;
+      const near = last >= 0 && dhypot(p[0] - s[last][0], p[1] - s[last][1]) < TOWER_GAP;
       if (near && !end) return;
       // the run's last corner takes the place of a middle one it crowds, never of the first
       if (near && end && last > 0) towers.pop();

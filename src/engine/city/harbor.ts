@@ -3,6 +3,7 @@ import type { Point, Polygon, Polyline } from "../geometry";
 import { pointInPolygon, pointSegDist, segmentsIntersect } from "../geometry";
 import type { Water } from "./water";
 import { inWater } from "./water";
+import { datan2, dhypot } from "../dmath";
 
 export interface Boat { at: Point; angle: number }
 export interface Harbor {
@@ -62,7 +63,7 @@ export function makeHarbor(
   const facing = (reachOut: number) => boundary.map((a, i) => {
     const b = boundary[(i + 1) % n];
     const m: Point = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
-    const dx = m[0] - center[0], dy = m[1] - center[1], dl = Math.hypot(dx, dy) || 1;
+    const dx = m[0] - center[0], dy = m[1] - center[1], dl = dhypot(dx, dy) || 1;
     for (let d = 2; d <= reachOut; d += 2) if (inWater(water, [m[0] + (dx / dl) * d, m[1] + (dy / dl) * d])) return true;
     return false;
   });
@@ -76,7 +77,7 @@ export function makeHarbor(
   // the harbour stands at the middle of the quay — ON it, halfway along; the average of its corners
   // lies inside the town wherever the quay curves, and the piers were run out from there
   const along = (f: number): Point => {
-    const lens = quay.slice(1).map((p, i) => Math.hypot(p[0] - quay[i][0], p[1] - quay[i][1]));
+    const lens = quay.slice(1).map((p, i) => dhypot(p[0] - quay[i][0], p[1] - quay[i][1]));
     let rest = f * lens.reduce((t, l) => t + l, 0);
     for (let i = 0; i < lens.length; i++) {
       if (rest <= lens[i] || i === lens.length - 1) {
@@ -89,7 +90,7 @@ export function makeHarbor(
   };
   const anchor: Point = along(0.5);
   let dx = anchor[0] - center[0], dy = anchor[1] - center[1];
-  const dl = Math.hypot(dx, dy) || 1;
+  const dl = dhypot(dx, dy) || 1;
   const dir: Point = [dx / dl, dy / dl];
   const tan: Point = [-dir[1], dir[0]];
   const inSea = (p: Point) => inWater(water, p);
@@ -140,9 +141,9 @@ export function makeHarbor(
   // beach — and the middle one lay along the mole's own first arm, which starts there too.
   const piers: Polyline[] = [];
   const boats: Boat[] = [];
-  const angle = Math.atan2(dir[1], dir[0]);
+  const angle = datan2(dir[1], dir[0]);
   const bside = (tip[0] - mid[0]) * tan[0] + (tip[1] - mid[1]) * tan[1] >= 0 ? 1 : -1;
-  const quayLen = quay.slice(1).reduce((t, p, i) => t + Math.hypot(p[0] - quay[i][0], p[1] - quay[i][1]), 0);
+  const quayLen = quay.slice(1).reduce((t, p, i) => t + dhypot(p[0] - quay[i][0], p[1] - quay[i][1]), 0);
   for (const k of [1, -1, 2, -2, 3, -3, 4, -4]) {
     if (piers.length >= 3) break;
     const f = 0.5 + (k * PIER_GAP) / (quayLen || 1);
@@ -150,7 +151,7 @@ export function makeHarbor(
     const base = along(f);
     // on the sheltered side of the mole, and not beside it
     if (((base[0] - anchor[0]) * tan[0] + (base[1] - anchor[1]) * tan[1]) * bside < PIER_GAP * 0.5) continue;
-    const ox = base[0] - center[0], oy = base[1] - center[1], ol = Math.hypot(ox, oy) || 1;
+    const ox = base[0] - center[0], oy = base[1] - center[1], ol = dhypot(ox, oy) || 1;
     const out: Point = [ox / ol, oy / ol];
     // where the quay stands on the water: a pier is run out across its bank, not along a beach
     let shore: Point | null = null;
@@ -161,7 +162,7 @@ export function makeHarbor(
     // clear of the mole and of the piers already built (a quay that turns runs them together)
     if (runGap([base, end], breakwater) < PIER_CLEAR || piers.some((pr) => runGap([base, end], pr) < PIER_CLEAR)) continue;
     piers.push([base, end]); // quay → over the bank → into the water
-    boats.push({ at: [end[0] - out[1] * 2.5, end[1] + out[0] * 2.5], angle: Math.atan2(out[1], out[0]) });
+    boats.push({ at: [end[0] - out[1] * 2.5, end[1] + out[0] * 2.5], angle: datan2(out[1], out[0]) });
   }
   // a couple of boats riding in the sheltered basin — on whichever side the arm was built
   for (let i = 0; i < 2; i++) {
@@ -185,7 +186,7 @@ export function makeHarbor(
   for (let t = 0; t + 1 < quay.length; t += step) {
     const a2 = quay[t], b2 = quay[t + 1];
     const mx = (a2[0] + b2[0]) / 2, my = (a2[1] + b2[1]) / 2;
-    const alx = b2[0] - a2[0], aly = b2[1] - a2[1], al = Math.hypot(alx, aly) || 1;
+    const alx = b2[0] - a2[0], aly = b2[1] - a2[1], al = dhypot(alx, aly) || 1;
     const ux = alx / al, uy = aly / al;                 // along-shore tangent
     const cx = mx + dir[0] * 3, cy = my + dir[1] * 3;   // nudge seaward so it protrudes
     const hwid = 4.5, hdep = 3;

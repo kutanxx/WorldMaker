@@ -3,6 +3,7 @@
 import type { Rng } from "../rng";
 import type { Point, Polygon, Polyline } from "../geometry";
 import { insetEdges, centroid, pointInPolygon, polysOverlap, area, clipToConvex, pointSegDist, segmentsIntersect, bbox, splitByLine } from "../geometry";
+import { dhypot } from "../dmath";
 
 export interface Castle {
   innerWall: Polygon;      // the enceinte: the inner ward's ring of wall
@@ -34,7 +35,7 @@ const BAILEY_MIN = 8;     // ...and the enceinte at least this far behind the cu
 const HALL_SIZES = [1, 0.75]; // a household building at full size, or a lesser one where that does not fit
 const ON_WALL = 0.5;      // an edge of the castle whose middle is this close to the town's outline IS the town wall
 
-const dist = (a: Point, b: Point) => Math.hypot(a[0] - b[0], a[1] - b[1]);
+const dist = (a: Point, b: Point) => dhypot(a[0] - b[0], a[1] - b[1]);
 
 function edgeDist(p: Point, poly: Polygon): number {
   let d = Infinity;

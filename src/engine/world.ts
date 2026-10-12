@@ -13,6 +13,7 @@ import { buildProvinces, PROVINCE_SALT } from "./provinces";
 import { reliefAt } from "./relief";
 import { roadsBetweenTowns } from "./worldRoads";
 import { seaRoutesBetweenPorts } from "./seaRoutes";
+import { datan2, dcos, dhypot, dsin } from "./dmath";
 
 // A second sea round a port is at least this many tenths of a right angle of the compass wide (30
 // degrees), its middle at least this far from the port's own sea's, with at least this many tenths of
@@ -76,7 +77,7 @@ export function generateWorld(params: WorldParams, nameOverride?: string): Gener
         next.push(n);
         if (terrain[n] !== OCEAN) continue;
         const dx = grid.points[n * 2] - cx, dy = grid.points[n * 2 + 1] - cy;
-        const m = Math.hypot(dx, dy) || 1;
+        const m = dhypot(dx, dy) || 1;
         sx += dx / m; sy += dy / m; found++;   // unit vectors, so a big cell does not outvote a near one
       }
       ring = next;
@@ -85,7 +86,7 @@ export function generateWorld(params: WorldParams, nameOverride?: string): Gener
   };
   const seaBearingAt = (cell: number): number | undefined => {
     const near = nearestSea(cell);
-    return near && near.found > 0 ? Math.atan2(near.sy, near.sx) : undefined;
+    return near && near.found > 0 ? datan2(near.sy, near.sx) : undefined;
   };
 
   // How much of the compass round a port is sea, two cells out: the nearest cell in each ten degrees of
@@ -102,8 +103,8 @@ export function generateWorld(params: WorldParams, nameOverride?: string): Gener
     near.delete(cell);
     const dist = new Array<number>(SEA_BINS).fill(Infinity), sea = new Array<boolean>(SEA_BINS).fill(false);
     for (const n of near) {
-      const dx = grid.points[n * 2] - x, dy = grid.points[n * 2 + 1] - y, d = Math.hypot(dx, dy);
-      const b = Math.floor(((Math.atan2(dy, dx) + Math.PI) / (2 * Math.PI)) * SEA_BINS) % SEA_BINS;
+      const dx = grid.points[n * 2] - x, dy = grid.points[n * 2 + 1] - y, d = dhypot(dx, dy);
+      const b = Math.floor(((datan2(dy, dx) + Math.PI) / (2 * Math.PI)) * SEA_BINS) % SEA_BINS;
       if (d < dist[b]) { dist[b] = d; sea[b] = terrain[n] === OCEAN; }
     }
     const wetAt = (b: number) => {
@@ -122,8 +123,8 @@ export function generateWorld(params: WorldParams, nameOverride?: string): Gener
       if (!wet[b]) continue;
       if (i > 0 && wet[(b + SEA_BINS - 1) % SEA_BINS]) runs[runs.length - 1].push(b); else runs.push([b]);
     }
-    const across = (a: number, b: number) => Math.abs(Math.atan2(Math.sin(a - b), Math.cos(a - b)));
-    const centreOf = (run: number[]) => { let sx = 0, sy = 0; for (const b of run) { sx += Math.cos(bearingOfBin(b)); sy += Math.sin(bearingOfBin(b)); } return Math.atan2(sy, sx); };
+    const across = (a: number, b: number) => Math.abs(datan2(dsin(a - b), dcos(a - b)));
+    const centreOf = (run: number[]) => { let sx = 0, sy = 0; for (const b of run) { sx += dcos(bearingOfBin(b)); sy += dsin(bearingOfBin(b)); } return datan2(sy, sx); };
     const own = seaBearingAt(cell);
     let other: number[] | undefined, mine: number[] | undefined;
     if (runs.length >= 2 && own !== undefined) {
@@ -141,7 +142,7 @@ export function generateWorld(params: WorldParams, nameOverride?: string): Gener
       // a neck of land: its sea is all round it but for the land it hangs from, which is where its roads
       // go. Its sea lies opposite the middle of the widest run of land two cells out (see SEA_MEAN_MIN).
       const near = nearestSea(cell);
-      if (near && near.found > 0 && total < SEA_BINS && Math.hypot(near.sx, near.sy) < SEA_MEAN_MIN * near.found) {
+      if (near && near.found > 0 && total < SEA_BINS && dhypot(near.sx, near.sy) < SEA_MEAN_MIN * near.found) {
         let from = 0, len = 0;
         for (let b = 0; b < SEA_BINS; b++) {
           if (wet[b] || !wet[(b + SEA_BINS - 1) % SEA_BINS]) continue;   // a run of land starts here
@@ -150,7 +151,7 @@ export function generateWorld(params: WorldParams, nameOverride?: string): Gener
           if (n > len) { from = b; len = n; }
         }
         const land = bearingOfBin(from) + ((len - 1) / 2) * ((2 * Math.PI) / SEA_BINS);
-        return { seaBearing: Math.atan2(-Math.sin(land), -Math.cos(land)), seaArc: (total / SEA_BINS) * 2 * Math.PI };
+        return { seaBearing: datan2(-dsin(land), -dcos(land)), seaArc: (total / SEA_BINS) * 2 * Math.PI };
       }
       return { seaArc: (total / SEA_BINS) * 2 * Math.PI };
     }
@@ -183,7 +184,7 @@ export function generateWorld(params: WorldParams, nameOverride?: string): Gener
     const feeders = inflows.get(pointKey(x, y)) ?? [];
     const main = feeders.reduce<RiverSegment | null>((best, sg) => (!best || sg.f > best.f ? sg : best), null);
     const fx = main ? main.x1 : x, fy = main ? main.y1 : y;
-    return Math.atan2(out.y2 - fy, out.x2 - fx);
+    return datan2(out.y2 - fy, out.x2 - fx);
   };
   // ...and what it does there: whether it rises at the town (the map first draws it there, no feeder
   // coming in) and otherwise how far it turns, from the way its biggest feeder comes in to the way it
@@ -199,8 +200,8 @@ export function generateWorld(params: WorldParams, nameOverride?: string): Gener
     const size = riverSize(out.f, largestFlow);
     const main = (inflows.get(pointKey(x, y)) ?? []).reduce<RiverSegment | null>((best, sg) => (!best || sg.f > best.f ? sg : best), null);
     if (!main) return { riverRises: true, riverSize: size };
-    const turn = Math.atan2(out.y2 - out.y1, out.x2 - out.x1) - Math.atan2(main.y2 - main.y1, main.x2 - main.x1);
-    return { riverTurn: Math.atan2(Math.sin(turn), Math.cos(turn)), riverRises: false, riverSize: size };
+    const turn = datan2(out.y2 - out.y1, out.x2 - out.x1) - datan2(main.y2 - main.y1, main.x2 - main.x1);
+    return { riverTurn: datan2(dsin(turn), dcos(turn)), riverRises: false, riverSize: size };
   };
 
   // The high ground beside a town: the mountain cells next to its own, their directions (unit vectors,
@@ -214,11 +215,11 @@ export function generateWorld(params: WorldParams, nameOverride?: string): Gener
     let sx = 0, sy = 0, k = 0;
     for (const n of ns) {
       if (terrain[n] !== MOUNTAIN) continue;
-      const dx = grid.points[n * 2] - x, dy = grid.points[n * 2 + 1] - y, m = Math.hypot(dx, dy) || 1;
+      const dx = grid.points[n * 2] - x, dy = grid.points[n * 2 + 1] - y, m = dhypot(dx, dy) || 1;
       const rise = Math.max(0.01, heights[n] - heights[cell]);
       sx += (dx / m) * rise; sy += (dy / m) * rise; k++;
     }
-    return k ? { bearing: Math.atan2(sy, sx), share: k / ns.length } : undefined;
+    return k ? { bearing: datan2(sy, sx), share: k / ns.length } : undefined;
   };
   // ...and for a town in the mountains, the lie of the land it stands on (see relief.ts)
   const siteOf = (cell: number) => {

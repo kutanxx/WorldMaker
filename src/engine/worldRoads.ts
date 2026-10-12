@@ -19,6 +19,7 @@
 // of neighbours measures along it.
 import { MOUNTAIN, OCEAN } from "./terrain";
 import type { Road } from "../types/world";
+import { datan2, dhypot } from "./dmath";
 
 export interface RoadOut {
   /** the town it leads to (its id) */
@@ -45,7 +46,7 @@ export function roadsBetweenTowns(mesh: Mesh, heights: ArrayLike<number>, terrai
   const px = (c: number) => mesh.points[c * 2], py = (c: number) => mesh.points[c * 2 + 1];
   const weight = (c: number) => (terrain[c] === MOUNTAIN ? ROAD_MOUNTAIN : 1);
   const step = (a: number, b: number) =>
-    Math.hypot(px(b) - px(a), py(b) - py(a)) * ((weight(a) + weight(b)) / 2) * (1 + ROAD_CLIMB * Math.abs(heights[b] - heights[a]));
+    dhypot(px(b) - px(a), py(b) - py(a)) * ((weight(a) + weight(b)) / 2) * (1 + ROAD_CLIMB * Math.abs(heights[b] - heights[a]));
 
   // Dijkstra over the land from one cell: the cost to every cell, and the way back from each
   const overLand = (from: number) => {
@@ -105,7 +106,7 @@ export function roadsBetweenTowns(mesh: Mesh, heights: ArrayLike<number>, terrai
       out[b].push({ to: a, bearing: leaving(b, a) });
       const cells = route(a, b);
       let length = 0;
-      for (let k = 0; k + 1 < cells.length; k++) length += Math.hypot(px(cells[k + 1]) - px(cells[k]), py(cells[k + 1]) - py(cells[k]));
+      for (let k = 0; k + 1 < cells.length; k++) length += dhypot(px(cells[k + 1]) - px(cells[k]), py(cells[k + 1]) - py(cells[k]));
       roads.push({ a, b, cells, length, effort: ab });
     }
   }
@@ -124,7 +125,7 @@ export function roadsBetweenTowns(mesh: Mesh, heights: ArrayLike<number>, terrai
     const path = route(a, b);
     const to = path[Math.min(ROAD_REACH, path.length - 1)];
     const from = towns[a].cell;
-    return Math.atan2(py(to) - py(from), px(to) - px(from));
+    return datan2(py(to) - py(from), px(to) - px(from));
   }
 }
 

@@ -15,6 +15,7 @@ import { scaleBar, KM_PER_UNIT, WORLD_BAR_UNITS, walkCaption } from "./scaleBar"
 import type { Lang } from "./i18n";
 import { riverNameAt, riverNameSize } from "./riverName";
 import { FRAME_PAD } from "./deconflict";
+import { dcos, dfloorLog10, dhypot, dpow, dsin } from "../engine/dmath";
 
 /** The part of the world a page holds (map units), and how many times less of it than the whole map's page. */
 export interface Page { x: number; y: number; w: number; h: number; z: number }
@@ -55,7 +56,7 @@ export function spreadInCell(poly: Point[], cell: number, n: number, gap: number
   for (let k = 0; out.length < n && k < n * 12; k++) {
     const p: Point = [at(x0 + cellHash(cell, salt + 2 * k) * (x1 - x0)), at(y0 + cellHash(cell, salt + 2 * k + 1) * (y1 - y0))];
     if (!pointInPolygon(p, poly)) continue;
-    if (out.some(([qx, qy]) => Math.hypot(qx - p[0], qy - p[1]) < gap)) continue;
+    if (out.some(([qx, qy]) => dhypot(qx - p[0], qy - p[1]) < gap)) continue;
     out.push(p);
   }
   return out;
@@ -72,7 +73,7 @@ const RIVER_RUN = 3;
 const num = (v: number) => String(Number(v.toFixed(2)));
 // the round distance for a page's bar: the largest of 1, 2 and 5 times a power of ten within `km`
 const roundKm = (km: number) => {
-  const p = 10 ** Math.floor(Math.log10(km));
+  const p = dpow(10, dfloorLog10(km));
   return [5, 2, 1].map((m) => m * p).find((v) => v <= km)!;
 };
 
@@ -171,7 +172,7 @@ export function fitRiverNames(svg: SVGSVGElement, page: Page, rivers: { path: [n
     const turned = Number(/rotate\(\s*(-?[\d.]+)/.exec(el.getAttribute("transform") ?? "")?.[1] ?? 0);
     // the name's box, as it would be drawn standing on (px, py) turned by `deg` about that point
     const fits = (px: number, py: number, deg: number) => {
-      const a = (deg * Math.PI) / 180, c = Math.cos(a), s = Math.sin(a);
+      const a = (deg * Math.PI) / 180, c = dcos(a), s = dsin(a);
       const x0 = box.x - x, y0 = box.y - y;
       return [[x0, y0], [x0 + box.width, y0], [x0, y0 + box.height], [x0 + box.width, y0 + box.height]]
         .every(([dx, dy]) => inFrame(px + dx * c - dy * s, py + dx * s + dy * c));

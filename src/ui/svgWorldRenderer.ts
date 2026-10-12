@@ -21,6 +21,7 @@ import { riverNameAt, riverNameSize } from "./riverName";
 export type MapStyle = "colour" | "ink";
 import { cultureLayer } from "./cultureLayer";
 import { provinceLayer, snapOwnersToProvinces } from "./provinceLayer";
+import { dhypot } from "../engine/dmath";
 
 export type MapView = "terrain" | "political" | "culture" | "province";
 
@@ -412,7 +413,7 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
     let nearest = Infinity;
     for (const o of world.cities) {
       if (o === c) continue;
-      nearest = Math.min(nearest, Math.hypot(c.x - o.x, c.y - o.y));
+      nearest = Math.min(nearest, dhypot(c.x - o.x, c.y - o.y));
     }
     // ⚠ every city, not only the founded ones: a target that grew as history founded its neighbours
     // would hand the reader a different map to aim at on every scrub.

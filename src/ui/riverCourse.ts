@@ -13,6 +13,7 @@ import type { World } from "../types/world";
 import { OCEAN } from "../engine/terrain";
 import { sharedEdge, type Point } from "../engine/borders";
 import { noisyEdge } from "./noisyEdge";
+import { dhypot, dpow } from "../engine/dmath";
 
 export interface RiverCourse {
   points: Point[];   // source (or where it leaves its own course) to its end
@@ -24,7 +25,7 @@ export interface RiverCourse {
 // which stays the heaviest line; between them by the water carried (to the 0.7th power), as a drawn
 // river's width grows with its flow's — and to a tenth of a pixel, so the map draws a handful of widths.
 export function riverWidth(flow: number, largest: number): number {
-  return Math.round((0.9 + 1.3 * Math.pow(Math.max(0, flow) / largest, 0.7)) * 10) / 10;
+  return Math.round((0.9 + 1.3 * dpow(Math.max(0, flow) / largest, 0.7)) * 10) / 10;
 }
 
 // Where a step from a land cell's centre to a sea cell's centre meets the coast between them, as drawn
@@ -43,7 +44,7 @@ function onCoast(from: Point, to: Point, line: Point[]): Point {
     }
     // nearest point of this piece of coast to the step's far end
     for (const p of [a, b]) {
-      const d = Math.hypot(p[0] - to[0], p[1] - to[1]);
+      const d = dhypot(p[0] - to[0], p[1] - to[1]);
       if (d < bestD) { bestD = d; best = p; }
     }
   }

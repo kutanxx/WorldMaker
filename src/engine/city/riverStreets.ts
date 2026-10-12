@@ -16,6 +16,7 @@ import { pointInPolygon, pointSegDist, bbox } from "../geometry";
 import type { StreetGraph } from "./blockStreets";
 import type { Water } from "./water";
 import { inWater } from "./water";
+import { dacos, dhypot } from "../dmath";
 
 const STEP = 2;           // a street is walked at this spacing to find where it is wet
 const MIN_ANGLE = 55;     // a crossing turns at least this far from the bank it leaves (degrees)
@@ -26,7 +27,7 @@ const JOIN_GAP = 40;      // no bridge that joins the banks within this of anoth
 const EXTRA_GAP = 70;     // ...and none built for its own sake within this of another
 const BRIDGE_SPAN = 95;   // a town gets one bridge for about this much of its breadth, at least one
 
-const dist = (a: Point, b: Point) => Math.hypot(a[0] - b[0], a[1] - b[1]);
+const dist = (a: Point, b: Point) => dhypot(a[0] - b[0], a[1] - b[1]);
 
 /** the wet runs of the segment a→b, as distances along it */
 function wetRuns(a: Point, b: Point, water: Water): [number, number][] {
@@ -58,7 +59,7 @@ function bankDirection(p: Point, water: Water): [number, number] {
 function angleTo(a: Point, b: Point, dir: [number, number]): number {
   const L = dist(a, b) || 1;
   const c = Math.abs(((b[0] - a[0]) * dir[0] + (b[1] - a[1]) * dir[1]) / L);
-  return (Math.acos(Math.min(1, c)) * 180) / Math.PI;
+  return (dacos(Math.min(1, c)) * 180) / Math.PI;
 }
 
 /**

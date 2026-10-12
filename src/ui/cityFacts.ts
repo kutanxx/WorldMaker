@@ -3,6 +3,7 @@ import type { CityLayout } from "../engine/city";
 import type { GovernmentForm } from "../engine/government";
 import { t, type Lang } from "./i18n";
 import { properName, polityLabeller } from "./properName";
+import { dhypot } from "../engine/dmath";
 
 /**
  * What a plate can honestly say about the town it draws.
@@ -88,7 +89,7 @@ export function cityFacts(
   // A town no road or ship leaves (an island of its own with no port) still points at the three nearest.
   const byCrow = () => world.cities
     .filter((c) => c.id !== city.id)
-    .map((c) => ({ id: c.id, name: properName(lang, c.name), km: Math.hypot(c.x - city.x, c.y - city.y) * kmPerUnit }))
+    .map((c) => ({ id: c.id, name: properName(lang, c.name), km: dhypot(c.x - city.x, c.y - city.y) * kmPerUnit }))
     .sort((a, b) => a.km - b.km)
     .slice(0, 3);
   // ...and where the plate answers for a year, which of them is not there yet: every world opens at

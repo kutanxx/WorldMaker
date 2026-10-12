@@ -1,3 +1,4 @@
+import { datan2, dhypot } from "../engine/dmath";
 // Where a river's name stands — the world map sets it at the river's middle (svgWorldRenderer.ts), and a
 // region's page again where the river crosses it (regionPage.ts).
 
@@ -11,8 +12,8 @@ export const riverNameSize = (flux: number): number => 9 + Math.min(3, flux / 60
 export function riverNameAt(path: [number, number][], i: number, fs: number): { x: number; y: number; deg: number } {
   const mid = path[i];
   const a = path[Math.max(0, i - 1)], b = path[Math.min(path.length - 1, i + 1)];
-  const dx = b[0] - a[0], dy = b[1] - a[1], len = Math.hypot(dx, dy) || 1;
-  let deg = (Math.atan2(dy, dx) * 180) / Math.PI;
+  const dx = b[0] - a[0], dy = b[1] - a[1], len = dhypot(dx, dy) || 1;
+  let deg = (datan2(dy, dx) * 180) / Math.PI;
   if (deg > 90) deg -= 180; else if (deg < -90) deg += 180; // keep it readable
   // offset perpendicular to the flow, toward the upper side
   let nx = -dy / len, ny = dx / len; if (ny > 0) { nx = -nx; ny = -ny; }

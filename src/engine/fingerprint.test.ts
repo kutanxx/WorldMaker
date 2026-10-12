@@ -59,4 +59,5 @@ describe("a plate's fingerprint", () => {
 });
 
 const PIN_WORLD_1 = "1C6B-DC73";
-const PIN_PLATE_1_0 = "5B32-7862";
+// (since dmath, 2026-10-12, the same in Node, Chrome 152 and Firefox 156 — it was 5B32-7862 in Node only)
+const PIN_PLATE_1_0 = "72C1-1B7A";

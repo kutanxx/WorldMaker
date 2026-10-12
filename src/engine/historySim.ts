@@ -3,6 +3,7 @@ import { nationColor, FREE_COLOR } from "./palette";
 import type { World } from "../types/world";
 import { mulberry32, deriveSeed, type Rng } from "./rng";
 import { makeNameGen, type NameGen } from "./names";
+import { dhypot } from "./dmath";
 
 export const TICKS = 50, YEARS_PER_TICK = 10;
 const SOL_INIT = 0.5, SOL_RISE = 0.03, SOL_DECAY = 0.02;
@@ -77,7 +78,7 @@ export interface SimState {
 
 const px = (s: SimState, i: number) => s.grid.points[i * 2];
 const py = (s: SimState, i: number) => s.grid.points[i * 2 + 1];
-const dist = (s: SimState, a: number, b: number) => Math.hypot(px(s, a) - px(s, b), py(s, a) - py(s, b));
+const dist = (s: SimState, a: number, b: number) => dhypot(px(s, a) - px(s, b), py(s, a) - py(s, b));
 
 
 export function aggregate(s: SimState): Agg[] {
@@ -295,7 +296,7 @@ export function stepSim(s: SimState): void {
       for (const c of s.cityCells) {
         if (c.isCapital || s.foundedTowns.has(c.id)) continue;
         if (mine && s.owner[c.cell] !== o) continue;
-        const d = Math.hypot(s.grid.points[c.cell * 2] - sx, s.grid.points[c.cell * 2 + 1] - sy);
+        const d = dhypot(s.grid.points[c.cell * 2] - sx, s.grid.points[c.cell * 2 + 1] - sy);
         if (d < bd) { bd = d; best = c; }
       }
       return best;

@@ -12,6 +12,7 @@
 // external CSS, and an export taken while zoomed should look like what the reader was looking at.
 
 import { CITY_LABEL_DX } from "./renderer";
+import { dcos, dpow, dsin } from "../engine/dmath";
 
 const SELECTOR = ".region-label, .city-label, .river-label, .nation-label, .province-label, .ward-label, .road-end, .culture-label";
 
@@ -38,7 +39,7 @@ const readerSize = (el: Element) =>
 // growth stops entirely past a point, so no amount of zooming turns a name into a banner.
 const GROWTH = 0.45;
 const MAX_GROWTH = 2.6;
-const growth = (scale: number) => Math.min(Math.pow(scale, GROWTH), MAX_GROWTH);
+const growth = (scale: number) => Math.min(dpow(scale, GROWTH), MAX_GROWTH);
 
 /**
  * Hold every map label at the size it has on screen at zoom 1, whatever the zoom is now.
@@ -191,7 +192,7 @@ export function applyPageScale(svg: SVGSVGElement, z: number): void {
     if (!turn) continue;
     const deg = Number(turn[1]), rad = (deg * Math.PI) / 180;
     const lift = Number(el.dataset.fs ?? el.getAttribute("font-size")) * 0.5;
-    const nx = Math.sin(rad), ny = -Math.cos(rad);
+    const nx = dsin(rad), ny = -dcos(rad);
     const x = Number(el.getAttribute("x")) - nx * lift + (nx * lift) / z;
     const y = Number(el.getAttribute("y")) - ny * lift + (ny * lift) / z;
     el.setAttribute("x", x.toFixed(2));

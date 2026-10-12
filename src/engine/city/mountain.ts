@@ -3,6 +3,7 @@ import type { Rng } from "../rng";
 import type { Point, Polygon, Polyline } from "../geometry";
 import { pointInPolygon } from "../geometry";
 import type { Archetype } from "./archetypes";
+import { datan2, dcos, dhypot, dsin, sq } from "../dmath";
 
 export interface MountainMass {
   polygon: Polygon;    // inner rim arc (city side) → outer canvas edge (wedge mass)
@@ -67,7 +68,7 @@ export function makeMountains(
   }
   const specs = massSpecs(rng, archetype.id, site.facing ?? site.bearing);
   const noise = createNoise2D(rng);
-  const vAng = boundary.map((p) => Math.atan2(p[1] - center[1], p[0] - center[0]));
+  const vAng = boundary.map((p) => datan2(p[1] - center[1], p[0] - center[0]));
 
   const masses: MountainMass[] = [];
   for (const spec of specs) {
@@ -77,13 +78,13 @@ export function makeMountains(
     }
     if (inner.length < 2) continue;
     inner.sort((a, b) =>
-      wrap(Math.atan2(a[1] - center[1], a[0] - center[0]) - spec.dir) -
-      wrap(Math.atan2(b[1] - center[1], b[0] - center[0]) - spec.dir));
+      wrap(datan2(a[1] - center[1], a[0] - center[0]) - spec.dir) -
+      wrap(datan2(b[1] - center[1], b[0] - center[0]) - spec.dir));
 
     const outer: Point[] = [];
     for (const p of inner) {
       const dx = p[0] - center[0], dy = p[1] - center[1];
-      const L = Math.hypot(dx, dy) || 1;
+      const L = dhypot(dx, dy) || 1;
       const ux = dx / L, uy = dy / L;
       const tx = ux > 0 ? (bounds.w - 2 - p[0]) / ux : ux < 0 ? (2 - p[0]) / ux : Infinity;
       const ty = uy > 0 ? (bounds.h - 2 - p[1]) / uy : uy < 0 ? (2 - p[1]) / uy : Infinity;
@@ -140,16 +141,16 @@ export function makeHill(boundary: Polygon, center: Point, bounds: { w: number; 
   };
   const brow: Point[] = [], foot: Point[] = [];
   for (let k = 0; k < HILL_BEARINGS; k++) {
-    const a = (k / HILL_BEARINGS) * Math.PI * 2, ux = Math.cos(a), uy = Math.sin(a);
+    const a = (k / HILL_BEARINGS) * Math.PI * 2, ux = dcos(a), uy = dsin(a);
     const tx = ux > 1e-9 ? (bounds.w - center[0]) / ux : ux < -1e-9 ? -center[0] / ux : Infinity;
     const ty = uy > 1e-9 ? (bounds.h - center[1]) / uy : uy < -1e-9 ? -center[1] / uy : Infinity;
     const edge = Math.min(tx, ty) - 2;
-    const along = Math.cos(a - ridge);   // 1 toward the ridge, -1 away from it
+    const along = dcos(a - ridge);   // 1 toward the ridge, -1 away from it
     const rb = Math.min(reachAt(ux, uy) + HILL_GAP, edge - 1);
     // (a summit's sum in the order it was first written, so its plates hold byte for byte)
     const rf = Math.min(form === "summit"
-      ? rb + HILL_STEEP + (HILL_GENTLE - HILL_STEEP) * ((1 + along) / 2) ** 2
-      : rb + (1 - ((1 + along) / 2) ** 4) * (SPUR_SIDE + (SPUR_TIP - SPUR_SIDE) * ((1 - along) / 2) ** 2), edge);
+      ? rb + HILL_STEEP + (HILL_GENTLE - HILL_STEEP) * sq((1 + along) / 2)
+      : rb + (1 - sq(sq((1 + along) / 2))) * (SPUR_SIDE + (SPUR_TIP - SPUR_SIDE) * sq((1 - along) / 2)), edge);
     brow.push([center[0] + ux * rb, center[1] + uy * rb]);
     foot.push([center[0] + ux * rf, center[1] + uy * rf]);
   }
@@ -168,7 +169,7 @@ const WATER_CLEAR = 6;
 function foothills(rng: Rng, boundary: Polygon, center: Point, bounds: { w: number; h: number }, bearing: number, share: number, wet: (p: Point) => boolean, gap = FOOT_GAP): MountainMass[] {
   const noise = createNoise2D(rng);
   const phi = Math.min(1.5, 0.35 + share * 1.3);
-  const radial = boundary.map((p) => ({ a: Math.atan2(p[1] - center[1], p[0] - center[0]), r: Math.hypot(p[0] - center[0], p[1] - center[1]) }));
+  const radial = boundary.map((p) => ({ a: datan2(p[1] - center[1], p[0] - center[0]), r: dhypot(p[0] - center[0], p[1] - center[1]) }));
   const farthest = Math.max(...radial.map((q) => q.r));
   const reachAt = (a: number) => radial.reduce((r, q) => (Math.abs(wrap(q.a - a)) < 0.3 ? Math.max(r, q.r) : r), 0) || farthest;
   const masses: MountainMass[] = [];
@@ -180,7 +181,7 @@ function foothills(rng: Rng, boundary: Polygon, center: Point, bounds: { w: numb
   const K = 40;
   for (let k = 0; k <= K; k++) {
     const a = bearing - phi + (2 * phi * k) / K;
-    const ux = Math.cos(a), uy = Math.sin(a);
+    const ux = dcos(a), uy = dsin(a);
     const tx = ux > 0.001 ? (bounds.w - 2 - center[0]) / ux : ux < -0.001 ? (2 - center[0]) / ux : Infinity;
     const ty = uy > 0.001 ? (bounds.h - 2 - center[1]) / uy : uy < -0.001 ? (2 - center[1]) / uy : Infinity;
     const edge = Math.min(tx, ty);

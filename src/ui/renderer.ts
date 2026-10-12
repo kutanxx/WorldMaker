@@ -1,5 +1,6 @@
 import type { World } from "../types/world";
 import type { CityLayout } from "../engine/city";
+import { dcos, dsin } from "../engine/dmath";
 
 export const SVG_NS = "http://www.w3.org/2000/svg";
 
@@ -172,7 +173,7 @@ export function starPath(cx: number, cy: number, points: number, outer: number, 
   for (let i = 0; i < points * 2; i++) {
     const r = i % 2 === 0 ? outer : inner;
     const a = -Math.PI / 2 + (i * Math.PI) / points;
-    d += (i === 0 ? "M" : "L") + (cx + r * Math.cos(a)).toFixed(1) + "," + (cy + r * Math.sin(a)).toFixed(1);
+    d += (i === 0 ? "M" : "L") + (cx + r * dcos(a)).toFixed(1) + "," + (cy + r * dsin(a)).toFixed(1);
   }
   return d + "Z";
 }
@@ -187,7 +188,7 @@ export function compassRose(cx: number, cy: number, r: number, north: string): S
   const g = svgEl("g", { class: "compass" });
   g.appendChild(svgEl("circle", { cx, cy, r, fill: PARCHMENT, "fill-opacity": 0.55, stroke: INK, "stroke-width": 0.8 }));
   g.appendChild(svgEl("circle", { cx, cy, r: (r * 0.8).toFixed(2), fill: "none", stroke: INK, "stroke-width": 0.35 }));
-  const at = (a: number, d: number) => `${(cx + d * Math.cos(a)).toFixed(2)},${(cy + d * Math.sin(a)).toFixed(2)}`;
+  const at = (a: number, d: number) => `${(cx + d * dcos(a)).toFixed(2)},${(cy + d * dsin(a)).toFixed(2)}`;
   let ticks = "";
   for (let k = 0; k < 16; k++) {
     const a = (k * Math.PI) / 8;

@@ -10,6 +10,7 @@
 import type { Rng } from "../rng";
 import type { Point, Polygon } from "../geometry";
 import { area, splitByLine, insetEdges, pointInPolygon, pointSegDist, bbox, centroid } from "../geometry";
+import { dcos, dhypot, dpow, dsin } from "../dmath";
 
 export interface LotOpts {
   minArea: number;    // a piece smaller than about this is one building
@@ -20,14 +21,14 @@ export interface LotOpts {
   margin?: number;    // the gap drawn round each building
 }
 
-const dist = (a: Point, b: Point) => Math.hypot(a[0] - b[0], a[1] - b[1]);
+const dist = (a: Point, b: Point) => dhypot(a[0] - b[0], a[1] - b[1]);
 
 /** split a convex polygon by the line through `p` along `dir`; each half's cut side pulled back gap/2 */
 function cut(poly: Polygon, p: Point, dir: [number, number], gap: number): Polygon[] {
   const q: Point = [p[0] + dir[0], p[1] + dir[1]];
   const halves = splitByLine(poly, p, q);
   if (halves.length < 2 || gap <= 0) return halves;
-  const len = Math.hypot(dir[0], dir[1]) || 1;
+  const len = dhypot(dir[0], dir[1]) || 1;
   const onLine = (v: Point) => Math.abs(dir[0] * (v[1] - p[1]) - dir[1] * (v[0] - p[0])) / len < 1e-6;
   const out: Polygon[] = [];
   for (const h of halves) {
@@ -57,13 +58,13 @@ export function lots(rng: Rng, block: Polygon, o: LotOpts): Polygon[] {
     // a small piece is cut square, whatever the ward, or its houses come out as wedges
     const turn = (rng() - 0.5) * (Math.PI / 6) * chaos * (area(poly) < o.minArea * 4 ? 0 : 1);
     const ex = (b[0] - a[0]) / (ll || 1), ey = (b[1] - a[1]) / (ll || 1);
-    const c = Math.cos(turn), s = Math.sin(turn);
+    const c = dcos(turn), s = dsin(turn);
     const dir: [number, number] = [-ey * c - ex * s, -ey * s + ex * c];
     const p1: Point = [a[0] + (b[0] - a[0]) * ratio, a[1] + (b[1] - a[1]) * ratio];
     const halves = depth > 12 || ll < 1e-6 ? [] : cut(poly, p1, dir, split ? alley : 0);
     if (halves.length < 2) { keep(poly); return; }
     for (const h of halves) {
-      if (area(h) < o.minArea * Math.pow(2, 4 * sizeChaos * (rng() - 0.5))) {
+      if (area(h) < o.minArea * dpow(2, 4 * sizeChaos * (rng() - 0.5))) {
         if (rng() >= empty) keep(h);
       } else {
         const r1 = rng(), r2 = rng();
@@ -114,7 +115,7 @@ const fitsIn = (shape: Polygon, room: Polygon, clear: number) => shape.every((p)
 const SPOTS: [number, number][] = (() => {
   const out: [number, number][] = [];
   for (const du of [0, 0.12, -0.12, 0.25, -0.25, 0.4, -0.4]) for (const dv of [0, 0.15, -0.15, 0.3, -0.3, 0.45, -0.45]) out.push([du, dv]);
-  return out.sort((a, b) => Math.hypot(a[0], a[1]) - Math.hypot(b[0], b[1]));
+  return out.sort((a, b) => dhypot(a[0], a[1]) - dhypot(b[0], b[1]));
 })();
 
 /**
@@ -140,7 +141,7 @@ export function cathedralChurch(room: Polygon, ok: (outline: Polygon) => boolean
       const local: [number, number][] = [
         [u0, -W / 2], [ut, -W / 2], [ut, -T / 2], [ut + tw, -T / 2], [ut + tw, -Wc / 2], [ua, -Wc / 2],
       ];
-      for (let k = 1; k < 8; k++) { const a = -Math.PI / 2 + (k / 8) * Math.PI; local.push([ua + Math.cos(a) * r, Math.sin(a) * r]); }
+      for (let k = 1; k < 8; k++) { const a = -Math.PI / 2 + (k / 8) * Math.PI; local.push([ua + dcos(a) * r, dsin(a) * r]); }
       local.push([ua, Wc / 2], [ut + tw, Wc / 2], [ut + tw, T / 2], [ut, T / 2], [ut, W / 2], [u0, W / 2]);
       const vx = -uy, vy = ux;
       const place = (c: Point): Polygon => local.map(([u, v]) => [c[0] + ux * u + vx * v, c[1] + uy * u + vy * v] as Point);

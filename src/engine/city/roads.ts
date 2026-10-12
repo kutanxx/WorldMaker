@@ -11,6 +11,7 @@
 // at every corner so nothing ever read as one road.
 import type { Point, Polyline } from "../geometry";
 import { pointSegDist } from "../geometry";
+import { datan2, dhypot } from "../dmath";
 
 const KEY = (p: Point) => `${Math.round(p[0] * 4)},${Math.round(p[1] * 4)}`;
 const SAME = 1;        // a centreline this close to another road is the same road
@@ -36,7 +37,7 @@ function coveredBy(seg: Polyline, others: Polyline[]): boolean {
   return on >= N * COVERED;
 }
 
-const heading = (a: Point, b: Point) => Math.atan2(b[1] - a[1], b[0] - a[0]);
+const heading = (a: Point, b: Point) => datan2(b[1] - a[1], b[0] - a[0]);
 const bend = (h1: number, h2: number) => {
   let d = Math.abs(h2 - h1) % (Math.PI * 2);
   if (d > Math.PI) d = Math.PI * 2 - d;
@@ -53,7 +54,7 @@ function ease(run: Polyline): Polyline {
   const out: Polyline = [run[0]];
   for (let i = 1; i < run.length - 1; i++) {
     const p = run[i], a = run[i - 1], b = run[i + 1];
-    const la = Math.hypot(p[0] - a[0], p[1] - a[1]), lb = Math.hypot(b[0] - p[0], b[1] - p[1]);
+    const la = dhypot(p[0] - a[0], p[1] - a[1]), lb = dhypot(b[0] - p[0], b[1] - p[1]);
     const ca = Math.min(EASE, la / 3), cb = Math.min(EASE, lb / 3);
     if (la < 1e-6 || lb < 1e-6) { out.push(p); continue; }
     out.push([p[0] + ((a[0] - p[0]) / la) * ca, p[1] + ((a[1] - p[1]) / la) * ca]);
@@ -76,8 +77,8 @@ export function chainRoads(roads: Polyline[], anchors: Point[] = []): Polyline[]
   const segs = roads.filter((r) => r.length === 2);
   // longest first, so a short stub laid along a street is the one dropped, not the street
   segs.sort((x, y) =>
-    Math.hypot(y[1][0] - y[0][0], y[1][1] - y[0][1]) - Math.hypot(x[1][0] - x[0][0], x[1][1] - x[0][1]));
-  const anchored = (p: Point) => anchors.some((g) => Math.hypot(g[0] - p[0], g[1] - p[1]) < 1);
+    dhypot(y[1][0] - y[0][0], y[1][1] - y[0][1]) - dhypot(x[1][0] - x[0][0], x[1][1] - x[0][1]));
+  const anchored = (p: Point) => anchors.some((g) => dhypot(g[0] - p[0], g[1] - p[1]) < 1);
   const kept: Polyline[] = [];
   for (const s of segs) {
     if (!coveredBy(s, [...kept, ...ready])) { kept.push(s); continue; }
@@ -87,7 +88,7 @@ export function chainRoads(roads: Polyline[], anchors: Point[] = []): Polyline[]
     // second copy of the street behind it.
     for (const [i, j] of [[0, 1], [1, 0]]) {
       if (!anchored(s[i])) continue;
-      const dx = s[j][0] - s[i][0], dy = s[j][1] - s[i][1], m = Math.hypot(dx, dy) || 1;
+      const dx = s[j][0] - s[i][0], dy = s[j][1] - s[i][1], m = dhypot(dx, dy) || 1;
       const t = Math.min(STEP, m) / m;
       kept.push([s[i], [s[i][0] + dx * t, s[i][1] + dy * t]]);
       break;

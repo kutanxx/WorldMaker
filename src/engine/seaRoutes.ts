@@ -19,6 +19,7 @@
 import { OCEAN } from "./terrain";
 import { waysInUse } from "./worldRoads";
 import type { SeaRoute } from "../types/world";
+import { dhypot, sq } from "./dmath";
 
 interface Mesh { count: number; points: ArrayLike<number>; neighbors: number[][]; polygons: number[][][] }
 
@@ -40,8 +41,8 @@ export function seaRoutesBetweenPorts(
   // the point than it is holds the point (the mesh's neighbours are its Delaunay edges)
   const walk = (c: number, x: number, y: number) => {
     for (;;) {
-      let best = c, bd = (px(c) - x) ** 2 + (py(c) - y) ** 2;
-      for (const n of mesh.neighbors[c]) { const d = (px(n) - x) ** 2 + (py(n) - y) ** 2; if (d < bd) { bd = d; best = n; } }
+      let best = c, bd = sq(px(c) - x) + sq(py(c) - y);
+      for (const n of mesh.neighbors[c]) { const d = sq(px(n) - x) + sq(py(n) - y); if (d < bd) { bd = d; best = n; } }
       if (best === c) return c;
       c = best;
     }
@@ -88,7 +89,7 @@ export function seaRoutesBetweenPorts(
       if (c !== from && terrain[c] !== OCEAN) continue;   // a port ends a voyage; it is no way through
       for (const n of mesh.neighbors[c]) {
         if (done[n] || (terrain[n] !== OCEAN && !portCell.has(n))) continue;
-        const d = dist[c] + Math.hypot(px(n) - px(c), py(n) - py(c));
+        const d = dist[c] + dhypot(px(n) - px(c), py(n) - py(c));
         if (d < dist[n]) { dist[n] = d; prev[n] = c; heap.push(n); up(heap.length - 1); }
       }
     }
@@ -101,7 +102,7 @@ export function seaRoutesBetweenPorts(
   // a straight leg stays over the water: every LEG_STEP along it lies in a sea cell, or in the cell of
   // one of the two ports it joins (`from` is a cell near its start, to walk from)
   const overWater = (from: number, x1: number, y1: number, x2: number, y2: number, ends: Set<number>) => {
-    const n = Math.max(1, Math.ceil(Math.hypot(x2 - x1, y2 - y1) / LEG_STEP));
+    const n = Math.max(1, Math.ceil(dhypot(x2 - x1, y2 - y1) / LEG_STEP));
     let c = from;
     for (let k = 0; k <= n; k++) {
       c = walk(c, x1 + ((x2 - x1) * k) / n, y1 + ((y2 - y1) * k) / n);
@@ -161,7 +162,7 @@ export function seaRoutesBetweenPorts(
     if (!((land.get(a)!.get(b) ?? Infinity) > SEA_BETTER * ab)) continue;
     const points = course(a, b);
     let length = 0;
-    for (let k = 0; k + 1 < points.length; k++) length += Math.hypot(points[k + 1][0] - points[k][0], points[k + 1][1] - points[k][1]);
+    for (let k = 0; k + 1 < points.length; k++) length += dhypot(points[k + 1][0] - points[k][0], points[k + 1][1] - points[k][1]);
     kept.push({ a, b, points, length });
   }
 

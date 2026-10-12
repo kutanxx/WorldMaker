@@ -1,5 +1,6 @@
 import { pointInPolygon, type Point } from "../engine/geometry";
 import { CITY_LABEL_DX } from "./renderer";
+import { dhypot } from "../engine/dmath";
 // Hide any label whose bounding box overlaps a higher-priority one (player nation > other nation >
 // capital > region > river > town), so nation names and place names don't collide. Runs post-mount
 // because it needs getBBox (real layout); jsdom lacks getBBox, so it's a no-op in tests unless
@@ -317,11 +318,11 @@ const attr = (el: Element, a: string) => Number(el.getAttribute(a) ?? 0) || 0;
 const pointsOf = (el: Element): Pt[] =>
   (el.getAttribute("points") ?? "").trim().split(/\s+/).filter(Boolean).map((q) => q.split(",").map(Number) as Pt);
 const toBox = (x0: number, y0: number, x1: number, y1: number): Edges => ({ x0, y0, x1, y1 });
-const boxPoint = (b: Edges, p: Pt) => Math.hypot(Math.max(b.x0 - p[0], 0, p[0] - b.x1), Math.max(b.y0 - p[1], 0, p[1] - b.y1));
+const boxPoint = (b: Edges, p: Pt) => dhypot(Math.max(b.x0 - p[0], 0, p[0] - b.x1), Math.max(b.y0 - p[1], 0, p[1] - b.y1));
 const pointSeg = (p: Pt, a: Pt, b: Pt) => {
   const dx = b[0] - a[0], dy = b[1] - a[1], l2 = dx * dx + dy * dy;
   const t = l2 ? Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / l2)) : 0;
-  return Math.hypot(p[0] - a[0] - t * dx, p[1] - a[1] - t * dy);
+  return dhypot(p[0] - a[0] - t * dx, p[1] - a[1] - t * dy);
 };
 // a segment through the box (Liang-Barsky)
 const crossesBox = (a: Pt, c: Pt, b: Edges) => {
@@ -417,9 +418,9 @@ export function clearCastleName(svg: SVGSVGElement, air = 0.3, reach = 45): void
     const c: Pt = [(at.x0 + at.x1) / 2, (at.y0 + at.y1) / 2];
     switch (s.k) {
       case "line": return pointSeg(c, s.a, s.b) < r + s.half;
-      case "disc": return Math.hypot(s.c[0] - c[0], s.c[1] - c[1]) < r + s.r;
+      case "disc": return dhypot(s.c[0] - c[0], s.c[1] - c[1]) < r + s.r;
       case "box": return boxPoint(s.b, c) < r;
-      case "fill": return s.pts.some((p) => Math.hypot(p[0] - c[0], p[1] - c[1]) < r + 20);
+      case "fill": return s.pts.some((p) => dhypot(p[0] - c[0], p[1] - c[1]) < r + 20);
     }
   };
   const hard = [...inkOf(svg, CASTLE_INK), ...inkOf(svg, TOWN_WALL_INK)].filter(near);
@@ -536,7 +537,7 @@ export function placeRoadEnds(svg: SVGSVGElement, opts: { clear?: Box[] } = {}, 
     const stretches: { a: Pt; c: Pt; len: number; at: number }[] = [];
     let total = 0;
     for (let i = 0; i + 1 < back.length; i++) {
-      const len = Math.hypot(back[i + 1][0] - back[i][0], back[i + 1][1] - back[i][1]);
+      const len = dhypot(back[i + 1][0] - back[i][0], back[i + 1][1] - back[i][1]);
       if (len > 0) { stretches.push({ a: back[i], c: back[i + 1], len, at: total }); total += len; }
     }
     let best: { c: Pt; b: Edges; l: number } | null = null;
@@ -609,11 +610,11 @@ function offsetsWithin(reach: number): Pt[] {
   if (out) return out;
   out = [];
   for (let dy = -reach; dy <= reach; dy += 0.5) for (let dx = -reach; dx <= reach; dx += 0.5) {
-    const d = Math.hypot(dx, dy);
+    const d = dhypot(dx, dy);
     if (d > reach || (d > 12 && (dx % 1 !== 0 || dy % 1 !== 0))) continue;
     out.push([dx, dy]);
   }
-  out.sort((u, v) => Math.hypot(u[0], u[1]) - Math.hypot(v[0], v[1]) || u[1] - v[1] || u[0] - v[0]);
+  out.sort((u, v) => dhypot(u[0], u[1]) - dhypot(v[0], v[1]) || u[1] - v[1] || u[0] - v[0]);
   OFFSETS.set(reach, out);
   return out;
 }

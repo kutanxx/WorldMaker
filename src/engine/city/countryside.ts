@@ -9,6 +9,7 @@ import type { Water } from "./water";
 import { inMountains } from "./mountain";
 import type { MountainMass } from "./mountain";
 import { DESERT, WETLAND, TAIGA, TEMPERATE_FOREST, TROPICAL, TUNDRA, ALPINE } from "../biome";
+import { datan2, dcos, dhypot, dsin } from "../dmath";
 
 export interface FieldPatch { polygon: Polygon; strips: Polyline[]; state: "cultivated" | "fallow" }
 export interface Pasture { fence: Polygon; animals: Point[]; kind: "sheep" | "cattle" }
@@ -108,7 +109,7 @@ const BUILDING_ROAD_CLEAR = 1.6;
 function polyCrossedByLine(poly: Polygon, line: Polyline): boolean {
   for (let i = 0; i < line.length - 1; i++) {
     const [x1, y1] = line[i], [x2, y2] = line[i + 1];
-    const steps = Math.max(1, Math.ceil(Math.hypot(x2 - x1, y2 - y1) / 2));
+    const steps = Math.max(1, Math.ceil(dhypot(x2 - x1, y2 - y1) / 2));
     for (let s = 0; s <= steps; s++) if (pointInPolygon([x1 + ((x2 - x1) * s) / steps, y1 + ((y2 - y1) * s) / steps], poly)) return true;
   }
   return false;
@@ -136,7 +137,7 @@ export function generateCountryside(rng: Rng, opts: CountrysideOpts): Countrysid
       const a: Point = road[i], b: Point = road[i + 1];
       if (Math.max(a[0], b[0]) < pb.minX - AIR || Math.min(a[0], b[0]) > pb.maxX + AIR
         || Math.max(a[1], b[1]) < pb.minY - AIR || Math.min(a[1], b[1]) > pb.maxY + AIR) continue;
-      const steps = Math.max(1, Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) / 2));
+      const steps = Math.max(1, Math.ceil(dhypot(b[0] - a[0], b[1] - a[1]) / 2));
       for (let s = 0; s <= steps; s++) {
         if (pointInPolygon([a[0] + ((b[0] - a[0]) * s) / steps, a[1] + ((b[1] - a[1]) * s) / steps], poly)) return true;
       }
@@ -169,7 +170,7 @@ export function generateCountryside(rng: Rng, opts: CountrysideOpts): Countrysid
     // vertex + centroid probes miss a cove narrow enough to pass between them, and the shore now
     // has coves that narrow (seed 25 put a field across one).
     if (overlapsWater(water, poly)) return false;
-    if (obstacles.some((o) => Math.hypot(o[0] - c[0], o[1] - c[1]) < gap)) return false;
+    if (obstacles.some((o) => dhypot(o[0] - c[0], o[1] - c[1]) < gap)) return false;
     // (each claimed patch's box, kept beside it, first: two shapes whose boxes miss cannot overlap —
     // missed by polysOverlap's own margin, so the answer is exactly its answer)
     const pb = bbox(poly), AIR = 1e-6;
@@ -201,15 +202,15 @@ export function generateCountryside(rng: Rng, opts: CountrysideOpts): Countrysid
   // ring 1: kitchen gardens + orchards against the wall, between the gate roads
   const gardens: Polygon[] = [];
   const orchards: Orchard[] = [];
-  const wallR = (() => { let s = 0; for (const p of boundary) s += Math.hypot(p[0] - bc[0], p[1] - bc[1]); return s / boundary.length; })();
+  const wallR = (() => { let s = 0; for (const p of boundary) s += dhypot(p[0] - bc[0], p[1] - bc[1]); return s / boundary.length; })();
   // moated archetypes push the wall-fringe rings out past the ~9px moat band so gardens/orchards
   // sit just beyond the water, not under it
   const moatOff = opts.moat.length ? 12 : 0;
   for (let tries = 0; tries < 140 && gardens.length < 3 + size; tries++) {
     const a = rng() * Math.PI * 2;
     const r = wallR + 8 + moatOff + rng() * 8;
-    const c: Point = [bc[0] + Math.cos(a) * r, bc[1] + Math.sin(a) * r];
-    const ux = -Math.sin(a), uy = Math.cos(a); // long side parallel to the wall
+    const c: Point = [bc[0] + dcos(a) * r, bc[1] + dsin(a) * r];
+    const ux = -dsin(a), uy = dcos(a); // long side parallel to the wall
     const plot = orientedRect(c, ux, uy, 5 + rng() * 3, 3);
     if (!polyOk(plot, 8)) continue;
     gardens.push(plot); claim(plot);
@@ -217,8 +218,8 @@ export function generateCountryside(rng: Rng, opts: CountrysideOpts): Countrysid
   for (let tries = 0; tries < 140 && orchards.length < prof.orchards; tries++) {
     const a = rng() * Math.PI * 2;
     const r = wallR + 12 + moatOff + rng() * 14;
-    const c: Point = [bc[0] + Math.cos(a) * r, bc[1] + Math.sin(a) * r];
-    const ux = -Math.sin(a), uy = Math.cos(a);
+    const c: Point = [bc[0] + dcos(a) * r, bc[1] + dsin(a) * r];
+    const ux = -dsin(a), uy = dcos(a);
     const hl = 8 + rng() * 4, hw = 6 + rng() * 3;
     const plot = orientedRect(c, ux, uy, hl, hw);
     if (!polyOk(plot, 12)) continue;
@@ -256,7 +257,7 @@ export function generateCountryside(rng: Rng, opts: CountrysideOpts): Countrysid
       const ax = road[i][0] + (road[i + 1][0] - road[i][0]) * frac;
       const ay = road[i][1] + (road[i + 1][1] - road[i][1]) * frac;
       let ux = road[i + 1][0] - road[i][0], uy = road[i + 1][1] - road[i][1];
-      const L = Math.hypot(ux, uy) || 1; ux /= L; uy /= L;
+      const L = dhypot(ux, uy) || 1; ux /= L; uy /= L;
       const side = rng() < 0.5 ? -1 : 1;
       const off = 8 + rng() * 16;
       const c: Point = [ax + -uy * side * off, ay + ux * side * off];
@@ -305,14 +306,14 @@ export function generateCountryside(rng: Rng, opts: CountrysideOpts): Countrysid
   for (let tries = 0; tries < 200 && pastures.length < prof.pastures; tries++) {
     const a = rng() * Math.PI * 2;
     const r = wallR + 24 + rng() * (Math.min(bounds.w, bounds.h) / 2 - wallR - 40);
-    const c: Point = [bc[0] + Math.cos(a) * r, bc[1] + Math.sin(a) * r];
+    const c: Point = [bc[0] + dcos(a) * r, bc[1] + dsin(a) * r];
     const verts = 7 + Math.floor(rng() * 3);
     const R = 9 + rng() * 6;
     const fence: Polygon = [];
     for (let k = 0; k < verts; k++) {
       const va = (k / verts) * Math.PI * 2;
       const vr = R * (0.7 + rng() * 0.5);              // noise-deformed blob
-      fence.push([c[0] + Math.cos(va) * vr, c[1] + Math.sin(va) * vr]);
+      fence.push([c[0] + dcos(va) * vr, c[1] + dsin(va) * vr]);
     }
     if (!polyOk(fence, 14)) continue;
     const animals: Point[] = [];
@@ -334,10 +335,10 @@ export function generateCountryside(rng: Rng, opts: CountrysideOpts): Countrysid
     const corner = f.polygon[Math.floor(rng() * f.polygon.length)];
     const away = 4 + rng() * 3;
     const dxc = corner[0] - centroid(f.polygon)[0], dyc = corner[1] - centroid(f.polygon)[1];
-    const dl = Math.hypot(dxc, dyc) || 1;
+    const dl = dhypot(dxc, dyc) || 1;
     const hc: Point = [corner[0] + (dxc / dl) * away, corner[1] + (dyc / dl) * away];
     const theta = rng() * Math.PI;
-    const hux = Math.cos(theta), huy = Math.sin(theta);
+    const hux = dcos(theta), huy = dsin(theta);
     // A caravanserai is what a desert road builds instead of a farmstead: a square range around a
     // walled court, with the gate block on one side. It is the same two rectangles and the same
     // three draws — only the proportions change — so the desert plate that used to have a farmhouse
@@ -372,7 +373,7 @@ export function generateCountryside(rng: Rng, opts: CountrysideOpts): Countrysid
     const ay = road[i][1] + (road[i + 1][1] - road[i][1]) * frac;
     const side = rng() < 0.5 ? -1 : 1;
     let rx = road[i + 1][0] - road[i][0], ry = road[i + 1][1] - road[i][1];
-    const rl = Math.hypot(rx, ry) || 1; rx /= rl; ry /= rl;
+    const rl = dhypot(rx, ry) || 1; rx /= rl; ry /= rl;
     const lux = -ry * side, luy = rx * side;             // toward open country, off the road
     const pnx = -luy, pny = lux;
     const off = 20 + rng() * 10;                          // clear of the roadside fields
@@ -380,13 +381,13 @@ export function generateCountryside(rng: Rng, opts: CountrysideOpts): Countrysid
 
     const gr = 4 + rng() * 1.5;                           // common green
     const green: Polygon = [];
-    for (let k = 0; k < 7; k++) { const a = (k / 7) * Math.PI * 2; const rr = gr * (0.8 + rng() * 0.4); green.push([vc[0] + Math.cos(a) * rr, vc[1] + Math.sin(a) * rr]); }
+    for (let k = 0; k < 7; k++) { const a = (k / 7) * Math.PI * 2; const rr = gr * (0.8 + rng() * 0.4); green.push([vc[0] + dcos(a) * rr, vc[1] + dsin(a) * rr]); }
     const chapel: Point = [vc[0] - lux * (gr + 1.5), vc[1] - luy * (gr + 1.5)]; // church at the green, road side
 
     // approach lane: a track off the road threading THROUGH the green (a street). The cottage ring
     // is offset so the lane axis (±lux) falls in the GAPS between cottages, not over them.
     const lane: Polyline = [[ax, ay], vc, [vc[0] + lux * (gr + 6), vc[1] + luy * (gr + 6)]];
-    const laneAngle = Math.atan2(luy, lux);
+    const laneAngle = datan2(luy, lux);
 
     // cottages ring the green (gable-end inward); a candidate garden toft behind most of them
     const houses: Polygon[] = [];
@@ -395,7 +396,7 @@ export function generateCountryside(rng: Rng, opts: CountrysideOpts): Countrysid
     const hr = gr + 3.5;
     for (let k = 0; k < nH; k++) {
       const a = laneAngle + ((k + 0.5) / nH) * Math.PI * 2 + (rng() - 0.5) * 0.14; // half-step off the lane axis
-      const cos = Math.cos(a), sin = Math.sin(a);
+      const cos = dcos(a), sin = dsin(a);
       const hc: Point = [vc[0] + cos * hr, vc[1] + sin * hr];
       houses.push(orientedRect(hc, cos, sin, 2, 1.4));
       // toft sits BEHIND the cottage (clear of the house footprint at hr±2), out toward the field
@@ -405,7 +406,7 @@ export function generateCountryside(rng: Rng, opts: CountrysideOpts): Countrysid
     if (rng() < 0.6) {
       const pc: Point = [vc[0] + pnx * (gr * 0.8), vc[1] + pny * (gr * 0.8)];
       pondCand = [];
-      for (let k = 0; k < 8; k++) { const a = (k / 8) * Math.PI * 2; const rr = 1.5 * (0.8 + rng() * 0.4); pondCand.push([pc[0] + Math.cos(a) * rr, pc[1] + Math.sin(a) * rr]); }
+      for (let k = 0; k < 8; k++) { const a = (k / 8) * Math.PI * 2; const rr = 1.5 * (0.8 + rng() * 0.4); pondCand.push([pc[0] + dcos(a) * rr, pc[1] + dsin(a) * rr]); }
     }
 
     // the CLUSTER (green + cottages) must fit intact — that's what makes a village. The lane must
@@ -444,8 +445,8 @@ export function generateCountryside(rng: Rng, opts: CountrysideOpts): Countrysid
     const depth = 4 + rng() * 30;
     const p: Point = edge === 0 ? [t, depth] : edge === 1 ? [t, bounds.h - depth] : edge === 2 ? [depth, t] : [bounds.w - depth, t];
     if (blocked(p)) continue;
-    if (obstacles.some((o) => Math.hypot(o[0] - p[0], o[1] - p[1]) < 7)) continue;
-    if (woods.some((w2) => Math.hypot(w2[0] - p[0], w2[1] - p[1]) < 5)) continue;
+    if (obstacles.some((o) => dhypot(o[0] - p[0], o[1] - p[1]) < 7)) continue;
+    if (woods.some((w2) => dhypot(w2[0] - p[0], w2[1] - p[1]) < 5)) continue;
     if (onClaimed(p) || distToRoads(p) < 3) continue;
     woods.push(p);
   }
@@ -458,10 +459,10 @@ export function generateCountryside(rng: Rng, opts: CountrysideOpts): Countrysid
     const clearing = wallR + moatOff + DEEP_WOODS_CLEARING;
     for (let tries = 0, deep = 0; tries < DEEP_WOODS * 8 && deep < DEEP_WOODS; tries++) {
       const p: Point = [8 + rng() * (bounds.w - 16), 8 + rng() * (bounds.h - 16)];
-      if (Math.hypot(p[0] - bc[0], p[1] - bc[1]) < clearing) continue;
+      if (dhypot(p[0] - bc[0], p[1] - bc[1]) < clearing) continue;
       if (blocked(p)) continue;
-      if (obstacles.some((o) => Math.hypot(o[0] - p[0], o[1] - p[1]) < 7)) continue;
-      if (woods.some((w2) => Math.hypot(w2[0] - p[0], w2[1] - p[1]) < 5.5)) continue;
+      if (obstacles.some((o) => dhypot(o[0] - p[0], o[1] - p[1]) < 7)) continue;
+      if (woods.some((w2) => dhypot(w2[0] - p[0], w2[1] - p[1]) < 5.5)) continue;
       if (onClaimed(p) || distToRoads(p) < 3) continue;
       woods.push(p);
       deep++;

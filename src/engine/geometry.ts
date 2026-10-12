@@ -1,3 +1,4 @@
+import { dhypot } from "./dmath";
 export type Point = [number, number];
 export type Polygon = Point[];
 export type Segment = [Point, Point];
@@ -52,7 +53,7 @@ export function perimeter(p: Polygon): number {
   for (let i = 0; i < p.length; i++) {
     const [x1, y1] = p[i];
     const [x2, y2] = p[(i + 1) % p.length];
-    s += Math.hypot(x2 - x1, y2 - y1);
+    s += dhypot(x2 - x1, y2 - y1);
   }
   return s;
 }
@@ -161,9 +162,9 @@ export function splitByLine(poly: Polygon, a: Point, b: Point): Polygon[] {
 export function pointSegDist(p: Point, a: Point, b: Point): number {
   const dx = b[0] - a[0], dy = b[1] - a[1];
   const L2 = dx * dx + dy * dy;
-  if (L2 < 1e-12) return Math.hypot(p[0] - a[0], p[1] - a[1]);
+  if (L2 < 1e-12) return dhypot(p[0] - a[0], p[1] - a[1]);
   const t = Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / L2));
-  return Math.hypot(p[0] - (a[0] + t * dx), p[1] - (a[1] + t * dy));
+  return dhypot(p[0] - (a[0] + t * dx), p[1] - (a[1] + t * dy));
 }
 
 export function segmentsIntersect(a: Point, b: Point, c: Point, d: Point): boolean {
@@ -208,7 +209,7 @@ export function insetPolygon(poly: Polygon, d: number): Polygon {
   return poly.map(([x, y]) => {
     const dx = c[0] - x;
     const dy = c[1] - y;
-    const len = Math.hypot(dx, dy);
+    const len = dhypot(dx, dy);
     if (len < 1e-6) return [x, y] as Point;
     const move = Math.min(d, len * 0.9);
     return [x + (dx / len) * move, y + (dy / len) * move] as Point;
@@ -227,11 +228,11 @@ export function insetConvex(poly: Polygon, d: number): Polygon {
   for (let i = 0; i < poly.length; i++) {
     const p = poly[i];
     const prev = clean[clean.length - 1];
-    if (!prev || Math.hypot(p[0] - prev[0], p[1] - prev[1]) > 1e-6) clean.push(p);
+    if (!prev || dhypot(p[0] - prev[0], p[1] - prev[1]) > 1e-6) clean.push(p);
   }
   if (clean.length > 1) {
     const first = clean[0], last = clean[clean.length - 1];
-    if (Math.hypot(first[0] - last[0], first[1] - last[1]) < 1e-6) clean.pop();
+    if (dhypot(first[0] - last[0], first[1] - last[1]) < 1e-6) clean.pop();
   }
   poly = clean;
   const n = poly.length;
@@ -239,7 +240,7 @@ export function insetConvex(poly: Polygon, d: number): Polygon {
   const c = centroid(poly);
   const lineOf = (a: Point, b: Point): { p: Point; dir: Point } | null => {
     let ex = b[0] - a[0], ey = b[1] - a[1];
-    const L = Math.hypot(ex, ey);
+    const L = dhypot(ex, ey);
     if (L < 1e-9) return null;
     ex /= L; ey /= L;
     let nx = -ey, ny = ex;
@@ -278,7 +279,7 @@ export function insetConvex(poly: Polygon, d: number): Polygon {
       for (let j = 0; j < n; j++) worst = Math.min(worst, pointSegDist(p, poly[j], poly[(j + 1) % n]));
       if (worst >= d - 1e-6) break;
       const dx = c[0] - p[0], dy = c[1] - p[1];
-      const len = Math.hypot(dx, dy);
+      const len = dhypot(dx, dy);
       if (len < 1e-6) break;
       const step = Math.min(len, (d - worst) + 0.25);
       p = [p[0] + (dx / len) * step, p[1] + (dy / len) * step];
@@ -319,7 +320,7 @@ export function insetEdges(poly: Polygon, d: number | number[]): Polygon {
   let out: Polygon = poly.slice();
   for (let i = 0; i < n; i++) {
     const a = poly[i], b = poly[(i + 1) % n];
-    const L = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    const L = dhypot(b[0] - a[0], b[1] - a[1]);
     if (L < 1e-9) continue;
     let nx = -(b[1] - a[1]) / L, ny = (b[0] - a[0]) / L;
     if ((c[0] - a[0]) * nx + (c[1] - a[1]) * ny < 0) { nx = -nx; ny = -ny; } // point inward

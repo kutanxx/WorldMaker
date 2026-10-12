@@ -1,4 +1,5 @@
 import type { Point } from "../engine/borders";
+import { dhypot } from "../engine/dmath";
 
 // Every outline on this map — the coast, a nation's border, the edge of a forest — is a chain of
 // Voronoi cell edges, and a Voronoi cell edge is dead straight. Strung together at cell scale that
@@ -35,7 +36,7 @@ function hash(x: number, y: number): number {
 function subdivide(a: Point, b: Point, depth: number): Point[] {
   if (depth <= 0) return [];
   const dx = b[0] - a[0], dy = b[1] - a[1];
-  const len = Math.hypot(dx, dy);
+  const len = dhypot(dx, dy);
   if (len < 1e-6) return [];
   const mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2;
   const off = (hash(mx, my) * 2 - 1) * AMP * len;

@@ -1801,7 +1801,9 @@ describe("everything a plate draws stands where it belongs", () => {
     for (const { where, l } of portsOf()) {
       ports++;
       const sea = l.water.bodies[0] as P[];
-      expect(l.boundary.some((p) => seaGap(p as P, sea) < 3), `a port that touches its sea nowhere: ${where}`).toBe(true);
+      // (cityBoundary.ts sets a port's wall ON_BANK = 3 back from where it meets the sea, so the nearest point can
+      // stand exactly 3 off — 2.9999… under one arithmetic, 3.0000… under another: the bank, not a miss)
+      expect(l.boundary.some((p) => seaGap(p as P, sea) <= 3 + 1e-9), `a port that touches its sea nowhere: ${where}`).toBe(true);
       const q = l.harbor!.quay as P[];
       const gaps: number[] = [];
       for (let i = 0; i + 1 < q.length; i++) for (let t = 0; t <= 4; t++) gaps.push(seaGap([q[i][0] + ((q[i + 1][0] - q[i][0]) * t) / 4, q[i][1] + ((q[i + 1][1] - q[i][1]) * t) / 4], sea));
@@ -2272,6 +2274,14 @@ describe("the roads out of town go where the world's roads go", () => {
 // `countryside.woods` taken out of the hash, all 336 hash byte for byte as before
 // (.claude/probes/platehash2.ts, NOWOODS=1). The
 // roads out did not move. Was seed 1 2771584444, seed 12 1075377656.
+//
+// And for mathematics that comes out the same in every browser (engine/dmath.ts, 2026-10-12): Math.sin, cos,
+// atan2, hypot, pow... and the ** operator gave way to dmath's, built from + − × ÷ and sqrt alone, because
+// each engine computes Math's in its own last digits — Node 24, Chrome 152 and Firefox 156 drew a town's houses
+// three different ways. Every plate moved by a last digit or more (worlds 1..12: 63,375 → 63,387 buildings;
+// the plate census — audit, overlaps, roadmiss — the same). The worlds, their histories and the whole maps
+// did not move at all. The new pins are the plates every engine draws: fingerprint.html over 12 worlds and 56
+// plates came out 2E123F2A in Node, Chrome 152 and Firefox 156 alike. Was seed 1 3951837943, seed 12 1530721427.
 describe("a plate is the same plate, byte for byte", () => {
   const fold = (h: number, c: number) => Math.imul(h ^ c, 16777619) >>> 0;
   const fnv = (s: string) => { let h = 2166136261 >>> 0; for (let i = 0; i < s.length; i++) h = fold(h, s.charCodeAt(i)); return h >>> 0; };
@@ -2284,10 +2294,10 @@ describe("a plate is the same plate, byte for byte", () => {
   const drawing = (l: ReturnType<typeof generateCityLayout>) => JSON.stringify(l, (k, v) => (k === "suburbRoadTo" ? undefined : v));
   const destinations = (l: ReturnType<typeof generateCityLayout>) => JSON.stringify(l.suburbRoadTo ?? null);
   it("draws seed 1's twenty-eight towns exactly as it did", () => {
-    expect(worldHash(1, drawing)).toEqual({ h: 3951837943, n: 28 });
+    expect(worldHash(1, drawing)).toEqual({ h: 3142845041, n: 28 });
   });
   it("draws seed 12's twenty-eight towns exactly as it did", () => {
-    expect(worldHash(12, drawing)).toEqual({ h: 1530721427, n: 28 });
+    expect(worldHash(12, drawing)).toEqual({ h: 3046969641, n: 28 });
   });
   it("sends seed 1's and seed 12's roads out where they went", () => {
     expect([worldHash(1, destinations), worldHash(12, destinations)]).toEqual([{ h: 422798723, n: 28 }, { h: 964394477, n: 28 }]);

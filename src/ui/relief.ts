@@ -1,4 +1,5 @@
 import { cellPath } from "./svgPaths";
+import { dhypot, dpow } from "../engine/dmath";
 
 export interface ReliefBand { d: string; fill: string; opacity: number }
 
@@ -81,10 +82,10 @@ export function reliefBands(
     if (!w) continue;
     const gx = (sx / w) * EXAGGERATION, gy = (sy / w) * EXAGGERATION;
     // surface normal (-gx, -gy, 1), normalised, against the light
-    const nl = Math.hypot(gx, gy, 1);
+    const nl = dhypot(gx, gy, 1);
     const dev = (-gx * LX - gy * LY + LZ) / nl - FLAT;
     if (dev >= 0) continue;                                   // the lit side keeps the paper
-    const mag = Math.min(1, Math.pow(-dev / REACH, GAMMA));
+    const mag = Math.min(1, dpow(-dev / REACH, GAMMA));
     const band = Math.round((mag * maxShadow) / STEP);
     if (band === 0) continue;
     byBand.set(band, (byBand.get(band) ?? "") + cellPath(polygons[i]));

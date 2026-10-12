@@ -4,6 +4,7 @@ import type { Point, Polygon } from "../geometry";
 import type { Archetype } from "./archetypes";
 import type { Water } from "./water";
 import { inWater } from "./water";
+import { dcos, dhypot, dsin, sq } from "../dmath";
 
 // a port's wall within this of the sea runs down to it, and stands this far up the bank from it
 const SHORE_REACH = 16, ON_BANK = 3;
@@ -22,7 +23,7 @@ function nearestShore(water: Water, p: Point): Point | null {
       let t = ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / l2;
       t = Math.max(0, Math.min(1, t));
       const q: Point = [a[0] + dx * t, a[1] + dy * t];
-      const d = (p[0] - q[0]) ** 2 + (p[1] - q[1]) ** 2;
+      const d = sq(p[0] - q[0]) + sq(p[1] - q[1]);
       if (d < bd) { bd = d; best = q; }
     }
   }
@@ -47,11 +48,11 @@ export function makeBoundary(
   const sea: Water | null = water.kind === "sea" && water.bodies.length ? { kind: "sea", bodies: [water.bodies[0]], bridges: [] } : null;
   for (let i = 0; i < N; i++) {
     const a = (i / N) * Math.PI * 2;
-    let r = base * (0.8 + 0.34 * (noise(Math.cos(a) * 1.5, Math.sin(a) * 1.5) * 0.5 + 0.5));
-    if (archetype.streetField === "linear") r *= 1 + 0.55 * Math.abs(Math.cos(a - axis));
-    else if (archetype.id === "spur" && along !== undefined) r *= (1 + SPUR_STRETCH * Math.abs(Math.cos(a - axis))) / SPUR_MEAN;
+    let r = base * (0.8 + 0.34 * (noise(dcos(a) * 1.5, dsin(a) * 1.5) * 0.5 + 0.5));
+    if (archetype.streetField === "linear") r *= 1 + 0.55 * Math.abs(dcos(a - axis));
+    else if (archetype.id === "spur" && along !== undefined) r *= (1 + SPUR_STRETCH * Math.abs(dcos(a - axis))) / SPUR_MEAN;
     else if (archetype.wallShape === "contour") r *= 0.82;
-    let p: Point = [center[0] + Math.cos(a) * r, center[1] + Math.sin(a) * r];
+    let p: Point = [center[0] + dcos(a) * r, center[1] + dsin(a) * r];
     // lift a vertex that lands in the water out to the NEAREST BANK, not radially toward the centre:
     // for a wide river crossing the town, boring inward drove the vertex to the min-radius floor,
     // leaving a deep spike that made the wall jut inward at the river (user-reported). Snapping to
@@ -59,7 +60,7 @@ export function makeBoundary(
     if (inWater(water, p)) {
       const s = nearestShore(water, p);
       if (s) {
-        const dx = s[0] - p[0], dy = s[1] - p[1], dl = Math.hypot(dx, dy) || 1;
+        const dx = s[0] - p[0], dy = s[1] - p[1], dl = dhypot(dx, dy) || 1;
         const ux = dx / dl, uy = dy / dl;
         let q: Point = [s[0] + ux * 3, s[1] + uy * 3];
         for (let g = 0; g < 8 && inWater(water, q); g++) q = [q[0] + ux * 3, q[1] + uy * 3];
@@ -69,7 +70,7 @@ export function makeBoundary(
     // ...and a port's wall that stops just short of the sea runs down to it: its quay IS the shore
     // (the sea only — the first body; a river running into it keeps its own banks)
     else if (sea) {
-      const dx = p[0] - center[0], dy = p[1] - center[1], dl = Math.hypot(dx, dy) || 1;
+      const dx = p[0] - center[0], dy = p[1] - center[1], dl = dhypot(dx, dy) || 1;
       for (let t = 1; t <= SHORE_REACH; t++) {
         if (!inWater(sea, [p[0] + (dx / dl) * t, p[1] + (dy / dl) * t])) continue;
         const out = Math.max(0, t - ON_BANK);

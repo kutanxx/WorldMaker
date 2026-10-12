@@ -2,6 +2,7 @@ import type { Rng } from "../rng";
 import type { Point, Polygon } from "../geometry";
 import { area } from "../geometry";
 import type { WardCell } from "./wards";
+import { dhypot } from "../dmath";
 
 export type WardType =
   | "plaza" | "castle" | "cathedral" | "guildhall"
@@ -66,7 +67,7 @@ export function assignZones(
 ): ZonedWard[] {
   if (wards.length === 0) return [];
   const ranked = wards
-    .map((w) => ({ w, dist: Math.hypot(w.site[0] - center[0], w.site[1] - center[1]) }))
+    .map((w) => ({ w, dist: dhypot(w.site[0] - center[0], w.site[1] - center[1]) }))
     .sort((a, b) => a.dist - b.dist);
 
   const innerCut = radius * 0.6;
@@ -128,7 +129,7 @@ export function assignZones(
     let bi = -1, bd = Infinity;
     for (let j = idx; j < out.length; j++) {
       const d = opts.waterDist ? opts.waterDist(out[j].polygon)
-        : opts.seaAnchor ? Math.hypot(out[j].site[0] - opts.seaAnchor[0], out[j].site[1] - opts.seaAnchor[1])
+        : opts.seaAnchor ? dhypot(out[j].site[0] - opts.seaAnchor[0], out[j].site[1] - opts.seaAnchor[1])
         : Infinity;
       if (d < bd) { bd = d; bi = j; }
     }
@@ -143,7 +144,7 @@ export function assignZones(
       const dryOnes: { j: number; d: number }[] = [];
       for (let j = idx; j < out.length; j++) {
         if (out[j] === harborWard) continue; // don't consume the harbor ward
-        const d = Math.hypot(out[j].site[0] - anchor[0], out[j].site[1] - anchor[1]);
+        const d = dhypot(out[j].site[0] - anchor[0], out[j].site[1] - anchor[1]);
         if (d < bd) { bd = d; bi = j; }
         // (a ward whose stretch of the town wall holds a town gate is no castle's: the gate would open
         // into the lord's yard and the town's road run through it — 7 castles of twelve worlds)

@@ -1,5 +1,6 @@
 import type { Grid } from "./grid";
 import { MOUNTAIN, OCEAN } from "./terrain";
+import { datan2, dcos, dsin } from "./dmath";
 
 export type ReliefKind = "summit" | "valley" | "spur" | "slope";
 export interface Relief { relief: ReliefKind; bearing: number }
@@ -38,7 +39,7 @@ export function reliefAt(
   const top = new Array<number>(8).fill(-Infinity);   // the highest ground in each eighth, over the town's
   for (const n of near) {
     if (terrain[n] === OCEAN) continue;
-    const a = Math.atan2(grid.points[n * 2 + 1] - y, grid.points[n * 2] - x);
+    const a = datan2(grid.points[n * 2 + 1] - y, grid.points[n * 2] - x);
     const k = (Math.round((a / (2 * Math.PI)) * 8) + 8) % 8;
     top[k] = Math.max(top[k], heights[n] - h);
   }
@@ -52,8 +53,8 @@ export function reliefAt(
   // the heading of some rising eighths, each weighted by how far it rises
   const toward = (ks: number[]) => {
     let sx = 0, sy = 0;
-    for (const k of ks) { sx += Math.cos(dirOf(k)) * top[k]; sy += Math.sin(dirOf(k)) * top[k]; }
-    return Math.atan2(sy, sx);
+    for (const k of ks) { sx += dcos(dirOf(k)) * top[k]; sy += dsin(dirOf(k)) * top[k]; }
+    return datan2(sy, sx);
   };
   // the runs of rising eighths round the compass, largest first
   const runs: number[][] = [];
@@ -65,12 +66,12 @@ export function reliefAt(
     if (i > 0 && rises[(k + 7) % 8]) runs[runs.length - 1].push(k); else runs.push([k]);
   }
   runs.sort((p, q) => q.length - p.length);
-  const apart = runs.length >= 2 ? Math.abs(Math.atan2(Math.sin(toward(runs[0]) - toward(runs[1])), Math.cos(toward(runs[0]) - toward(runs[1])))) : 0;
+  const apart = runs.length >= 2 ? Math.abs(datan2(dsin(toward(runs[0]) - toward(runs[1])), dcos(toward(runs[0]) - toward(runs[1])))) : 0;
   if (risen >= BASIN || apart >= WALLS_APART) {
     // doubled angles, so two walls opposite each other add up instead of cancelling
     let cx = 0, cy = 0;
-    for (let k = 0; k < 8; k++) if (rises[k]) { cx += Math.cos(2 * dirOf(k)) * top[k]; cy += Math.sin(2 * dirOf(k)) * top[k]; }
-    return { relief: "valley", bearing: Math.atan2(cy, cx) / 2 };
+    for (let k = 0; k < 8; k++) if (rises[k]) { cx += dcos(2 * dirOf(k)) * top[k]; cy += dsin(2 * dirOf(k)) * top[k]; }
+    return { relief: "valley", bearing: datan2(cy, cx) / 2 };
   }
   const uphill = toward(rises.flatMap((r, k) => (r ? [k] : [])));
   const falls = top.filter((d) => d <= -LEVEL).length;

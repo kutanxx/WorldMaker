@@ -7,6 +7,7 @@ import type { Point, Polygon, Polyline } from "../engine/geometry";
 import { pointInPolygon } from "../engine/geometry";
 import { type Lang, WARD_NAME, t, featureName, type FeatureKey } from "./i18n";
 import { properName } from "./properName";
+import { datan2, dcos, dhypot, dpow, dsin } from "../engine/dmath";
 
 // A distinct (but parchment-muted) colour per district so the wards read apart — each
 // functional zone gets its own hue. harbor stays untinted (its docks are the waterfront
@@ -27,11 +28,11 @@ function spacedTowers(ring: Point[], minGap: number, target = 8): Point[] {
   let perim = 0;
   for (let i = 0; i < ring.length; i++) {
     const a = ring[i], b = ring[(i + 1) % ring.length];
-    perim += Math.hypot(b[0] - a[0], b[1] - a[1]);
+    perim += dhypot(b[0] - a[0], b[1] - a[1]);
   }
   minGap = Math.max(minGap, perim / target);
   const out: Point[] = [ring[0]];
-  const far = (p: Point, q: Point) => Math.hypot(p[0] - q[0], p[1] - q[1]) >= minGap;
+  const far = (p: Point, q: Point) => dhypot(p[0] - q[0], p[1] - q[1]) >= minGap;
   for (let i = 1; i < ring.length; i++) if (far(ring[i], out[out.length - 1])) out.push(ring[i]);
   // the ring closes, so the last tower must also clear the first
   if (out.length > 2 && !far(out[out.length - 1], out[0])) out.pop();
@@ -145,7 +146,7 @@ const ROOF_EDGE = "#5a4532";
 // north-west, as on the world map's peaks, so every house throws its shadow to the south-east
 const WASH = 0.5;
 const SHADOW = { dx: 0.9, dy: 0.9, fill: "#3c2f1c", opacity: 0.28 };
-const shadeAt = (poly: Polygon) => { const [x, y] = avg(poly); const v = Math.sin(x * 12.9898 + y * 78.233) * 43758.5453; return v - Math.floor(v); };
+const shadeAt = (poly: Polygon) => { const [x, y] = avg(poly); const v = dsin(x * 12.9898 + y * 78.233) * 43758.5453; return v - Math.floor(v); };
 
 /**
  * A guess at a name's drawn width, for a plate that cannot be measured (jsdom, a file never shown):
@@ -300,7 +301,7 @@ export function renderCity(layout: CityLayout, lang: Lang = "en", opts: CityRend
       hg.appendChild(svgEl("polyline", { class: "pier", points: pts(p), fill: "none", stroke: "#8a6a44", "stroke-width": 1.4, "stroke-linecap": "round" }));
     }
     for (const b of hb.boats) {
-      const c = Math.cos(b.angle), s = Math.sin(b.angle);
+      const c = dcos(b.angle), s = dsin(b.angle);
       const bow: [number, number] = [b.at[0] + c * 2.5, b.at[1] + s * 2.5];
       const sl: [number, number] = [b.at[0] - c * 1.5 - s * 1.2, b.at[1] - s * 1.5 + c * 1.2];
       const sr: [number, number] = [b.at[0] - c * 1.5 + s * 1.2, b.at[1] - s * 1.5 - c * 1.2];
@@ -320,7 +321,7 @@ export function renderCity(layout: CityLayout, lang: Lang = "en", opts: CityRend
     hg.appendChild(svgEl("polygon", { class: "hill-slope", points: pts(band), fill: "#8b7355", "fill-opacity": 0.1, stroke: "none" }));
     for (let i = 0; i < brow.length; i++) {
       const [bx, by] = brow[i], [fx, fy] = foot[i];
-      const len = Math.hypot(fx - bx, fy - by);
+      const len = dhypot(fx - bx, fy - by);
       if (len < HILL_STROKE_MIN) continue;   // (a spur's ground rises behind it: no slope there to draw)
       hg.appendChild(svgEl("line", {
         class: "hill-hachure", x1: bx.toFixed(1), y1: by.toFixed(1),
@@ -346,7 +347,7 @@ export function renderCity(layout: CityLayout, lang: Lang = "en", opts: CityRend
       // stops paying for itself.
       const step = m.steep ? 1 : 2, len = m.steep ? 5 : 3.5;
       const tick = (px: number, py: number, l: number): void => {
-        const dx = px - w / 2, dy = py - h / 2, L = Math.hypot(dx, dy) || 1;
+        const dx = px - w / 2, dy = py - h / 2, L = dhypot(dx, dy) || 1;
         mg.appendChild(svgEl("line", {
           class: "hachure", x1: (px + (dx / L) * l).toFixed(1), y1: (py + (dy / L) * l).toFixed(1),
           x2: px.toFixed(1), y2: py.toFixed(1), stroke: crest, "stroke-width": 0.5,
@@ -370,7 +371,7 @@ export function renderCity(layout: CityLayout, lang: Lang = "en", opts: CityRend
       row = 0;
       for (let py = y0 + PEAK_STEP * 0.8; py < y1; py += PEAK_STEP * 0.8, row++) {
         for (let px = x0 + (row % 2 ? PEAK_STEP / 2 : 0); px < x1; px += PEAK_STEP) {
-          const hash = (k: number) => { const j = Math.sin(px * 12.9898 + py * 78.233 + k * 37.719) * 43758.5453; return j - Math.floor(j); };
+          const hash = (k: number) => { const j = dsin(px * 12.9898 + py * 78.233 + k * 37.719) * 43758.5453; return j - Math.floor(j); };
           if (hash(3) < 0.25) continue;
           const r = hash(0);
           // (to the tenth it is written at, and tested there)
@@ -477,7 +478,7 @@ export function renderCity(layout: CityLayout, lang: Lang = "en", opts: CityRend
     env.appendChild(og2);
     if (o.type === "windmill") {
       og2.appendChild(svgEl("circle", { class: "outwork", cx: x, cy: y, r: 1.6, fill: "#8a7858" }));
-      const c = Math.cos(o.angle), s = Math.sin(o.angle), r = 4;
+      const c = dcos(o.angle), s = dsin(o.angle), r = 4;
       og2.appendChild(svgEl("path", { class: "outwork-sails", d: `M${(x - c * r).toFixed(1)} ${(y - s * r).toFixed(1)} L${(x + c * r).toFixed(1)} ${(y + s * r).toFixed(1)} M${(x + s * r).toFixed(1)} ${(y - c * r).toFixed(1)} L${(x - s * r).toFixed(1)} ${(y + c * r).toFixed(1)}`, stroke: "#6b5a44", "stroke-width": 0.8, fill: "none" }));
     } else {
       // watermill: race channel to the water, mill house on the bank, wheel at the water end.
@@ -486,7 +487,7 @@ export function renderCity(layout: CityLayout, lang: Lang = "en", opts: CityRend
       if (o.race) {
         og2.appendChild(svgEl("line", { class: "mill-race", x1: o.race[0][0].toFixed(1), y1: o.race[0][1].toFixed(1), x2: o.race[1][0].toFixed(1), y2: o.race[1][1].toFixed(1), stroke: "#9fc1d6", "stroke-width": 1.4, "stroke-linecap": "round" }));
       }
-      const wa = o.race ? Math.atan2(o.race[1][1] - o.race[0][1], o.race[1][0] - o.race[0][0]) : o.angle;
+      const wa = o.race ? datan2(o.race[1][1] - o.race[0][1], o.race[1][0] - o.race[0][0]) : o.angle;
       og2.appendChild(svgEl("rect", { class: "outwork", x: x - 2.5, y: y - 2, width: 5, height: 4, fill: "#c9a86a", stroke: "#8a6a44", "stroke-width": 0.5, transform: `rotate(${((wa * 180) / Math.PI).toFixed(1)} ${x} ${y})` }));
       const wheel = o.race ? o.race[1] : [x + 3, y + 1];
       og2.appendChild(svgEl("circle", { class: "outwork-wheel", cx: wheel[0], cy: wheel[1], r: 2, fill: "none", stroke: "#6b5a44", "stroke-width": 0.7 }));
@@ -632,7 +633,7 @@ export function renderCity(layout: CityLayout, lang: Lang = "en", opts: CityRend
     // x1.4 came out 4.4 units across the radius, a row of balls along an enceinte that is itself
     // smaller now it stands inside the town. S^0.7 keeps a great seat's towers a quarter greater
     // than a manor's, and both no smaller than the town wall's own.
-    const TS = Math.pow(S, 0.7);
+    const TS = dpow(S, 0.7);
     // the lane from the gate out to the street, under everything else the castle draws
     if (ca.approach) {
       cg.appendChild(svgEl("polyline", { class: "castle-approach-casing", points: pts(ca.approach), fill: "none", stroke: "#a07c3e", "stroke-width": 3.6, "stroke-linecap": "round" }));
@@ -664,7 +665,7 @@ export function renderCity(layout: CityLayout, lang: Lang = "en", opts: CityRend
       const [g0, g1] = ca.gatehouse;
       const yc = avg(ca.innerWall);
       let ix = yc[0] - ca.gate[0], iy = yc[1] - ca.gate[1];
-      const im = Math.hypot(ix, iy) || 1;
+      const im = dhypot(ix, iy) || 1;
       ix /= im; iy /= im;
       const back = 3.4 * S, out = 1.6 * S;
       const block: Point[] = [
@@ -722,7 +723,7 @@ export function renderCity(layout: CityLayout, lang: Lang = "en", opts: CityRend
     const og = svgEl("g", { class: "oasis-palms", "clip-path": `url(#${clipId})` });
     for (let k = 0; k < 5; k++) {
       const a = (k / 5) * Math.PI * 2;
-      const px = oc[0] + Math.cos(a) * orr * 1.15, py = oc[1] + Math.sin(a) * orr * 1.15;
+      const px = oc[0] + dcos(a) * orr * 1.15, py = oc[1] + dsin(a) * orr * 1.15;
       og.appendChild(svgEl("path", { class: "palm", d: `M${px} ${py} l -2.5 -4 M${px} ${py} l 2.5 -4 M${px} ${py} l 0 -5`, stroke: "#5c8a4a", "stroke-width": 1, fill: "none", "stroke-linecap": "round" }));
     }
     root.appendChild(og);
@@ -826,7 +827,7 @@ export function renderCity(layout: CityLayout, lang: Lang = "en", opts: CityRend
     if (!towns.length) return;
     const road = layout.suburbRoads[i];
     const [ex, ey] = road[road.length - 1], [px, py] = road[road.length - 2];
-    const len = Math.hypot(ex - px, ey - py) || 1;
+    const len = dhypot(ex - px, ey - py) || 1;
     const ux = (ex - px) / len, uy = (ey - py) / len;
     const side = -uy * (w / 2 - ex) + ux * (h / 2 - ey) >= 0 ? 1 : -1;   // the normal toward the middle
     const tx = svgEl("text", {

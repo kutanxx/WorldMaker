@@ -2,6 +2,7 @@
 // streets are the gaps between them — i.e. the edges shared by two adjacent wards.
 import type { Point, Polyline } from "../geometry";
 import type { WardCell } from "./wards";
+import { dhypot, sq } from "../dmath";
 
 export interface StreetGraph {
   nodes: Point[];
@@ -63,13 +64,13 @@ export function classifyStreets(
     let bi = -1, bd = Infinity, fi = 0, fd = Infinity;
     for (let i = 0; i < nodes.length; i++) {
       if (!adj[i].length) continue;
-      const d = (nodes[i][0] - p[0]) ** 2 + (nodes[i][1] - p[1]) ** 2;
+      const d = sq(nodes[i][0] - p[0]) + sq(nodes[i][1] - p[1]);
       if (d < fd) { fd = d; fi = i; }
       if (d < bd && dry(p, nodes[i])) { bd = d; bi = i; }
     }
     return bi >= 0 ? bi : fi;
   };
-  const wlen = (ei: number) => { const [a, b] = edges[ei]; return Math.hypot(nodes[a][0] - nodes[b][0], nodes[a][1] - nodes[b][1]); };
+  const wlen = (ei: number) => { const [a, b] = edges[ei]; return dhypot(nodes[a][0] - nodes[b][0], nodes[a][1] - nodes[b][1]); };
   const centreNode = nearestNode(centre);
   const mainEdge = new Set<number>();
   const stubs: Polyline[] = [];

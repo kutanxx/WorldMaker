@@ -3,6 +3,7 @@ import { randInt } from "./rng";
 import { makeNameGen } from "./names";
 import type { Phonetics } from "./names";
 import { OCEAN } from "./terrain";
+import { sq } from "./dmath";
 
 export interface Culture { name: string; color: string; phon: Phonetics }
 
@@ -42,7 +43,7 @@ export function assignCultures(
   const k = Math.max(1, Math.min(CULTURE_PROFILES.length, count, land.length));
   const px = (i: number) => grid.points[i * 2];
   const py = (i: number) => grid.points[i * 2 + 1];
-  const d2 = (a: number, b: number) => (px(a) - px(b)) ** 2 + (py(a) - py(b)) ** 2;
+  const d2 = (a: number, b: number) => sq(px(a) - px(b)) + sq(py(a) - py(b));
 
   // seed min-separated culture centres on land
   const centers: number[] = [];

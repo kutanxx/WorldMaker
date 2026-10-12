@@ -4,6 +4,7 @@ import type { Point, Polygon, Polyline } from "../geometry";
 import { pointInPolygon, clipToConvex } from "../geometry";
 import type { WaterKind } from "./archetypes";
 import { createNoise2D } from "simplex-noise";
+import { dcos, dhypot, dsin, dtan } from "../dmath";
 
 export interface Water {
   kind: WaterKind;
@@ -19,7 +20,7 @@ function ribbon(center: Polyline, halfWidth: number | ((i: number) => number), r
     const a = center[Math.max(0, i - 1)];
     const b = center[Math.min(center.length - 1, i + 1)];
     const dx = b[0] - a[0], dy = b[1] - a[1];
-    const m = Math.hypot(dx, dy) || 1;
+    const m = dhypot(dx, dy) || 1;
     const nx = -dy / m, ny = dx / m, hw = half(i);
     left.push([center[i][0] + nx * hw, center[i][1] + ny * hw]);
     right.push([center[i][0] - nx * hw, center[i][1] - ny * hw]);
@@ -27,11 +28,11 @@ function ribbon(center: Polyline, halfWidth: number | ((i: number) => number), r
   // a rounded head: half a circle round the first point, from its right bank back round to its left
   const head: Point[] = [];
   if (roundHead && center.length > 1) {
-    const [c0, c1] = center, m = Math.hypot(c1[0] - c0[0], c1[1] - c0[1]) || 1;
+    const [c0, c1] = center, m = dhypot(c1[0] - c0[0], c1[1] - c0[1]) || 1;
     const tx = (c1[0] - c0[0]) / m, ty = (c1[1] - c0[1]) / m, hw = half(0);
     for (let k = 1; k < 12; k++) {
       const phi = (k / 12) * Math.PI;   // from the right bank (ty, -tx), round behind it, to the left
-      head.push([c0[0] + (Math.cos(phi) * ty - Math.sin(phi) * tx) * hw, c0[1] + (-Math.cos(phi) * tx - Math.sin(phi) * ty) * hw]);
+      head.push([c0[0] + (dcos(phi) * ty - dsin(phi) * tx) * hw, c0[1] + (-dcos(phi) * tx - dsin(phi) * ty) * hw]);
     }
   }
   return left.concat(right.reverse(), head);
@@ -70,7 +71,7 @@ const OTHER_WAVES = 101.3;
 function shoreBend(seaArc?: number): number {
   if (seaArc === undefined) return 0;
   const open = Math.max(SEA_OPEN_MIN, Math.min(2 * Math.PI - SEA_OPEN_MIN, (Math.PI * seaArc) / SEA_ARC_STRAIGHT));
-  const bend = 1 / Math.tan(open / 2);
+  const bend = 1 / dtan(open / 2);
   return Math.abs(bend) < 1e-9 ? 0 : bend;
 }
 
@@ -141,7 +142,7 @@ export function buildWater(
       // painted out over the legend strip beside it. Same noise, same depth, same rng draws —
       // only the direction is no longer the town's own invention.
       const R = Math.min(w, h), cx = w / 2, cy = h / 2;
-      const reach = Math.hypot(w, h);           // enough to cross the plate at any angle
+      const reach = dhypot(w, h);           // enough to cross the plate at any angle
       const inland = shoreAt(R / 2 - depth);  // where the waterline sits
       const stretch = (2 * reach) / R;          // keep the waves the size they were on a plate edge
       const far = reach * 2, round = (townReach ?? 90) * BAY_ROUND;
@@ -150,7 +151,7 @@ export function buildWater(
       // flanks round a bay, back past the town round a headland, straight across where the world's sea
       // fills as much as a straight coast's (`waves` sets the shore's own noise apart for a second sea)
       const seaToward = (bearing: number, arc: number | undefined, waves: number): Polygon => {
-        const ux = Math.cos(bearing), uy = Math.sin(bearing);
+        const ux = dcos(bearing), uy = dsin(bearing);
         const vx = -uy, vy = ux;
         const bend = shoreBend(arc);
         const shore: Point[] = [];
@@ -161,7 +162,7 @@ export function buildWater(
           for (let o = 0; o < OCTAVES.length; o++) {
             n += noise(u01 * OCTAVES[o][0] * stretch, bearing * 1.7 + o * 37.3 + waves) * amp * OCTAVES[o][1];
           }
-          const off = bend ? Math.min(far * 0.95, inland + n + bend * (Math.hypot(along, round) - round)) : inland + n;
+          const off = bend ? Math.min(far * 0.95, inland + n + bend * (dhypot(along, round) - round)) : inland + n;
           shore.push([cx + ux * off + vx * along, cy + uy * off + vy * along]);
         }
         const open: Polygon = [
@@ -200,13 +201,13 @@ export function buildWater(
     const reach = townReach ?? 90;
     // its near shore about where the wall runs (the wall itself wanders a fifth either side)
     const ang = a1 * Math.PI * 2, d = reach + r * (0.85 + a2 * 0.2);
-    const cx = w / 2 + Math.cos(ang) * d, cy = h / 2 + Math.sin(ang) * d;
+    const cx = w / 2 + dcos(ang) * d, cy = h / 2 + dsin(ang) * d;
     const poly: Polygon = [];
     const n = 14;
     for (let i = 0; i < n; i++) {
       const a = (i / n) * Math.PI * 2;
       const rr = r * (0.75 + rng() * 0.4);
-      poly.push([cx + Math.cos(a) * rr, cy + Math.sin(a) * rr]);
+      poly.push([cx + dcos(a) * rr, cy + dsin(a) * rr]);
     }
     return { kind, bodies: onPlate(poly), bridges: [] };
   }
@@ -219,7 +220,7 @@ export function buildWater(
   const jit: number[] = [];
   for (let i = 0; i <= 12; i++) jit.push(0.75 + rng() * 0.5);
   const flow = riverBearing ?? (vertical ? Math.PI / 2 : 0);
-  const ux = Math.cos(flow), uy = Math.sin(flow);
+  const ux = dcos(flow), uy = dsin(flow);
 
   if (kind === "loop") {
     // A town in the river's bend, the way Toledo and Besançon sit in theirs: the river comes in from
@@ -257,7 +258,7 @@ export function buildWater(
   // angle: laid along the flow, carried past the plate's corners, cut back to the plate.
   const amp = kind === "meander" ? 70 : 40, waves = kind === "meander" ? 3 : 2, half = (kind === "meander" ? 16 : 11) * wide;
   const vx = -uy, vy = ux;
-  const side = Math.min(w, h), far = Math.hypot(w, h) / 2 + 24;
+  const side = Math.min(w, h), far = dhypot(w, h) / 2 + 24;
   const v0 = (baseDraw - 0.5) * 0.2 * side;          // where it passes the middle: 0.4..0.6 of the plate
   const jitAt = (t: number) => {
     const x = Math.max(0, Math.min(12, t * 12)), i = Math.min(11, Math.floor(x)), f = x - i;
@@ -271,7 +272,7 @@ export function buildWater(
     const along = -far + (2 * far * i) / N;
     if (along < spring) continue;
     const t = (along + side / 2) / side;              // 0..1 across the plate, as the waves were laid
-    const off = v0 + Math.sin(t * Math.PI * waves) * amp * jitAt(t);
+    const off = v0 + dsin(t * Math.PI * waves) * amp * jitAt(t);
     center.push([w / 2 + ux * along + vx * off, h / 2 + uy * along + vy * off]);
   }
   if (!course.rises) return { kind, bodies: onPlate(ribbon(center, half)), bridges: [] };
@@ -403,14 +404,14 @@ const SAME_CROSSING = 12;
 export function waterBridges(roads: Polyline[], water: Water): [Point, Point][] {
   const bridges: [Point, Point][] = [];
   if (!water.bodies.length) return bridges;
-  const gap = (p: Point, q: Point) => Math.hypot(p[0] - q[0], p[1] - q[1]);
+  const gap = (p: Point, q: Point) => dhypot(p[0] - q[0], p[1] - q[1]);
   const same = (a: Point, b: Point, c: Point, d: Point) =>
     Math.min(gap(a, c) + gap(b, d), gap(a, d) + gap(b, c)) < SAME_CROSSING;
   for (const r of roads) {
     const walk: Point[] = [];
     for (let i = 0; i < r.length - 1; i++) {
       const a = r[i], b = r[i + 1];
-      const n = Math.max(1, Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) / STEP));
+      const n = Math.max(1, Math.ceil(dhypot(b[0] - a[0], b[1] - a[1]) / STEP));
       for (let k = 0; k < n; k++) walk.push([a[0] + ((b[0] - a[0]) * k) / n, a[1] + ((b[1] - a[1]) * k) / n]);
     }
     if (r.length) walk.push(r[r.length - 1]);
@@ -420,7 +421,7 @@ export function waterBridges(roads: Polyline[], water: Water): [Point, Point][] 
       while (gone < LANDING) {
         const j = i + dir;
         if (j < 0 || j >= walk.length) break;
-        gone += Math.hypot(walk[j][0] - walk[i][0], walk[j][1] - walk[i][1]);
+        gone += dhypot(walk[j][0] - walk[i][0], walk[j][1] - walk[i][1]);
         i = j;
       }
       return walk[i];
@@ -430,7 +431,7 @@ export function waterBridges(roads: Polyline[], water: Water): [Point, Point][] 
       const prev = walk[from - dir];
       if (!prev) return null;
       const dx = walk[from][0] - prev[0], dy = walk[from][1] - prev[1];
-      const m = Math.hypot(dx, dy);
+      const m = dhypot(dx, dy);
       if (!m) return null;
       const ux = (dx / m) * STEP, uy = (dy / m) * STEP;
       let p: Point = walk[from];

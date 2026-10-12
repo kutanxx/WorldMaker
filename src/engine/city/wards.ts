@@ -3,6 +3,7 @@ import type { Rng } from "../rng";
 import type { Point, Polygon } from "../geometry";
 import { clipToConvex, pointInPolygon, area } from "../geometry";
 import type { StreetField } from "./archetypes";
+import { datan2, dcos, dhypot, dsin, sq } from "../dmath";
 
 export interface WardCell {
   polygon: Polygon;
@@ -13,7 +14,7 @@ export function discPolygon(cx: number, cy: number, r: number, segments = 32): P
   const out: Polygon = [];
   for (let i = 0; i < segments; i++) {
     const a = (i / segments) * Math.PI * 2;
-    out.push([cx + Math.cos(a) * r, cy + Math.sin(a) * r]);
+    out.push([cx + dcos(a) * r, cy + dsin(a) * r]);
   }
   return out;
 }
@@ -27,7 +28,7 @@ function discSites(rng: Rng, cx: number, cy: number, radius: number, count: numb
   for (let i = 0; i < count; i++) {
     const a = rng() * Math.PI * 2;
     const rr = Math.sqrt(rng()) * radius * 0.92;
-    sites.push([cx + Math.cos(a) * rr, cy + Math.sin(a) * rr]);
+    sites.push([cx + dcos(a) * rr, cy + dsin(a) * rr]);
   }
   return sites;
 }
@@ -40,7 +41,7 @@ function gridSites(rng: Rng, cx: number, cy: number, radius: number, count: numb
   const heading = rng() * Math.PI * 0.5; // a quarter turn covers every distinct lattice orientation
   const step = radius * Math.sqrt(Math.PI / count); // spacing that fits about `count` points in the disc
   const JITTER = 0.05;
-  const cos = Math.cos(heading), sin = Math.sin(heading);
+  const cos = dcos(heading), sin = dsin(heading);
   const reach = Math.ceil(radius / step) + 1;
   const sites: Point[] = [];
   for (let i = -reach; i <= reach; i++) {
@@ -48,7 +49,7 @@ function gridSites(rng: Rng, cx: number, cy: number, radius: number, count: numb
       const lx = i * step + (rng() - 0.5) * 2 * JITTER * step;
       const ly = j * step + (rng() - 0.5) * 2 * JITTER * step;
       const x = cx + lx * cos - ly * sin, y = cy + lx * sin + ly * cos;
-      if (Math.hypot(x - cx, y - cy) <= radius * 0.92) sites.push([x, y]);
+      if (dhypot(x - cx, y - cy) <= radius * 0.92) sites.push([x, y]);
     }
   }
   return sites;
@@ -67,7 +68,7 @@ function radialSites(rng: Rng, cx: number, cy: number, radius: number, count: nu
     for (let k = 0; k < spokes; k++) {
       const a = heading + (k / spokes) * Math.PI * 2 + (rng() - 0.5) * 0.05;
       const rr = ring * (1 + (rng() - 0.5) * 0.06);
-      sites.push([cx + Math.cos(a) * rr, cy + Math.sin(a) * rr]);
+      sites.push([cx + dcos(a) * rr, cy + dsin(a) * rr]);
     }
   }
   return sites;
@@ -83,20 +84,20 @@ function principalAxis(shape: Polygon): number {
   mx /= shape.length; my /= shape.length;
   let sxx = 0, syy = 0, sxy = 0;
   for (const p of shape) { const dx = p[0] - mx, dy = p[1] - my; sxx += dx * dx; syy += dy * dy; sxy += dx * dy; }
-  return 0.5 * Math.atan2(2 * sxy, sxx - syy);
+  return 0.5 * datan2(2 * sxy, sxx - syy);
 }
 
 function linearSites(rng: Rng, cx: number, cy: number, radius: number, count: number, axis: number): Point[] {
   const rows = Math.max(2, Math.round(Math.sqrt(count / 3))); // few rows across, many along
   const cols = Math.max(3, Math.ceil(count / rows));
   const along = radius * 0.95, across = radius * 0.38;
-  const cos = Math.cos(axis), sin = Math.sin(axis);
+  const cos = dcos(axis), sin = dsin(axis);
   const sites: Point[] = [];
   for (let i = 0; i < cols; i++) {
     for (let j = 0; j < rows; j++) {
       const u = (-1 + (2 * (i + 0.5)) / cols) * along * (1 + (rng() - 0.5) * 0.12);
       const v = (-1 + (2 * (j + 0.5)) / rows) * across * (1 + (rng() - 0.5) * 0.2);
-      if ((u / along) ** 2 + (v / across) ** 2 > 1.05) continue;
+      if (sq(u / along) + sq(v / across) > 1.05) continue;
       sites.push([cx + u * cos - v * sin, cy + u * sin + v * cos]);
     }
   }
