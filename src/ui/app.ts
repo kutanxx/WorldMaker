@@ -9,6 +9,7 @@ import { renderCity, CITY_LEGEND_ROW, fitTitle } from "./svgCityRenderer";
 import { generateCityLayout, cityContext, type CityLayout } from "../engine/city";
 import { cityFacts } from "./cityFacts";
 import { KM_PER_UNIT, floorScaleCaption } from "./scaleBar";
+import { worldFingerprint, plateFingerprint } from "../engine/fingerprint";
 import { encodeParams, randomSeed, initialCity, initialNames, initialParams, initialSeedName } from "./urlState";
 import { applyNames, encodeNames, generatedNames, NAME_MAX, type NameBook, type GeneratedNames } from "./nameBook";
 import { hashStringToSeed } from "../engine/rng";
@@ -220,6 +221,17 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
   const advancedNote = document.createElement("p");
   advancedNote.className = "advanced-note";
   advanced.appendChild(advancedNote);
+  // The world's fingerprint (engine/fingerprint.ts): no world is stored, every browser computes it from its
+  // number, and this is how a reader checks that another browser or device computed the same one.
+  const fingerprint = document.createElement("p");
+  fingerprint.className = "fingerprint";
+  const fingerprintWord = document.createElement("span");
+  fingerprintWord.className = "fingerprint-word";
+  const fingerprintCode = document.createElement("code");
+  fingerprintCode.className = "fingerprint-code";
+  const fingerprintNote = document.createElement("span");
+  fingerprintNote.className = "fingerprint-note";
+  fingerprint.append(fingerprintWord, " ", fingerprintCode, " ", fingerprintNote);
   const dials: { key: keyof WorldParams; min: number; max: number; step: number }[] = [
     { key: "seaLevel", min: 0.15, max: 0.55, step: 0.01 },
     { key: "mountainLevel", min: 0.4, max: 0.8, step: 0.01 },
@@ -294,6 +306,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
   exportGroup.appendChild(linkBtn);
   controls.append(homeBtn, backBtn, randomBtn, seedGroup, viewToggle, inkBtn, moreBtn, exportGroup, gazBtn, langBtn);
   syncMore(false);
+  advanced.appendChild(fingerprint);
   root.appendChild(advanced);
 
   // set every UI string from the current language (called on init and on language toggle)
@@ -305,6 +318,8 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     document.documentElement.lang = lang;
     advancedSummary.textContent = t(lang, "advanced");
     advancedNote.textContent = t(lang, "advancedNote");
+    fingerprintWord.textContent = t(lang, "fingerprint");
+    fingerprintNote.textContent = t(lang, "fingerprintNote");
     for (const d of dialRows) { d.name.textContent = t(lang, d.key as never); d.name.title = t(lang, `${d.key}Title`); }
     homeBtn.textContent = t(lang, "home");
     backBtn.textContent = "← " + t(lang, "backToWorld");
@@ -853,6 +868,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     if (next[key] === names[key]) return;
     names = next;
     applyNames(generated.world, history, bornNames, names);
+    fingerprintCode.textContent = worldFingerprint(generated.world, history);
     // the same screen, at the zoom and the year the reader was at
     if (openCityId !== null) openCity(openCityId, "replace", cityZoom?.viewBox());
     else showWorld(worldZoom?.viewBox());
@@ -892,6 +908,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
   /** @param restore the zoom to draw the map at (ZoomPan.viewBox), when it is drawn again in place */
   function showWorld(restore?: string): void {
     closeNameEditor(false);
+    fingerprintCode.textContent = worldFingerprint(generated.world, history);
     const was = openCityId;
     openCityId = null;
     setTitle();
@@ -1329,6 +1346,10 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
         ? t(lang, "factAncient")
         : t(lang, "year").replace("{y}", String(facts.founded))),
     );
+    // the plate's own fingerprint, to compare with another browser's (engine/fingerprint.ts)
+    const print = row(t(lang, "factFingerprint"), plateFingerprint(layout));
+    print.classList.add("city-fact-fingerprint");
+    print.title = t(lang, "fingerprintNote");
     const near = document.createElement("div");
     near.className = "city-fact city-neighbours";
     const nearKey = document.createElement("span");
@@ -1352,6 +1373,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     }
     near.appendChild(nearList);
     panel.appendChild(near);
+    panel.appendChild(print);
 
     // ★ What is said about the plate comes after it, the facts over the key, in one column: beside
     // the drawing where the page has room for a column, under it — a caption — where it does not.

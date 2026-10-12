@@ -688,6 +688,12 @@ svg.city .wall-seg, svg.city .wall-seg-inner, svg.city .tower, svg.city .gate { 
 /* (the names say which way a dial goes now — "산 (높을수록 적게)" — so their column is wider than 92px) */
 .advanced-row { display: grid; grid-template-columns: 170px 1fr 56px; align-items: center; gap: 10px; padding: 3px 2px; }
 .advanced-note { margin: 2px 2px 6px; color: #6b5d42; font-size: 12.5px; }
+/* the world's fingerprint, to read out and compare between browsers: the code set apart in a fixed-width face */
+.fingerprint { margin: 10px 2px 2px; padding-top: 8px; border-top: 1px solid #d8c9a3; color: #6b5d42; font-size: 12.5px; }
+.fingerprint-word { color: #3c2f1c; font-weight: 600; }
+.fingerprint-code, .city-fact-fingerprint .city-fact-value { font-family: ui-monospace, Consolas, monospace; letter-spacing: .06em; color: #3c2f1c; }
+.fingerprint-code { padding: 1px 6px; border: 1px solid #c9b88f; border-radius: 4px; background: #fbf6ea; }
+.fingerprint-note { display: block; margin-top: 4px; }
 .advanced-row output { font-variant-numeric: tabular-nums; text-align: right; color: #6b5d42; }
 /* ⚠ A slider is not a text field — the scrubber's lesson again. The global `button, input` rule gave
    these its padding and border on top of a content-box height: measured 46px on a phone. */
