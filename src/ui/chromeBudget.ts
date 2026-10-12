@@ -50,3 +50,21 @@ export function fitChrome(
     host.style.setProperty(prop, `${v}px`);
   }
 }
+
+/**
+ * How wide `bar` is on ONE row — its own content width, all its controls side by side. The card is
+ * let grow to this (`--bar-w` on #app) so the bar never wraps: held to the map's width, the bar
+ * wrapped on a short window, and a wrapped bar is taller, which leaves the map less height, which
+ * makes it narrower still (1366x650: two rows, a 68px title over them, a map of 460x322).
+ * `null` for a bar that has not been laid out (jsdom, or not mounted yet).
+ */
+export function oneRowWidth(bar: HTMLElement): number | null {
+  // ⚠ and out from under its cap: the bar's `max-width` IS the card's measure, so measured under it
+  // the bar reported the width it already had, two rows and all
+  const was = [bar.style.width, bar.style.maxWidth];
+  bar.style.width = "max-content";
+  bar.style.maxWidth = "none";
+  const w = bar.getBoundingClientRect().width;
+  [bar.style.width, bar.style.maxWidth] = was;
+  return w > 0 ? Math.ceil(w) : null;
+}

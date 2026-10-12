@@ -289,3 +289,45 @@ describe("the things you press are one size", () => {
     }
   });
 });
+
+// ★ A laptop window gave the map 17% of itself. At 1366x650 the map was 460x322: the page's title
+// took 68px over a toolbar that wrapped to two rows (92px) because the toolbar was held to the
+// map's own width, and the map's width was decided by the height those two had left — a toolbar
+// that wraps makes the map narrower, which makes the toolbar wrap. The title folds into the bar as
+// its first word (the home link), the card may grow as wide as a one-row bar needs, and the map's
+// own track stays capped by the height: measured on the mock, 1366x650 594x416, 1366x768 (English)
+// 629x440 -> 763x534, 1440x900 871x610 -> 951x666.
+describe("the title folds into a one-row bar on a desktop window", () => {
+  const desktop = () => {
+    const c = css();
+    const out: string[] = [];
+    for (let i = c.indexOf("@media (min-width: 901px) {"); i > -1; i = c.indexOf("@media (min-width: 901px) {", i + 1)) {
+      out.push(c.slice(i, c.indexOf(BLOCK_END, i)));
+    }
+    return out.join("\n");
+  };
+  it("names the site in the bar and takes the big title off the screen, not out of the page", () => {
+    const d = desktop();
+    const title = /body > \.app-title\s*\{([^}]*)\}/.exec(d)?.[1] ?? "";
+    // off the screen but still the page's heading — a screen reader keeps it
+    expect(title, "the big title still stands over the bar").toMatch(/clip-path:\s*inset\(50%\)/);
+    expect(title).not.toMatch(/display:\s*none/);
+    expect(d, "the bar's home link does not say the site's name").toMatch(/\.home-word\s*\{[^}]*display:\s*inline/);
+    expect(d, "the house stands beside the name").toMatch(/\.home-icon\s*\{[^}]*display:\s*none/);
+  });
+  it("lets the bar and the card take the width a one-row bar needs", () => {
+    const c = css();
+    const i = c.indexOf("#app > .controls, #app > .stage {");
+    expect(c.slice(i, c.indexOf("}", i)), "the card is still held to the map's measure alone").toContain("var(--bar-w");
+    const j = c.indexOf("#app > .advanced {");
+    expect(c.slice(j, c.indexOf("}", j)), "the settings no longer line up with the card").toContain("var(--bar-w");
+  });
+  it("keeps the map's own track capped by the height, and gives the column what is over", () => {
+    const c = css();
+    const block = c.slice(c.search(/^\.map-with-list \{/m));
+    const rule = block.slice(0, block.indexOf("}"));
+    // `--page - 222` is the map's height-given width (and its 398px floor on a very short window)
+    expect(rule, "a wider card would make the map wider than the window is tall")
+      .toMatch(/grid-template-columns:\s*min\(calc\(100% - 222px\),\s*calc\(var\(--page\) - 222px\)\)\s+minmax\(210px,\s*1fr\)/);
+  });
+});

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from "vitest";
-import { measureChrome, fitChrome, CHROME_AIR } from "./chromeBudget";
+import { measureChrome, fitChrome, oneRowWidth, CHROME_AIR } from "./chromeBudget";
 
 // jsdom lays nothing out, so each box says where it is
 const boxAt = (top: number, bottom: number): HTMLElement => {
@@ -58,5 +58,30 @@ describe("fitChrome", () => {
     const host = document.createElement("div");
     fitChrome(host, "--plate-chrome", () => 200, 3, 230);
     expect(host.style.getPropertyValue("--plate-chrome")).toBe("230px");
+  });
+});
+
+// ★ How wide the bar is on ONE row — what the card must be for the bar not to wrap. The card used
+// to be held to the map's width, and the map's width to the height the bar and the title left it:
+// on a 1366x650 window the bar wrapped to two rows and the map came out 460x322.
+describe("oneRowWidth", () => {
+  it("measures the bar at its own content width and puts the bar back as it was", () => {
+    const bar = document.createElement("div");
+    bar.style.width = "";
+    bar.style.maxWidth = "800px";
+    let widthWhenMeasured = "", capWhenMeasured = "";
+    bar.getBoundingClientRect = () => {
+      widthWhenMeasured = bar.style.width;
+      capWhenMeasured = bar.style.maxWidth;
+      return { width: 1131.4, height: 54, top: 0, bottom: 54, left: 0, right: 1131.4, x: 0, y: 0, toJSON() {} } as DOMRect;
+    };
+    expect(oneRowWidth(bar)).toBe(1132);
+    expect(widthWhenMeasured, "measured at the width it was given, not its own").toBe("max-content");
+    expect(capWhenMeasured, "measured under the cap that made it wrap").toBe("none");
+    expect(bar.style.width).toBe("");
+    expect(bar.style.maxWidth).toBe("800px");
+  });
+  it("says nothing about a bar that has not been laid out", () => {
+    expect(oneRowWidth(document.createElement("div"))).toBeNull();
   });
 });

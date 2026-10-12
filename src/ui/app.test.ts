@@ -87,6 +87,16 @@ describe("createApp", () => {
     expect(home!.textContent).toContain("🏠");
     expect(home!.getAttribute("title")).toMatch(/Home|홈/);
   });
+  // A desktop window shows the site's name here instead of the house, and the big title over the bar
+  // goes (theme.css): the title's 68px and the bar's second row were the map's. Both are in the link;
+  // the stylesheet decides which one shows.
+  it("carries the site's name in the home link, for the windows where the title folds into the bar", () => {
+    const root = document.createElement("div");
+    createApp(root, small);
+    const home = root.querySelector(".controls a.home")!;
+    expect(home.querySelector(".home-word")?.textContent).toBe("WorldMaker");
+    expect(home.querySelector(".home-icon")?.textContent).toBe("🏠");
+  });
   it("shows a timeline and a political layer over the world", () => {
     const root = document.createElement("div");
     createApp(root, small);

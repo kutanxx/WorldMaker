@@ -31,7 +31,7 @@ import { type Page, pageOf, putOnPage, fitRiverNames } from "./regionPage";
 import { type Lang, t } from "./i18n";
 import { makeFold, readFoldPref, writeFoldPref, type Fold } from "./fold";
 import { legendSheet, placeLegend } from "./legendSheet";
-import { measureChrome, fitChrome } from "./chromeBudget";
+import { measureChrome, fitChrome, oneRowWidth } from "./chromeBudget";
 import { LEGEND_ROW } from "./renderer";
 import { detectLang, saveLang } from "./lang";
 import { rememberWorld } from "./recentWorlds";
@@ -101,6 +101,14 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
   const homeBtn = document.createElement("a"); // back to the landing chooser (index.html — relative for the Pages subpath)
   homeBtn.className = "home";
   homeBtn.setAttribute("href", "index.html");
+  // The house, and the site's name: a desktop window shows the name here and takes the big title off
+  // the page (theme.css) — its 68px, and the second row the bar wrapped to, were the map's.
+  const homeIcon = document.createElement("span");
+  homeIcon.className = "home-icon";
+  const homeWord = document.createElement("span");
+  homeWord.className = "home-word";
+  homeWord.textContent = "WorldMaker";
+  homeBtn.append(homeIcon, homeWord);
   // The seed box and its button are ONE control: the button applies the number beside it. Measured
   // apart, they read as two rival ways to make a world sitting next to a third (the die), all in
   // the same colour — and the one called "Generate" is the one that does nothing visible when the
@@ -321,7 +329,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     fingerprintWord.textContent = t(lang, "fingerprint");
     fingerprintNote.textContent = t(lang, "fingerprintNote");
     for (const d of dialRows) { d.name.textContent = t(lang, d.key as never); d.name.title = t(lang, `${d.key}Title`); }
-    homeBtn.textContent = t(lang, "home");
+    homeIcon.textContent = t(lang, "home");
     backBtn.textContent = "← " + t(lang, "backToWorld");
     homeBtn.title = t(lang, "homeLabel"); // the house carries it; the word cost the toolbar a second row
     regenBtn.textContent = t(lang, "generate");
@@ -446,7 +454,17 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
   // always holds the title and the bar — the way back is in the bar now, and the facts stand beside
   // or under the drawing — and it is never let under it. Measured: 149 on a phone, 168 at 1440x900.
   const PLATE_RESERVE_FLOOR = 150;
+  // The card is let grow to a one-row bar (`--bar-w`, see oneRowWidth). A narrow window folds its bar
+  // on purpose and focus mode has none; both keep the map's own measure. The 12 is the room the
+  // language toggle keeps from the rest — its `margin-left: auto` is nought at the bar's own width.
+  const BAR_SPARE = 12;
+  const fitBarWidth = (): void => {
+    const w = isNarrowWindow() || document.body.classList.contains("map-focus") ? null : oneRowWidth(controls);
+    if (w === null) root.style.removeProperty("--bar-w");
+    else root.style.setProperty("--bar-w", `${w + BAR_SPARE}px`);
+  };
   const fitWorldChrome = (): void => {
+    fitBarWidth();
     const frame = stage.querySelector<HTMLElement>(".map-with-list > .map-frame");
     // A narrow window stacks the key and the town list under the map, and there the map is sized
     // by the window's width anyway; focus mode sizes itself. Both get the stylesheet's own number.
@@ -457,6 +475,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     fitChrome(root, "--chrome", () => measureChrome(frame, stage));
   };
   const fitPlateChrome = (): void => {
+    fitBarWidth();
     const plate = stage.querySelector<SVGSVGElement>("svg.city");
     if (!plate || document.body.classList.contains("map-focus")) return;
     // what counts under a plan is only its card's own edge: its facts and key may run on below it

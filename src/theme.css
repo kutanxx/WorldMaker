@@ -48,12 +48,17 @@ body {
 /* ⚠ No global `box-sizing: border-box` in this stylesheet, so these three say it themselves: the
    card and the bar are sized by their OUTER box (they line up as cards), and the settings by the
    same measure as the map inside the card (they line up as text). */
+/* ★ ...or as wide as the bar is on ONE row, if that is wider (`--bar-w`, measured — app.ts
+   fitBarWidth). Held to the map's measure alone, the bar wrapped on a short window, and a wrapped bar
+   is taller, which leaves the map less height, which makes the map — and so the bar — narrower still:
+   at 1366x650 the bar stood two rows and the map 460x322. The map's own track keeps the height's
+   measure (.map-with-list); what a wider card adds goes to the column beside it. */
 #app > .controls, #app > .stage {
-  box-sizing: border-box; max-width: min(100%, calc(var(--page) + 22px)); margin-inline: auto;
+  box-sizing: border-box; max-width: min(100%, max(calc(var(--page) + 22px), var(--bar-w, 0px))); margin-inline: auto;
 }
-#app > .advanced { box-sizing: border-box; max-width: min(100%, var(--page)); }
+#app > .advanced { box-sizing: border-box; max-width: min(100%, max(var(--page), calc(var(--bar-w, 0px) - 22px))); }
 #app.plate-screen > .controls, #app.plate-screen > .stage {
-  max-width: min(100%, calc(max(var(--page), var(--plate-page)) + 22px));
+  max-width: min(100%, max(calc(max(var(--page), var(--plate-page)) + 22px), var(--bar-w, 0px)));
 }
 /* the world's settings make a world; on a plate they would only leave it */
 #app.plate-screen > .advanced { display: none; }
@@ -152,6 +157,8 @@ a.home {
   display: inline-flex; align-items: center;
 }
 a.home:hover { background: #e7cf9c; }
+/* the site's name in the bar, where the title has folded into it (the desktop block below) */
+.home-word { display: none; font-family: 'Cinzel', 'Gowun Batang', serif; font-weight: 600; font-size: 15px; letter-spacing: .08em; }
 .stage {
   position: relative;
   background: #f6efdd; border: 1px solid #cbb784; border-radius: 6px; padding: 10px;
@@ -754,8 +761,10 @@ svg.city .wall-seg, svg.city .wall-seg-inner, svg.city .tower, svg.city .gate { 
    is capped at (the vertical room left over) x 10/7, plus the list's 210 and the 12 gap. That keeps
    the map and the scrubber under it on screen together at any window size — the map grows into a
    tall window and shrinks out of a short one instead of pushing the timeline under the fold. */
+/* ⚠ The map's track is the HEIGHT's measure, not the card's: `--page - 222` is the width the height
+   gives it (or its floor), and a card grown to fit a one-row bar gives its extra to the column. */
 .map-with-list {
-  display: grid; grid-template-columns: minmax(0, 1fr) 210px;
+  display: grid; grid-template-columns: min(calc(100% - 222px), calc(var(--page) - 222px)) minmax(210px, 1fr);
   gap: 12px; align-items: stretch;
   width: 100%;   /* the stage is the measure now — see `--page` on #app */
 }
@@ -792,6 +801,23 @@ svg.city .wall-seg, svg.city .wall-seg-inner, svg.city .tower, svg.city .gate { 
     box-sizing: border-box; background: #f6efdc; border: 1px solid #cbb784; border-radius: 6px;
     padding: 6px 8px;
   }
+}
+/* ★ On a desktop window the title folds into the bar: the home link says "WorldMaker" where it showed
+   a house, and the big title over the bar leaves the screen. Measured at 1366x650 it was 68px of a
+   650px window, over a map 322px tall; with it gone and the bar one row (see `--bar-w`) the same
+   window draws the map 594x416, and 1440x900 871x610 -> 951x666. The title stays in the page for a
+   screen reader — off the screen, not `display: none`. A phone keeps its title and its house: there
+   the bar folds instead (the max-width: 900px block). */
+@media (min-width: 901px) {
+  body > .app-title {
+    position: absolute; width: 1px; height: 1px; margin: 0; padding: 0;
+    overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+  }
+  #app { padding-top: 12px; }
+  .home-icon { display: none; }
+  .home-word { display: inline; }
+  .controls a.home { background: none; border-color: transparent; padding-left: 4px; padding-right: 10px; }
+  .controls a.home:hover { background: #e7d9b6; }
 }
 .city-list {
   border: 1px solid #cbb784; border-radius: 6px; background: #f6efdc; padding: 8px 6px 8px 10px;
