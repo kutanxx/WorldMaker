@@ -220,11 +220,75 @@ export function deconflictLabels(svg: SVGSVGElement, scale = 1, opts: { clear?: 
     }
   }
 
+  // ★ The towns' own marks and the compass rose. A name lying on another town's mark hid the mark — the
+  // reader could not find the towns — and the sixteen-point rose stood under the names near its corner:
+  // measured over 12 worlds at year 0 and 500, 37 names on a town's mark and 4 on the compass (2026-10-12).
+  // An area's name steps off them the shortest free way; a town's name crosses to the other side of its own
+  // dot, and a town's (not a capital's) gives way where it cannot. A name is never moved off its own town.
+  // Run at every year, since the towns standing — the marks shown — change with it.
+  const obstacles: { box: DOMRect; city: string | null }[] = [];
+  for (const m of svg.querySelectorAll<SVGGraphicsElement>(".marker-town, .marker-capital, :scope > .compass")) {
+    if (m.style.display === "none") continue;
+    try {
+      const b = m.getBBox();
+      if (b.width > 0) obstacles.push({ box: b, city: m.getAttribute("data-city") });
+    } catch { /* no layout */ }
+  }
+  if (obstacles.length) {
+    const STEP = AIR + room;
+    const grow = (b: Box, by: number) => ({ x: b.x - by, y: b.y - by, width: b.width + by * 2, height: b.height + by * 2 }) as DOMRect;
+    const onMap = (b: Box) => vb.length !== 4 || !vb.every(Number.isFinite) || (
+      b.x >= vb[0] + FRAME_PAD * room && b.x + b.width <= vb[0] + vb[2] - FRAME_PAD * room
+      && b.y >= vb[1] + FRAME_PAD * room && b.y + b.height <= vb[1] + vb[3] - FRAME_PAD * room);
+    const blocking = (l: (typeof labels)[number], b: Box) => obstacles.filter((o) => o.city === null || o.city !== l.el.getAttribute("data-city")).filter((o) => hit(b as DOMRect, o.box));
+    const free = (self: (typeof labels)[number], b: Box) => {
+      if (!onMap(b) || blocking(self, b).length) return false;
+      const air = grow(b, STEP);
+      return !furniture.some((f) => hit(f, air)) && !labels.some((o) => o !== self && o.el.style.visibility !== "hidden" && hit(o.box, air));
+    };
+    for (const l of labels) {
+      if (l.el.matches(".river-label")) continue;           // turned: its box is not where it is drawn
+      const under = blocking(l, l.box);
+      if (!under.length) continue;
+      if (l.el.matches(".city-label")) {
+        if (l.el.getAttribute("text-anchor") !== "end") {
+          const crossed = { x: l.box.x - l.box.width - 2 * CITY_LABEL_DX, y: l.box.y, width: l.box.width, height: l.box.height };
+          if (free(l, crossed)) {
+            l.el.setAttribute("text-anchor", "end");
+            l.el.setAttribute("x", String(Number(l.el.getAttribute("x") || 0) - 2 * CITY_LABEL_DX));
+            l.box.x = crossed.x;
+            continue;
+          }
+        }
+        if (l.el.matches(".city-town")) l.el.style.visibility = "hidden";
+        continue;
+      }
+      if (!l.el.matches(AREA_NAMES)) continue;
+      let best: [number, number] | null = null;
+      // off each mark it lies on to the left or right, above or below, or both (a smaller window has less
+      // room straight across: at 1366x650 nine names had no free way but a slant one)
+      for (const { box: c } of under) {
+        const xs = [0, c.x - STEP - (l.box.x + l.box.width), c.x + c.width + STEP - l.box.x];
+        const ys = [0, c.y - STEP - (l.box.y + l.box.height), c.y + c.height + STEP - l.box.y];
+        for (const dx of xs) for (const dy of ys) {
+          if (!dx && !dy) continue;
+          if (!free(l, { x: l.box.x + dx, y: l.box.y + dy, width: l.box.width, height: l.box.height })) continue;
+          if (!best || Math.abs(dx) + Math.abs(dy) < Math.abs(best[0]) + Math.abs(best[1])) best = [dx, dy];
+        }
+      }
+      if (!best) continue;
+      const [dx, dy] = best;
+      if (dx) { l.el.setAttribute("x", String(Number(l.el.getAttribute("x") || 0) + dx)); l.box.x += dx; }
+      if (dy) { l.el.setAttribute("y", String(Number(l.el.getAttribute("y") || 0) + dy)); l.box.y += dy; }
+    }
+  }
+
   labels.sort((a, b) => b.prio - a.prio); // place the important ones first
   const kept: DOMRect[] = [...furniture];
   const withAir = (b: DOMRect) =>
     ({ x: b.x - AIR, y: b.y - AIR, width: b.width + AIR * 2, height: b.height + AIR * 2 }) as DOMRect;
   for (const l of labels) {
+    if (l.el.style.visibility === "hidden") continue;     // gave way to a town's mark above: claims no room
     if (kept.some((k) => hit(k, withAir(l.box)))) l.el.style.visibility = "hidden";
     else kept.push(l.box);
   }

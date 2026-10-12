@@ -914,3 +914,67 @@ describe("deconflictLabels clears the ground's marks under a name", () => {
     expect((g as unknown as SVGGElement).style.visibility).toBe("hidden");
   });
 });
+
+// A name lying on another town's mark hid the mark (the reader could not find the towns), and the
+// sixteen-point rose stood under the names near its corner: measured over 12 worlds at year 0 and 500, 37
+// names on a town's mark and 4 on the compass (2026-10-12). Area names step off them where there is room;
+// a town's name crosses to the other side of its own dot, or — a town's, not a capital's — gives way.
+describe("deconflictLabels keeps names off the towns' marks and the compass", () => {
+  const mkMark = (svg: SVGSVGElement, cls: string, city: string, box: Box) => {
+    const m = document.createElementNS(NS, cls === "compass" ? "g" : "circle");
+    m.setAttribute("class", cls);
+    if (cls !== "compass") m.setAttribute("data-city", city);
+    (m as unknown as { getBBox: () => Box }).getBBox = () => box;
+    svg.appendChild(m);
+    return m;
+  };
+  const hits = (a: Box, b: Box) => a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
+  const boxOf = (t: SVGGraphicsElement, was: Box) => {
+    const dx = Number(t.getAttribute("x") ?? 0) - Number((t as unknown as { x0: number }).x0 ?? 0);
+    const dy = Number(t.getAttribute("y") ?? 0) - Number((t as unknown as { y0: number }).y0 ?? 0);
+    return { x: was.x + dx, y: was.y + dy, width: was.width, height: was.height };
+  };
+  const at = (t: SVGGraphicsElement, x: number, y: number) => { t.setAttribute("x", String(x)); t.setAttribute("y", String(y)); Object.assign(t, { x0: x, y0: y }); };
+  it("moves an area's name off another town's mark", () => {
+    const svg = document.createElementNS(NS, "svg") as SVGSVGElement;
+    svg.setAttribute("viewBox", "0 0 1000 700");
+    const box = { x: 400, y: 300, width: 90, height: 14 };
+    const region = mkLabel(svg, "region-label region-land", box); at(region, 445, 312);
+    const mark = { x: 440, y: 304, width: 8, height: 8 };
+    mkMark(svg, "marker-town", "7", mark);
+    deconflictLabels(svg, 1);
+    expect(region.style.visibility).toBe("");
+    expect(hits(boxOf(region, box), mark), "the name still lies on the town").toBe(false);
+  });
+  it("sends a town's name to the other side of its dot when a neighbour's mark is under it, and leaves its own dot alone", () => {
+    const svg = document.createElementNS(NS, "svg") as SVGSVGElement;
+    svg.setAttribute("viewBox", "0 0 1000 700");
+    mkMark(svg, "marker-town", "3", { x: 196, y: 196, width: 8, height: 8 });       // its own dot at (200, 200)
+    const box = { x: 200 + CITY_LABEL_DX, y: 195, width: 40, height: 10 };
+    const name = mkLabel(svg, "city-label city-town", box); name.setAttribute("data-city", "3"); at(name, 200 + CITY_LABEL_DX, 203);
+    const other = { x: 225, y: 196, width: 8, height: 8 };
+    mkMark(svg, "marker-town", "4", other);
+    deconflictLabels(svg, 3);
+    expect(name.getAttribute("text-anchor")).toBe("end");
+    expect(hits(boxOf(name, { ...box, x: box.x - box.width - 2 * CITY_LABEL_DX }), other)).toBe(false);
+  });
+  it("leaves a name on its own town's mark where it is", () => {
+    const svg = document.createElementNS(NS, "svg") as SVGSVGElement;
+    svg.setAttribute("viewBox", "0 0 1000 700");
+    mkMark(svg, "marker-capital", "5", { x: 300, y: 300, width: 12, height: 12 });
+    const name = mkLabel(svg, "city-label city-capital", { x: 306, y: 300, width: 40, height: 10 }); name.setAttribute("data-city", "5"); at(name, 315, 308);
+    deconflictLabels(svg, 1);
+    expect(name.getAttribute("x")).toBe("315");
+    expect(name.getAttribute("text-anchor")).toBeNull();
+  });
+  it("moves a name off the compass", () => {
+    const svg = document.createElementNS(NS, "svg") as SVGSVGElement;
+    svg.setAttribute("viewBox", "0 0 1000 700");
+    const rose = { x: 12, y: 15, width: 38, height: 40 };
+    mkMark(svg, "compass", "", rose);
+    const box = { x: 30, y: 40, width: 80, height: 14 };
+    const region = mkLabel(svg, "region-label region-land", box); at(region, 70, 52);
+    deconflictLabels(svg, 1);
+    expect(hits(boxOf(region, box), rose)).toBe(false);
+  });
+});
