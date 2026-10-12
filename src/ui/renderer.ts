@@ -16,7 +16,7 @@ export const INK = "#3c2f1c";
 export const PARCHMENT = "#f3ead2";
 // How far right of its dot the world map sets a town's name — and, where a control covers that side,
 // how far LEFT of it the name ends instead (see deconflictLabels)
-export const CITY_LABEL_DX = 5;
+export const CITY_LABEL_DX = 9;   // clear of a capital's star (CAPITAL_OUT + its ring) with a little air
 
 // A road on the world map: its line and its casing. The line is a dark red — the colour the Gough map
 // drew its roads in, darkened until, with its casing, it clears 3:1 on every biome (the mid greens and
@@ -63,11 +63,15 @@ export function diamondPath(x: number, y: number, r = 4): string {
 
 // The marks every view of the world draws over its ground, as keys draw them: a capital's star, a town's
 // dot, a free port's diamond — the same shapes, sizes and colours as the map's (svgWorldRenderer).
+// A settlement's mark on the world map and in its key, one size for both. Ringed in the paper's colour, wide
+// enough to lift it off the darkest ground drawn under it (taiga's conifers, a range's shadowed peaks): at
+// 3.6 px a black dot among them was lost. A star for a seat, a dot for any other town.
+export const TOWN_R = 3.2, TOWN_RING = 1.6, CAPITAL_OUT = 6.8, CAPITAL_IN = 2.9, CAPITAL_RING = 1.4;
 export function capitalMark(x: number, y: number): SVGElement {
-  return svgEl("path", { class: "legend-symbol capital-key", d: starPath(x + 6, y - 3, 5, 4.2, 1.9), fill: INK, stroke: PARCHMENT, "stroke-width": 0.7 });
+  return svgEl("path", { class: "legend-symbol capital-key", d: starPath(x + 6, y - 3, 5, CAPITAL_OUT, CAPITAL_IN), fill: INK, stroke: PARCHMENT, "stroke-width": CAPITAL_RING });
 }
 export function townMark(x: number, y: number): SVGElement {
-  return svgEl("circle", { class: "legend-symbol town-key", cx: x + 6, cy: y - 3, r: 2.3, fill: INK, stroke: PARCHMENT, "stroke-width": 0.9 });
+  return svgEl("circle", { class: "legend-symbol town-key", cx: x + 6, cy: y - 3, r: TOWN_R, fill: INK, stroke: PARCHMENT, "stroke-width": TOWN_RING });
 }
 export function freePortMark(x: number, y: number): SVGElement {
   const g = svgEl("g", { class: "legend-symbol free-port-key" });

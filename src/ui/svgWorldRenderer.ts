@@ -1,5 +1,5 @@
 import type { World } from "../types/world";
-import { svgEl, legendPanel, legendRow, starPath, compassRose, mapFrame, INK, PARCHMENT, LEGEND_TITLE_H, LEGEND_TEXT, LEGEND_ROW, LEGEND_SWATCH, LEGEND_GAP, LEGEND_W_FIXED, CITY_LABEL_DX, ROAD_INK, ROAD_W, ROAD_CASING_W, roadMark, SEA_ROUTE_INK, SEA_ROUTE_W, SEA_ROUTE_DASH, seaRouteMark, FREE_PORT_FILL, FREE_PORT_EDGE, diamondPath } from "./renderer";
+import { svgEl, legendPanel, legendRow, starPath, compassRose, mapFrame, INK, PARCHMENT, TOWN_R, TOWN_RING, CAPITAL_OUT, CAPITAL_IN, CAPITAL_RING, LEGEND_TITLE_H, LEGEND_TEXT, LEGEND_ROW, LEGEND_SWATCH, LEGEND_GAP, LEGEND_W_FIXED, CITY_LABEL_DX, ROAD_INK, ROAD_W, ROAD_CASING_W, roadMark, SEA_ROUTE_INK, SEA_ROUTE_W, SEA_ROUTE_DASH, seaRouteMark, FREE_PORT_FILL, FREE_PORT_EDGE, diamondPath } from "./renderer";
 import { settlementKeyRows } from "./settlementKey";
 import { scaleBar, KM_PER_UNIT, WORLD_BAR_UNITS, walkCaption } from "./scaleBar";
 import { displayBiomes } from "./displayBiome";
@@ -90,13 +90,13 @@ function townTitle(lang: Lang, name: string, y: TownYear): string {
 function townMarker(c: { id: number; x: number; y: number }, seat: boolean): SVGElement {
   return seat
     ? svgEl("path", {
-      class: "marker-capital", d: starPath(c.x, c.y, 5, 4.2, 1.9), "data-cx": c.x.toFixed(1), "data-cy": c.y.toFixed(1),
-      fill: INK, stroke: PARCHMENT, "stroke-width": 0.7,
+      class: "marker-capital", d: starPath(c.x, c.y, 5, CAPITAL_OUT, CAPITAL_IN), "data-cx": c.x.toFixed(1), "data-cy": c.y.toFixed(1),
+      fill: INK, stroke: PARCHMENT, "stroke-width": CAPITAL_RING,
       "data-city": c.id, style: "cursor:pointer",
     })
     : svgEl("circle", {
-      class: "marker-town", cx: c.x, cy: c.y, r: 2.3,
-      fill: INK, stroke: PARCHMENT, "stroke-width": 0.9,
+      class: "marker-town", cx: c.x, cy: c.y, r: TOWN_R,
+      fill: INK, stroke: PARCHMENT, "stroke-width": TOWN_RING,
       "data-city": c.id, style: "cursor:pointer",
     });
 }

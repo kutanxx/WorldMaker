@@ -7,7 +7,7 @@ import { svgToString } from "./export";
 import { displayBiomes } from "./displayBiome";
 import { ALPINE, TAIGA, TEMPERATE_FOREST, TROPICAL, WETLAND, DESERT } from "../engine/biome";
 import { pointInPolygon } from "../engine/geometry";
-import { INK, PAPER, forPrint } from "./inkStyle";
+import { INK, PAPER, forPrint, inkMarks, TOWN_CLEARING, MARK_RISE } from "./inkStyle";
 
 const world = generateWorld({ ...DEFAULT_PARAMS, seed: 1 }).world;
 const fnv = (s: string) => { let h = 2166136261 >>> 0; for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619) >>> 0; return h >>> 0; };
@@ -51,8 +51,13 @@ describe("the colour map, untouched by the ink style", () => {
     // it — and every view moved again, colour and ink; with the frame taken out, as restyle.ts does, nothing
     // else did. Were full [2174265014, 454917732, 347861692, 1096912656], keyless [2534590636, 4051381434,
     // 2451977897, 1352958026], ink [1227265283, 663341094, 1528629615, 4017222218].)
-    expect(keyless, "the map moved, not only its key").toEqual([3579962823, 1867888997, 3390429026, 3960239445]);
-    expect(hashes).toEqual([3173089081, 4265279183, 2636380727, 2647918915]);
+    // (Then — "세계 지도에서 도시 점 위치가 잘 안보이는데" — a town's mark grew and took a ring of the paper, its name
+    // stepped right to clear it, the ground's marks kept off every town, and the keys' marks with them: with the
+    // towns' layer, the marks and the keys taken out (restyle.ts, EXTRA=":scope > .markers"), nothing else moved.
+    // Were full [3173089081, 4265279183, 2636380727, 2647918915], keyless [3579962823, 1867888997, 3390429026,
+    // 3960239445], ink [2366848923, 370124978, 1707344935, 1616361766].)
+    expect(keyless, "the map moved, not only its key").toEqual([3438479088, 3512652036, 2969924679, 237570426]);
+    expect(hashes).toEqual([3854388807, 578052463, 327942045, 2330132253]);
   });
 });
 
@@ -85,10 +90,22 @@ describe("the ink map", () => {
 
   // Every mark stands where the world has what it stands for: a peak on each mountain cell, trees on a
   // forest's, a tuft on a marsh's, dots on a desert's — never out over the sea or past its own cell.
+  it("keeps every mark off the towns, and only those", () => {
+    const all = [...inkMarks({ ...world, cities: [] }).children].length;
+    const near = (x: number, y: number) => world.cities.some((c) => Math.abs(x - c.x) < TOWN_CLEARING && y - c.y > -TOWN_CLEARING && y - c.y < TOWN_CLEARING + MARK_RISE);
+    const kept = [...svg.querySelectorAll<SVGElement>(".ink-marks [data-x]")];
+    for (const m of kept) expect(near(Number(m.getAttribute("data-x")), Number(m.getAttribute("data-y")))).toBe(false);
+    const cleared = [...inkMarks({ ...world, cities: [] }).children].filter((m) => near(Number(m.getAttribute("data-x")), Number(m.getAttribute("data-y")))).length;
+    expect(cleared).toBeGreaterThan(0);
+    expect(kept.length).toBe(all - cleared);
+  });
+
   it("marks each kind of ground where the world has it", () => {
     const shown = displayBiomes(world.grid, world.biome);
     const count = (b: number) => shown.filter((x, i) => x === b && world.terrain[i] !== 0).length;
-    const marks = (cls: string) => [...svg.querySelectorAll(`.ink-marks .${cls}`)];
+    // (counted on the world without its towns: every town stands in a clearing the marks keep off — below)
+    const bare = inkMarks({ ...world, cities: [] });
+    const marks = (cls: string) => [...bare.querySelectorAll(`.${cls}`)];
     expect(marks("ink-peak").length).toBe(count(ALPINE));
     expect(marks("ink-tree").length).toBe(2 * count(TEMPERATE_FOREST) + 2 * count(TAIGA) + 3 * count(TROPICAL));
     expect(marks("ink-marsh").length).toBe(count(WETLAND));
@@ -128,7 +145,7 @@ describe("the ink map", () => {
     // (2026-10-12: re-pinned with the colour map's restyle — the ink map took its rivers, frame, rose and title
     // ornaments; its marks came out byte for byte as they were (.claude/probes/inkmarks.ts). Was [737587710,
     // 3864053538, 182143499, 3970976761].)
-    expect(hashes).toEqual([2366848923, 370124978, 1707344935, 1616361766]);
+    expect(hashes).toEqual([3989428746, 3737655174, 1348684571, 3120728551]);   // (the towns' marks and clearings, as above)
   });
 
   // The colour key lists colours, which an ink map does not have: the ink key lists its marks, drawn as

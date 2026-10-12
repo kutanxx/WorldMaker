@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from "vitest";
 import { applyLabelScale, applyMarkerScale, floorLabelSize, applyPageScale } from "./labelScale";
+import { CITY_LABEL_DX } from "./renderer";
 
 const NS = "http://www.w3.org/2000/svg";
 
@@ -17,8 +18,8 @@ describe("applyPageScale", () => {
       svg.appendChild(e);
       return e;
     };
-    // a town's dot at (100,50), its name set 5 right and 3 down of it, as the renderer sets it
-    const town = add("text", { class: "city-label city-town", x: "105", y: "53", "font-size": "8", "stroke-width": "1.6" });
+    // a town's dot at (100,50), its name set CITY_LABEL_DX right and 3 down of it, as the renderer sets it
+    const town = add("text", { class: "city-label city-town", x: String(100 + CITY_LABEL_DX), y: "53", "font-size": "8", "stroke-width": "1.6" });
     const capital = add("text", { class: "city-label city-capital", x: "25", y: "23", "font-size": "10", "stroke-width": "1.6" });
     const region = add("text", { class: "region-label region-land", x: "500", y: "300", "font-size": "16", "letter-spacing": "2.6", "stroke-width": "2" });
     // a river's name lifted 5 (half its size) off the water at (300,400), up the normal of a 30-degree run
@@ -51,7 +52,7 @@ describe("applyPageScale", () => {
   it("keeps a town's name its page distance from its dot", () => {
     const { svg, town } = page();
     applyPageScale(svg, 3);
-    expect(num(town, "x")).toBeCloseTo(101.67, 2);
+    expect(num(town, "x")).toBeCloseTo(100 + CITY_LABEL_DX / 3, 2);
     expect(num(town, "y")).toBeCloseTo(51, 2);
   });
 

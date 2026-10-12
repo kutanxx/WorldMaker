@@ -9,7 +9,7 @@ import { snapOwnersToProvinces } from "./provinceLayer";
 import { displayBiomes } from "./displayBiome";
 import { OCEAN } from "../engine/terrain";
 import { BIOME_COLORS } from "../engine/biome";
-import { LEGEND_ROW, LEGEND_TEXT, LEGEND_SWATCH } from "./renderer";
+import { LEGEND_ROW, LEGEND_TEXT, LEGEND_SWATCH, PARCHMENT } from "./renderer";
 import { simulateHistory } from "../engine/history";
 import { KM_PER_UNIT } from "./scaleBar";
 import { properName } from "./properName";
@@ -1030,5 +1030,36 @@ describe("renderWorld terrain key shows the ground's marks", () => {
   it("gives the hills a row of their own when the map draws any", () => {
     expect(svg.querySelectorAll(".reliefs .paint-hill").length).toBeGreaterThan(0);
     expect(rowOf("Hills")?.querySelector(".paint-hill") ?? null, "no hills row").not.toBeNull();
+  });
+});
+
+// "세계 지도에서 도시 점 위치가 잘 안보이는데" (2026-10-12): after the ground was drawn in colour, a town's
+// mark — a black dot 3.6 px across, a capital's star 6.6 — stood among dark trees, peaks and road joins of the
+// same ink and size, and was lost. A town now stands in a clearing (the ground's marks are kept off it, as an
+// engraver clears the drawing round a town), and its mark is larger and ringed in the paper's colour.
+describe("renderWorld: a town can be found on the drawn ground", () => {
+  const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });
+  const svg = renderWorld(world, "terrain", [], "ko");
+  const CLEARING = 6;
+  it("keeps the ground's marks off every town", () => {
+    const marks = [...svg.querySelectorAll<SVGElement>(".reliefs [data-x]")]
+      .filter((m) => m.getAttribute("visibility") !== "hidden" && m.style.display !== "none");
+    let near = 0;
+    for (const c of world.cities) for (const m of marks) {
+      const x = Number(m.getAttribute("data-x")), y = Number(m.getAttribute("data-y"));
+      // a mark stands on its foot and rises above it: its body is within ~6 across and ~10 above
+      if (Math.abs(x - c.x) < CLEARING && y - c.y > -CLEARING && y - c.y < CLEARING + 8) near++;
+    }
+    expect(near, "marks drawn over towns").toBe(0);
+  });
+  it("draws a town's dot and a capital's star large enough to see, ringed in the paper's colour", () => {
+    const dot = svg.querySelector(".markers .marker-town")!;
+    expect(Number(dot.getAttribute("r"))).toBeGreaterThanOrEqual(2.6);
+    expect(Number(dot.getAttribute("stroke-width"))).toBeGreaterThanOrEqual(1.4);
+    const star = svg.querySelector(".markers .marker-capital")!;
+    const xs = (star.getAttribute("d") ?? "").match(/-?[\d.]+/g)!.map(Number).filter((_, i) => i % 2 === 0);
+    expect(Math.max(...xs) - Math.min(...xs), "the star's width").toBeGreaterThanOrEqual(10);
+    expect(Number(star.getAttribute("stroke-width"))).toBeGreaterThanOrEqual(1.2);
+    for (const m of [dot, star]) expect(m.getAttribute("stroke")).toBe(PARCHMENT);
   });
 });

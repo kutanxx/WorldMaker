@@ -42,6 +42,10 @@ const hash = cellHash;
 
 type Kind = "peak" | "hill" | "broadleaf" | "conifer" | "palm" | "marsh" | "dune";
 
+// how far round a town the ground is kept clear of marks, and how far above its foot a mark's body rises
+// (a mark stands on its foot: a town just below one would be covered by it)
+export const TOWN_CLEARING = 6, MARK_RISE = 8;
+
 /**
  * What a mark is drawn in. The ink map draws every mark in ink on paper; the colour map draws the same
  * marks, in the same places, in the colours of what they stand for (`PAINT`) — a peak lit from the
@@ -138,6 +142,12 @@ export function inkMarks(world: World, page?: Page, pal: MarkPalette = INK_MARKS
   const shown = displayBiomes(g, world.biome);
   const hillFrom = world.params.mountainLevel - HILL_BAND;
   const placed: { y: number; x: number; el: SVGElement }[] = [];
+  // Every town stands in a clearing: no mark whose body would lie over a town's mark. Among the dark trees
+  // and peaks a town's dot was lost (the reader: "세계 지도에서 도시 점 위치가 잘 안보이는데"); an engraver
+  // clears the drawing round a town. (On a region's page the marks are 1/z the size, and so is the clearing.)
+  const scale = page && page.z > 1 ? 1 / page.z : 1;
+  const nearTown = (x: number, y: number) => world.cities.some((c) =>
+    Math.abs(x - c.x) < TOWN_CLEARING * scale && y - c.y > -TOWN_CLEARING * scale && y - c.y < (TOWN_CLEARING + MARK_RISE) * scale);
   const dense = page && page.z > 1 ? page : null;
   for (let i = 0; i < g.count; i++) {
     if (world.terrain[i] === OCEAN) continue;
@@ -153,7 +163,7 @@ export function inkMarks(world: World, page?: Page, pal: MarkPalette = INK_MARKS
           const el = mark(kind, x, y, w, s, pal);
           el.setAttribute("data-cell", String(i));
           el.setAttribute("data-x", f2(x)); el.setAttribute("data-y", f2(y));
-          placed.push({ y, x, el });
+          if (!nearTown(x, y)) placed.push({ y, x, el });
         }
       };
       const b = shown[i], h = world.heights[i];
@@ -178,7 +188,7 @@ export function inkMarks(world: World, page?: Page, pal: MarkPalette = INK_MARKS
       const el = mark(kind, x, y, w, 1, pal);
       el.setAttribute("data-cell", String(i));
       el.setAttribute("data-x", String(x)); el.setAttribute("data-y", String(y));
-      placed.push({ y, x, el });
+      if (!nearTown(x, y)) placed.push({ y, x, el });
     };
     const b = shown[i], h = world.heights[i];
     const trees = TREES.get(b);
