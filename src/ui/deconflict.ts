@@ -251,30 +251,55 @@ export function deconflictLabels(svg: SVGSVGElement, scale = 1, opts: { clear?: 
       const under = blocking(l, l.box);
       if (!under.length) continue;
       if (l.el.matches(".city-label")) {
-        if (l.el.getAttribute("text-anchor") !== "end") {
-          const crossed = { x: l.box.x - l.box.width - 2 * CITY_LABEL_DX, y: l.box.y, width: l.box.width, height: l.box.height };
-          if (free(l, crossed)) {
-            l.el.setAttribute("text-anchor", "end");
-            l.el.setAttribute("x", String(Number(l.el.getAttribute("x") || 0) - 2 * CITY_LABEL_DX));
-            l.box.x = crossed.x;
-            continue;
-          }
+        // (the name's distance from its dot is the whole map's CITY_LABEL_DX, a region's page's `room` of it)
+        const DX2 = 2 * CITY_LABEL_DX * room;
+        const startSide = l.el.getAttribute("text-anchor") !== "end";
+        const crossedX = startSide ? l.box.x - l.box.width - DX2 : l.box.x;
+        if (startSide && free(l, { x: crossedX, y: l.box.y, width: l.box.width, height: l.box.height })) {
+          l.el.setAttribute("text-anchor", "end");
+          l.el.setAttribute("x", String(Number(l.el.getAttribute("x") || 0) - DX2));
+          l.box.x = crossedX;
+          continue;
         }
-        if (l.el.matches(".city-town")) l.el.style.visibility = "hidden";
+        // ...or lifted or lowered beside it, by no more than its own height, on this side or the other: a
+        // capital's name does not give way, and it must still read as its star's
+        let moved = false;
+        for (const dy of [-0.6, 0.6, -1, 1].map((k) => k * l.box.height)) {
+          for (const cross of startSide ? [false, true] : [false]) {
+            const b = { x: cross ? crossedX : l.box.x, y: l.box.y + dy, width: l.box.width, height: l.box.height };
+            if (!free(l, b)) continue;
+            if (cross) {
+              l.el.setAttribute("text-anchor", "end");
+              l.el.setAttribute("x", String(Number(l.el.getAttribute("x") || 0) - DX2));
+              l.box.x = crossedX;
+            }
+            l.el.setAttribute("y", String(Number(l.el.getAttribute("y") || 0) + dy));
+            l.box.y += dy;
+            moved = true;
+            break;
+          }
+          if (moved) break;
+        }
+        if (!moved && l.el.matches(".city-town")) l.el.style.visibility = "hidden";
         continue;
       }
       if (!l.el.matches(AREA_NAMES)) continue;
       let best: [number, number] | null = null;
       // off each mark it lies on to the left or right, above or below, or both (a smaller window has less
       // room straight across: at 1366x650 nine names had no free way but a slant one)
+      const tries: [number, number][] = [];
       for (const { box: c } of under) {
         const xs = [0, c.x - STEP - (l.box.x + l.box.width), c.x + c.width + STEP - l.box.x];
         const ys = [0, c.y - STEP - (l.box.y + l.box.height), c.y + c.height + STEP - l.box.y];
-        for (const dx of xs) for (const dy of ys) {
-          if (!dx && !dy) continue;
-          if (!free(l, { x: l.box.x + dx, y: l.box.y + dy, width: l.box.width, height: l.box.height })) continue;
-          if (!best || Math.abs(dx) + Math.abs(dy) < Math.abs(best[0]) + Math.abs(best[1])) best = [dx, dy];
-        }
+        for (const dx of xs) for (const dy of ys) if (dx || dy) tries.push([dx, dy]);
+      }
+      // ...and, where every way one step off is taken, further: a line or two up or down, half its width
+      // across — still over the ground it names
+      const lh = l.box.height + STEP, hw = l.box.width / 2;
+      for (const n of [1, 2, 3]) for (const s of [-1, 1]) tries.push([0, s * n * lh], [s * hw, 0], [s * hw, -n * lh], [s * hw, n * lh]);
+      for (const [dx, dy] of tries) {
+        if (!free(l, { x: l.box.x + dx, y: l.box.y + dy, width: l.box.width, height: l.box.height })) continue;
+        if (!best || Math.abs(dx) + Math.abs(dy) < Math.abs(best[0]) + Math.abs(best[1])) best = [dx, dy];
       }
       if (!best) continue;
       const [dx, dy] = best;

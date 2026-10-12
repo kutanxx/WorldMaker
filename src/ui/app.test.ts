@@ -282,7 +282,9 @@ describe("export follows the screen", () => {
     } finally {
       root.remove();
     }
-  }, 20000);
+    // (the whole app drawn in ink at several years and written to a file: 10-12 s alone in jsdom, and past 20
+    // under a full run's load — 2026-10-12, the same before and after that day's last change)
+  }, 40000);
 
   it("writes the city a reader is looking at, not the world behind it", async () => {
     const root = document.createElement("div");

@@ -1063,3 +1063,41 @@ describe("renderWorld: a town can be found on the drawn ground", () => {
     for (const m of [dot, star]) expect(m.getAttribute("stroke")).toBe(PARCHMENT);
   });
 });
+
+// Two towns can stand 9 units apart, and a capital's star (with its ring) reaches 7.5 from its centre: in world
+// 3 at year 500 two capitals' stars, and a capital's star and a town's dot, overlapped. A mark reaches no
+// further than half the way to its nearest town, so no two marks ever touch; a mark with room keeps its size.
+describe("renderWorld: no two towns' marks overlap", () => {
+  const extent = (m: Element): [number, number, number] => {
+    const ring = Number(m.getAttribute("stroke-width")) / 2;
+    if (m.classList.contains("marker-town")) return [Number(m.getAttribute("cx")), Number(m.getAttribute("cy")), Number(m.getAttribute("r")) + ring];
+    const cx = Number(m.getAttribute("data-cx")), cy = Number(m.getAttribute("data-cy"));
+    const p = (m.getAttribute("d") ?? "").match(/-?[\d.]+/g)!.map(Number);
+    let r = 0;
+    for (let i = 0; i + 1 < p.length; i += 2) r = Math.max(r, Math.hypot(p[i] - cx, p[i + 1] - cy));
+    return [cx, cy, r + ring];
+  };
+  it("keeps every pair of marks apart, in every world, as capitals and as towns", () => {
+    let pairs = 0;
+    for (let seed = 1; seed <= 12; seed++) {
+      const { world } = generateWorld({ ...DEFAULT_PARAMS, seed });
+      // every town drawn as a capital, the widest a mark can be, and as the world has them
+      for (const towns of [() => ({ seat: true, realm: null }), undefined]) {
+        const svg = renderWorld(world, "terrain", [], "ko", new Set(), undefined, undefined, "colour", undefined, towns);
+        const marks = [...svg.querySelectorAll(".markers .marker-town, .markers .marker-capital")].map(extent);
+        for (let i = 0; i < marks.length; i++) for (let j = i + 1; j < marks.length; j++) {
+          const [ax, ay, ar] = marks[i], [bx, by, br] = marks[j];
+          if (Math.hypot(ax - bx, ay - by) < 20) pairs++;
+          expect(Math.hypot(ax - bx, ay - by), `world ${seed}: two marks overlap`).toBeGreaterThanOrEqual(ar + br - 1e-9);
+        }
+      }
+    }
+    expect(pairs, "no close pairs were tried").toBeGreaterThan(10);
+  });
+  it("leaves a mark with room its full size", () => {
+    const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });
+    const svg = renderWorld(world, "terrain", [], "ko");
+    const stars = [...svg.querySelectorAll(".markers .marker-capital")].map(extent).map(([, , r]) => r);
+    expect(Math.max(...stars)).toBeCloseTo(6.8 + 0.7, 1);
+  });
+});

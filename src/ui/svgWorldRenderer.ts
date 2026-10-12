@@ -86,17 +86,36 @@ function townTitle(lang: Lang, name: string, y: TownYear): string {
   return y.realm ? `${name}${seat} · ${y.realm}` : `${name}${seat}`;
 }
 
-/** A settlement's mark: a star for a seat, a dot for any other town. */
-function townMarker(c: { id: number; x: number; y: number }, seat: boolean): SVGElement {
+/**
+ * How far each town's mark may reach from its centre: half the way to its nearest town, so no two marks
+ * touch (two towns can stand 9 apart, and a capital's star with its ring reaches 7.5). Every town, founded or
+ * not, as the hit targets are: a mark that grew and shrank as the chronicle founded its neighbours would be
+ * a different map at every scrub.
+ */
+function markReach(world: World): Map<number, number> {
+  const out = new Map<number, number>();
+  for (const c of world.cities) {
+    let nearest = Infinity;
+    for (const o of world.cities) if (o !== c) nearest = Math.min(nearest, dhypot(o.x - c.x, o.y - c.y));
+    out.set(c.id, nearest / 2);
+  }
+  return out;
+}
+
+/** A settlement's mark: a star for a seat, a dot for any other town — no further than `reach` from its centre. */
+function townMarker(c: { id: number; x: number; y: number }, seat: boolean, reach = Infinity): SVGElement {
+  // (a little short of it: the star's points and its centre are written to a tenth)
+  const k = Math.min(1, (reach - 0.25) / (seat ? CAPITAL_OUT + CAPITAL_RING / 2 : TOWN_R + TOWN_RING / 2));
+  const f = (v: number) => Number((v * k).toFixed(2));
   return seat
     ? svgEl("path", {
-      class: "marker-capital", d: starPath(c.x, c.y, 5, CAPITAL_OUT, CAPITAL_IN), "data-cx": c.x.toFixed(1), "data-cy": c.y.toFixed(1),
-      fill: INK, stroke: PARCHMENT, "stroke-width": CAPITAL_RING,
+      class: "marker-capital", d: starPath(c.x, c.y, 5, CAPITAL_OUT * k, CAPITAL_IN * k), "data-cx": c.x.toFixed(1), "data-cy": c.y.toFixed(1),
+      fill: INK, stroke: PARCHMENT, "stroke-width": k === 1 ? CAPITAL_RING : f(CAPITAL_RING),
       "data-city": c.id, style: "cursor:pointer",
     })
     : svgEl("circle", {
-      class: "marker-town", cx: c.x, cy: c.y, r: TOWN_R,
-      fill: INK, stroke: PARCHMENT, "stroke-width": TOWN_RING,
+      class: "marker-town", cx: c.x, cy: c.y, r: k === 1 ? TOWN_R : f(TOWN_R),
+      fill: INK, stroke: PARCHMENT, "stroke-width": k === 1 ? TOWN_RING : f(TOWN_RING),
       "data-city": c.id, style: "cursor:pointer",
     });
 }
@@ -115,6 +134,7 @@ const townLabelLook = (seat: boolean) => seat
  */
 export function restyleTowns(svg: SVGSVGElement, world: World, lang: Lang, towns: (c: World["cities"][number]) => TownYear): void {
   const ink = svg.classList.contains("ink");
+  let reach: Map<number, number> | undefined;
   const retitle = (el: Element, text: string) => {
     const tl = el.querySelector(":scope > title");
     if (tl) tl.textContent = text; else named(el as SVGElement, text);
@@ -128,7 +148,7 @@ export function restyleTowns(svg: SVGSVGElement, world: World, lang: Lang, towns
     hit.setAttribute("aria-label", title);
     const mark = svg.querySelector<SVGElement>(`.markers .marker-capital[data-city="${c.id}"], .markers .marker-town[data-city="${c.id}"]`);
     if (mark && mark.classList.contains("marker-capital") !== y.seat) {
-      const next = named(townMarker(c, y.seat), title);
+      const next = named(townMarker(c, y.seat, (reach ??= markReach(world)).get(c.id)), title);
       if (ink) reInk(next);
       next.style.display = mark.style.display;
       mark.replaceWith(next);
@@ -420,6 +440,7 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
     return Math.max(HIT_MIN, Math.min(ceiling, nearest / 2));
   };
   const shown = world.cities.filter((c) => !unfounded.has(c.id));   // the chronicle has not founded the rest
+  const reach = markReach(world);
   for (const c of shown) {
     // The mark itself stays small — a settlement is a point on a map and growing it would be a lie
     // about the size of the place. What grows is an invisible target around it. Measured on the
@@ -434,7 +455,7 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
   }
   for (const c of shown) {
     const seat = standing(c).seat;
-    markers.appendChild(named(townMarker(c, seat), markerTitle(c)));
+    markers.appendChild(named(townMarker(c, seat, reach.get(c.id)), markerTitle(c)));
     // the name opens the city too: it is several times the area of the dot beside it, and a reader
     // who can see a name is far likelier to aim at it than at the speck
     const look = townLabelLook(seat);
