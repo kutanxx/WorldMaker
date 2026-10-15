@@ -5,6 +5,8 @@ import { DEFAULT_PARAMS } from "../types/world";
 import { simulateHistory } from "../engine/history";
 import { politicalLayer, keepOffOf, type KeepOff } from "./politicalLayer";
 import { nationColor } from "./nationPalette";
+import { KEY_GROUND } from "./renderer";
+import { over } from "./colour";
 import type { Point } from "../engine/geometry";
 
 const small = { ...DEFAULT_PARAMS, width: 300, height: 300, cellCount: 400, townCount: 6 };
@@ -158,12 +160,14 @@ describe("politicalLayer takes the colouring it is given", () => {
     expect(fills.sort()).toEqual(["#111111", "#222222", "#333333"]);
   });
 
+  // ...as the map PAINTS them: the territory's fill over the key's ground at the territory's opacity (since
+  // 2026-10-15; a pure swatch read as another colour beside the muted land — keySwatch.test)
   it("keys the legend with the same colours it painted", () => {
     const colorOf = (id: number) => ["#111111", "#222222", "#333333"][id];
     const g = politicalLayer(grid, owner, polities, { ...opts, colorOf });
     const swatches = [...g.querySelectorAll("rect.legend-item")].map((r) => r.getAttribute("fill"));
-    const fills = [...g.querySelectorAll("path.territory")].map((p) => p.getAttribute("fill"));
-    for (const s of swatches) expect(fills).toContain(s);
+    const painted = [...g.querySelectorAll("path.territory")].map((p) => over(p.getAttribute("fill")!, KEY_GROUND, Number(p.getAttribute("fill-opacity"))));
+    for (const s of swatches) expect(painted).toContain(s);
     expect(swatches.length).toBeGreaterThan(0);
   });
 

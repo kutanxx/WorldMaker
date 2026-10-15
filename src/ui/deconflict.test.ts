@@ -471,16 +471,28 @@ describe("culture names", () => {
 // the terrain layer's region names were drawn in every view, so the one view about provinces was
 // captioned by somebody else's labels. The culture and political views both name their own subject
 // at rest; this one now does too, and the cull decides how many fit rather than a scale gate.
+// ...the LARGER ones (`province-major`, the larger quarter — provinceLayer.ts): a hundred at 7 units
+// were a thicket, 83 on screen at 8.6px (design review 2026-10-15, item 9), so the smaller provinces'
+// names wait for a zoom of 1.8, the way the towns' wait for 2.6.
 describe("province names", () => {
   it("names the view's own subject at rest, biggest first", () => {
     const svg = document.createElementNS(NS, "svg") as SVGSVGElement;
-    const big = mkLabel(svg, "province-label", { x: 0, y: 0, width: 40, height: 7 });
-    const overlapping = mkLabel(svg, "province-label", { x: 5, y: 1, width: 40, height: 7 });
-    const far = mkLabel(svg, "province-label", { x: 400, y: 400, width: 40, height: 7 });
+    const big = mkLabel(svg, "province-label province-major", { x: 0, y: 0, width: 40, height: 7 });
+    const overlapping = mkLabel(svg, "province-label province-major", { x: 5, y: 1, width: 40, height: 7 });
+    const far = mkLabel(svg, "province-label province-major", { x: 400, y: 400, width: 40, height: 7 });
     deconflictLabels(svg, 1);
     expect(big.style.visibility).toBe("");        // emitted first = the larger province
     expect(overlapping.style.visibility).toBe("hidden");
     expect(far.style.visibility).toBe("");
+  });
+
+  it("holds a smaller province's name for a zoom", () => {
+    const svg = document.createElementNS(NS, "svg") as SVGSVGElement;
+    const minor = mkLabel(svg, "province-label", { x: 200, y: 200, width: 40, height: 7 });
+    deconflictLabels(svg, 1);
+    expect(minor.style.visibility, "a minor province is named at rest").toBe("hidden");
+    deconflictLabels(svg, 1.8);
+    expect(minor.style.visibility, "...and not once the reader leans in").toBe("");
   });
 });
 

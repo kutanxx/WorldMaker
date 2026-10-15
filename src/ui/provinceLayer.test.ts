@@ -48,12 +48,14 @@ describe("provinceLayer", () => {
     expect(labels).toEqual(["the Grey Fields", "Iron Wastes"]);
   });
 
-  it("gives each province a distinct (id-based) colour, not the biome colour", () => {
+  // (since 2026-10-15 a province wears its realm's colour in a step of its own — provinceTint.test; with no
+  // owners given, both are the unclaimed grey, and two that touch still part at their hairline by a step)
+  it("gives two touching provinces different fills, not the biome colour", () => {
     const g = provinceLayer(grid, provinceOf, provinces);
     const fills = [...g.querySelectorAll("path.province-fill")];
     const colors = fills.map((f) => f.getAttribute("fill"));
     expect(colors[0]).not.toBe(colors[1]);      // neighbouring provinces read as different regions
-    for (const c of colors) expect(c).toMatch(/^hsl\(/); // per-province hue, not the old faint biome hex
+    for (const c of colors) expect(c).toMatch(/^#[0-9a-f]{6}$/); // a tint of its own, not the biome's hex
   });
 
   it("draws bold nation borders when an owner array is given, and none without", () => {
@@ -108,54 +110,9 @@ describe("the province view's lines hold their width", () => {
   });
 });
 
-// The hues were spaced by the golden angle over the province ID -- which separates CONSECUTIVE ids
-// and says nothing about who touches whom. Province ids come from farthest-point seeding, so
-// neighbours draw arbitrary ids: measured over 968 touching pairs in five worlds, the median gap was
-// a healthy 94 degrees but about twelve pairs a world sat within 15, and 2.5% within 5 -- the same
-// colour, either side of a hairline. The fill is supposed to be what separates them.
-describe("no two provinces that touch wear the same colour", () => {
-  const hueOf = (fill: string) => Number(/hsl\(\s*([\d.]+)/.exec(fill)![1]);
-  const gap = (a: number, b: number) => { const d = Math.abs(a - b) % 360; return Math.min(d, 360 - d); };
-  it("keeps every shared border between two visibly different fills", () => {
-    for (const seed of [1, 42, 834932]) {
-      const w = generateWorld({ ...DEFAULT_PARAMS, seed }).world;
-      const g = provinceLayer(w.grid, w.provinceOf, w.provinces);
-      const fill = new Map<number, number>();
-      for (const el of g.querySelectorAll(".province-fill")) {
-        fill.set(Number(el.getAttribute("data-province")), hueOf(el.getAttribute("fill")!));
-      }
-      let worst = 360, who = "";
-      for (let i = 0; i < w.grid.count; i++) {
-        const a = w.provinceOf[i];
-        if (a < 0) continue;
-        for (const nb of w.grid.neighbors[i]) {
-          const b = w.provinceOf[nb];
-          if (b < 0 || b === a) continue;
-          const d = gap(fill.get(a)!, fill.get(b)!);
-          if (d < worst) { worst = d; who = `seed ${seed}: ${a}/${b}`; }
-        }
-      }
-      expect(worst, who).toBeGreaterThanOrEqual(30);
-    }
-  });
-
-  // Adjacency alone leaves the answer degenerate: a province whose neighbours are all still
-  // unassigned scores every hue the same, so with a fixed starting point every one of them took the
-  // first hue and the map came out dominated by a single pink. Ties break to the province's own
-  // golden-angle position instead, which spends the whole wheel.
-  it("spends the whole wheel rather than crowding one hue", () => {
-    const w = generateWorld({ ...DEFAULT_PARAMS, seed: 1 }).world;
-    const g = provinceLayer(w.grid, w.provinceOf, w.provinces);
-    const used = new Map<number, number>();
-    for (const el of g.querySelectorAll(".province-fill")) {
-      const h = hueOf(el.getAttribute("fill")!);
-      used.set(h, (used.get(h) ?? 0) + 1);
-    }
-    const total = w.provinces.length;
-    expect(used.size).toBeGreaterThanOrEqual(10);
-    expect(Math.max(...used.values()) / total).toBeLessThan(0.2); // measured: 11%
-  });
-});
+// (The hue-per-province rules that stood here — twelve hues dealt against the adjacency, the whole wheel
+// spent — went with the hues on 2026-10-15: a province wears its realm's colour now, and two that touch
+// within one realm part by a lightness step. provinceTint.test holds that rule, over every touching pair.)
 
 // A free city holds five cells and a province is far bigger, so snapping ownership to whole
 // provinces — which is what makes political borders fall on province edges — erased every free city

@@ -1,5 +1,6 @@
 import type { World } from "../types/world";
-import { svgEl, legendPanel, legendRow, INK, LEGEND_TITLE_H, LEGEND_TEXT, LEGEND_ROW, LEGEND_SWATCH, LEGEND_GAP, LEGEND_W_NAMED, type KeyRow } from "./renderer";
+import { svgEl, legendPanel, legendRow, INK, KEY_GROUND, LEGEND_TITLE_H, LEGEND_TEXT, LEGEND_ROW, LEGEND_SWATCH, LEGEND_GAP, LEGEND_W_NAMED, type KeyRow } from "./renderer";
+import { over } from "./colour";
 import { cellPath, segPath } from "./svgPaths";
 import { politicalBorders } from "../engine/borders";
 import { nationColor, nationCentroids } from "./nationPalette";
@@ -119,6 +120,8 @@ function nameLine(name: string, x: number, y: number, lang: Lang | undefined, ke
 }
 
 const FREE_COLOR = "#b7b1a4"; // neutral grey for independent free cities
+/** a realm's fill over the muted ground, and a free city's: the key's swatches are painted at the same */
+export const FILL_OPACITY = 0.58, FREE_FILL_OPACITY = 0.72;
 
 export function politicalLayer(
   grid: GridLike,
@@ -154,7 +157,7 @@ export function politicalLayer(
         class: free ? "territory free-city" : "territory",
         "data-polity": id, d,
         fill: free ? FREE_COLOR : colorOf(id),
-        "fill-opacity": free ? 0.72 : 0.58,
+        "fill-opacity": free ? FREE_FILL_OPACITY : FILL_OPACITY,
       }));
     }
   }
@@ -239,9 +242,15 @@ export function politicalLayer(
       rows.forEach(([id], i) => {
         const y = y0 + i * LEGEND_ROW;
         const row = legendRow(LEGEND_ROW);
+        // ★ The swatch is the colour the map PAINTS, not the colour the fill is given: the territory is laid
+        // at 0.58 over the muted ground, and the pure swatch beside it read as another colour — "다이시다르
+        // 제국" blue in the key, grey-teal on the land (design review 2026-10-15, item 8). The same fill over
+        // grassland as the overlay views paint it (KEY_GROUND), at the territory's own opacity.
+        const free = freeSet.has(id);
         row.appendChild(svgEl("rect", {
-          class: "legend-item", x: x0, y: y - 9, width: LEGEND_SWATCH, height: LEGEND_SWATCH,
-          fill: colorOf(id), stroke: INK, "stroke-width": 0.6, "vector-effect": "non-scaling-stroke",
+          class: "legend-item", "data-polity": id, x: x0, y: y - 9, width: LEGEND_SWATCH, height: LEGEND_SWATCH,
+          fill: over(free ? FREE_COLOR : colorOf(id), KEY_GROUND, free ? FREE_FILL_OPACITY : FILL_OPACITY),
+          stroke: INK, "stroke-width": 0.6, "vector-effect": "non-scaling-stroke",
         }));
         const t = svgEl("text", { x: x0 + LEGEND_SWATCH + LEGEND_GAP, y, "font-size": LEGEND_TEXT, fill: "#42341f", "letter-spacing": 0.3 });
         t.textContent = nameOf(id) ?? "";

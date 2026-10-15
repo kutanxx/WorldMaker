@@ -41,7 +41,9 @@ export function deconflictLabels(svg: SVGSVGElement, scale = 1, opts: { clear?: 
   // cull below keeps the big ones and the rest arrive as the reader leans in.
   const tiers: [string, number, number][] = [
     [".nation-label.player", 6, 0], [".nation-label:not(.player)", 5, 0], [".city-capital", 4, 0],
-    [".region-label:not(.region-faint)", 3, 0], [".province-label", 3, 0],
+    // ...the larger quarter of them: a hundred at 7 units were a thicket (83 on screen at 8.6px, design
+    // review 2026-10-15, item 9), so the smaller provinces' names wait for a zoom like the towns' do
+    [".region-label:not(.region-faint)", 3, 0], [".province-label.province-major", 3, 0], [".province-label:not(.province-major)", 3, 1.8],
     // a faded region name yields to whatever the view is actually about
     [".region-label.region-faint", 1, 0], [".river-label", 2, 2], [".city-town", 1, 2.6],
     // the culture view is about its cultures, so a culture's name outranks the region and city names

@@ -77,8 +77,14 @@ describe("the colour map, untouched by the ink style", () => {
     // (...and the review's fixes: a realm's name steps one line only, and onto its own realm, and the seas' names
     // are back on the realms' and the peoples' views — those two views moved, from keyless 3283628715 / 2717852539
     // and full 2258274538 / 3285959857; with the realms' and the regions' names taken out, every view is as it was.)
-    expect(keyless, "the map moved, not only its key").toEqual([1443942277, 2691264471, 3650289349, 2752588607]);
-    expect(hashes).toEqual([135364052, 1937463028, 2286055459, 348104842]);
+    // (...and then the keys' swatches painted as the map paints them (KEY_GROUND) and the provinces tinted by realm
+    // (2026-10-15): the realms' and the peoples' views moved in their KEYS alone — keyless as they were — and the
+    // provinces' view in its fills and its names' classes, from keyless 2752588607 / full 348104842; with the keys,
+    // the region names, the province fills and the province names taken out, all four are as they were (proved in
+    // a scratch test: [2699809599, 3774092116, 2929958986, 4139310856] before and after). Were full [135364052,
+    // 1937463028, 2286055459, 348104842].)
+    expect(keyless, "the map moved, not only its key").toEqual([1443942277, 2691264471, 3650289349, 4286114046]);
+    expect(hashes).toEqual([135364052, 1513721538, 3913402501, 3310703191]);
   });
 });
 
@@ -176,7 +182,10 @@ describe("the ink map", () => {
     // (...and the realms' names stepping off the roads: the political view alone, from 2506444734; then the review's
     // fixes — one line only, onto its own realm, the seas named on every view — the political and culture views from
     // 3740554609 / 2043387721.)
-    expect(keyless, "the ink map moved, not only its key").toEqual([717287326, 121792051, 3869525917, 108176322]);
+    // (...and the provinces tinted by realm (2026-10-15): in ink the fills are dropped, and only the names' classes
+    // moved the provinces' view, from keyless 108176322 / full 2778554188 — with the province names taken out it is
+    // as it was; the other three views stand, keys and all.)
+    expect(keyless, "the ink map moved, not only its key").toEqual([717287326, 121792051, 3869525917, 4038630104]);
     // (the province view's ink map re-pinned with the colour map's, for the same words: was 2924723875, and the
     // new drawing with the old words put back hashes to exactly that)
     // (2026-10-12: re-pinned with the colour map's restyle — the ink map took its rivers, frame, rose and title
@@ -190,7 +199,7 @@ describe("the ink map", () => {
     // left off two views, from [1226621783, 3551751886, 2684777517, 2778554188]; then the realms' names stepping off
     // the roads, the political view alone from 1631657323; then the review's fixes, the political and culture views
     // from 2587852596 / 1863668716.)
-    expect(hashes).toEqual([1226621783, 989725272, 1156753306, 2778554188]);
+    expect(hashes).toEqual([1226621783, 989725272, 1156753306, 3069348250]);
   });
 
   // The colour key lists colours, which an ink map does not have: the ink key lists its marks, drawn as

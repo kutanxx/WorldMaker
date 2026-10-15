@@ -1,6 +1,8 @@
 import type { World } from "../types/world";
 import type { CityLayout } from "../engine/city";
 import { dcos, dsin } from "../engine/dmath";
+import { BIOME_COLORS, GRASSLAND } from "../engine/biome";
+import { over } from "./colour";
 
 export const SVG_NS = "http://www.w3.org/2000/svg";
 
@@ -14,6 +16,15 @@ export function svgEl(tag: string, attrs?: Record<string, string | number>): SVG
 // into a colour of its own.
 export const INK = "#3c2f1c";
 export const PARCHMENT = "#f3ead2";
+// How far the biomes are muted under an overlay view (the realms', the peoples', the provinces'). Named
+// because it is one half of what the overlay fills are laid over; svgWorldRenderer re-exports it.
+export const OVERLAY_BIOME_OPACITY = 0.6;
+/**
+ * The ground a key's swatch stands on: grassland as the overlay views paint it (muted over the parchment).
+ * A realm's or a people's fill is laid over the land at an opacity, and a swatch in the pure colour did not
+ * look like the land it was a key to (design review 2026-10-15, item 8): the swatches are painted over this.
+ */
+export const KEY_GROUND = over(BIOME_COLORS[GRASSLAND], PARCHMENT, OVERLAY_BIOME_OPACITY);
 // How far right of its dot the world map sets a town's name — and, where a control covers that side,
 // how far LEFT of it the name ends instead (see deconflictLabels)
 export const CITY_LABEL_DX = 9;   // clear of a capital's star (CAPITAL_OUT + its ring) with a little air

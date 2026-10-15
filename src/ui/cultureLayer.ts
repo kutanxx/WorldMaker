@@ -1,5 +1,6 @@
 import type { World } from "../types/world";
-import { svgEl, legendPanel, legendRow, INK, LEGEND_TITLE_H, LEGEND_TEXT, LEGEND_ROW, LEGEND_SWATCH, LEGEND_GAP, LEGEND_W_NAMED, type KeyRow } from "./renderer";
+import { svgEl, legendPanel, legendRow, INK, KEY_GROUND, LEGEND_TITLE_H, LEGEND_TEXT, LEGEND_ROW, LEGEND_SWATCH, LEGEND_GAP, LEGEND_W_NAMED, type KeyRow } from "./renderer";
+import { over } from "./colour";
 import { t } from "./i18n";
 import type { Lang } from "./i18n";
 import { cellPath, segPath } from "./svgPaths";
@@ -78,7 +79,8 @@ export function cultureLayer(
   present.forEach((id, i) => {
     const y = y0 + i * LEGEND_ROW;
     const row = legendRow(LEGEND_ROW);
-    row.appendChild(svgEl("rect", { class: "legend-item", x: x0, y: y - 9, width: LEGEND_SWATCH, height: LEGEND_SWATCH, fill: cultures[id]?.color ?? "#888", stroke: INK, "stroke-width": 0.6, "vector-effect": "non-scaling-stroke" }));
+    // the colour the map paints: the fill over the muted ground at its opacity (see politicalLayer's key)
+    row.appendChild(svgEl("rect", { class: "legend-item", "data-culture": id, x: x0, y: y - 9, width: LEGEND_SWATCH, height: LEGEND_SWATCH, fill: over(cultures[id]?.color ?? "#888888", KEY_GROUND, CULTURE_FILL_OPACITY), stroke: INK, "stroke-width": 0.6, "vector-effect": "non-scaling-stroke" }));
     const t = svgEl("text", { x: x0 + LEGEND_SWATCH + LEGEND_GAP, y, "font-size": LEGEND_TEXT, fill: "#42341f", "letter-spacing": 0.3 });
     const cname = cultures[id]?.name;
     t.textContent = cname === undefined ? "" : peopleLabel(lang, cname);

@@ -1,5 +1,5 @@
 import type { World } from "../types/world";
-import { svgEl, legendPanel, legendRow, starPath, compassRose, mapFrame, FRAME_INSET, INK, PARCHMENT, TOWN_R, TOWN_RING, CAPITAL_OUT, CAPITAL_IN, CAPITAL_RING, LEGEND_TITLE_H, LEGEND_TEXT, LEGEND_ROW, LEGEND_SWATCH, LEGEND_GAP, LEGEND_W_FIXED, CITY_LABEL_DX, ROAD_INK, ROAD_W, ROAD_CASING_W, roadMark, SEA_ROUTE_INK, SEA_ROUTE_W, SEA_ROUTE_DASH, seaRouteMark, FREE_PORT_FILL, FREE_PORT_EDGE, diamondPath } from "./renderer";
+import { svgEl, legendPanel, legendRow, starPath, compassRose, mapFrame, FRAME_INSET, INK, PARCHMENT, OVERLAY_BIOME_OPACITY, TOWN_R, TOWN_RING, CAPITAL_OUT, CAPITAL_IN, CAPITAL_RING, LEGEND_TITLE_H, LEGEND_TEXT, LEGEND_ROW, LEGEND_SWATCH, LEGEND_GAP, LEGEND_W_FIXED, CITY_LABEL_DX, ROAD_INK, ROAD_W, ROAD_CASING_W, roadMark, SEA_ROUTE_INK, SEA_ROUTE_W, SEA_ROUTE_DASH, seaRouteMark, FREE_PORT_FILL, FREE_PORT_EDGE, diamondPath } from "./renderer";
 import { settlementKeyRows } from "./settlementKey";
 import { scaleBar, scaleBarAbove, KM_PER_UNIT, WORLD_BAR_UNITS, walkCaption } from "./scaleBar";
 import { displayBiomes } from "./displayBiome";
@@ -27,7 +27,7 @@ export type MapView = "terrain" | "political" | "culture" | "province";
 
 // How far the biomes are muted under an overlay view. Named because it is one half of what the
 // reader sees through a culture fill; the palette test reads it.
-export const OVERLAY_BIOME_OPACITY = 0.6;
+export { OVERLAY_BIOME_OPACITY } from "./renderer";
 
 // The water lines round the coast, outermost first: how far out each runs, how heavy it is, its colour.
 // Each further out runs further from the last (4, 5, 6 apart) and is paler, so the lines fade going out.
@@ -279,7 +279,7 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
   const marksKey = settlementKeyRows(lang, econZones.length > 0);
   slot.appendChild(
     view === "culture" ? cultureLayer(grid, world.cultureOf, world.cultures, lang, marksKey)
-      : view === "province" ? provinceLayer(grid, world.provinceOf, world.provinces, { owner: world.polityOf, legend: true, lang, roads: world.roads.length > 0, seaRoutes: (world.seaRoutes?.length ?? 0) > 0, keyRows: marksKey })
+      : view === "province" ? provinceLayer(grid, world.provinceOf, world.provinces, { owner: world.polityOf, colorOf, legend: true, lang, roads: world.roads.length > 0, seaRoutes: (world.seaRoutes?.length ?? 0) > 0, keyRows: marksKey })
         // terrain/political: snap nation ownership to whole provinces so borders (and political fills)
         // fall on province edges — the SAME geometry the province view uses, so views stay consistent.
         // ⚠ No `keep` set here, and none needed: this draws `world.polityOf`, the ownership of year

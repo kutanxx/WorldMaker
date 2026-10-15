@@ -5,21 +5,33 @@ import { cellPath, segPath } from "./svgPaths";
 import { politicalBorders } from "../engine/borders";
 import type { Province } from "../engine/provinces";
 import { featureLabel } from "../engine/featureLabel";
+import { nationColor } from "./nationPalette";
+import { FILL_OPACITY } from "./politicalLayer";
+import { lighter } from "./colour";
 
 type GridLike = Pick<World["grid"], "count" | "polygons" | "neighbors" | "points" | "height">;
 
-// EU4-style: a distinct hue per province so adjacent provinces read as separate regions regardless
-// of biome. The hue used to be the golden angle over the province ID, which spaces CONSECUTIVE ids
-// and knows nothing about who touches whom -- and ids come from farthest-point seeding, so
-// neighbours draw arbitrary ones. Measured over 968 touching pairs: a healthy 94-degree median, but
-// twelve pairs a world within 15 degrees and 2.5% within 5, which is the same colour either side of
-// a hairline. So the hues are dealt against the adjacency instead: a fixed wheel of twelve, each
-// province taking the one furthest from the neighbours already dealt. Deterministic (id order, ties
-// to the lowest hue), no rng, and inline so it survives export.
-const PALETTE = 12;
-const hueGap = (a: number, b: number) => { const d = Math.abs(a - b) % 360; return Math.min(d, 360 - d); };
+/**
+ * ★ A province is painted in its REALM's colour, a step lighter than its neighbours of the same realm.
+ *
+ * It used to take a hue of its own — twelve dealt against the adjacency so no two touching provinces
+ * matched — at 45% saturation and 68% lightness over the land: fifty pieces of lilac, mint and pink that
+ * read as a data-visualization demo beside the atlas's other views, and said nothing about whose the
+ * province was (design review 2026-10-15, item 9). Now the fill is the colour the political view paints
+ * the realm (the caller's `colorOf`, the same function the realms' view and its key read), at the same
+ * opacity, lightened by one of four steps so that two touching provinces of one realm still part at
+ * their hairline: the view reads as realms made of provinces, and a reader switching from the realms'
+ * view meets the colours they just saw. A province no realm holds, or a layer given no owners, is a warm
+ * grey in the same steps. The steps are dealt against the adjacency as the hues were: each province
+ * takes the first step none of its already-dealt neighbours OF THE SAME COLOUR wears (ids in order, no
+ * rng), and inline so it survives export.
+ */
+export const PROVINCE_STEPS = [0, 0.22, 0.44, 0.11, 0.33];
+export const PROVINCE_FILL_OPACITY = FILL_OPACITY;
+export const UNCLAIMED_COLOUR = "#9a9080";
 
-function assignHues(grid: GridLike, provinceOf: ArrayLike<number>, count: number): number[] {
+function assignSteps(grid: GridLike, provinceOf: ArrayLike<number>, base: string[]): number[] {
+  const count = base.length;
   const adj: Set<number>[] = Array.from({ length: count }, () => new Set<number>());
   for (let i = 0; i < grid.count; i++) {
     const a = provinceOf[i];
@@ -29,26 +41,19 @@ function assignHues(grid: GridLike, provinceOf: ArrayLike<number>, count: number
       if (b >= 0 && b < count && b !== a) adj[a].add(b);
     }
   }
-  const hue = new Array(count).fill(-1);
+  const step = new Array<number>(count).fill(-1);
   for (let p = 0; p < count; p++) {
-    // Candidates are walked from this province's own golden-angle position rather than from zero.
-    // Adjacency still decides -- the first best wins -- but a province whose neighbours are all
-    // still unassigned scores every hue equally, and with a fixed starting point every one of those
-    // took hue 0: the first map came out dominated by a single pink. Ties now spread instead.
-    const start = Math.round((((p * 137.508) % 360) / 360) * PALETTE) % PALETTE;
-    let best = 0, bestScore = -1;
-    for (let i = 0; i < PALETTE; i++) {
-      const h = (((start + i) % PALETTE) * 360) / PALETTE;
-      let score = 360;
-      for (const q of adj[p]) if (hue[q] >= 0) score = Math.min(score, hueGap(h, hue[q]));
-      if (score > bestScore) { bestScore = score; best = h; }
-    }
-    hue[p] = best;
+    const taken = new Set<number>();
+    for (const q of adj[p]) if (step[q] >= 0 && base[q] === base[p]) taken.add(step[q]);
+    let s = 0;
+    while (s < PROVINCE_STEPS.length - 1 && taken.has(s)) s++;
+    // five steps: with four, world 1 had two touching pairs of one realm wearing the same step (its greedy
+    // walk met a province whose four dealt neighbours held all four); past five, the least-taken step
+    if (taken.has(s)) { let best = 0, fewest = Infinity; for (let k = 0; k < PROVINCE_STEPS.length; k++) { let n = 0; for (const q of adj[p]) if (step[q] === k && base[q] === base[p]) n++; if (n < fewest) { fewest = n; best = k; } } s = best; }
+    step[p] = s;
   }
-  return hue;
+  return step;
 }
-
-const provinceColor = (hue: number): string => `hsl(${hue.toFixed(1)}, 45%, 68%)`;
 
 // each province's majority-owner nation (the nation holding the most of its cells); ties → lower id,
 // -1 if the province is mostly unclaimed. Snapping ownership to whole provinces makes nation borders
@@ -113,9 +118,10 @@ export function provinceLayer(
   grid: GridLike, provinceOf: ArrayLike<number>, provinces: Province[],
   // `roads`: the map draws roads between the towns (the key then says which line they are)
   // `keyRows`: rows the key carries under its own, worded and drawn by the caller (settlementKey.ts)
-  opts: { fills?: boolean; labels?: boolean; owner?: ArrayLike<number>; legend?: boolean; lang?: Lang; roads?: boolean; seaRoutes?: boolean; keyRows?: KeyRow[] } = {},
+  // `colorOf`: what colour a realm is painted — the political view's own function, so the two views agree
+  opts: { fills?: boolean; labels?: boolean; owner?: ArrayLike<number>; colorOf?: (id: number) => string; legend?: boolean; lang?: Lang; roads?: boolean; seaRoutes?: boolean; keyRows?: KeyRow[] } = {},
 ): SVGGElement {
-  const { fills = true, labels = true, owner, legend = false, lang = "en", roads = false, seaRoutes = false, keyRows = [] } = opts;
+  const { fills = true, labels = true, owner, colorOf = nationColor, legend = false, lang = "en", roads = false, seaRoutes = false, keyRows = [] } = opts;
   // A province name is a composite ("Barrens of Dimbrerk"), so it is rebuilt from its parts rather
   // than transliterated. This is the view with the most lettering on it — roughly a hundred labels
   // — and it was the last one still drawing English at a Korean reader.
@@ -123,7 +129,10 @@ export function provinceLayer(
   const g = svgEl("g", { class: "province" }) as SVGGElement;
 
   if (fills) {
-    const hues = assignHues(grid, provinceOf, provinces.length);
+    // each province's realm (the one holding most of it), and so its colour; none → the grey
+    const owners = owner ? provinceOwners(provinceOf, provinces, owner) : provinces.map(() => -1);
+    const base = provinces.map((p) => (owners[p.id] >= 0 ? colorOf(owners[p.id]) : UNCLAIMED_COLOUR));
+    const steps = assignSteps(grid, provinceOf, base);
     const byProv: string[] = provinces.map(() => "");
     for (let i = 0; i < grid.count; i++) {
       const p = provinceOf[i];
@@ -134,7 +143,7 @@ export function provinceLayer(
       if (!byProv[prov.id]) continue;
       const path = svgEl("path", {
         class: "province-fill", "data-province": prov.id, d: byProv[prov.id],
-        fill: provinceColor(hues[prov.id]), "fill-opacity": 0.7,
+        fill: lighter(base[prov.id], PROVINCE_STEPS[steps[prov.id]]), "fill-opacity": PROVINCE_FILL_OPACITY,
       });
       const title = svgEl("title");
       title.textContent = provinceName(prov);
@@ -208,14 +217,17 @@ export function provinceLayer(
 
   if (labels) {
     const lg = svgEl("g", { class: "province-labels" });
-    for (const prov of [...provinces].sort((a, b) => b.cells - a.cells)) {
+    // the larger quarter (twelve at least) are named at rest; the rest wait for a zoom (deconflict.ts tiers):
+    // a hundred names at 7 units were a thicket — 83 on screen at 8.6px (design review 2026-10-15, item 9)
+    const major = Math.min(provinces.length, Math.max(12, Math.ceil(provinces.length / 4)));
+    [...provinces].sort((a, b) => b.cells - a.cells).forEach((prov, rank) => {
       const tx = svgEl("text", {
-        class: "province-label", "data-name": `p${prov.id}`, x: prov.centroid[0] + 4, y: prov.centroid[1] + 3,
+        class: "province-label" + (rank < major ? " province-major" : ""), "data-name": `p${prov.id}`, x: prov.centroid[0] + 4, y: prov.centroid[1] + 3,
         "text-anchor": "start", "font-size": 7,
       });
       tx.textContent = provinceName(prov);
       lg.appendChild(tx);
-    }
+    });
     g.appendChild(lg);
   }
   return g;
