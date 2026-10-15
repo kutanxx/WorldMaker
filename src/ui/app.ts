@@ -746,7 +746,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
       slot.replaceChildren(politicalLayer(world.grid, snapped, history.polities, politicalOpts(view, lang, colorOf, polityLabeller(lang, governmentForms), freePorts)));
     }
     // the year's layer arrives in its colours; on an ink map it goes into ink with the rest
-    if (mapStyle === "ink") inkSlot(slot);
+    if (mapStyle === "ink") inkSlot(slot, lang);
   }
 
   /**

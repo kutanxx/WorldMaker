@@ -12,7 +12,7 @@
 // moves nothing in the world.
 import type { World } from "../types/world";
 import { biomeName, t, type Lang } from "./i18n";
-import { svgEl, legendPanel, legendRow, LEGEND_ROW, LEGEND_SWATCH, LEGEND_GAP, LEGEND_TEXT, LEGEND_TITLE_H, LEGEND_W_FIXED } from "./renderer";
+import { svgEl, legendPanel, legendRow, LEGEND_ROW, LEGEND_SWATCH, LEGEND_GAP, LEGEND_TEXT, LEGEND_TITLE_H, LEGEND_W_FIXED, type KeyRow } from "./renderer";
 import { displayBiomes } from "./displayBiome";
 import { settlementKeyRows } from "./settlementKey";
 import { ALPINE, TAIGA, TEMPERATE_FOREST, TROPICAL, WETLAND, DESERT } from "../engine/biome";
@@ -297,14 +297,58 @@ export function reInk(el: Element): void {
   twoInks(el);
 }
 
+// The border as the ink map draws it, across a key's swatch: the dashed ink line on its band of paper.
+function borderMark(x: number, y: number): SVGElement {
+  const g = svgEl("g", { class: "legend-symbol border-key" });
+  const at = { x1: x, y1: y - 3, x2: x + 12, y2: y - 3 };
+  g.appendChild(svgEl("line", { ...at, stroke: PAPER, "stroke-width": BORDER_W + HALO_EXTRA, "stroke-linecap": "round" }));
+  g.appendChild(svgEl("line", { ...at, stroke: INK, "stroke-width": BORDER_W, "stroke-dasharray": BORDER_DASH }));
+  return g;
+}
+
+/**
+ * The realms' or the peoples' key in ink. The colour key is a key of colours, which the ink map does not
+ * have, and it used to be dropped — so the sheet beside the map opened as an empty panel (design review
+ * 2026-10-15: the terrain key 13 rows, the provinces' 9, the realms' and the peoples' 0). In ink the key
+ * lists what the map draws instead: its border, dashed on its band of paper, then the marks every key
+ * ends with (a capital, a town, and a free port where the colour key had one). It stands where the colour
+ * key stood, under the same title; the slot's ink passes then take its words and marks into the two inks
+ * with everything else.
+ */
+function inkOverlayKey(key: Element, lang: Lang): Element {
+  const panel = key.querySelector(".legend-panel > rect");
+  if (!panel) return key;
+  // every key of this map ends 4 units under its last row's baseline (legendPanel's height, rows * LEGEND_ROW
+  // + 14 + LEGEND_TITLE_H, from 10 + LEGEND_TITLE_H above the first)
+  const bottom = Number(panel.getAttribute("y")) + Number(panel.getAttribute("height"));
+  const rows: KeyRow[] = [
+    [t(lang, key.classList.contains("culture-legend") ? "keyPeopleBorder" : "keyBorder"), borderMark],
+    ...settlementKeyRows(lang, key.querySelector(".free-port-key") !== null),
+  ];
+  const legend = svgEl("g", { class: `${key.getAttribute("class") ?? "legend"} ink-legend` });
+  const x0 = 14, y0 = bottom - 4 - rows.length * LEGEND_ROW;
+  legend.appendChild(legendPanel(x0 - 5, y0 - 10 - LEGEND_TITLE_H, LEGEND_W_FIXED, rows.length * LEGEND_ROW + 14 + LEGEND_TITLE_H, key.querySelector(".legend-title")?.textContent ?? undefined));
+  rows.forEach(([word, mark], k) => {
+    const y = y0 + k * LEGEND_ROW;
+    const row = legendRow(LEGEND_ROW);
+    row.appendChild(mark(x0, y));
+    const text = svgEl("text", { x: x0 + LEGEND_SWATCH + LEGEND_GAP, y, "font-size": LEGEND_TEXT, fill: INK, "letter-spacing": 0.3 });
+    text.textContent = word;
+    row.appendChild(text);
+    legend.appendChild(row);
+  });
+  return legend;
+}
+
 /**
  * The overlay slot in ink — the realms', the peoples' or the provinces' layer for a year: no fills, its
- * borders heavy and dashed on a band of paper, its names in ink, and no key of colours it no longer has.
+ * borders heavy and dashed on a band of paper, its names in ink, and its key of colours it no longer has
+ * made a key of its border and its marks (`inkOverlayKey`), in the reader's language.
  * The page refills the slot at every year, and calls this after it as `renderWorld` does.
  */
-export function inkSlot(slot: Element): void {
+export function inkSlot(slot: Element, lang: Lang): void {
   for (const p of slot.querySelectorAll(".territory, .culture-area, .province-fill")) { p.setAttribute("fill", "none"); p.removeAttribute("fill-opacity"); }
-  for (const l of slot.querySelectorAll(".nation-legend, .culture-legend")) l.remove();
+  for (const l of slot.querySelectorAll(".nation-legend, .culture-legend")) l.replaceWith(inkOverlayKey(l, lang));
   for (const p of slot.querySelectorAll(".province-border")) { p.setAttribute("stroke", INK); p.setAttribute("stroke-width", "0.6"); p.setAttribute("stroke-dasharray", "1 1.6"); }
   for (const p of slot.querySelectorAll(".border, .nation-border, .culture-border")) {
     p.setAttribute("stroke", INK);
@@ -359,7 +403,7 @@ export function inkWorld(svg: SVGSVGElement, world: World, lang: Lang, page?: Pa
   (biomes ?? ground)?.after(marks);
   if (coast) { coast.setAttribute("stroke", INK); coast.setAttribute("stroke-width", String(COAST_W)); }
   const slot = svg.querySelector(".political-slot");
-  if (slot) inkSlot(slot);
+  if (slot) inkSlot(slot, lang);
   for (const p of svg.querySelectorAll(".river")) { p.setAttribute("stroke", INK); p.setAttribute("stroke-width", f1(Number(p.getAttribute("stroke-width")) * 0.7)); }
   for (const p of svg.querySelectorAll(".sea-route")) { p.setAttribute("stroke", INK); p.setAttribute("stroke-width", "0.9"); p.setAttribute("stroke-dasharray", "1.2 2.4"); }
   for (const p of svg.querySelectorAll(".road-casing")) p.setAttribute("stroke", PAPER);

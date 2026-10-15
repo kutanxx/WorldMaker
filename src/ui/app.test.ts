@@ -275,9 +275,16 @@ describe("export follows the screen", () => {
       const political = [...root.querySelectorAll(".view-toggle button")].find((b) => /Political|정치/.test(b.textContent ?? "")) as HTMLButtonElement;
       political.click();
       await new Promise((r) => setTimeout(r, 0));
+      // ...and the key beside the map is not an empty panel: the realms' key in ink is the border, then the
+      // marks (design review 2026-10-15, 🔴 1 — measured on the page: terrain 13 rows, realms in ink 0)
+      const keyWords = () => [...root.querySelectorAll(".legend-sheet .legend-row text")].map((e) => e.textContent);
+      const inkKey = [["국경", "수도", "도시"], ["Border", "Capital", "Town"]];
+      expect(inkKey, "the realms' key beside the ink map").toContainEqual(keyWords().slice(0, 3));
       const slider = root.querySelector(".timeline input[type=range]") as HTMLInputElement;
       slider.value = String(Math.floor(Number(slider.max) / 2)); slider.dispatchEvent(new Event("input"));
       expect(map().classList.contains("ink"), "the realms' view left ink").toBe(true);
+      expect(inkKey, "the scrubbed year lost the key").toContainEqual(keyWords().slice(0, 3));
+      expect(root.querySelectorAll(".legend").length, "the year left two keys behind").toBe(1);
       const fills = [...map().querySelectorAll(".political-slot .territory")].map((t) => t.getAttribute("fill"));
       expect(fills.length).toBeGreaterThan(0);
       expect(new Set(fills), "a realm painted in colour").toEqual(new Set(["none"]));

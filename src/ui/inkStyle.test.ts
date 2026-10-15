@@ -135,17 +135,27 @@ describe("the ink map", () => {
   // unzoomed file draws, comes out byte for byte as it did, in every view (names' `data-name` taken out,
   // as the colour map's pin does).
   it("draws world 1's whole ink map exactly as it did, in every view", () => {
+    const keyless: number[] = [];
     const hashes = (["terrain", "political", "culture", "province"] as const).map((v) => {
       const map = inked(v);
       for (const el of map.querySelectorAll("[data-name]")) el.removeAttribute("data-name");
-      return fnv(svgToString(map));
+      const full = fnv(svgToString(map));
+      for (const el of map.querySelectorAll(".legend")) el.remove();
+      keyless.push(fnv(svgToString(map)));
+      return full;
     });
+    // (pinned with their keys taken out as well, as the colour map's are, so the next change to a key can show
+    // it touched nothing else — read on the commit before the realms' and the peoples' ink keys were made)
+    expect(keyless, "the ink map moved, not only its key").toEqual([292007065, 3737655174, 1348684571, 1189182329]);
     // (the province view's ink map re-pinned with the colour map's, for the same words: was 2924723875, and the
     // new drawing with the old words put back hashes to exactly that)
     // (2026-10-12: re-pinned with the colour map's restyle — the ink map took its rivers, frame, rose and title
     // ornaments; its marks came out byte for byte as they were (.claude/probes/inkmarks.ts). Was [737587710,
     // 3864053538, 182143499, 3970976761].)
-    expect(hashes).toEqual([3989428746, 3737655174, 1348684571, 3120728551]);   // (the towns' marks and clearings, as above)
+    // (2026-10-15: the realms' and the peoples' views gained a key in ink — the border and the marks, where the key
+    // of colours used to be dropped — and only those two moved, from 3737655174 and 1348684571, which were also
+    // their keyless hashes: the ink map had no key there. Keyless, all four are as they were.)
+    expect(hashes).toEqual([3989428746, 3450551405, 703491356, 3120728551]);   // (the towns' marks and clearings, as above)
   });
 
   // The colour key lists colours, which an ink map does not have: the ink key lists its marks, drawn as
@@ -208,5 +218,47 @@ describe("the ink key names the settlements' marks", () => {
     expect(diamond?.getAttribute("fill")).toBe(PAPER);
     expect(diamond?.getAttribute("stroke")).toBe(INK);
     expect(map.querySelector(".legend .capital-key")?.getAttribute("fill")).toBe(INK);
+  });
+});
+
+// The realms' and the peoples' keys are keys of colours, and in ink they were simply dropped — so the sheet
+// beside the map opened as an empty panel (design review 2026-10-15, 🔴 1: measured on the page, the terrain
+// key 13 rows, the provinces' 9, the realms' and the peoples' 0). In ink each lists what the map draws
+// instead: its border, dashed on its band of paper, then the marks every key ends with.
+describe("the ink key of the realms and of the peoples", () => {
+  const border = (map: SVGSVGElement) => map.querySelector(".political-slot .border, .political-slot .culture-border");
+
+  it("lists the border and the settlements' marks, not the colours it no longer has", () => {
+    for (const [view, word] of [["political", { ko: "국경", en: "Border" }], ["culture", { ko: "문화 경계", en: "Boundary" }]] as const) {
+      for (const lang of ["ko", "en"] as const) {
+        const map = inked(view, lang);
+        const key = map.querySelector(".political-slot .legend");
+        expect(key, `${view} ${lang}: no key in the slot`).not.toBeNull();
+        const rows = [...key!.querySelectorAll(".legend-row")];
+        expect(rows.map((r) => r.querySelector("text")?.textContent), `${view} ${lang}`)
+          .toEqual(lang === "ko" ? [word.ko, "수도", "도시"] : [word.en, "Capital", "Town"]);
+        for (const r of rows) expect(r.querySelector("rect[fill]:not([fill='none'])"), `${view} ${lang}: a colour swatch`).toBeNull();
+        // the border's row draws the border as the map draws it: in ink, dashed as the map's is, on paper
+        const line = key!.querySelector(".border-key line[stroke-dasharray]");
+        expect(line?.getAttribute("stroke"), `${view} ${lang}: the border's line`).toBe(INK);
+        expect(line?.getAttribute("stroke-dasharray")).toBe(border(map)?.getAttribute("stroke-dasharray"));
+        expect(line?.previousElementSibling?.getAttribute("stroke"), "no paper under the border's line").toBe(PAPER);
+      }
+    }
+  });
+
+  it("stands where the colour key stood, under the same title", () => {
+    const colour = renderWorld(world, "political", [], "ko").querySelector(".nation-legend .legend-panel rect")!;
+    const ink = inked("political");
+    const bottom = (r: Element) => Number(r.getAttribute("y")) + Number(r.getAttribute("height"));
+    expect(bottom(ink.querySelector(".nation-legend .legend-panel rect")!)).toBeCloseTo(bottom(colour), 6);
+    expect(ink.querySelector(".nation-legend .legend-title")?.textContent).toBe("나라");
+  });
+
+  it("ends with the free port where the map draws free ports", () => {
+    const map = renderWorld(world, "culture", [world.cities[0].cell], "ko", new Set(), undefined, undefined, "ink");
+    const words = [...map.querySelectorAll(".political-slot .legend .legend-row")].map((r) => r.querySelector("text")?.textContent);
+    expect(words).toEqual(["문화 경계", "수도", "도시", "자유무역항"]);
+    expect(map.querySelector(".political-slot .legend .free-port-diamond")?.getAttribute("fill")).toBe(PAPER);
   });
 });
