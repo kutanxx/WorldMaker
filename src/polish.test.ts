@@ -10,7 +10,8 @@ const rule = (sel: RegExp) => { const m = css().match(sel); return m ? m[0] : ""
 describe("the page's chrome, for a first visit", () => {
   // the browser's own ring was orange in one browser and black in another, and the marker alone had the page's
   it("gives every control the same focus ring, in the page's own red", () => {
-    expect(css()).toMatch(/button:focus-visible,\s*a:focus-visible,\s*input:focus-visible,\s*summary:focus-visible\s*\{[^}]*outline:\s*2px solid #7a2f2f/);
+    expect(css()).toMatch(/button:focus-visible,\s*a:focus-visible,\s*input:focus-visible,\s*summary:focus-visible\s*\{[^}]*outline:\s*2px solid (var\(--accent\)|#7a2f2f)/);
+    expect(css()).toMatch(/--accent:\s*#7a2f2f/);
   });
 
   // measured: the fold head's count #8a7a5c read 3.65 against its panel, the golden-age caption #9a6a1a 4.11 — under AA

@@ -1,3 +1,37 @@
+/* ★ The page's colours, named once (design review 2026-10-15: 53 hex colours sat in this file with no
+   token among them; these cover every one used more than once, and the one-offs — the chronicle's event
+   colours, the odd tint — stay where they are, in words beside them). The map's own palette lives in TS
+   (renderer.ts INK/PARCHMENT, biome.ts, nationPalette.ts) because the exported files carry no stylesheet;
+   where a value is shared, the TS is the original and the token repeats it. */
+:root {
+  --page: #e8dcc0;   /* the page behind everything */
+  --panel: #f6efdd;   /* a panel's parchment (the fold, the list, the facts; #f6efdc was the same by accident) */
+  --paper: #f3ead2;   /* a button's face, the map's own parchment (renderer.ts PARCHMENT) */
+  --paper-2: #efe6cf;   /* a panel's hover, the chooser's quiet buttons */
+  --paper-hover: #e7d9b6;   /* a button's hover */
+  --field: #fffaf0;   /* an input's and a menu's paper */
+  --ink: #3c2f1c;   /* the page's ink: text, buttons, the map's INK */
+  --ink-2: #2a2118;   /* the darkest text (a town's name in the list) */
+  --ink-3: #42341f;   /* the settings' text */
+  --muted: #6b5d42;   /* muted text, 5.60 on a panel — the floor for anything a reader reads */
+  --muted-2: #6b5a3f;   /* muted brown: captions, the bar's signs */
+  --muted-faint: #8a7a60;   /* 3.64 on a panel: decoration only, never body text */
+  --line: #cbb784;   /* a panel's edge */
+  --line-2: #b7a071;   /* a button's edge */
+  --line-3: #d8c9a3;   /* a hairline between sections */
+  --field-line: #c9bb96;   /* an input's edge */
+  --gold: #d8b25a;   /* the active view's fill, the primary's top rule */
+  --primary: #7a5a2f;   /* the one primary action (5.50 with --primary-text) */
+  --primary-hover: #6a4d28;
+  --primary-text: #efe7d2;
+  --accent: #7a2f2f;   /* the focus ring, a conquest's caption */
+  --brown: #7a5a3a;   /* the chronicle's hegemon and empire captions */
+  --chip-paper: rgba(244, 236, 216, 0.88);   /* a chip floating on the map */
+  --chip-line: rgba(183, 160, 113, 0.7);
+  --shadow: rgba(60,47,28,.15);   /* a panel's shadow */
+  --shadow-2: rgba(42, 33, 24, 0.18);   /* a chip's shadow */
+  --shadow-menu: rgba(40, 28, 10, 0.3);   /* a menu's shadow */
+}
 body {
   margin: 0;
   /* Korean has no spaces inside a word but CSS will break one anywhere, which is how the front
@@ -5,8 +39,8 @@ body {
      Korean and changes nothing for English. */
   word-break: keep-all;
   font-family: 'EB Garamond', 'Gowun Batang', Georgia, serif;
-  color: #2a2118;
-  background-color: #e8dcc0;
+  color: var(--ink-2);
+  background-color: var(--page);
   background-image:
     radial-gradient(circle at 22% 28%, rgba(255,252,245,.40), transparent 60%),
     radial-gradient(circle at 82% 72%, rgba(120,90,50,.10), transparent 55%),
@@ -15,7 +49,7 @@ body {
 }
 .app-title {
   font-family: 'Cinzel', 'Gowun Batang', serif; font-weight: 600; font-size: 30px; letter-spacing: .12em;
-  text-align: center; padding: 20px 0 8px; margin: 0; color: #3c2f1c;
+  text-align: center; padding: 20px 0 8px; margin: 0; color: var(--ink);
   text-shadow: 0 1px 0 rgba(255,255,255,.45);
 }
 /* The map is the product, and it was 796x557 on a 1920px screen — 41% of the window's width, with
@@ -74,7 +108,7 @@ body {
    and 18px between zones, which is about ten pixels in total. */
 .controls {
   display: flex; gap: 6px; padding: 10px 12px; align-items: center; flex-wrap: wrap;
-  background: #efe6cf; border: 1px solid #cbb784; border-radius: 6px; margin-bottom: 12px;
+  background: var(--paper-2); border: 1px solid var(--line); border-radius: 6px; margin-bottom: 12px;
 }
 /* make a world | look at it | take it away — the zones, said with space */
 .controls > .seed-group, .controls > .view-toggle, .controls > .export-group { margin-left: 12px; }
@@ -85,9 +119,9 @@ body {
    ⚠ Deliberately NOT the view toggle's gold (#d8b25a). A primary action and an active mode must not
    share a fill inside one bar, or each one starts to look like the other. */
 .controls button.primary {
-  background: #7a5a2f; border-color: #6a4d28; color: #f6efdd; font-weight: 600;
+  background: var(--primary); border-color: var(--primary-hover); color: var(--panel); font-weight: 600;
 }
-.controls button.primary:hover { background: #6a4d28; }
+.controls button.primary:hover { background: var(--primary-hover); }
 
 /* The seed box and its button, welded: one control that means "take me to this world". */
 .seed-group { display: inline-flex; align-items: center; gap: 0; }
@@ -96,7 +130,7 @@ body {
 /* In English the word is a sign, "#": "Seed" shown took the bar to two rows at 1366x650 (measured
    2026-10-15: 1103px of 1123 used and it wrapped), and hidden it left an English reader a bare number
    with no name (design review, item 13). The box itself says "Seed" to a screen reader (aria-label). */
-.seed-label > span { font-size: 13px; color: #6b5a3f; }
+.seed-label > span { font-size: 13px; color: var(--muted-2); }
 /* ★ Every sign on the page is one drawing in its control's own ink (icons.ts): the bar carried colour
    emoji (🎲 📜 🏠), text glyphs (⬇ ✎ ▶ ⏸ ✕ ←) and one drawn chain at once, and an emoji is drawn by the
    reader's OS — in colour on Windows, as a white silhouette in a headless window — which read as a chat
@@ -148,16 +182,16 @@ body {
 }
 
 button, input {
-  padding: 5px 10px; font-family: inherit; font-size: 14px; color: #3c2f1c;
-  background: #f3ead2; border: 1px solid #b7a071; border-radius: 4px; cursor: pointer;
+  padding: 5px 10px; font-family: inherit; font-size: 14px; color: var(--ink);
+  background: var(--paper); border: 1px solid var(--line-2); border-radius: 4px; cursor: pointer;
 }
-button:hover { background: #e7d9b6; }
+button:hover { background: var(--paper-hover); }
 input[type=number] { width: 74px; cursor: text; } /* six digits fit; 88 did not fit the toolbar */
 /* home link (back to the landing chooser): styled to sit among the controls buttons, but a touch
    warmer so it reads as "leave this screen" rather than an action. Anchor, so it navigates natively. */
 a.home {
-  padding: 5px 10px; font-family: inherit; font-size: 14px; color: #3c2f1c; text-decoration: none;
-  background: #efdcb4; border: 1px solid #b7a071; border-radius: 4px; cursor: pointer;
+  padding: 5px 10px; font-family: inherit; font-size: 14px; color: var(--ink); text-decoration: none;
+  background: #efdcb4; border: 1px solid var(--line-2); border-radius: 4px; cursor: pointer;
   /* same line as every button beside it — see the note on `.more-toggle` */
   display: inline-flex; align-items: center;
 }
@@ -166,19 +200,19 @@ a.home:hover { background: #e7cf9c; }
 .home-word { display: none; font-family: 'Cinzel', 'Gowun Batang', serif; font-weight: 600; font-size: 15px; letter-spacing: .08em; }
 .stage {
   position: relative;
-  background: #f6efdd; border: 1px solid #cbb784; border-radius: 6px; padding: 10px;
-  box-shadow: 0 1px 4px rgba(60,47,28,.15);
+  background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 10px;
+  box-shadow: 0 1px 4px var(--shadow);
 }
 .map-frame { position: relative; }
 /* a first visit is told how the map is used (app.ts addFirstHint) — once, above the map, until closed */
 .first-hint {
   display: flex; align-items: center; gap: 10px; margin: 0 0 8px; padding: 4px 4px 4px 12px;
-  font-size: 13px; line-height: 1.45; color: #3c2f1c;
-  background: #efe3c4; border: 1px solid #cbb784; border-radius: 4px;
+  font-size: 13px; line-height: 1.45; color: var(--ink);
+  background: #efe3c4; border: 1px solid var(--line); border-radius: 4px;
 }
 .first-hint > span { flex: 1; }
-.first-hint > button { padding: 2px 9px; font-size: 12px; background: none; border-color: transparent; color: #6b5a3f; }
-.first-hint > button:hover { background: #e7d9b6; }
+.first-hint > button { padding: 2px 9px; font-size: 12px; background: none; border-color: transparent; color: var(--muted-2); }
+.first-hint > button:hover { background: var(--paper-hover); }
 body.map-focus .first-hint { display: none; }
 /* The controls float over the map's own bottom-right corner, where a sea name or a coastal town
    likes to sit — and the map moves UNDER them, so there is no square of map that can be reserved
@@ -190,15 +224,15 @@ body.map-focus .first-hint { display: none; }
   position: absolute; right: 14px; bottom: 14px;
   display: flex; flex-direction: column; gap: 4px; z-index: 5;
   padding: 5px; border-radius: 6px;
-  background: rgba(244, 236, 216, 0.88);
-  border: 1px solid rgba(183, 160, 113, 0.7);
-  box-shadow: 0 1px 3px rgba(42, 33, 24, 0.18);
+  background: var(--chip-paper);
+  border: 1px solid var(--chip-line);
+  box-shadow: 0 1px 3px var(--shadow-2);
 }
 .map-zoom-controls button {
   width: 30px; height: 30px; padding: 0; font-size: 18px; line-height: 1;
-  background: #f3ead2; border: 1px solid #b7a071; border-radius: 4px; color: #3c2f1c; cursor: pointer;
+  background: var(--paper); border: 1px solid var(--line-2); border-radius: 4px; color: var(--ink); cursor: pointer;
 }
-.map-zoom-controls button:hover { background: #e7d9b6; }
+.map-zoom-controls button:hover { background: var(--paper-hover); }
 /* ★ A plate is not a map. The world map's controls sit in its bottom-right corner because no corner
    of a MAP is reliably empty — the land is different every time — but a plate has fixed furniture
    and both of its bottom corners are spoken for: the compass at the right, the scale bar at the left.
@@ -215,7 +249,7 @@ body.map-focus .first-hint { display: none; }
 /* At rest there is nothing to undo. Dimmed rather than hidden in the stack, so + and − above it
    never move under a pointer that is busy pressing them. */
 .map-zoom-controls button:disabled { opacity: .4; cursor: default; }
-.map-zoom-controls button:disabled:hover { background: #f3ead2; }
+.map-zoom-controls button:disabled:hover { background: var(--paper); }
 /* The map's key, folded away by default. Hiding it on screen cannot reach the export: that builds
    its own SVG and carries no stylesheet, so a downloaded map always has its key. */
 .map-frame.legend-off svg .legend { display: none; }
@@ -233,9 +267,9 @@ body.map-focus .first-hint { display: none; }
      phone, measured at text top 113.2 against their 115. The body is `normal` too, so the
      declaration was not holding an inherited value off; it was only breaking the row. */
   padding: 5px 10px; font: inherit; font-size: 14px;
-  background: #f3ead2; border: 1px solid #b7a071; border-radius: 4px; color: #3c2f1c; cursor: pointer;
+  background: var(--paper); border: 1px solid var(--line-2); border-radius: 4px; color: var(--ink); cursor: pointer;
 }
-.more-toggle:hover { background: #e7d9b6; }
+.more-toggle:hover { background: var(--paper-hover); }
 /* ★ A plate is not the world map: the view toggles switch a map that is not on screen, and the seed
    box, the die and the world settings build a world you would leave the plate to see — the die
    threw the plate and its world away with no way back. Once only on a narrow window; at every width
@@ -243,7 +277,7 @@ body.map-focus .first-hint { display: none; }
    way back shows only on a plate. */
 .controls.plate .world-only { display: none; }
 .controls:not(.plate) .plate-only { display: none; }
-.controls.more-open .more-toggle { background: #e7d9b6; }
+.controls.more-open .more-toggle { background: var(--paper-hover); }
 /* Focus mode: the window belongs to the map. Everything the map was competing with for vertical
    room — the title, the toolbar, the town list, the chronicle, the dials — is gone, and the height
    budget drops to just the scrubber's own strip. At 1920x945 that takes the map from 993x695 to
@@ -252,15 +286,15 @@ body.map-focus .first-hint { display: none; }
 .focus-toggle, .rename-toggle {
   position: absolute; right: 14px; top: 14px; z-index: 6;
   padding: 4px 10px; font-size: 12px; letter-spacing: .04em; line-height: 1.4;
-  background: rgba(244, 236, 216, 0.88); color: #3c2f1c;
-  border: 1px solid rgba(183, 160, 113, 0.7); border-radius: 6px; cursor: pointer;
-  box-shadow: 0 1px 3px rgba(42, 33, 24, 0.18);
+  background: var(--chip-paper); color: var(--ink);
+  border: 1px solid var(--chip-line); border-radius: 6px; cursor: pointer;
+  box-shadow: 0 1px 3px var(--shadow-2);
 }
-.focus-toggle:hover, .rename-toggle:hover { background: #e7d9b6; }
+.focus-toggle:hover, .rename-toggle:hover { background: var(--paper-hover); }
 /* Renaming stands under the map-only chip (27px of it, and the toolbar's 6px gap) and says it is on the
    way the ink toggle does */
 .rename-toggle { top: 47px; }
-.rename-toggle.active { background: #d8b25a; border-color: #b08a3a; font-weight: 600; }
+.rename-toggle.active { background: var(--gold); border-color: #b08a3a; font-weight: 600; }
 
 /* `--focus-w` is the map's width here, and its scrubber's: sized by the chrome that is on the screen —
    `--focus-chrome`, the stage's 8px above and below, its 8px gap, the scrubber's 67px (its caption is hidden
@@ -330,7 +364,7 @@ body.map-focus .timeline-strip { width: var(--focus-w); margin-inline: auto; mar
 body.map-focus .stage.plate > .map-frame { width: min(100%, calc(100vh - 16px)); max-width: none; }
 .timeline {
   display: flex; gap: 10px; padding: 10px 12px; align-items: center;
-  background: #efe6cf; border: 1px solid #cbb784; border-radius: 6px;
+  background: var(--paper-2); border: 1px solid var(--line); border-radius: 6px;
 }
 /* ⚠ No margin of its own: it always stands inside `.timeline-strip`, which already carries the gap.
    With both, measured at 390x844, 24px of parchment stood between the map and the scrubber
@@ -352,7 +386,7 @@ body.map-focus .stage.plate > .map-frame { width: min(100%, calc(100vh - 16px));
 /* in the site's ink, as world settings' sliders are: left alone it was the browser's own blue, the one
    colour on the page that was not the page's (measured live, 2026-09-28) */
 .timeline-slider {
-  width: 100%; padding: 0; margin: 0; border: 0; accent-color: #7a5a3a;
+  width: 100%; padding: 0; margin: 0; border: 0; accent-color: var(--brown);
   min-height: var(--control-h); box-sizing: border-box;
 }
 /* The century marks sit UNDER the track, positioned by their fraction of the run. `left` is the
@@ -366,7 +400,7 @@ body.map-focus .stage.plate > .map-frame { width: min(100%, calc(100vh - 16px));
 /* 11px: at 9.5 the centuries were the smallest words on the page (design review 2026-10-15) */
 .timeline-tick {
   position: absolute; transform: translateX(-50%);
-  font-size: 11px; color: #6b5d42; font-variant-numeric: tabular-nums; user-select: none;
+  font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; user-select: none;
 }
 .timeline-year { min-width: 56px; font-variant-numeric: tabular-nums; font-weight: 600; }
 .political .territory { pointer-events: none; }
@@ -408,11 +442,11 @@ svg.lang-ko .region-land { font-weight: 700; }
 .chronicle-caption {
   max-width: 940px; margin: 8px auto 0; padding: 7px 12px 0; min-height: 1.5em;
   font-family: 'EB Garamond', 'Gowun Batang', Georgia, serif; font-size: 15px; line-height: 1.4; text-align: center;
-  color: #4a3f2f; background: none; border: 0; border-top: 1px solid #d8c9a3; border-radius: 0;
+  color: #4a3f2f; background: none; border: 0; border-top: 1px solid var(--line-3); border-radius: 0;
 }
 /* `display: flex` on a narrow window would beat the [hidden] the caption sets when it has nothing to say */
 .chronicle-caption[hidden] { display: none; }
-.chronicle-caption.evt-conquer { color: #7a2f2f; }
+.chronicle-caption.evt-conquer { color: var(--accent); }
 .chronicle-caption.evt-civilwar { color: #8a3a1a; }
 .chronicle-caption.evt-independence { color: #2f6f4a; }
 .chronicle-caption.evt-goldenage { color: #7a5a1a; }   /* #9a6a1a measured 4.11 at 15px, under AA */
@@ -423,13 +457,13 @@ svg.lang-ko .region-land { font-weight: 700; }
    most common thing it will be holding, since they are what a quiet century leaves behind. */
 .chronicle-caption.evt-foundings { font-weight: 600; }
 .chronicle-caption.evt-fall { color: #6a2020; }
-.chronicle-caption.evt-hegemon { color: #7a5a2f; font-weight: 600; }
+.chronicle-caption.evt-hegemon { color: var(--primary); font-weight: 600; }
 .chronicle-caption.evt-century { color: #6b5a3e; font-style: italic; }
 .chronicle-caption.evt-accession { color: #5c5142; }
 /* A realm becoming an empire and a realm becoming the hegemon of its age are the same sentence in
    two keys — one is standing over other peoples, the other over other realms — so they share a
    register rather than each inventing a colour. */
-.chronicle-caption.evt-empire { color: #7a5a2f; font-weight: 600; }
+.chronicle-caption.evt-empire { color: var(--primary); font-weight: 600; }
 /* The world's natural history: lines ABOUT a place rather than about a realm, so they take their
    colour from the thing that happened — and they stay inside the parchment's warm range, since a
    chronicle that suddenly goes primary at a fire reads as an alert box, not as a record. */
@@ -443,7 +477,7 @@ svg.lang-ko .region-land { font-weight: 700; }
    (The toolbar's width comes from #app's 1040px cap, so the window's size never entered into it.)
    One segmented control, the same shape as the view toggle, with the verb carried by the arrow. */
 .export-group { display: inline-flex; align-items: center; gap: 0; position: relative; }
-.export-group .export-icon { padding: 0 5px 0 1px; color: #6b5a3f; cursor: default; }
+.export-group .export-icon { padding: 0 5px 0 1px; color: var(--muted-2); cursor: default; }
 .export-group > button { border-radius: 0; }
 .export-group > button:first-of-type { border-radius: 4px 0 0 4px; }
 .export-group > button:last-of-type { border-radius: 0 4px 4px 0; }
@@ -456,25 +490,25 @@ svg.lang-ko .region-land { font-weight: 700; }
 /* "the link was copied", said under the chain over the page, so nothing in the bar moves (app.ts linkBtn) */
 .export-group .copy-done {
   position: absolute; top: calc(100% + 5px); right: 0; z-index: 30; pointer-events: none; white-space: nowrap;
-  padding: 3px 9px; border-radius: 4px; font-size: 12.5px; background: #3c2f1c; color: #f6efdd;
+  padding: 3px 9px; border-radius: 4px; font-size: 12.5px; background: var(--ink); color: var(--panel);
   box-shadow: 0 1px 4px rgba(60,47,28,.25);
 }
 /* on a plate the world's data file is not offered, so the plate's PNG leads the group */
-.controls.plate .export-group > .world-only + button { border-left: 1px solid #b7a071; border-radius: 4px 0 0 4px; }
+.controls.plate .export-group > .world-only + button { border-left: 1px solid var(--line-2); border-radius: 4px 0 0 4px; }
 /* Zoomed in, PNG and SVG ask whether the file is the whole map or the part on screen (app.ts,
    askWhatToExport) — a small menu under the formats, in the name box's paper and shadow. */
 .export-choice {
   position: absolute; top: calc(100% + 4px); right: 0; z-index: 20;
   display: flex; flex-direction: column; gap: 2px; padding: 4px;
-  background: #fffaf0; border: 1px solid #b7a071; border-radius: 6px;
-  box-shadow: 0 2px 10px rgba(40, 28, 10, 0.3);
+  background: var(--field); border: 1px solid var(--line-2); border-radius: 6px;
+  box-shadow: 0 2px 10px var(--shadow-menu);
 }
 .export-choice button {
   display: flex; align-items: baseline; justify-content: space-between; gap: 14px;
   border: 0; border-radius: 4px; background: none; padding: 6px 10px; text-align: left; white-space: nowrap;
 }
-.export-choice button:hover, .export-choice button:focus-visible { background: #efe6cf; }
-.export-choice .export-choice-size { color: #6b5d42; font-size: 12px; }
+.export-choice button:hover, .export-choice button:focus-visible { background: var(--paper-2); }
+.export-choice .export-choice-size { color: var(--muted); font-size: 12px; }
 /* ★ The menu drops from the bar's right end onto the map's top-right corner, where the chips stand: at
    1440x900 it covered 675px² of "지도만" in Korean and 1917 of "Map only" in English (design review, item
    19). While it is open the chips step aside; it closes on a choice, Escape or a press elsewhere. */
@@ -486,10 +520,10 @@ svg.lang-ko .region-land { font-weight: 700; }
 .view-toggle button:last-child { border-radius: 0 4px 4px 0; }
 .view-toggle button:not(:first-child) { border-left: none; }
 .culture-label { font-family: 'Cinzel', 'Gowun Batang', serif; font-weight: 600; }
-.view-toggle button.active { background: #d8b25a; font-weight: 600; }
+.view-toggle button.active { background: var(--gold); font-weight: 600; }
 /* The ink toggle stands beside the views and says it is on the way they do: it is how a view is drawn,
    pressed or not. */
-.ink-toggle.active { background: #d8b25a; font-weight: 600; }
+.ink-toggle.active { background: var(--gold); font-weight: 600; }
 /* While renaming, every name on the map says it can be typed over, and a box stands where a name is being
    typed (app.ts, openNameEditor) — over the map's chips, and in the page's own face, which has the Hangul
    the map's display face does not. */
@@ -500,14 +534,14 @@ svg.lang-ko .region-land { font-weight: 700; }
 .name-editor {
   position: absolute; z-index: 7; transform: translate(-50%, -50%); box-sizing: border-box;
   padding: 4px 8px; font-family: inherit; font-size: 16px; font-weight: 600; text-align: center;
-  color: #1b1612; background: #fffaf0; border: 1px solid #7a5c2e; border-radius: 4px;
-  box-shadow: 0 2px 10px rgba(40, 28, 10, 0.3);
+  color: #1b1612; background: var(--field); border: 1px solid #7a5c2e; border-radius: 4px;
+  box-shadow: 0 2px 10px var(--shadow-menu);
 }
-.name-editor:focus { outline: 2px solid #d8b25a; outline-offset: 1px; }
+.name-editor:focus { outline: 2px solid var(--gold); outline-offset: 1px; }
 /* the caption under the box (app.ts openNameEditor): Enter keeps, Esc leaves — a tooltip said it to a hover only */
 .name-editor-hint {
   position: absolute; z-index: 7; transform: translate(-50%, 0); pointer-events: none; white-space: nowrap;
-  padding: 1px 7px; font-size: 11px; color: #6b5d42; background: rgba(255, 250, 240, 0.92); border-radius: 3px;
+  padding: 1px 7px; font-size: 11px; color: var(--muted); background: rgba(255, 250, 240, 0.92); border-radius: 3px;
 }
 /* ...and on an ink map a pointer's tint is ink too, not the colour map's red */
 .world.ink .marker-hit:hover { fill: rgba(27, 22, 18, 0.10); }
@@ -516,7 +550,7 @@ svg.lang-ko .region-land { font-weight: 700; }
 
 /* `position: relative` is the language toggle's anchor — see `.landing-lang` below. */
 .landing-hero { position: relative; text-align: center; padding: 8px 16px 0; }
-.landing-tagline { margin: 2px 0 0; color: #6b5a3f; font-style: italic; font-size: 14px; letter-spacing: .02em; }
+.landing-tagline { margin: 2px 0 0; color: var(--muted-2); font-style: italic; font-size: 14px; letter-spacing: .02em; }
 
 /* ...with as much room under the card as over it: its block kept a 44px foot from when the page ended
    there, and with the name row's own 18px on top the card stood 62px off the row, which took the page
@@ -541,8 +575,8 @@ svg.lang-ko .region-land { font-weight: 700; }
 .choice-card {
   display: flex; flex-direction: column; align-items: center; text-align: center;
   flex: 0 1 380px; max-width: 420px; text-decoration: none;
-  background: #f6efdd; border: 1px solid #cbb784; border-radius: 10px; border-top: 3px solid #b7975a;
-  padding: 14px 16px 13px; color: #2a2118; box-shadow: 0 1px 4px rgba(60,47,28,.15);
+  background: var(--panel); border: 1px solid var(--line); border-radius: 10px; border-top: 3px solid #b7975a;
+  padding: 14px 16px 13px; color: var(--ink-2); box-shadow: 0 1px 4px var(--shadow);
   transition: transform .12s, background .12s, box-shadow .12s;
 }
 /* The one primary on this page, the same ink ㉕ gave the die in the map's toolbar (#7a5a2f on
@@ -551,29 +585,29 @@ svg.lang-ko .region-land { font-weight: 700; }
    the page opened ONE fixed world while the action that always yields a world you have not seen sat
    under it. Size belongs to the map, which is what the site is for; the FILL settles which action
    is the main one. */
-.choice-card.primary { background: #7a5a2f; border-color: #5f4522; border-top-color: #d8b25a; color: #f6efdd; }
-.choice-card.primary .choice-title { color: #f6efdd; }
+.choice-card.primary { background: var(--primary); border-color: #5f4522; border-top-color: var(--gold); color: var(--panel); }
+.choice-card.primary .choice-title { color: var(--panel); }
 /* #e6d9bb was the first try and measured 4.51 on this fill — over AA by 0.01, which is not a margin.
    #efe7d2 is already in the palette (the free-city banner) and measures 5.11, still a step under the
    title's 5.50 so the card keeps its own hierarchy. This project has been here before: #8a7a60 rode
    at 3.64 until it was measured. */
-.choice-card.primary .choice-desc { color: #efe7d2; }
+.choice-card.primary .choice-desc { color: var(--primary-text); }
 .choice-card.primary:hover { background: #6b4e28; box-shadow: 0 4px 14px rgba(60,47,28,.30); transform: translateY(-3px); }
-.choice-card:hover { background: #efe6cf; box-shadow: 0 4px 14px rgba(60,47,28,.24); transform: translateY(-3px); }
+.choice-card:hover { background: var(--paper-2); box-shadow: 0 4px 14px rgba(60,47,28,.24); transform: translateY(-3px); }
 /* ...and the other two ways in give up the fill they shared with it, keeping their outline. Three
    controls in one coat is what ㉕ measured in the toolbar; this is the same drift on the front page. */
 .name-map, .name-daily { background: none; }
-.name-map:hover, .name-daily:hover { background: #efe6cf; }
+.name-map:hover, .name-daily:hover { background: var(--paper-2); }
 .choice-icon { height: 40px; line-height: 1; margin-bottom: 10px; }
 .choice-icon .icon { display: block; margin: 0 auto; vertical-align: 0; }
-.choice-title { font-family: 'Cinzel', 'Gowun Batang', serif; font-weight: 600; font-size: 18px; margin: 0 0 4px; color: #3c2f1c; letter-spacing: .03em; }
+.choice-title { font-family: 'Cinzel', 'Gowun Batang', serif; font-weight: 600; font-size: 18px; margin: 0 0 4px; color: var(--ink); letter-spacing: .03em; }
 .choice-desc { font-size: 14px; line-height: 1.55; margin: 0; color: #4a3f2c; }
 
 /* landing: start-from-a-name row */
 /* ⚠ The padding is not decoration: without it this row was the ONE block on the page with no
    gutter — measured on a phone, every other block started at x=16 and this one ran 0..375. */
 .landing-name { display: flex; gap: 8px; justify-content: center; margin: 18px auto 0; max-width: 560px; padding: 0 16px; }
-.landing-name .name-seed { flex: 1; padding: 7px 12px; border: 1px solid #c9bb96; border-radius: 6px; background: #f7f1e1; font-size: 14px; }
+.landing-name .name-seed { flex: 1; padding: 7px 12px; border: 1px solid var(--field-line); border-radius: 6px; background: #f7f1e1; font-size: 14px; }
 /* Today's world, drawn on the front page. The front page of a map generator showed no map; this
    one is not decoration but the very world the daily button opens, so it is a link and it is
    framed like the map page's own stage rather than floated as an illustration. It arrives after
@@ -596,14 +630,14 @@ svg.lang-ko .region-land { font-weight: 700; }
    word lands inside it would arrive in a colour this atlas does not own. */
 .landing-preview-link {
   color: inherit;
-  display: block; border: 1px solid #cbb784; border-radius: 6px; overflow: hidden;
-  background: #f6efdd; box-shadow: 0 1px 4px rgba(60,47,28,.15);
+  display: block; border: 1px solid var(--line); border-radius: 6px; overflow: hidden;
+  background: var(--panel); box-shadow: 0 1px 4px var(--shadow);
   animation: wm-preview-in .5s ease-out both;
 }
 .landing-preview-link:hover { border-color: #a8926a; box-shadow: 0 2px 8px rgba(60,47,28,.22); }
 .landing-preview-link svg { display: block; width: 100%; height: auto; }
 .landing-preview-cap {
-  margin: 6px 0 0; text-align: center; font-size: 12.5px; color: #6b5a3f; font-style: italic;
+  margin: 6px 0 0; text-align: center; font-size: 12.5px; color: var(--muted-2); font-style: italic;
 }
 /* ★ Gowun Batang has no italic. Wherever the page asked for one — this caption, the tagline over the card, the
    century lines under the scrubber — the browser slanted the myeongjo itself, which smears its strokes
@@ -619,10 +653,10 @@ html:lang(ko) .landing-tagline, html:lang(ko) .landing-preview-cap, html:lang(ko
    640px column, and stood 10px past the picture) */
 .landing-lang {
   position: absolute; top: 22px; right: max(16px, calc(50% - var(--preview-w, 620px) / 2));
-  padding: 4px 10px; font-size: 13px; background: #f3ead2;
-  border: 1px solid #b7a071; border-radius: 4px; color: #3c2f1c; cursor: pointer;
+  padding: 4px 10px; font-size: 13px; background: var(--paper);
+  border: 1px solid var(--line-2); border-radius: 4px; color: var(--ink); cursor: pointer;
 }
-.landing-lang:hover { background: #e7d9b6; }
+.landing-lang:hover { background: var(--paper-hover); }
 /* ⚠ After the rule above, not in the phone block near the top of the file: same specificity, so the
    later rule wins, and the first cut of this measured 22 on a phone. */
 @media (max-width: 640px) {
@@ -642,16 +676,16 @@ html:lang(ko) .landing-tagline, html:lang(ko) .landing-preview-cap, html:lang(ko
 .landing-recent { max-width: 560px; margin: 16px auto 0; padding: 0 16px; }
 .landing-recent:empty { display: none; }
 .landing-recent .recent-head { display: flex; align-items: baseline; justify-content: space-between; margin: 0 2px 6px; }
-.landing-recent h2 { font-size: 15px; font-weight: 600; margin: 0; color: #3c2f1c; }
-.landing-recent ul { list-style: none; margin: 0; padding: 0; border: 1px solid #cbb784; border-radius: 6px; background: #f6efdd; overflow: hidden; }
+.landing-recent h2 { font-size: 15px; font-weight: 600; margin: 0; color: var(--ink); }
+.landing-recent ul { list-style: none; margin: 0; padding: 0; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); overflow: hidden; }
 .landing-recent li { display: flex; align-items: center; gap: 10px; padding: 6px 6px 6px 12px; border-top: 1px solid #e3d5ae; }
 .landing-recent li:first-child { border-top: none; }
-.landing-recent li a { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #2a2118; text-decoration: none; font-size: 15px; font-weight: 600; }
+.landing-recent li a { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-2); text-decoration: none; font-size: 15px; font-weight: 600; }
 .landing-recent li a:hover { text-decoration: underline; }
-.landing-recent .recent-meta { font-size: 12.5px; color: #6b5a3f; white-space: nowrap; }
-.landing-recent button { font-size: 12px; padding: 2px 8px; background: none; border: 1px solid transparent; color: #6b5a3f; }
-.landing-recent button:hover { background: #efe6cf; border-color: #cbb784; }
-.landing-recent .recent-note { margin: 6px 2px 0; font-size: 12px; color: #6b5d42; }
+.landing-recent .recent-meta { font-size: 12.5px; color: var(--muted-2); white-space: nowrap; }
+.landing-recent button { font-size: 12px; padding: 2px 8px; background: none; border: 1px solid transparent; color: var(--muted-2); }
+.landing-recent button:hover { background: var(--paper-2); border-color: var(--line); }
+.landing-recent .recent-note { margin: 6px 2px 0; font-size: 12px; color: var(--muted); }
 /* ⚠ The gutter, for the same reason as the name row: measured on a phone the line under the daily
    button ran 0..390, the one block on the page whose words could touch the screen's edge. */
 .landing-daily { margin-top: 10px; text-align: center; padding: 0 16px; }
@@ -691,10 +725,10 @@ html:lang(ko) .landing-tagline, html:lang(ko) .landing-preview-cap, html:lang(ko
    target around it. Measured before this existed: 5px marks against a 24px minimum, and no
    focusable element on the page at all. */
 .marker-hit { outline: none; }
-.marker-hit:focus-visible { outline: 2px solid #7a2f2f; outline-offset: 2px; }
+.marker-hit:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 /* ...and every other control takes the same ring: the browser's own was an orange auto ring in one
    browser and a 2px black one in another, and only the marker had the page's (design review, item 15) */
-button:focus-visible, a:focus-visible, input:focus-visible, summary:focus-visible { outline: 2px solid #7a2f2f; outline-offset: 2px; }
+button:focus-visible, a:focus-visible, input:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 /* ★ A mark says nothing about being pressable until it is pressed, and the reader's report was
    "몇몇 도시는 클릭이 안돼 … 클릭 자체 표시가 안뜨거나": half of that was a target stealing the
    click, and the other half is this — a page with a keyboard focus ring and nothing for a mouse.
@@ -709,7 +743,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, summary:focus-visibl
    own target. */
 .marker-town, .marker-capital { pointer-events: none; }
 .marker-hit:active { fill: rgba(122, 47, 47, 0.20); }
-.city-label:hover { fill: #7a2f2f; }
+.city-label:hover { fill: var(--accent); }
 /* ★ On a plate every district answers to its name on hover — the renderer gives each ward a
    <title> — but the pointer lands on whatever is drawn OVER the ward: measured at 1440x900 over six
    plates, 2,200 points inside districts named one 31.8% of the time; 47% of them landed on a
@@ -758,7 +792,7 @@ svg.city .wall-seg, svg.city .wall-seg-inner, svg.city .tower, svg.city .gate { 
 /* World settings: the dials the engine has always read from the URL, folded away until asked for.
    Kept off the toolbar because the toolbar's own lesson is that a control costs a row whether it
    is used or not — and these are for the reader who wants a wetter world, not for every reader. */
-.advanced { margin: 6px auto 0; font-size: 13px; color: #42341f; }   /* width: the page measure, on #app */
+.advanced { margin: 6px auto 0; font-size: 13px; color: var(--ink-3); }   /* width: the page measure, on #app */
 /* ★ The fold heads' marker, not the browser's. The page had two kinds of disclosure: a triangle at
    the RIGHT of the key's and the list's heads, and a disclosure triangle at the LEFT of this one. */
 .advanced > summary {
@@ -767,24 +801,24 @@ svg.city .wall-seg, svg.city .wall-seg-inner, svg.city .tower, svg.city .gate { 
 }
 .advanced > summary::-webkit-details-marker { display: none; }
 .advanced > summary::after {
-  content: "\25be"; margin-left: auto; font-size: 16px; line-height: 1; color: #6b5d42;
+  content: "\25be"; margin-left: auto; font-size: 16px; line-height: 1; color: var(--muted);
   transform: rotate(-90deg); transition: transform .12s;
 }
 .advanced[open] > summary::after { transform: none; }
 /* (the names say which way a dial goes now — "산 (높을수록 적게)" — so their column is wider than 92px) */
 .advanced-row { display: grid; grid-template-columns: 170px 1fr 56px; align-items: center; gap: 10px; padding: 3px 2px; }
-.advanced-note { margin: 2px 2px 6px; color: #6b5d42; font-size: 12.5px; }
+.advanced-note { margin: 2px 2px 6px; color: var(--muted); font-size: 12.5px; }
 /* the world's fingerprint, to read out and compare between browsers: the code set apart in a fixed-width face */
-.fingerprint { margin: 10px 2px 2px; padding-top: 8px; border-top: 1px solid #d8c9a3; color: #6b5d42; font-size: 12.5px; }
-.fingerprint-word { color: #3c2f1c; font-weight: 600; }
-.fingerprint-code, .city-fact-fingerprint .city-fact-value { font-family: ui-monospace, Consolas, monospace; letter-spacing: .06em; color: #3c2f1c; }
+.fingerprint { margin: 10px 2px 2px; padding-top: 8px; border-top: 1px solid var(--line-3); color: var(--muted); font-size: 12.5px; }
+.fingerprint-word { color: var(--ink); font-weight: 600; }
+.fingerprint-code, .city-fact-fingerprint .city-fact-value { font-family: ui-monospace, Consolas, monospace; letter-spacing: .06em; color: var(--ink); }
 .fingerprint-code { padding: 1px 6px; border: 1px solid #c9b88f; border-radius: 4px; background: #fbf6ea; }
 .fingerprint-note { display: block; margin-top: 4px; }
-.advanced-row output { font-variant-numeric: tabular-nums; text-align: right; color: #6b5d42; }
+.advanced-row output { font-variant-numeric: tabular-nums; text-align: right; color: var(--muted); }
 /* ⚠ A slider is not a text field — the scrubber's lesson again. The global `button, input` rule gave
    these its padding and border on top of a content-box height: measured 46px on a phone. */
 .advanced-row input[type=range] {
-  accent-color: #7a5a3a; padding: 0; border: 0; margin: 0;
+  accent-color: var(--brown); padding: 0; border: 0; margin: 0;
   min-height: var(--control-h); box-sizing: border-box;
 }
 @media (pointer: coarse) {
@@ -808,26 +842,26 @@ svg.city .wall-seg, svg.city .wall-seg-inner, svg.city .tower, svg.city .gate { 
    measure (see `--page` on #app), so the strip simply fills it. */
 .city-facts {
   margin: 6px 0 0; display: flex; flex-wrap: wrap; gap: 6px 26px;
-  font-size: 13px; color: #42341f;
+  font-size: 13px; color: var(--ink-3);
 }
 .city-fact { display: flex; align-items: baseline; gap: 4px; }
 /* #8a7a60 read at 3.64:1 on the parchment — under the 4.5 AA asks of text this size, and these are
    the smallest words on the page. #6b5d42 is already in the palette (the advanced dials use it) and
    measures 5.60, so the muted register is kept without the legibility cost. */
-.city-fact-key { color: #6b5d42; font-variant: small-caps; letter-spacing: 0.05em; }
+.city-fact-key { color: var(--muted); font-variant: small-caps; letter-spacing: 0.05em; }
 .city-fact-value { display: inline-flex; flex-wrap: wrap; gap: 6px; align-items: baseline; }
 /* the year the realm row is true of, on a line of its own under the name: the value wraps, so the whole
    row's width starts it under the name, in the facts' muted register (see .city-fact-key) */
-.city-fact-when { flex-basis: 100%; font-size: 12px; color: #6b5d42; }
+.city-fact-when { flex-basis: 100%; font-size: 12px; color: var(--muted); }
 .city-facts .neighbour {
   font: inherit; padding: 1px 8px; border-radius: 9px; cursor: pointer;
-  border: 1px solid #c9bb96; background: #f2ead6; color: #3c2f1c;
+  border: 1px solid var(--field-line); background: #f2ead6; color: var(--ink);
 }
-.city-facts .neighbour:hover { background: #e7d9b6; }
+.city-facts .neighbour:hover { background: var(--paper-hover); }
 /* A town the road leads to that is not founded yet in the plate's year says when, on a line of its
    own under the name, in the facts' muted register (#6b5d42, 5.60:1 — see .city-fact-key): it is a
    note on the name, not a fact. Inline, the 222px column broke it in the middle ("70년" / "건설"). */
-.city-facts .neighbour-later { display: block; font-size: 12px; color: #6b5d42; }
+.city-facts .neighbour-later { display: block; font-size: 12px; color: var(--muted); }
 @media (pointer: coarse) { .city-facts .neighbour { min-height: 34px; padding: 6px 12px; } }
 
 /* The city list. The best thing this map has sits behind its markers, and a four-pixel dot is not
@@ -880,7 +914,7 @@ svg.city .wall-seg, svg.city .wall-seg-inner, svg.city .tower, svg.city .gate { 
    edge. Wide windows only: stacked under a narrow map these stop being panels on purpose. */
 @media (min-width: 901px) {
   .map-side > .legend-fold, .map-side > .city-list {
-    box-sizing: border-box; background: #f6efdc; border: 1px solid #cbb784; border-radius: 6px;
+    box-sizing: border-box; background: var(--panel); border: 1px solid var(--line); border-radius: 6px;
     padding: 6px 8px;
   }
 }
@@ -899,10 +933,10 @@ svg.city .wall-seg, svg.city .wall-seg-inner, svg.city .tower, svg.city .gate { 
   .home-icon { display: none; }
   .home-word { display: inline; }
   .controls a.home { background: none; border-color: transparent; padding-left: 4px; padding-right: 10px; }
-  .controls a.home:hover { background: #e7d9b6; }
+  .controls a.home:hover { background: var(--paper-hover); }
 }
 .city-list {
-  border: 1px solid #cbb784; border-radius: 6px; background: #f6efdc; padding: 8px 6px 8px 10px;
+  border: 1px solid var(--line); border-radius: 6px; background: var(--panel); padding: 8px 6px 8px 10px;
   /* ⚠ border-box: it is the flex item that fills what the key leaves, and `min-height: 100%` used
      to measure the CONTENT and add its own 8px padding twice on top — the list hung 16px below the
      map it is meant to end level with. The filling is `flex: 1` now (see .map-side), so a folded
@@ -913,39 +947,39 @@ svg.city .wall-seg, svg.city .wall-seg-inner, svg.city .tower, svg.city .gate { 
 .city-list-item {
   display: flex; justify-content: space-between; gap: 8px; align-items: baseline; width: 100%;
   font: inherit; font-size: 13px; text-align: left; padding: 3px 6px; border: 0; border-radius: 4px;
-  background: none; color: #3c2f1c; cursor: pointer;
+  background: none; color: var(--ink); cursor: pointer;
 }
-.city-list-item:hover { background: #e7d9b6; }
+.city-list-item:hover { background: var(--paper-hover); }
 .city-list-item.is-capital .city-list-name { font-weight: 600; }
 /* ⚠ `nowrap` with nothing to shrink: a long realm name ran 13-14px OUT of its own row (measured at
    1440x900, two rows of 28). The name is the row's subject and gives way last, so the realm is the
    one that clips — and both need `min-width: 0`, or a flex item refuses to go below its content. */
 .city-list-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .city-list-realm {
-  color: #6b5d42; font-size: 11.5px; white-space: nowrap;
+  color: var(--muted); font-size: 11.5px; white-space: nowrap;
   min-width: 0; overflow: hidden; text-overflow: ellipsis; flex-shrink: 1;
 }
 /* The town list is the one box on this page that scrolls, and it wore the system's own bar —
    15px of grey chrome down the inside of a parchment panel. Thin, and in the panel's own ink. */
-.city-list { scrollbar-width: thin; scrollbar-color: #cbb784 transparent; }
+.city-list { scrollbar-width: thin; scrollbar-color: var(--line) transparent; }
 .city-list::-webkit-scrollbar { width: 9px; }
 .city-list::-webkit-scrollbar-track { background: transparent; }
-.city-list::-webkit-scrollbar-thumb { background: #cbb784; border-radius: 5px; border: 2px solid #f6efdc; }
-.city-list::-webkit-scrollbar-thumb:hover { background: #b7a071; }
+.city-list::-webkit-scrollbar-thumb { background: var(--line); border-radius: 5px; border: 2px solid var(--panel); }
+.city-list::-webkit-scrollbar-thumb:hover { background: var(--line-2); }
 /* A section that folds away: the town list, the chronicle, and (where the map cannot carry one)
    the key. The head IS the title, so the way to close a section is where the way to open it was. */
 .fold { border: 0; }
 .fold-head {
   display: flex; align-items: center; gap: 8px; width: 100%;
   font: inherit; font-size: 13px; font-variant: small-caps; letter-spacing: 0.08em;
-  color: #6b5d42; font-weight: 600; text-align: left;
+  color: var(--muted); font-weight: 600; text-align: left;
   background: none; border: 0; border-radius: 4px; padding: 4px 6px; margin: 0 0 6px;
   cursor: pointer;
 }
-.fold-head:hover:not(:disabled) { background: #e7d9b6; }
+.fold-head:hover:not(:disabled) { background: var(--paper-hover); }
 .fold-title { flex: 1; }
 /* #6b5d42, the palette's darkest muted tone (5.60): #8a7a5c measured 3.65 on the panel, under AA */
-.fold-count { font-variant: tabular-nums; font-weight: 400; color: #6b5d42; letter-spacing: 0; }
+.fold-count { font-variant: tabular-nums; font-weight: 400; color: var(--muted); letter-spacing: 0; }
 /* 16px, not the head's 13: at 13 the triangle was a speck at the far end of a 336px head, and it is
    the only thing on the head that says the head opens */
 .fold-mark { font-size: 16px; line-height: 1; }
@@ -955,7 +989,7 @@ svg.city .wall-seg, svg.city .wall-seg-inner, svg.city .tower, svg.city .gate { 
 .fold.is-open > .fold-body { display: block; }
 /* A wide window shows these outright, and a head that cannot fold anything is a heading, not a
    control: `disabled` (set in app.ts) takes it out of the tab order, and these strip the rest. */
-.fold-head:disabled { cursor: default; color: #6b5d42; }
+.fold-head:disabled { cursor: default; color: var(--muted); }
 .fold-head:disabled .fold-mark, .fold-head:disabled .fold-count { display: none; }
 /* The key's own sheet: one map unit to one CSS pixel, so the key arrives at the size it was drawn
    instead of at the size the map was scaled to (6px on a phone). Needs to beat `.stage svg`, which
@@ -1026,7 +1060,7 @@ svg.city .wall-seg, svg.city .wall-seg-inner, svg.city .tower, svg.city .gate { 
      other box on this page is parchment inside a 1px #cbb784 edge */
   .plate-side > .legend-fold, .plate-side > .city-facts {
     margin: 0; box-sizing: border-box;
-    background: #f6efdc; border: 1px solid #cbb784; border-radius: 6px; padding: 8px;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 8px;
   }
   /* a gazetteer entry: labels in a column, answers in a column (the phone's caption, the same way) */
   .plate-side > .city-facts { display: grid; grid-template-columns: max-content 1fr; gap: 6px 10px; }
@@ -1054,7 +1088,7 @@ svg.city .wall-seg, svg.city .wall-seg-inner, svg.city .tower, svg.city .gate { 
     height: auto; min-height: 0; max-height: none; overflow: visible;
     padding: 0; background: none; border: 0; border-radius: 0;
   }
-  .fold { border-top: 1px solid #d8c9a3; padding-top: 4px; }
+  .fold { border-top: 1px solid var(--line-3); padding-top: 4px; }
   .fold + .fold, .legend-fold { margin-top: 0; }
   /* ⚠ `margin-left: auto` puts the language toggle at the far end of a bar that is ONE row. This
      bar is four rows on a phone, and unfolded it stranded the toggle and the fold's own button in
@@ -1131,11 +1165,11 @@ svg.city .wall-seg, svg.city .wall-seg-inner, svg.city .tower, svg.city .gate { 
   .map-zoom-controls:not(.pinch-unavailable) .zoom-reset {
     width: auto; height: auto; min-width: 0; min-height: 0; gap: 5px;
     padding: 4px 10px; font-size: 12px; letter-spacing: .04em; line-height: 1.4;
-    background: rgba(244, 236, 216, 0.88); color: #3c2f1c;
-    border: 1px solid rgba(183, 160, 113, 0.7); border-radius: 6px;
-    box-shadow: 0 1px 3px rgba(42, 33, 24, 0.18);
+    background: var(--chip-paper); color: var(--ink);
+    border: 1px solid var(--chip-line); border-radius: 6px;
+    box-shadow: 0 1px 3px var(--shadow-2);
   }
-  .map-zoom-controls:not(.pinch-unavailable) .zoom-reset:hover { background: #e7d9b6; }
+  .map-zoom-controls:not(.pinch-unavailable) .zoom-reset:hover { background: var(--paper-hover); }
   .map-zoom-controls:not(.pinch-unavailable) .zoom-reset .zoom-reset-label { display: inline; }
   .map-zoom-controls:not(.pinch-unavailable) .zoom-reset .zoom-reset-icon { width: 12px; height: 12px; }
 }

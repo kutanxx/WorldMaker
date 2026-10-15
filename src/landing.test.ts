@@ -281,12 +281,16 @@ describe("what is written on the primary card stays legible", () => {
     const [x, y] = [lum(hex(a)), lum(hex(b))].sort((p, q) => q - p);
     return (x + 0.05) / (y + 0.05);
   };
+  // a colour may stand as a token (`var(--primary)`, since 2026-10-15): read it off :root
+  const token = (name: string) => new RegExp(`${name}:\\s*(#[0-9a-f]{6})`, "i").exec(css())![1];
   const colourOf = (rule: string, prop = "color") => {
     const block = css().slice(css().indexOf(rule), css().indexOf("}", css().indexOf(rule)));
     // no `\s` here on purpose: inside a template literal it collapses to a plain "s" and the
     // pattern silently stops matching — which is exactly how this test first failed.
     const at = block.toLowerCase().indexOf(prop + ":");
-    return /#[0-9a-f]{6}/i.exec(block.slice(at))![0];
+    const value = block.slice(at, block.indexOf(";", at));
+    const v = /var\((--[a-z0-9-]+)\)/i.exec(value);
+    return v ? token(v[1]) : /#[0-9a-f]{6}/i.exec(value)![0];
   };
 
   it("keeps the card's title and its description over AA on the card's own fill", () => {

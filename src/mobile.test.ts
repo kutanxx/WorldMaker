@@ -73,7 +73,7 @@ describe("the map's furniture sits on something", () => {
   it("gives the zoom controls a backing, not bare buttons over the map", () => {
     const css = read("src/theme.css");
     const block = css.slice(css.indexOf(".map-zoom-controls {"), css.indexOf(".map-zoom-controls button"));
-    expect(block).toMatch(/background:\s*rgba\(/);
+    expect(block).toMatch(/background:\s*(rgba\(|var\(--chip-paper\))/);   // the chip's parchment token is an rgba
     expect(block).toMatch(/border:/);
   });
 });

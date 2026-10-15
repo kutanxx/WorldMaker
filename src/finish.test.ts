@@ -396,7 +396,7 @@ describe("the plate's realm is dated on its own line", () => {
   it("takes the row's whole width, in the muted register", () => {
     const rule = ruleIn(css(), ".city-fact-when");
     expect(rule).toMatch(/flex-basis:\s*100%/);
-    expect(rule).toMatch(/color:\s*#6b5d42/);
+    expect(rule).toMatch(/color:\s*(var\(--muted\)|#6b5d42)/);
   });
 });
 

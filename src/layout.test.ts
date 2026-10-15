@@ -65,8 +65,9 @@ describe("the page has one measure", () => {
     const i = c.indexOf(".map-side > .legend-fold, .map-side > .city-list");
     expect(i, "the column's two panels have no shared rule").toBeGreaterThan(-1);
     const rule = c.slice(i, c.indexOf("}", i));
-    expect(rule).toContain("#f6efdc");
-    expect(rule).toContain("1px solid #cbb784");
+    // (the panel's parchment and edge are tokens since 2026-10-15 — tokens.test holds their values)
+    expect(rule).toMatch(/background:\s*(var\(--panel\)|#f6efd[cd])/);
+    expect(rule).toMatch(/1px solid (var\(--line\)|#cbb784)/);
     // ...and only where they ARE panels: stacked under a narrow map they are one flat stack
     const before = c.slice(0, i);
     expect(before.slice(before.lastIndexOf("@media")), "the panel rule is not held to wide windows")
@@ -77,8 +78,8 @@ describe("the page has one measure", () => {
   // of a parchment panel.
   it("draws the town list's scrollbar in the page's own ink", () => {
     const c = css();
-    expect(c).toMatch(/\.city-list\s*\{[^}]*scrollbar-color:\s*#cbb784/);
-    expect(c).toMatch(/\.city-list::-webkit-scrollbar-thumb\s*\{[^}]*#cbb784/);
+    expect(c).toMatch(/\.city-list\s*\{[^}]*scrollbar-color:\s*(var\(--line\)|#cbb784)/);
+    expect(c).toMatch(/\.city-list::-webkit-scrollbar-thumb\s*\{[^}]*(var\(--line\)|#cbb784)/);
   });
 
   // A long realm name ran 13-14px out of its own row: `nowrap` with nothing allowed to shrink.
