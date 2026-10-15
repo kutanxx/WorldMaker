@@ -266,6 +266,7 @@ describe("placeLegend sizes a column to its words", () => {
     const { map, legend } = keyWithWords([60, 102, 70, 50, 40, 30, 20, 10]);
     const sheet = legendSheet();
     const room = document.createElement("div");
+    Object.defineProperty(room, "offsetWidth", { value: 200 });   // the room is the body's own width
     Object.defineProperty(room, "clientWidth", { value: 200 });
     room.appendChild(sheet);
     placeLegend(map, sheet, true, 1, 2);
@@ -285,6 +286,7 @@ describe("placeLegend shrinks a key into two columns where it is let", () => {
     const { map, legend } = keyWithWords([60, 102, 70, 50, 40, 30, 20, 10]);
     const sheet = legendSheet();
     const room = document.createElement("div");
+    Object.defineProperty(room, "offsetWidth", { value: 200 });   // the room is the body's own width
     Object.defineProperty(room, "clientWidth", { value: 200 });
     room.appendChild(sheet);
     placeLegend(map, sheet, true, 1, 2, { minScale });
@@ -312,6 +314,7 @@ describe("placeLegend shrinks a key into two columns where it is let", () => {
     const { map, legend } = keyWithWords([20, 20, 20, 20, 60, 60, 60, 60]);
     const sheet = legendSheet();
     const room = document.createElement("div");
+    Object.defineProperty(room, "offsetWidth", { value: 200 });   // the room is the body's own width
     Object.defineProperty(room, "clientWidth", { value: 200 });
     room.appendChild(sheet);
     placeLegend(map, sheet, true, 1, 2, { minScale: 0.8 });
@@ -331,6 +334,7 @@ describe("placeLegend shrinks a key into two columns where it is let", () => {
     const { map, legend } = keyWithWords([60, 102, 70, 50, 40, 30, 20, 10]);
     const sheet = legendSheet();
     const room = document.createElement("div");
+    Object.defineProperty(room, "offsetWidth", { value: 336 });
     Object.defineProperty(room, "clientWidth", { value: 336 });
     room.appendChild(sheet);
     placeLegend(map, sheet, true, 1, 2, { minScale: 0.8 });
@@ -398,6 +402,7 @@ describe("placeLegend spreads two columns across the room", () => {
     }
     const sheet = legendSheet();
     const room = document.createElement("div");
+    Object.defineProperty(room, "offsetWidth", { value: width });
     Object.defineProperty(room, "clientWidth", { value: width });
     room.appendChild(sheet);
     return { map, legend, sheet };
@@ -415,5 +420,125 @@ describe("placeLegend spreads two columns across the room", () => {
     placeLegend(map, sheet, true, 1, 2);
     const dx = Number(/translate\(([-\d.]+)/.exec(legend.querySelectorAll(".legend-row")[4].getAttribute("transform")!)![1]);
     expect(dx).toBe(Math.max(104 + 12, 228 / 2));
+  });
+});
+
+// ⚠ User report (2026-10-15, desktop): fold the plate's key and open it, and a scrollbar stands in the
+// column; fold and open again, and it is gone. Measured at 1440x900: the fold's body is 192px wide with
+// 427px of room, and the fit read the width INSIDE the scrollbar — 192 without one, 177 beside one — so
+// each open drew the key for the other open's room: 180 wide at 12.3px type, then 165 at 11.1, then 180.
+// And the scrollbar itself was earned by nothing: Chrome sizes a scrolling flex item as if its scrollbar
+// were there (the percentage `max-width` clamps a 180px sheet to 165 and its height to 228), lays it out
+// without one (249 tall), and the difference is an overflow that puts a scrollbar there with nothing to
+// scroll — any sheet over 165px did it, with 200px of height to spare. Three rules follow: the room is the
+// panel's own width, which a scrollbar does not change; the key is fitted to the room's HEIGHT too, down
+// to the floor, so where it fits there is no scrollbar at all, and where it cannot (1366x650: 177px of
+// room) the gutter the scrollbar will take is left out of its width; and the clamp is said in pixels.
+describe("placeLegend fits the key to the room it will have, whatever the scrollbar does", () => {
+  // words [60, 102, 70, 50 | 40, 30, 20, 10] at x=35, the key's left at 13: columns of 126 and 64 units,
+  // 190 with the 12px gap; the key is 146 units tall in one column, 78 in two with no air between the rows
+  const WORDS = [60, 102, 70, 50, 40, 30, 20, 10];
+  function keyOf(widths = WORDS) {
+    const PITCH = 17, n = widths.length, h = n * PITCH + 14 + 20, y = 700 - 14 - n * PITCH - 10 - 20;
+    const { map, legend } = fakeMapWithBand(20, { x: 9, y, w: 112, h });
+    widths.forEach((w, i) => {
+      const row = svgEl("g", { class: "legend-row", "data-pitch": PITCH });
+      const t = svgEl("text", { x: 35, y: y + 30 + i * PITCH });
+      (t as unknown as { getBBox: () => object }).getBBox = () => ({ x: 35, y: 0, width: w, height: 14 });
+      row.appendChild(t);
+      legend.appendChild(row);
+    });
+    const sheet = legendSheet();
+    return { map, legend, sheet };
+  }
+  // the fold's body: its own width, and the width left inside a scrollbar when one stands there
+  function roomOf(sheet: SVGSVGElement, offset: number, client = offset) {
+    const room = document.createElement("div");
+    Object.defineProperty(room, "offsetWidth", { value: offset });
+    Object.defineProperty(room, "clientWidth", { value: client });
+    room.appendChild(sheet);
+  }
+  const size = (s: SVGSVGElement) => [Number(s.getAttribute("width")), Number(s.getAttribute("height"))];
+  const twoColumns = (legend: Element) => legend.querySelectorAll(".legend-row")[4].hasAttribute("transform");
+  const move = (legend: Element, i: number) => {
+    const m = /translate\(([-\d.]+) ([-\d.]+)\)/.exec(legend.querySelectorAll(".legend-row")[i].getAttribute("transform") ?? "");
+    return m ? [Number(m[1]), Number(m[2])] : null;
+  };
+
+  it("measures the room from the panel's own width, not the width inside a scrollbar", () => {
+    const clear = keyOf();
+    roomOf(clear.sheet, 200);
+    placeLegend(clear.map, clear.sheet, true, 1, 2, { minScale: 0.8, roomH: 1000 });
+    const beside = keyOf();
+    roomOf(beside.sheet, 200, 185);                      // a 15px scrollbar, earned by the last fit
+    placeLegend(beside.map, beside.sheet, true, 1, 2, { minScale: 0.8, roomH: 1000 });
+    expect(size(beside.sheet), "the key is drawn for the room beside the scrollbar").toEqual(size(clear.sheet));
+    expect(size(clear.sheet)[0]).toBeCloseTo(188, 0);   // (188 - 12) / 190 of its scale: the room, less the inset
+  });
+
+  it("draws the key no taller than the room's height, in two tight columns", () => {
+    // the width would allow 0.926 (72px of two columns); 70px of room asks for 70 / 78
+    const { map, legend, sheet } = keyOf();
+    roomOf(sheet, 200);
+    placeLegend(map, sheet, true, 1, 2, { minScale: 0.8, roomH: 70, gutter: 15 });
+    expect(twoColumns(legend)).toBe(true);
+    expect(size(sheet)[1], "taller than the room it stands in").toBeCloseTo(70, 1);
+    expect(size(sheet)[0]).toBeCloseTo(190 * (70 / 78) + 12, 0);
+    expect(move(legend, 5)![1], "air between the rows of a key that is short of height").toBe(-4 * 17);
+  });
+
+  it("stops at the floor, and leaves the scrollbar's gutter out of the width of a key that will scroll", () => {
+    // 60px of room asks for 0.769, under the floor: the key stands at 0.8 (62.4px) and scrolls — beside a
+    // 15px scrollbar, so in 173px of width, and clamped to those
+    const { map, legend, sheet } = keyOf();
+    roomOf(sheet, 200);
+    placeLegend(map, sheet, true, 1, 2, { minScale: 0.8, roomH: 60, gutter: 15 });
+    expect(twoColumns(legend)).toBe(true);
+    expect(size(sheet)[1]).toBeCloseTo(78 * 0.8, 1);
+    expect(size(sheet)[0]).toBeCloseTo(190 * 0.8 + 12, 1);
+    expect(sheet.style.maxWidth, "the clamp is the room beside the scrollbar").toBe("173px");
+  });
+
+  it("keeps one column where, beside its scrollbar, two would go under the floor", () => {
+    // at the 0.9 floor two columns need 190 x 0.9 + 12 = 183px: of 188 without the scrollbar, 173 beside it
+    const beside = keyOf();
+    roomOf(beside.sheet, 200);
+    placeLegend(beside.map, beside.sheet, true, 1, 2, { minScale: 0.9, roomH: 60, gutter: 15 });
+    expect(twoColumns(beside.legend), "two columns, to be clipped by the scrollbar").toBe(false);
+    const overlay = keyOf();                              // an overlay scrollbar takes no room (gutter 0)
+    roomOf(overlay.sheet, 200);
+    placeLegend(overlay.map, overlay.sheet, true, 1, 2, { minScale: 0.9, roomH: 60, gutter: 0 });
+    expect(twoColumns(overlay.legend)).toBe(true);
+  });
+
+  it("says the clamp in pixels, so the panel's own size cannot disagree with its layout", () => {
+    const measured = keyOf();
+    roomOf(measured.sheet, 200);
+    placeLegend(measured.map, measured.sheet, true, 1, 2, { minScale: 0.8, roomH: 1000 });
+    expect(measured.sheet.style.maxWidth).toBe("188px");
+    // a room that could not be measured (a folded panel): the stylesheet's own clamp is all there is
+    const folded = keyOf();
+    roomOf(folded.sheet, 0);
+    placeLegend(folded.map, folded.sheet, true, 1, 2, { minScale: 0.8 });
+    expect(folded.sheet.style.maxWidth).toBe("");
+  });
+
+  it("spreads the columns as drawn where they fit, with their air only where the height has room for it", () => {
+    // in a 336px room the words fit at their scale: spread, 8 rows with 5px of air stand 78 + 3 x 5 = 93 tall
+    const roomy = keyOf();
+    roomOf(roomy.sheet, 336);
+    placeLegend(roomy.map, roomy.sheet, true, 1, 2, { minScale: 0.8, roomH: 120 });
+    expect(size(roomy.sheet)[1]).toBe(93);
+    expect(move(roomy.legend, 4)![0], "spread across the room").toBe((336 - 12) / 2);
+    // 85px of room takes the air away and nothing else; 60 shrinks the key to the floor
+    const airless = keyOf();
+    roomOf(airless.sheet, 336);
+    placeLegend(airless.map, airless.sheet, true, 1, 2, { minScale: 0.8, roomH: 85 });
+    expect(size(airless.sheet)[1]).toBe(78);
+    expect(move(airless.legend, 4)![0]).toBe((336 - 12) / 2);
+    const short = keyOf();
+    roomOf(short.sheet, 336);
+    placeLegend(short.map, short.sheet, true, 1, 2, { minScale: 0.8, roomH: 60 });
+    expect(size(short.sheet)[1]).toBeCloseTo(78 * 0.8, 1);
   });
 });

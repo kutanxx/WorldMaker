@@ -1761,6 +1761,56 @@ describe("a window too narrow to carry the map's furniture", () => {
     expect(root.querySelector(".legend-sheet .legend") !== null, "no key standing under the plate").toBe(true);
   });
 
+  // ⚠ User report (2026-10-15, desktop): fold the plate's key and open it, and a scrollbar stands in the
+  // column; fold and open again, and it is gone. Measured at 1440x900: the fit read the width INSIDE the
+  // scrollbar — 192px on one open, 177 beside the scrollbar the previous fit had earned — and drew the key
+  // for the other open's room each time, 180 wide, then 165, then 180. Here the scrollbar is played by the
+  // body's clientWidth: the key must come out the same whether or not one stands beside it (how it is
+  // fitted to the room's height so that none appears is pinned in legendSheet.test).
+  it("draws the plate's key the same size on every open, with or without a scrollbar beside it", () => {
+    stubWidth(false);
+    const own = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "offsetWidth")!;
+    const inside = Object.getOwnPropertyDescriptor(Element.prototype, "clientWidth")!;
+    let scrollbar = false;
+    Object.defineProperty(HTMLElement.prototype, "offsetWidth", {
+      configurable: true,
+      get(this: HTMLElement) { return this.classList.contains("fold-body") ? 192 : own.get!.call(this); },
+    });
+    Object.defineProperty(Element.prototype, "clientWidth", {
+      configurable: true,
+      get(this: Element) { return this.classList.contains("fold-body") ? (scrollbar ? 177 : 192) : inside.get!.call(this); },
+    });
+    try {
+      const root = document.createElement("div");
+      const app = createApp(root, small);
+      app.openCity(0);
+      const sheet = root.querySelector(".plate-side .legend-sheet") as SVGSVGElement;
+      const head = root.querySelector(".plate-side .legend-fold .fold-head") as HTMLButtonElement;
+      // the words, as a browser would measure them: each column's longest reaches 65 units from the key's
+      // left, so two tight columns (130 + the gap) fit the 180px inside the panel at 1.29 of the plate
+      // key's 1.545 — above the 10px floor, below the scale asked for: the fit, not the floor, sets the size
+      const left = Number(sheet.getAttribute("viewBox")!.split(" ")[0]);
+      const words = [...root.querySelectorAll<SVGGraphicsElement>(".plate-side .legend-row text")];
+      expect(words.length, "a plate's key has rows to stand in two columns").toBeGreaterThanOrEqual(4);
+      for (const t of words) {
+        const x = Number(t.getAttribute("x"));
+        (t as unknown as { getBBox: () => object }).getBBox = () => ({ x, y: 0, width: 63 - (x - left), height: 10 });
+      }
+      head.click(); head.click();                          // folded and opened: fitted in the measured room
+      const first = Number(sheet.getAttribute("width"));
+      expect(first, "two tight columns span the panel").toBeCloseTo(192 - 12, 0);
+      scrollbar = true;                                    // ...which, by the old fit, earned a scrollbar
+      head.click(); head.click();
+      expect(Number(sheet.getAttribute("width")), "the key changes size when a scrollbar stands beside it").toBe(first);
+      scrollbar = false;
+      head.click(); head.click();
+      expect(Number(sheet.getAttribute("width"))).toBe(first);
+    } finally {
+      Object.defineProperty(HTMLElement.prototype, "offsetWidth", own);
+      Object.defineProperty(Element.prototype, "clientWidth", inside);
+    }
+  });
+
   // ⚠ `.map-frame` is the anchor for everything that FLOATS over the map: the zoom controls sit at
   // its bottom-right, the focus button at its top-right, the key's chip at its bottom-left. Anything
   // put INSIDE it grows the box those are measured from. The key's fold went in there first, and on

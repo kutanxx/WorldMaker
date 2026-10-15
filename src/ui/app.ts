@@ -30,7 +30,7 @@ import { layOutLabelsForExport } from "./exportLabels";
 import { type Page, pageOf, putOnPage, fitRiverNames } from "./regionPage";
 import { type Lang, t } from "./i18n";
 import { makeFold, readFoldPref, writeFoldPref, type Fold } from "./fold";
-import { legendSheet, placeLegend } from "./legendSheet";
+import { legendSheet, placeLegend, scrollbarWidth } from "./legendSheet";
 import { measureChrome, fitChrome, oneRowWidth } from "./chromeBudget";
 import { LEGEND_ROW } from "./renderer";
 import { detectLang, saveLang } from "./lang";
@@ -1327,7 +1327,28 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     // in a fold of 451px at 1440x900 and 257px at 1366x650, a scroll nobody notices (plate review,
     // 2026-10-15) — but never under 10px type: below that it keeps one readable column.
     const PLATE_KEY_MIN_PX = 10;
-    const placePlateKey = () => placeLegend(citySvg, keySheet, true, LEGEND_ROW / CITY_LEGEND_ROW, 2, { minScale: PLATE_KEY_MIN_PX / CITY_LEGEND_TEXT });
+    // ★ What is said about the plate comes after it, the facts over the key, in one column: beside
+    // the drawing where the page has room for a column, under it — a caption — where it does not.
+    // In a 1366x650 laptop window the facts stood ABOVE the drawing, two lines of them under the way
+    // back and a two-row toolbar: 293px of chrome over a plate 334px tall, smaller than a phone's.
+    // ⚠ Beside the frame, never inside it: the frame is what the floating controls hang off.
+    const side = document.createElement("div");
+    side.className = "plate-side";
+    // ★ ...and the key is fitted to the HEIGHT the column leaves it, not to its width alone: the column
+    // is the plate's height (`.plate-side`, theme.css), the facts keep theirs, and the key's fold takes
+    // what is left — from the top of its body to the foot of the column, less the fold's own padding.
+    // Fitted to the width alone it stood 249px tall where it had 427 and still earned a scrollbar on
+    // alternate opens (user report, 2026-10-15; the mechanism is in legendSheet.ts). Under a narrow
+    // window the column is `display: contents`, has no box, and the stack scrolls as a page: no limit.
+    const keyRoomH = (): number => {
+      const foot = side.getBoundingClientRect().bottom;
+      if (!(foot > 0)) return 0;
+      const cs = getComputedStyle(keyFold.section);
+      const below = (parseFloat(cs.paddingBottom) || 0) + (parseFloat(cs.borderBottomWidth) || 0);
+      return foot - keyFold.body.getBoundingClientRect().top - below;
+    };
+    const placePlateKey = () => placeLegend(citySvg, keySheet, true, LEGEND_ROW / CITY_LEGEND_ROW, 2,
+      { minScale: PLATE_KEY_MIN_PX / CITY_LEGEND_TEXT, roomH: keyRoomH(), gutter: scrollbarWidth() });
     const keyFold = makeFold({
       title: t(lang, "legendPlate"), open: readFoldPref(CITY_KEY_FOLD_KEY, true),
       onToggle: (on) => {
@@ -1427,19 +1448,22 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     panel.appendChild(near);
     panel.appendChild(print);
 
-    // ★ What is said about the plate comes after it, the facts over the key, in one column: beside
-    // the drawing where the page has room for a column, under it — a caption — where it does not.
-    // In a 1366x650 laptop window the facts stood ABOVE the drawing, two lines of them under the way
-    // back and a two-row toolbar: 293px of chrome over a plate 334px tall, smaller than a phone's.
-    // ⚠ Beside the frame, never inside it: the frame is what the floating controls hang off.
-    const side = document.createElement("div");
-    side.className = "plate-side";
+    // the facts over the key, in the column made above
     side.append(panel, keyFold.section);
     stage.append(frame, side);
     // ...and fitted again now that it stands in the page: the fit above ran before the card was in
     // the document, with no room to measure, so the plate's key came out a compact block (271px of
     // a 324px measure on a phone) where the world's spans its panel.
     placePlateKey();
+    // ★ ...and once more when the web fonts land, if they have not yet: the fit measures the key's words,
+    // and on a cold load it measured them in the fallback face — 129 units of two columns against 123 in
+    // Gowun Batang, a 10.7px key that stood 11.1 the next time its fold was opened (1440x900, 2026-10-15).
+    const fonts = document.fonts;
+    if (fonts && fonts.status !== "loaded") {
+      void fonts.ready.then(() => {
+        if (openCityId === cityId && keySheet.isConnected && keyFold.section.classList.contains("is-open")) placePlateKey();
+      });
+    }
     // and sized by what the page actually spends around it, before its names are floored
     relayoutLabels = null;
     fitPlateChrome();

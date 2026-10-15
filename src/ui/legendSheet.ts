@@ -50,7 +50,33 @@ export function legendSheet(): SVGSVGElement {
  * a town plate's 30-row key beside a desktop's plate (see `fitToKey`). Without it a key that two
  * columns would overflow keeps one column at its scale.
  */
-export interface KeyFit { minScale: number }
+export interface KeyFit {
+  minScale: number;
+  /**
+   * The room's HEIGHT in CSS pixels, where the caller can measure it: the key is drawn smaller until two
+   * columns stand in it, down to `minScale`, and a key that cannot is fitted beside the scrollbar it will
+   * have. 0 (or unset) where there is no such room — a stacked panel that scrolls as a page, jsdom. Fitted
+   * to the width alone, a 32-row key stood 249px tall in a fold with 427px of room and still got a
+   * scrollbar for it on alternate opens (user report, 2026-10-15 — see `fitToKey`).
+   */
+  roomH?: number;
+  /** what a scrollbar takes from the room's width, in CSS pixels (`scrollbarWidth`), for a key that must scroll */
+  gutter?: number;
+}
+
+/**
+ * The width a scrollbar takes from the box it stands in, on this platform: 15-17px of a Windows window,
+ * nought where scrollbars are overlaid (a Mac's, a phone's). Measured on a throwaway box, so it is
+ * known BEFORE the key that will need one is drawn; 0 without layout (jsdom).
+ */
+export function scrollbarWidth(): number {
+  const probe = document.createElement("div");
+  probe.style.cssText = "position:absolute;top:-9999px;left:-9999px;width:100px;height:100px;overflow:scroll;visibility:hidden";
+  document.body.appendChild(probe);
+  const w = probe.offsetWidth - probe.clientWidth;
+  probe.remove();
+  return w > 0 ? w : 0;
+}
 
 export function placeLegend(
   map: SVGSVGElement, sheet: SVGSVGElement, outside: boolean, scale = 1,
@@ -149,8 +175,26 @@ function fitToKey(sheet: SVGSVGElement, legend: Element, scale: number, columns 
   // The key's MEASURE: the room it stands in, less the heading's inset on each side, in the key's
   // own units (a plate's key is drawn at 11-unit rows and shown x1.545). Pixels are what the page
   // lines up, so the gap and the air are said in pixels and turned into units here.
-  const room = (sheet.parentElement as HTMLElement | null)?.clientWidth ?? 0;
-  const roomPx = room > 0 ? room - KEY_INSET * 2 : 0;
+  //
+  // ⚠ The room is the panel's OWN width — its border box; the fold's body has no border or padding —
+  // not the width left inside a scrollbar. User report (2026-10-15, desktop): fold the plate's key and
+  // open it, and a scrollbar stands in the column; fold and open again, and it is gone. Measured at
+  // 1440x900: the body is 192px wide, and read inside the scrollbar the room was 192 on one open and
+  // 177 on the next, so each open drew the key for the other open's room — 180 wide at 12.3px type,
+  // then 165 at 11.1, then 180 — and the scrollbar came and went with it.
+  const room = (sheet.parentElement as HTMLElement | null)?.offsetWidth ?? 0;
+  // ★ ...and the key is fitted to the room's HEIGHT too, where the caller could measure it (`fit.roomH`):
+  // the fold beside a desktop's plate is the plate's height less what the facts keep — 427px at 1440x900,
+  // 177 at 1366x650 — and a key taller than that scrolls in it. Two tight columns of the key's rows are
+  // `twoTall` units; the height allows them up to `hShrink` of their scale.
+  const roomH = fit?.roomH ?? 0;
+  const twoTall = vh - (rows.length - per) * pitch;
+  const hShrink = roomH > 0 && twoTall > 0 ? roomH / twoTall : Infinity;
+  // A key that cannot stand in the room's height even at the floor will scroll, and the scrollbar takes
+  // its gutter out of the width: fitted without it, the key was clamped to the width beside the
+  // scrollbar and drawn 8% smaller than it was fitted for. Known before it is drawn (`fit.gutter`).
+  const scrolls = fit !== undefined && measured && roomH > 0 && hShrink < fit.minScale;
+  const roomPx = room > 0 ? room - KEY_INSET * 2 - (scrolls ? fit?.gutter ?? 0 : 0) : 0;
   const measure = roomPx > 0 ? roomPx / scale : 0;
   const gap = COL_GAP / scale, air = KEY_AIR / scale;
   // two columns only where they fit; an unmeasured room (jsdom, a folded panel) is not a "no" —
@@ -162,13 +206,23 @@ function fitToKey(sheet: SVGSVGElement, legend: Element, scale: number, columns 
   // scale two columns of its WORDS fit at (the cartouche's width is no floor here: a plate's wards
   // are short words), each column as wide as its own and no air between the rows, it stands whole —
   // never larger than it was asked for, and below the floor the caller sets it keeps its one readable
-  // column instead.
-  const shrink = !fits && fit !== undefined && measured && w1w + w2w > 0 ? Math.min(scale, (roomPx - COL_GAP) / (w1w + w2w)) : 0;
-  let drawn = scale;
-  if (columns >= 2 && rows.length >= 4 && pitch > 0 && (fits || (fit !== undefined && shrink >= fit.minScale))) {
-    const tight = !fits;
-    if (tight) drawn = shrink;
-    const gapNow = COL_GAP / drawn, airNow = tight ? 0 : air, measureNow = roomPx > 0 ? roomPx / drawn : 0;
+  // column instead. `wTight` is the scale the width allows two tight columns.
+  const wTight = measured && w1w + w2w > 0 && roomPx > 0 ? (roomPx - COL_GAP) / (w1w + w2w) : Infinity;
+  const tightOk = fit !== undefined && measured && w1w + w2w > 0 && roomPx > 0 && wTight >= fit.minScale;
+  let drawn = scale, airNow = air, tight = false;
+  let two = columns >= 2 && rows.length >= 4 && pitch > 0;
+  if (two) {
+    if (fits && (!measured || roomH <= 0 || twoTall * scale <= roomH)) {
+      // as drawn, spread across the room — with its air only where the height has room for that too
+      if (measured && roomH > 0 && (twoTall + (per - 1) * air) * scale > roomH) airNow = 0;
+    } else if (tightOk) {
+      // drawn smaller: as far as the width or the height asks, never under the floor (below it the key scrolls)
+      tight = true; airNow = 0;
+      drawn = Math.max(Math.min(scale, wTight, hShrink), fit!.minScale);
+    } else two = false;
+  }
+  if (two) {
+    const gapNow = COL_GAP / drawn, measureNow = roomPx > 0 ? roomPx / drawn : 0;
     // ★ The second column starts at the middle of the measure, not just past the first column's
     // words: measured on a phone, "just past" put it at x=144 of a panel running to 363, lined up
     // with nothing and with the right third of the panel empty — a block shoved into a corner.
@@ -191,4 +245,11 @@ function fitToKey(sheet: SVGSVGElement, legend: Element, scale: number, columns 
   sheet.setAttribute("viewBox", `${vx} ${vy} ${vw} ${vh}`);
   sheet.setAttribute("width", String(vw * drawn));
   sheet.setAttribute("height", String(vh * drawn));
+  // ★ The clamp in PIXELS, where the room was measured. The stylesheet's is a percentage of the panel
+  // (`.stage .legend-sheet`, the fallback for a room that could not be measured), and a scrolling flex
+  // item resolves that twice — Chrome sizes it as if its scrollbar were there (a 180px sheet clamped to
+  // 165, and so 228 tall) and lays it out without one (249 tall) — and the difference is an overflow
+  // that puts a scrollbar there with nothing to scroll: measured at 1440x900, any sheet over 165px in
+  // the 192px body did it, with 200px of height to spare. A clamp in pixels is the same in both.
+  sheet.style.maxWidth = roomPx > 0 ? `${roomPx}px` : "";
 }

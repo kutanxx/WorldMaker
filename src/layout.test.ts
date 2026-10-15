@@ -134,6 +134,9 @@ describe("the plate's key stands beside the drawing where there is room", () => 
     expect(side, "...and fills the row the drawing set").toMatch(/min-height:\s*100%/);
     expect(rule(/\.plate-side\s*>\s*\.legend-fold\s*\{[^}]*flex:[^}]*\}/), "the key gives way to the facts").toMatch(/min-height:\s*0/);
     expect(rule(/\.plate-side\s*>\s*\.legend-fold[^{]*\.fold-body\s*\{[^}]*\}/), "the key scrolls inside its panel").toMatch(/overflow-y:\s*auto/);
+    // ...and never sideways: a key fitted to the panel's width stands beside a scrollbar it did not
+    // allow for only when it must scroll anyway, and a second scrollbar for the gutter's width is no answer
+    expect(rule(/\.plate-side\s*>\s*\.legend-fold[^{]*\.fold-body\s*\{[^}]*\}/), "a scrollbar's gutter earns a second scrollbar").toMatch(/overflow-x:\s*hidden/);
   });
 
   // ★ The number in the media query is not a taste. The plate is capped by the room its chrome

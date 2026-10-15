@@ -969,7 +969,10 @@ svg.city .wall-seg, svg.city .wall-seg-inner, svg.city .tower, svg.city .gate { 
   }
   .plate-side > .city-facts { flex: 0 0 auto; }
   .plate-side > .legend-fold { flex: 0 1 auto; min-height: 0; display: flex; flex-direction: column; }
-  .plate-side > .legend-fold > .fold-body { min-height: 0; overflow-y: auto; }
+  /* ...and never sideways: the key is fitted to this body's width (legendSheet.ts measures it, and leaves
+     the scrollbar's gutter out of a key that will scroll), so a sideways overflow is a fit's rounding, and
+     a second scrollbar for it would be the one thing worse than the first */
+  .plate-side > .legend-fold > .fold-body { min-height: 0; overflow-y: auto; overflow-x: hidden; }
   /* and standing beside the drawing each becomes a panel, the way the world map's column is: every
      other box on this page is parchment inside a 1px #cbb784 edge */
   .plate-side > .legend-fold, .plate-side > .city-facts {
