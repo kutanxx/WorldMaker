@@ -370,8 +370,10 @@ svg.world .legend { pointer-events: none; }
    English has instead of Korean's 왕국, and it is FREE: measured across seed 1's seven realms it
    came out 2.2 units NARROWER than the mixed case it replaces (small caps are narrower than
    Cinzel's lowercase by more than the tracking costs), where spelling the word out measured 2.04x.
-   ⚠ Latin only. Hangul takes nothing from small caps and would pay the tracking in width. */
-svg.world.lang-en .nation-label { font-variant: small-caps; letter-spacing: 0.10em; }
+   ⚠ Latin only. Hangul takes nothing from small caps and would pay the tracking in width.
+   Tracked 0.04 em, from 0.10: at 10.5px the wider tracking read as air between letters that did not
+   belong together, and "LAELMAER" fell apart (design review 2026-10-15, item 3); the name is 13 units now. */
+svg.world.lang-en .nation-label { font-variant: small-caps; letter-spacing: 0.04em; }
 /* The map's own label faces. Sizes are set per-tier on the elements themselves, since they have to
    survive SVG/PNG export, where no stylesheet comes along. */
 .city-label { font-family: 'EB Garamond', 'Gowun Batang', Georgia, serif; }

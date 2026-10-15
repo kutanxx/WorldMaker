@@ -389,6 +389,15 @@ describe("a Korean page sets nothing in a slant its face does not have", () => {
   });
 });
 
+// The English realm name is Cinzel small caps, tracked 0.10 em: at 10.5px the tracking read as air between
+// letters that did not belong together, and the word fell apart (design review 2026-10-15, item 3). Tracked
+// 0.04 em, set 13 units, it reads as one word.
+describe("an English realm's name holds together", () => {
+  it("is tracked 0.04 em in small caps", () => {
+    expect(ruleIn(css(), "svg.world.lang-en .nation-label")).toMatch(/letter-spacing:\s*0\.04em/);
+  });
+});
+
 describe("the map-only view holds the map and its scrubber as one block", () => {
   const focus = (sel: string) => ruleIn(css(), `body.map-focus ${sel}`);
   it("does not stretch the frame to the grid's height, nor the grid to the window's", () => {

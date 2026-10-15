@@ -130,10 +130,14 @@ export function politicalLayer(
         if (c.cells < MIN_LABEL_CELLS) continue;
         const name = nameOf(id);
         if (!name) continue;
+        // The view's subject, so the largest name on it: 13 units stands over a capital's 10 and the region
+        // names a Korean map sets at 10.5-20 (which the realms' and the peoples' views no longer draw). At 11
+        // it was the smallest, faintest word on the political map — 10.5px at 1440x900 — and the roads cut
+        // through its 2.5 halo (design review 2026-10-15, item 3).
         const t = svgEl("text", {
           class: "nation-label", "data-name": `r${id}`, x: c.x, y: c.y, "text-anchor": "middle",
-          "font-size": 11,
-          fill: "#2a2118", stroke: "#f3ead2", "stroke-width": 2.5,
+          "font-size": 13,
+          fill: "#2a2118", stroke: "#f3ead2", "stroke-width": 3.5,
           "paint-order": "stroke", "stroke-linejoin": "round",
         });
         t.textContent = name;

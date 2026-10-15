@@ -87,9 +87,9 @@ describe("renderWorld biomes", () => {
   it("renders the world name as a title and geographic region labels (atlas depth)", () => {
     expect(svg.querySelector(".world-name-text")?.textContent).toBe(world.name);
     expect(svg.querySelectorAll(".region-labels .region-label").length).toBeGreaterThan(0);
-    // geography names show in the political view too
+    // the political view carries the world's name too — and the geography's names are the terrain's and the
+    // provinces' (2026-10-15; "a view's own subject comes first" below)
     const pol = renderWorld(world, "political");
-    expect(pol.querySelectorAll(".region-label").length).toBeGreaterThan(0);
     expect(pol.querySelector(".world-name-text")?.textContent).toBe(world.name);
   });
   // A free port's diamond stands on its town, and the chronicle founds some of those towns centuries
@@ -185,6 +185,19 @@ describe("renderWorld label hierarchy (cartographic conventions)", () => {
       expect(sea.getAttribute("font-style")).toBe("italic");
       expect(sea.getAttribute("fill")).toBe("#3f5d78");
     }
+  });
+  // On the realms' and the peoples' views the regions' names are somebody else's subject — the ground the
+  // realms are drawn on — and faded to 45% they were still the largest words there, gold on red and purple,
+  // over a realm's name of 11 units (design review 2026-10-15, items 3 and 7). Those two views carry no
+  // region names now; the provinces' view, a geography, keeps them faint, and the terrain view keeps them.
+  it("names the regions on the terrain and province views only", () => {
+    expect(svg.querySelectorAll(".region-label").length).toBeGreaterThan(0);
+    for (const view of ["political", "culture"] as const) {
+      expect(renderWorld(world, view).querySelectorAll(".region-label").length, view).toBe(0);
+    }
+    const province = [...renderWorld(world, "province").querySelectorAll(".region-label")];
+    expect(province.length).toBeGreaterThan(0);
+    for (const r of province) expect(r.getAttribute("fill-opacity")).toBe("0.45");
   });
   // A myeongjo has no italic: the browser slanted the Korean water names itself, and slanted Hangul smears
   // (design review 2026-10-15, item 6). The Korean map sets its seas and rivers upright — a sea tracked a
@@ -817,15 +830,18 @@ describe("a view's own subject comes first", () => {
     for (const l of labels) expect(l.classList.contains("region-faint")).toBe(false);
   });
 
-  it("stands them down on every view that is about something else", () => {
-    for (const view of ["political", "culture", "province"] as const) {
-      const svg = renderWorld(world(), view);
-      const labels = [...svg.querySelectorAll(".region-label")];
-      expect(labels.length, `${view} has no region labels to stand down`).toBeGreaterThan(5);
-      for (const l of labels) {
-        expect(l.classList.contains("region-faint"), `${view}`).toBe(true);
-        expect(Number(l.getAttribute("fill-opacity") ?? 1), `${view}`).toBeLessThan(0.6);
-      }
+  // Stood down to 45% they were still the largest words on the realms' and the peoples' views, gold on red and
+  // purple over a realm's name of 11 units (design review 2026-10-15, items 3 and 7): those two views carry none
+  // now. The provinces' view is a geography and keeps them, faint.
+  it("leaves them off the realms' and the peoples' views, and stands them down on the provinces'", () => {
+    for (const view of ["political", "culture"] as const) {
+      expect(renderWorld(world(), view).querySelectorAll(".region-label").length, view).toBe(0);
+    }
+    const labels = [...renderWorld(world(), "province").querySelectorAll(".region-label")];
+    expect(labels.length, "the province view has no region labels to stand down").toBeGreaterThan(5);
+    for (const l of labels) {
+      expect(l.classList.contains("region-faint")).toBe(true);
+      expect(Number(l.getAttribute("fill-opacity") ?? 1)).toBeLessThan(0.6);
     }
   });
 });

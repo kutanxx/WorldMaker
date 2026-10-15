@@ -66,6 +66,16 @@ describe("politicalLayer", () => {
     const label = g.querySelector(".free-city-markers .free-city-label") as SVGElement;
     expect(label.textContent).toBe("Freeport");
   });
+  // The political view is about the realms, and a realm's name was the smallest, faintest word on it: 11 units
+  // (10.5px at 1440x900) under region names of 10.5-20 and a capital's 10 in bold, with a 2.5 halo the roads
+  // crossed through (design review 2026-10-15, item 3). It stands above them now: 13 units, a 3.5 halo.
+  it("sets a realm's name above a region's and a capital's: 13 units on a 3.5 halo", () => {
+    const owner = new Int32Array(world.grid.count).fill(0);
+    const g = politicalLayer(world.grid, owner, [{ id: 0, name: "Realm" }], { labels: true });
+    const label = g.querySelector(".nation-label")!;
+    expect(Number(label.getAttribute("font-size"))).toBe(13);
+    expect(Number(label.getAttribute("stroke-width"))).toBe(3.5);
+  });
   // the name under the banner is in italic, a Latin device; a Korean map's face has no italic, and slanted
   // Hangul is the browser's own smear (design review 2026-10-15, item 6)
   it("sets a free city's name upright on a Korean map", () => {
