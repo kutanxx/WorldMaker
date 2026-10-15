@@ -64,7 +64,7 @@ export function assignZones(
     atWall?: (poly: Polygon) => boolean;
     // whether a ward may hold the castle at all (no town gate on its stretch of wall)
     castleOk?: (poly: Polygon) => boolean;
-    // a hamlet (city.ts HAMLET_SIZE): a green and houses, a common at its edge at most — no cathedral, no
+    // a hamlet or a village (city.ts HAMLET_SIZE, VILLAGE_SIZE): a green and houses, a common at its edge at most — no cathedral, no
     // guildhall, no market ward (the green is its market), no merchants, slums or barracks
     hamlet?: boolean }
 ): ZonedWard[] {

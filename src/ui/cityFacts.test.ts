@@ -279,7 +279,7 @@ describe("the realm a plate names is the realm of a stated year", () => {
 describe("a hamlet's facts call it a hamlet", () => {
   const world = generateWorld({ ...DEFAULT_PARAMS, seed: 1 }).world;
   const hamlets = world.cities.filter((c) => c.size === 1 && !c.isCapital);
-  const towns = world.cities.filter((c) => c.size > 1 || c.isCapital);
+  const towns = world.cities.filter((c) => c.size > 2 || c.isCapital);   // (a village, size 2, has words of its own: below)
 
   it("has hamlets to speak of", () => {
     expect(hamlets.length).toBeGreaterThan(2);
@@ -303,6 +303,30 @@ describe("a hamlet's facts call it a hamlet", () => {
       const layout = generateCityLayout(cityContext(c), 1);
       expect(cityFacts(world, c, layout, "en", KM_PER_UNIT).kind).toBe(t("en", `kind_${layout.archetype.id}`));
       expect(cityFacts(world, c, layout, "ko", KM_PER_UNIT).kind).toBe(t("ko", `kind_${layout.archetype.id}`));
+    }
+  });
+});
+
+// ...and a village (size 2, palisaded — village.test.ts) in a village's words: "a market town on open ground"
+// under a rank of "Village" was a town's.
+describe("a village's facts call it a village", () => {
+  const world = generateWorld({ ...DEFAULT_PARAMS, seed: 1 }).world;
+  const villages = world.cities.filter((c) => c.size === 2 && !c.isCapital);
+
+  it("has villages to speak of", () => {
+    expect(villages.length).toBeGreaterThan(2);
+  });
+
+  it("says what kind of village it is, in both languages", () => {
+    for (const c of villages) {
+      const layout = generateCityLayout(cityContext(c), 1);
+      const en = cityFacts(world, c, layout, "en", KM_PER_UNIT);
+      const ko = cityFacts(world, c, layout, "ko", KM_PER_UNIT);
+      expect(en.kind, `${c.name}: ${en.kind}`).toMatch(/village/);
+      expect(en.kind, `${c.name}: ${en.kind}`).not.toMatch(/town|city|market|hamlet/i);
+      expect(ko.kind, `${c.name}: ${ko.kind}`).toMatch(/마을|어촌/);
+      expect(ko.kind, `${c.name}: ${ko.kind}`).not.toMatch(/도시|장터/);
+      expect(en.rank).toBe("Village");
     }
   });
 });

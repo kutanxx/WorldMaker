@@ -23,7 +23,7 @@ export const FEATURE_NAME = {
     field: "Field", fallowField: "Fallow field", terrace: "Terraced field", pasture: "Pasture", orchard: "Orchard",
     caravanserai: "Caravanserai",
     garden: "Garden", harbour: "Harbour", tanner: "Tannery", dyer: "Dyer's yard",
-    castle: "Castle", bridge: "Bridge", wall: "Town wall", gate: "Gate", mountain: "Mountains", slope: "Slope",
+    castle: "Castle", bridge: "Bridge", wall: "Town wall", palisade: "Palisade", gate: "Gate", mountain: "Mountains", slope: "Slope",
   },
   ko: {
     abbey: "수도원", cemetery: "공동묘지", gallows: "교수대", leperHouse: "나병자 수용소",
@@ -33,7 +33,7 @@ export const FEATURE_NAME = {
     field: "밭", fallowField: "휴경지", terrace: "계단식 밭", pasture: "목초지", orchard: "과수원",
     caravanserai: "대상 숙소",
     garden: "텃밭", harbour: "항구", tanner: "무두질터", dyer: "염색장",
-    castle: "성채", bridge: "다리", wall: "성벽", gate: "성문", mountain: "산", slope: "비탈",
+    castle: "성채", bridge: "다리", wall: "성벽", palisade: "목책", gate: "성문", mountain: "산", slope: "비탈",
   },
 } as const satisfies Record<Lang, Record<string, string>>;
 
@@ -60,7 +60,7 @@ const HAMLET_WARD_NAME: Record<Lang, Partial<Record<WardType, string>>> = {
   en: { plaza: "Village Green", craftsmen: "Houses" },
   ko: { plaza: "마을 광장", craftsmen: "집" },
 };
-/** A district's name on the plate — in a hamlet's words where the plate is a hamlet's (engine `isHamlet`). */
+/** A district's name on the plate — in a hamlet's words where the plate is a hamlet's or a village's (engine `kitOf`). */
 export function wardName(lang: Lang, type: WardType, hamlet = false): string | undefined {
   return (hamlet ? HAMLET_WARD_NAME[lang][type] : undefined) ?? WARD_NAME[lang][type];
 }
@@ -111,6 +111,13 @@ export const UI: Record<Lang, Record<string, string>> = {
     hamletKind_marshStilt: "a hamlet on stilts in the marsh", hamletKind_desertOasis: "an oasis hamlet in the desert",
     hamletKind_hillside: "a hamlet on the hillside", hamletKind_spur: "a hamlet on the spur",
     hamletKind_valleyPass: "a hamlet at the pass",
+    // ...and as a village (city.ts VILLAGE_SIZE): palisaded, with its parish church, no market and nobody's seat
+    villageKind_coastalPort: "a fishing village on the coast", villageKind_bridgeTown: "a bridge village on the river",
+    villageKind_hilltopFortress: "a fortress village on the height", villageKind_meanderDefense: "a village in the river's bend",
+    villageKind_plainsMarket: "a village on open ground", villageKind_forestGrove: "a timber village in the forest",
+    villageKind_marshStilt: "a village on stilts in the marsh", villageKind_desertOasis: "an oasis village in the desert",
+    villageKind_hillside: "a village on the hillside", villageKind_spur: "a village on the spur",
+    villageKind_valleyPass: "a village at the pass",
     seaLevel: "Sea level", mountainLevel: "Mountain line (higher: fewer)", polityCount: "Nations at the start", townCount: "Towns besides capitals", cellCount: "Detail (cells)", year: "{y} AY", legendProvinces: "Provinces", keyProvinceBorder: "Province", keyRealmBorder: "Realm", keySeat: "Seat", keyRoad: "Road", keySeaRoute: "Sea route", keyCapital: "Capital", keyTown: "Town", keyFreePort: "Free port", keyBorder: "Border", keyPeopleBorder: "Boundary", keyHills: "Hills", inkToggle: "Ink", inkTitle: "The map in one ink on white paper, for print", renameToggle: "✎ Rename", renameTitle: "Click a name on the map to change it. The names you give are kept in the link.", renameHint: "Enter keeps it · Esc leaves it · empty gives the old name back", renameLabel: "New name", viewTerrain: "Terrain: biomes, rivers, mountains and coasts, with the regions and settlements named.",
     viewPolitical: "Political: the nations and their borders at the year the timeline is showing.",
     viewCulture: "Cultures: the peoples of the world and the ground each of them holds.",
@@ -176,6 +183,12 @@ export const UI: Record<Lang, Record<string, string>> = {
     hamletKind_marshStilt: "늪 위 고상 가옥 마을", hamletKind_desertOasis: "사막의 오아시스 마을",
     hamletKind_hillside: "산비탈의 마을", hamletKind_spur: "산줄기 끝의 마을",
     hamletKind_valleyPass: "고갯길의 마을",
+    villageKind_coastalPort: "해안의 어촌", villageKind_bridgeTown: "강을 건너는 다리 마을",
+    villageKind_hilltopFortress: "고지의 요새 마을", villageKind_meanderDefense: "강굽이가 감싼 마을",
+    villageKind_plainsMarket: "평원의 마을", villageKind_forestGrove: "숲속의 목재 마을",
+    villageKind_marshStilt: "늪 위 고상 가옥 마을", villageKind_desertOasis: "사막의 오아시스 마을",
+    villageKind_hillside: "산비탈의 마을", villageKind_spur: "산줄기 끝의 마을",
+    villageKind_valleyPass: "고갯길의 마을",
     seaLevel: "바다 (해수면)", mountainLevel: "산 (높을수록 적게)", polityCount: "처음 나라 수", townCount: "수도 외 도시 수", cellCount: "세밀함 (칸 수)", year: "{y}년", legendProvinces: "행정 구역", keyProvinceBorder: "구역 경계", keyRealmBorder: "국경", keySeat: "중심지", keyRoad: "길", keySeaRoute: "뱃길", keyCapital: "수도", keyTown: "도시", keyFreePort: "자유무역항", keyBorder: "국경", keyPeopleBorder: "문화 경계", keyHills: "언덕", inkToggle: "흑백", inkTitle: "인쇄용 흑백 지도 (흰 종이에 검은 잉크)", renameToggle: "✎ 이름 바꾸기", renameTitle: "켜고 지도 위 이름을 누르면 그 자리에서 바꿀 수 있습니다. 바꾼 이름은 링크에 담깁니다.", renameHint: "Enter 저장 · Esc 취소 · 비우면 원래 이름", renameLabel: "새 이름", viewTerrain: "지형: 생물군계·강·산맥·해안, 지역명과 도시 표시.",
     viewPolitical: "정치: 연표가 가리키는 해의 국가와 국경.",
     viewCulture: "문화: 세계의 문화권과 각 문화가 차지한 땅.",

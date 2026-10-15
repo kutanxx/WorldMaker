@@ -13,6 +13,8 @@ export interface DefenseWall {
   seaGates: Point[];
   /** for a town the world gives roads: which of them leave by each gate (none: a local way out) */
   gateRoads?: GateRoad[][];
+  /** the fence of a village (city.ts VILLAGE_SIZE): stakes with gates and no towers, drawn and keyed as a palisade */
+  palisade?: true;
 }
 
 /** a road the world gives a town, as the plate takes it: the way it leaves, and where it goes */

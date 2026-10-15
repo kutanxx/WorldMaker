@@ -1,5 +1,5 @@
 import type { CityMarker, World } from "../types/world";
-import { isHamlet, type CityLayout } from "../engine/city";
+import { kitOf, type CityLayout } from "../engine/city";
 import type { GovernmentForm } from "../engine/government";
 import { t, type Lang } from "./i18n";
 import { properName, polityLabeller } from "./properName";
@@ -103,13 +103,15 @@ export function cityFacts(
     .sort((a, b) => a.km - b.km)
     .map((n) => ({ ...n, km: Math.round(n.km), ...later(n.id) }));
 
+  const kit = kitOf(layout);
   return {
     name: properName(lang, city.name),
     founded: foundings.find((f) => f.cityId === city.id)?.year ?? null,
     realm,
     year: at?.year ?? null,
-    // ...told of a hamlet in a hamlet's words: "a timber town in the forest" over a rank of "Hamlet" was a town's
-    kind: t(lang, `${isHamlet(layout) ? "hamletKind" : "kind"}_${layout.archetype.id}` as never),
+    // ...told of a hamlet in a hamlet's words and of a village in a village's: "a timber town in the forest" over
+    // a rank of "Hamlet" was a town's
+    kind: t(lang, `${kit === "town" ? "kind" : `${kit}Kind`}_${layout.archetype.id}` as never),
     rank: t(lang, `rank${city.size}` as never),
     population: `${groups(lo)}–${groups(hi)}`,
     neighbours,

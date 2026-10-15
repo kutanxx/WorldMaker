@@ -1,7 +1,7 @@
 import { svgEl, legendPanel, legendRow, compassRose, mapFrame, FRAME_INSET, INK, PARCHMENT } from "./renderer";
 import { paintedPeak } from "./inkStyle";
 import { scaleBar, scaleBarAbove, METRES_PER_UNIT } from "./scaleBar";
-import { isHamlet, type CityLayout } from "../engine/city";
+import { kitOf, type CityLayout } from "../engine/city";
 import type { WardType } from "../engine/city/zoning";
 import type { Point, Polygon, Polyline } from "../engine/geometry";
 import { pointInPolygon } from "../engine/geometry";
@@ -111,6 +111,9 @@ function named<T extends SVGElement>(el: T, text: string): T {
 }
 
 const BRIDGE_EDGE = "#5f5a4e";
+// a village's palisade (city.ts VILLAGE_SIZE): a thin rail with the stakes along it, in timber whatever the
+// country builds in — the stake row is dashed, each dash a stake seen from above. The key draws the same three.
+const PALISADE = { stake: "#6b4f34", rail: "#8a6a44", dash: "1.2 1" };
 // a slope shorter than this carries no hachure: the ground there hardly falls
 const HILL_STROKE_MIN = 1.5;
 const BRIDGE_DECK = "#a8a294";
@@ -237,8 +240,8 @@ export interface CityRenderOpts {
 
 export function renderCity(layout: CityLayout, lang: Lang = "en", opts: CityRenderOpts = {}): SVGSVGElement {
   const fn = (k: FeatureKey) => featureName(lang, k);
-  // a hamlet's quarters are named as a hamlet's — its green and its houses — in the key, on the plan and on hover
-  const hamlet = isHamlet(layout);
+  // a hamlet's and a village's quarters are named as such — a green and houses — in the key, on the plan and on hover
+  const humble = kitOf(layout) !== "town";
   // A town's name is one invented word, so it is transliterated rather than rebuilt: it has no
   // common noun in it to translate.
   const townName = properName(lang, layout.name);
@@ -570,7 +573,7 @@ export function renderCity(layout: CityLayout, lang: Lang = "en", opts: CityRend
     clipped.appendChild(named(svgEl("polygon", {
       class: "ward", points: pts(ward.polygon),
       ...(tint ? { fill: tint, "fill-opacity": WASH } : { fill: "none", "pointer-events": "all" }),
-    }), wardName(lang, ward.type, hamlet) ?? ward.type));
+    }), wardName(lang, ward.type, humble) ??ward.type));
   }
 
   // Re-draw the water channel over the ground + district tints but UNDER the buildings, so a
@@ -602,7 +605,7 @@ export function renderCity(layout: CityLayout, lang: Lang = "en", opts: CityRend
   // ridge of the roof drawn along them: a cross-shaped church reads as a church before any label.
   for (const m of layout.landmarks) {
     const [fill, edge, ridge] = m.kind === "cathedral" ? ["#a78fbe", "#4f3f63", "#d9cce6"] : ["#95ab76", "#4a5a33", "#cddbb8"];
-    const g = named(svgEl("g", { class: m.kind === "cathedral" ? "cathedral-church" : "guild-hall" }), wardName(lang, m.kind, hamlet) ?? m.kind);
+    const g = named(svgEl("g", { class: m.kind === "cathedral" ? "cathedral-church" : "guild-hall" }), wardName(lang, m.kind, humble) ??m.kind);
     g.appendChild(svgEl("polygon", { points: pts(m.outline), fill, stroke: edge, "stroke-width": 0.7, "stroke-linejoin": "round" }));
     for (const [a, b] of m.ridges) g.appendChild(svgEl("line", { x1: a[0].toFixed(1), y1: a[1].toFixed(1), x2: b[0].toFixed(1), y2: b[1].toFixed(1), stroke: ridge, "stroke-width": 0.6, "stroke-linecap": "round" }));
     clipped.appendChild(g);
@@ -766,14 +769,23 @@ export function renderCity(layout: CityLayout, lang: Lang = "en", opts: CityRend
   }
 
   if (layout.wall) {
+    const palisade = layout.wall.palisade === true;
     const wallStroke = layout.features.wallMaterial === "timber" ? "#6b4f34" : "#43392d";
     const wallInner = layout.features.wallMaterial === "timber" ? "#8a6a44" : "#8a7a60";
     for (const s of layout.wall.segments) {
+      if (palisade) {
+        // a village's fence: the rail, then the stakes along it. The stake row keeps the wall's class, so the
+        // plate's names stay off it (deconflict.ts) and the pointer passes through it (theme.css) as through a wall.
+        root.appendChild(svgEl("polyline", { class: "wall-seg-inner palisade-rail", points: pts(s), fill: "none", stroke: PALISADE.rail, "stroke-width": 0.6, "stroke-linejoin": "round" }));
+        root.appendChild(svgEl("polyline", { class: "wall-seg palisade", points: pts(s), fill: "none", stroke: PALISADE.stake, "stroke-width": 1.8, "stroke-dasharray": PALISADE.dash, "stroke-linejoin": "round" }));
+        continue;
+      }
       root.appendChild(svgEl("polyline", { class: "wall-seg", points: pts(s), fill: "none", stroke: wallStroke, "stroke-width": 4, "stroke-linejoin": "round", "stroke-linecap": "round" }));
       root.appendChild(svgEl("polyline", { class: "wall-seg-inner", points: pts(s), fill: "none", stroke: wallInner, "stroke-width": 1, "stroke-linejoin": "round" }));
     }
-    // towers/gates take the wall material: a timber-palisade town gets wood-toned works, not stone grey
-    const timber = layout.features.wallMaterial === "timber";
+    // towers/gates take the wall material: a timber-palisade town gets wood-toned works, not stone grey (and a
+    // village's fence is timber whatever its country builds in)
+    const timber = palisade || layout.features.wallMaterial === "timber";
     const towerFill = timber ? "#9c7a52" : "#8a7858", towerStroke = timber ? "#6b4f34" : "#5a4a36";
     const gateFill = timber ? "#7a5a38" : "#9a9a9a", gateStroke = timber ? "#5a3f26" : "#43392d";
     const tg = svgEl("g", { class: "towers" });
@@ -790,7 +802,10 @@ export function renderCity(layout: CityLayout, lang: Lang = "en", opts: CityRend
         : names.length === 1 ? names[0] : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
       return t(lang, "gateTo").replace("{towns}", towns);
     };
-    layout.wall.gates.forEach((ga, i) => gg.appendChild(named(svgEl("rect", { class: "gate", x: ga[0] - 3, y: ga[1] - 3, width: 6, height: 6, rx: 1, fill: gateFill, stroke: gateStroke, "stroke-width": 1 }), gateTitle(i))));
+    // (a village's gate is a gate in a fence, smaller than a town's gatehouse — inside the 6 the engine clears for
+    // one, walls.ts onGate, so nothing the engine stood off it moves)
+    const gs = palisade ? 4.4 : 6;
+    layout.wall.gates.forEach((ga, i) => gg.appendChild(named(svgEl("rect", { class: "gate", x: ga[0] - gs / 2, y: ga[1] - gs / 2, width: gs, height: gs, rx: 1, fill: gateFill, stroke: gateStroke, "stroke-width": 1 }), gateTitle(i))));
     root.appendChild(gg);
   }
   if (castleG) root.appendChild(castleG);
@@ -818,7 +833,7 @@ export function renderCity(layout: CityLayout, lang: Lang = "en", opts: CityRend
       class: "ward-label" + (l.landmark ? " ward-landmark" : "") + (l.type === "castle" ? " castle-name" : ""), x: l.x, y: l.y, "font-size": 7, "text-anchor": "middle",
       fill: "#42341f", stroke: PARCHMENT, "stroke-width": 2.2, "paint-order": "stroke",
     });
-    tx.textContent = wardName(lang, l.type, hamlet) ?? "";
+    tx.textContent = wardName(lang, l.type, humble) ??"";
     labelsG.appendChild(tx);
   }
   // ★ Where each road out goes, written where it leaves the plate — as an old town plan wrote "to
@@ -890,7 +905,7 @@ export function renderCity(layout: CityLayout, lang: Lang = "en", opts: CityRend
   const order: WardType[] = ["plaza", "market", "guildhall", "cathedral", "castle", "merchant", "patriciate", "craftsmen", "slum", "military", "park"];
   const present = order.filter((wt) => TINT[wt] && layout.wards.some((wd) => wd.type === wt));
   const items: [string, string, WardType?][] = [
-    ...present.map((wt) => [roofOf(TINT[wt]!, 0), wardName(lang, wt, hamlet) ?? "", wt] as [string, string, WardType]),
+    ...present.map((wt) => [roofOf(TINT[wt]!, 0), wardName(lang, wt, humble) ??"", wt] as [string, string, WardType]),
     ["#9fc1d6", t(lang, "water")], ["#d8b65e", t(lang, "mainRoad")],
   ];
   // ★ ...and the plate's own marks, drawn as the plate draws them, each where the plate has one: the
@@ -899,20 +914,26 @@ export function renderCity(layout: CityLayout, lang: Lang = "en", opts: CityRend
   // mark is drawn in the 8x8 a swatch fills, its row's middle 2 above the row's baseline.
   const marks: [(x: number, y: number) => SVGElement, string][] = [];
   if (layout.wall) {
-    const timber = layout.features.wallMaterial === "timber";
+    const palisade = layout.wall.palisade === true;
+    const timber = palisade || layout.features.wallMaterial === "timber";
     const wallStroke = timber ? "#6b4f34" : "#43392d", wallInner = timber ? "#8a6a44" : "#8a7a60";
     const towerFill = timber ? "#9c7a52" : "#8a7858", towerStroke = timber ? "#6b4f34" : "#5a4a36";
     const gateFill = timber ? "#7a5a38" : "#9a9a9a", gateStroke = timber ? "#5a3f26" : "#43392d";
     const wallLine = (g: SVGElement, x: number, y: number) => {
+      if (palisade) {   // the fence as the plate draws it: the rail, then the stakes
+        g.appendChild(svgEl("line", { x1: x - 1, y1: y - 2, x2: x + 9, y2: y - 2, stroke: PALISADE.rail, "stroke-width": 0.6 }));
+        g.appendChild(svgEl("line", { x1: x - 1, y1: y - 2, x2: x + 9, y2: y - 2, stroke: PALISADE.stake, "stroke-width": 1.8, "stroke-dasharray": PALISADE.dash }));
+        return;
+      }
       g.appendChild(svgEl("line", { x1: x - 1, y1: y - 2, x2: x + 9, y2: y - 2, stroke: wallStroke, "stroke-width": 2.6, "stroke-linecap": "round" }));
       g.appendChild(svgEl("line", { x1: x - 1, y1: y - 2, x2: x + 9, y2: y - 2, stroke: wallInner, "stroke-width": 0.7 }));
     };
     marks.push([(x, y) => {
       const g = svgEl("g", { class: "legend-symbol" });
       wallLine(g, x, y);
-      g.appendChild(svgEl("circle", { cx: x + 7.5, cy: y - 2, r: 1.9, fill: towerFill, stroke: towerStroke, "stroke-width": 0.6 }));
+      if (!palisade) g.appendChild(svgEl("circle", { cx: x + 7.5, cy: y - 2, r: 1.9, fill: towerFill, stroke: towerStroke, "stroke-width": 0.6 }));   // (no tower on a fence)
       return g;
-    }, fn("wall")]);
+    }, fn(palisade ? "palisade" : "wall")]);
     if (layout.wall.gates.length) marks.push([(x, y) => {
       const g = svgEl("g", { class: "legend-symbol" });
       wallLine(g, x, y);

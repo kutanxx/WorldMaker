@@ -892,6 +892,47 @@ describe("a hamlet's plate", () => {
   });
 });
 
+// A village (size 2) stands behind a palisade — a fence with gates and no towers — with the one parish church
+// (village.test.ts): the plate draws the fence as a fence and keys it as one, and its quarters are a hamlet's.
+describe("a village's plate", () => {
+  const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });
+  const village = world.cities.find((c) => c.size === 2 && !c.isCapital)!;
+  const layout = generateCityLayout(cityContext(village), 1);
+  const svg = renderCity(layout, "en");
+  const words = (root: SVGSVGElement, sel: string) => [...root.querySelectorAll(sel)].map((e) => e.textContent);
+  const keyWords = words(svg, ".legend-row text");
+
+  it("draws a palisade with gates, and no tower, barbican, moat or stone wall", () => {
+    expect(layout.wall?.palisade).toBe(true);
+    expect(svg.querySelectorAll(".wall-seg.palisade").length).toBe(layout.wall!.segments.length);
+    expect(svg.querySelectorAll(".wall-seg:not(.palisade), .tower, .barbican, .barbican-wall, .moat, .gate-bridge").length).toBe(0);
+    expect(svg.querySelectorAll(".gate").length).toBe(layout.wall!.gates.length);
+  });
+
+  it("keys the palisade, its gate, the parish church, the green and the houses — not a wall or a cathedral", () => {
+    for (const w of ["Palisade", "Gate", "Parish church", "Village Green", "Houses"]) expect(keyWords, w).toContain(w);
+    for (const w of ["Town wall", "Cathedral", "Guildhall", "Market Square", "Craftsmen", "Slums", "Barracks", "Barbican"]) expect(keyWords, w).not.toContain(w);
+    const ko = words(renderCity(layout, "ko"), ".legend-row text");
+    expect(ko).toContain("목책");
+    expect(ko).not.toContain("성벽");
+  });
+
+  it("draws the palisade in the key as it draws it on the plate", () => {
+    const row = [...svg.querySelectorAll(".legend .legend-row")].find((r) => r.querySelector("text")?.textContent === "Palisade")!;
+    const fence = svg.querySelector(".wall-seg.palisade")!;
+    expect(row.querySelector(".legend-symbol line[stroke-dasharray]")?.getAttribute("stroke"), "the stakes").toBe(fence.getAttribute("stroke"));
+    expect(row.querySelector("circle"), "a tower in the fence's row").toBeNull();
+  });
+
+  it("leaves a walled town its wall, keyed as a wall", () => {
+    const town = renderCity(generateCityLayout(cityContext(marker), 7), "en");
+    const key = words(town, ".legend-row text");
+    expect(key).toContain("Town wall");
+    expect(key).not.toContain("Palisade");
+    expect(town.querySelectorAll(".wall-seg.palisade").length).toBe(0);
+  });
+});
+
 // ★ The cathedral's cross was drawn at the average of its ward's CORNERS — and a ward is a Voronoi
 // cell cut by a disc, not by the town's wall, so an outer cathedral's corners run out into the
 // fields. Measured over 12 worlds: 25 of 336 crosses stood outside the town, 13 of them plainly

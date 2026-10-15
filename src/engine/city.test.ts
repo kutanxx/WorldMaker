@@ -2298,11 +2298,17 @@ describe("a plate is the same plate, byte for byte", () => {
   // Exactly the 72 size-1 towns of twelve worlds' 336 moved (seed 1: towns 11, 12, 15, 21; seed 12: 13, 17,
   // 19, 21), no archetype or castle changed, and the other 264 hashed byte for byte the same (run.sh ab).
   // Was seed 1 3142845041, seed 12 3046969641.
+  // Re-pinned 2026-10-15 for the villages (city.ts VILLAGE_SIZE): a size-2 town is drawn as a village — a
+  // palisade with gates and no towers, no moat, no gate-work; a green, houses and the one parish church in
+  // place of a cathedral and a guildhall (a castle only where it is the fortress on the height). Exactly the
+  // 94 size-2 towns of twelve worlds' 336 moved (seed 1: towns 9, 10, 17, 20, 24, 27; seed 12: 8, 10, 11, 15,
+  // 18, 20, 22, 24, 25), no archetype or castle changed, and the other 242 — the 72 hamlets among them —
+  // hashed byte for byte the same (run.sh ab). Was seed 1 224396364, seed 12 3377165760.
   it("draws seed 1's twenty-eight towns exactly as it did", () => {
-    expect(worldHash(1, drawing)).toEqual({ h: 224396364, n: 28 });
+    expect(worldHash(1, drawing)).toEqual({ h: 2523319262, n: 28 });
   });
   it("draws seed 12's twenty-eight towns exactly as it did", () => {
-    expect(worldHash(12, drawing)).toEqual({ h: 3377165760, n: 28 });
+    expect(worldHash(12, drawing)).toEqual({ h: 767090854, n: 28 });
   });
   it("sends seed 1's and seed 12's roads out where they went", () => {
     expect([worldHash(1, destinations), worldHash(12, destinations)]).toEqual([{ h: 422798723, n: 28 }, { h: 964394477, n: 28 }]);

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { t, WARD_NAME, wardName, biomeName } from "./i18n";
+import { t, WARD_NAME, wardName, biomeName, featureName } from "./i18n";
 import { TEMPERATE_FOREST } from "../engine/biome";
 import { TABLE } from "../engine/city/archetypes";
 
@@ -51,6 +51,20 @@ describe("i18n", () => {
       expect(t("en", `kind_${id}`), id).not.toMatch(/hamlet/);
       expect(t("ko", `kind_${id}`), id).not.toMatch(/마을|어촌/);
     }
+  });
+  // ...and a village (size 2, palisaded — village.test.ts) as a village, with its fence named
+  it("describes a village of every kind as a village, in both languages, and names its palisade", () => {
+    for (const id of Object.keys(TABLE)) {
+      const en = t("en", `villageKind_${id}`), ko = t("ko", `villageKind_${id}`);
+      expect(en, id).not.toMatch(/^villageKind_/);
+      expect(ko, id).not.toMatch(/^villageKind_/);
+      expect(en, `${id}: ${en}`).toMatch(/village/);
+      expect(en, `${id}: ${en}`).not.toMatch(/town|city|market|hamlet/i);
+      expect(ko, `${id}: ${ko}`).toMatch(/마을|어촌/);
+      expect(ko, `${id}: ${ko}`).not.toMatch(/도시|장터/);
+    }
+    expect(featureName("en", "palisade" as never)).toBe("Palisade");
+    expect(featureName("ko", "palisade" as never)).toBe("목책");
   });
   it("localises biome names", () => {
     expect(biomeName("en", TEMPERATE_FOREST)).toBe("Forest");
