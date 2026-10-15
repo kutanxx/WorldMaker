@@ -63,7 +63,10 @@ export function assignZones(
     castleReach?: number;
     atWall?: (poly: Polygon) => boolean;
     // whether a ward may hold the castle at all (no town gate on its stretch of wall)
-    castleOk?: (poly: Polygon) => boolean }
+    castleOk?: (poly: Polygon) => boolean;
+    // a hamlet (city.ts HAMLET_SIZE): a green and houses, a common at its edge at most — no cathedral, no
+    // guildhall, no market ward (the green is its market), no merchants, slums or barracks
+    hamlet?: boolean }
 ): ZonedWard[] {
   if (wards.length === 0) return [];
   const ranked = wards
@@ -120,8 +123,10 @@ export function assignZones(
     out[idx++].type = t;
   };
   setType("plaza");
-  setType("cathedral");
-  setType("guildhall");
+  if (!opts.hamlet) {
+    setType("cathedral");
+    setType("guildhall");
+  }
   // The town gave no water sense at all (no `waterDist`), or the water had swallowed every ward:
   // the harbour takes the best of what the landmarks left, by the seaward bearing, and with neither
   // it takes the outermost ward — the old rule, kept because it is the only one those callers have.
@@ -199,6 +204,8 @@ export function assignZones(
     const w = out[idx];
     if (w === harborWard) continue;
     const f = w.dist / radius;
+    // a hamlet's wards are its houses, and at its edge now and then a common
+    if (opts.hamlet) { w.type = f > 0.85 && rng() < 0.3 ? "park" : "craftsmen"; continue; }
     if (f > 0.85) { const r = rng(); w.type = r < 0.5 ? "slum" : r < 0.8 ? "craftsmen" : "park"; continue; } // urban to the wall
     if (!placedMarket && f < 0.5) { w.type = "market"; placedMarket = true; continue; } // the market square
     if (f < 0.45) w.type = rng() < 0.5 ? "merchant" : "patriciate";        // wealthy inner ring
@@ -219,7 +226,7 @@ export function assignZones(
     for (const w of parks) {
       if (green / total <= PARK_CAP) break;
       green -= Math.abs(area(w.polygon));
-      w.type = "slum";
+      w.type = opts.hamlet ? "craftsmen" : "slum";   // (a hamlet's extra green goes to houses, not a slum)
     }
   }
   return out;

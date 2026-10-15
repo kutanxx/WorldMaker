@@ -841,6 +841,28 @@ describe("a plate whose key has gone to stand under it", () => {
   });
 });
 
+// A hamlet (size 1) is its houses round a green with a parish church — no wall, no cathedral (hamlet.test.ts):
+// the plate draws none and its key lists none.
+describe("a hamlet's plate", () => {
+  const { world } = generateWorld({ ...DEFAULT_PARAMS, seed: 1 });
+  const hamlet = world.cities.find((c) => c.size === 1)!;
+  const layout = generateCityLayout(cityContext(hamlet), 1);
+  const svg = renderCity(layout, "en");
+  const keyWords = [...svg.querySelectorAll(".legend-row text")].map((t) => t.textContent);
+
+  it("draws no wall, tower or gate", () => {
+    expect(layout.wall).toBeNull();
+    expect(svg.querySelectorAll(".wall-seg, .tower, .gate, .barbican, .gate-bridge").length).toBe(0);
+  });
+
+  it("keys the parish church and the green, not a wall or a cathedral", () => {
+    expect(keyWords).toContain("Parish church");
+    expect(keyWords).toContain("Market Square");
+    for (const w of ["Town wall", "Gate", "Barbican", "Cathedral", "Guildhall", "Castle", "Slums", "Barracks"]) expect(keyWords, w).not.toContain(w);
+    expect(svg.querySelectorAll(".parish-church").length).toBeGreaterThan(0);
+  });
+});
+
 // ★ The cathedral's cross was drawn at the average of its ward's CORNERS — and a ward is a Voronoi
 // cell cut by a disc, not by the town's wall, so an outer cathedral's corners run out into the
 // fields. Measured over 12 worlds: 25 of 336 crosses stood outside the town, 13 of them plainly

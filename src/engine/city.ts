@@ -247,6 +247,12 @@ const MOAT_ARCHETYPES = new Set(["coastalPort", "plainsMarket"]);
 // a town below this is a hamlet: too small to be anyone's seat. Above it, roughly one market town
 // in three answers to a resident lord — often enough to be unremarkable, rare enough to mean something.
 const LORD_SEAT_MIN_SIZE = 3;
+// ★ A town of this size or smaller is a hamlet: its houses round a green with a parish church, no wall,
+// no moat, no gate-work, no great building, nobody's seat. Every size-1 town (72 of twelve worlds' 336)
+// was drawn with a capital's kit — a towered wall, a cathedral, a guildhall, slums and barracks — while
+// the facts beside it said 150–400 people (plate review, 2026-10-15). Its lanes still run out where
+// they reach its edge, toward the world's roads, as a walled town's do through its gates.
+const HAMLET_SIZE = 1;
 const LORD_SEAT_ODDS = 1 / 3;
 // the castle's own rng stream, beside the lord-seat pick (+4300) and the mountain form pick (+4200)
 const CASTLE_SALT = 4500;
@@ -448,27 +454,33 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
     return null;
   };
   const gateRoads = gateRoadsOf(ctx.roads);
-  const wall = wallFromDefenses(boundary, water, mountains, roadEnds.map((nd) => [nd, nd]), maxGates, (g) => roadOut(g) !== null,
+  // The town's defences — and, for a hamlet, only where its lanes leave: the exits a wall would have
+  // gated are where the roads out start, so they are worked out the same way, and the wall itself is
+  // then not built (`wall` below). (A realm's seat is no hamlet, whatever its size: the world seats
+  // its realms in towns of size 3 and up, and a test's seat of size 1 keeps a seat's kit.)
+  const hamlet = ctx.size <= HAMLET_SIZE && !ctx.isCapital;
+  const defenses = wallFromDefenses(boundary, water, mountains, roadEnds.map((nd) => [nd, nd]), maxGates, (g) => roadOut(g) !== null,
     gateRoads.length ? { from: [center[0], center[1]], roads: gateRoads, streets: streetGraph.edges.map(([a, b]) => [streetGraph.nodes[a], streetGraph.nodes[b]]) } : undefined);
-  const classified = classifyStreets(streetGraph, wall.gates, [center[0], center[1]], water.bodies.length ? dryLink : undefined);
+  const wall: DefenseWall | null = hamlet ? null : defenses;
+  const classified = classifyStreets(streetGraph, defenses.gates, [center[0], center[1]], water.bodies.length ? dryLink : undefined);
   let mainRoads = classified.main;
   const minorRoads = [...classified.minor, ...net.stubs];
   // ...and only now are the main streets roads rather than the pieces a shortest path was cut into:
   // stitched into continuous runs that carry straight on through a junction, with the stretches
   // drawn twice thrown out and the corners eased. Done before the bridges, so a crossing is
   // measured against the road as it will be drawn.
-  mainRoads = chainRoads(mainRoads, wall.gates);
+  mainRoads = chainRoads(mainRoads, defenses.gates);
   // A bridge is drawn where a road the plate DRAWS crosses the water. The ward mesh runs on past
   // the wall and the plate clips its streets to the town, so a crossing out there carried a bridge
   // over the river with no road to either end of it — 39 of them over twelve worlds.
   water.bridges = waterBridges([...mainRoads, ...minorRoads], water)
     .filter(([a, b]) => pointInPolygon([(a[0] + b[0]) / 2, (a[1] + b[1]) / 2], boundary));
 
-  const moat = MOAT_ARCHETYPES.has(archetype.id)
+  const moat = wall && MOAT_ARCHETYPES.has(archetype.id)
     ? wall.segments.map((s) => offsetSegment(s, center, 6).map((o, i) => (inWater(water, o) ? s[i] : o)))
     : null;
   const gateBridges: Polyline[] = moat
-    ? wall.gates
+    ? defenses.gates
         .map((g): Polyline | null => {
           const dx = g[0] - center[0], dy = g[1] - center[1];
           const L = dhypot(dx, dy) || 1;
@@ -487,8 +499,8 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
   // fortress that is a castle before it is a town, and a minority of market towns where a lesser
   // lord sits. Its own rng stream (the mountain-pick convention), so a town that keeps its castle
   // draws exactly what it drew before and its plan is byte-identical.
-  const hasCastle = ctx.isCapital || archetype.id === "hilltopFortress"
-    || (ctx.size >= LORD_SEAT_MIN_SIZE && mulberry32(plateSeed(worldSeed, ctx.id + 4300))() < LORD_SEAT_ODDS);
+  const hasCastle = !hamlet && (ctx.isCapital || archetype.id === "hilltopFortress"
+    || (ctx.size >= LORD_SEAT_MIN_SIZE && mulberry32(plateSeed(worldSeed, ctx.id + 4300))() < LORD_SEAT_ODDS));
   let castleAnchor: Point | undefined;
   if (hasCastle && mountains.length) {
     let sx = 0, sy = 0, cnt = 0;
@@ -559,8 +571,9 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
     castleOk: (poly) => {
       const cut = clipToConvex(boundary, poly);
       const own = cut.length >= 3 ? cut : poly;
-      return !wall.gates.some((g) => pointInPolygon(g, own) || own.some((_, i) => pointSegDist(g, own[i], own[(i + 1) % own.length]) < CASTLE_GATE_GAP));
-    } });
+      return !defenses.gates.some((g) => pointInPolygon(g, own) || own.some((_, i) => pointSegDist(g, own[i], own[(i + 1) % own.length]) < CASTLE_GATE_GAP));
+    },
+    hamlet });
 
   // ★ The town's buildings draw from a stream of their own, so how a block is built can change
   // without moving a single tree, hamlet or mill in the country around it (the castle's convention).
@@ -828,7 +841,7 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
       for (let i = 0; i < r.length; i++) if (pointSegDist(p, r[i], r[(i + 1) % r.length]) < 2) return true;
       return false;
     });
-    wall.towers = wall.towers.filter((t) => !onCastle(t));
+    defenses.towers = defenses.towers.filter((t) => !onCastle(t));
   }
 
   // Every ward is named at its own centre, which for a castle is the donjon: the word "Castle" was
@@ -1011,8 +1024,8 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
   // goes — forking outside the gate where two leave by one — and a gate of the town's own one road
   // straight out.
   type Out = NonNullable<ReturnType<typeof roadOut>> & { to: number[]; knee?: Point };
-  const plans: Out[][] = wall.gates.map((g, gi) => {
-    const theirs = wall.gateRoads?.[gi] ?? [];
+  const plans: Out[][] = defenses.gates.map((g, gi) => {
+    const theirs = defenses.gateRoads?.[gi] ?? [];
     const aimed = (theirs.length ? theirs.map((r) => ({ out: roadOut(g, r.bearing), to: r.to })) : [{ out: roadOut(g), to: [] as number[] }])
       .filter((a): a is { out: NonNullable<typeof a.out>; to: number[] } => a.out !== null);
     const kept = aimed.map((a, i) => aimed.findIndex((o) => near(o.out.end, a.out.end) < FORK_APART) === i);
@@ -1039,17 +1052,17 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
     if (!o.to.length || worstOff(o.end, o.to) <= ROAD_MISS) return;
     let mx = 0, my = 0;
     for (const id of o.to) { mx += dcos(bearingTo.get(id)!); my += dsin(bearingTo.get(id)!); }
-    const g = wall.gates[gi];
+    const g = defenses.gates[gi];
     const others = plans.flatMap((os, gj) => os.filter((x) => x !== o).map((x): [Point, Point] => {
       // (a road of the same gate starts where this one does: it is kept clear of past the knee only)
-      if (gj !== gi) return [x.knee ?? [wall.gates[gj][0], wall.gates[gj][1]], x.end];
+      if (gj !== gi) return [x.knee ?? [defenses.gates[gj][0], defenses.gates[gj][1]], x.end];
       const ux = x.end[0] - g[0], uy = x.end[1] - g[1], l = dhypot(ux, uy) || 1;
       return [[g[0] + (ux / l) * TURN_KNEE_CLEAR, g[1] + (uy / l) * TURN_KNEE_CLEAR], x.end];
     }));
     const turned = turnedOut(g, datan2(my, mx), others);
     if (turned && worstOff(turned.end, o.to) < worstOff(o.end, o.to)) Object.assign(o, turned);
   }));
-  for (const [gi, g] of wall.gates.entries()) {
+  for (const [gi, g] of defenses.gates.entries()) {
     const outs = plans[gi];
     if (!outs.length) continue;
     for (const { ux, uy, start, L, end, to, knee } of outs) {
@@ -1268,8 +1281,10 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
   const parishChurches: Point[] = [];
   {
     const pool = zoned.filter((z) => !(["cathedral", "castle", "plaza", "harbor"] as WardType[]).includes(z.type));
-    const want = Math.min(1 + ctx.size, pool.length);
-    for (let k = 0; k < want; k++) {
+    // (a hamlet has the one church, in place of the cathedral it does not have — and keeps looking through
+    // its wards for dry ground to stand it on: a marsh hamlet's first pick was all water)
+    const want = Math.min(hamlet ? 1 : 1 + ctx.size, pool.length);
+    for (let k = 0; k < want && pool.length; k++) {
       const idx = Math.floor(rng() * pool.length);
       const z = pool.splice(idx, 1)[0];
       // (the ward's own site, where nothing is open, still stands off the streets: taken as it was,
@@ -1277,6 +1292,7 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
       const at = openSpot(z.polygon, z.site, 3.5)
         ?? (inTown(z.site) && !inWater(water, z.site) && roadDist(z.site) >= 3.5 && !onShape(z.site, landmarkOutlines, 3.5) ? z.site : null);
       if (at) parishChurches.push(at);   // a ward with no dry open ground has no church to show
+      else if (hamlet) k--;
     }
   }
 
@@ -1330,7 +1346,7 @@ export function generateCityLayout(ctx: CityContext, worldSeed: number): CityLay
     const ranked = suburbRoads
       .map((r) => { let len = 0; for (let i = 0; i < r.length - 1; i++) len += dhypot(r[i + 1][0] - r[i][0], r[i + 1][1] - r[i][1]); return { r, len }; })
       .sort((a, b) => b.len - a.len);
-    const wantB = ctx.size >= 4 ? 2 : 1;
+    const wantB = hamlet ? 0 : ctx.size >= 4 ? 2 : 1;   // (a gate-work fronts a gate; a hamlet has none)
     const fronted: Point[] = [];
     for (const { r } of ranked) {
       if (barbicans.length >= wantB) break;
