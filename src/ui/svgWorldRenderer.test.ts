@@ -190,10 +190,16 @@ describe("renderWorld label hierarchy (cartographic conventions)", () => {
   // realms are drawn on — and faded to 45% they were still the largest words there, gold on red and purple,
   // over a realm's name of 11 units (design review 2026-10-15, items 3 and 7). Those two views carry no
   // region names now; the provinces' view, a geography, keeps them faint, and the terrain view keeps them.
-  it("names the regions on the terrain and province views only", () => {
-    expect(svg.querySelectorAll(".region-label").length).toBeGreaterThan(0);
+  it("names the land's regions on the terrain and province views only, and the seas on every view", () => {
+    expect(svg.querySelectorAll(".region-land").length).toBeGreaterThan(0);
+    expect(svg.querySelectorAll(".region-sea").length, "world 1 has seas to name").toBeGreaterThan(0);
     for (const view of ["political", "culture"] as const) {
-      expect(renderWorld(world, view).querySelectorAll(".region-label").length, view).toBe(0);
+      const map = renderWorld(world, view);
+      expect(map.querySelectorAll(".region-land").length, view).toBe(0);
+      // a sea sits on water, under no realm's fill: its name stays, stood down as every other view's are
+      const seas = [...map.querySelectorAll(".region-sea")];
+      expect(seas.length, `${view} lost its seas' names`).toBe(svg.querySelectorAll(".region-sea").length);
+      for (const s of seas) expect(s.getAttribute("fill-opacity"), view).toBe("0.45");
     }
     const province = [...renderWorld(world, "province").querySelectorAll(".region-label")];
     expect(province.length).toBeGreaterThan(0);
@@ -833,9 +839,9 @@ describe("a view's own subject comes first", () => {
   // Stood down to 45% they were still the largest words on the realms' and the peoples' views, gold on red and
   // purple over a realm's name of 11 units (design review 2026-10-15, items 3 and 7): those two views carry none
   // now. The provinces' view is a geography and keeps them, faint.
-  it("leaves them off the realms' and the peoples' views, and stands them down on the provinces'", () => {
+  it("leaves the land's off the realms' and the peoples' views, and stands them down on the provinces'", () => {
     for (const view of ["political", "culture"] as const) {
-      expect(renderWorld(world(), view).querySelectorAll(".region-label").length, view).toBe(0);
+      expect(renderWorld(world(), view).querySelectorAll(".region-land").length, view).toBe(0);
     }
     const labels = [...renderWorld(world(), "province").querySelectorAll(".region-label")];
     expect(labels.length, "the province view has no region labels to stand down").toBeGreaterThan(5);

@@ -318,8 +318,8 @@ function borderMark(x: number, y: number): SVGElement {
 function inkOverlayKey(key: Element, lang: Lang): Element {
   const panel = key.querySelector(".legend-panel > rect");
   if (!panel) return key;
-  // every key of this map ends 4 units under its last row's baseline (legendPanel's height, rows * LEGEND_ROW
-  // + 14 + LEGEND_TITLE_H, from 10 + LEGEND_TITLE_H above the first)
+  // every key of this map ends LEGEND_ROW + 4 units under its last row's baseline: legendPanel's height is
+  // rows * LEGEND_ROW + 14 + LEGEND_TITLE_H, from 10 + LEGEND_TITLE_H above the first baseline
   const bottom = Number(panel.getAttribute("y")) + Number(panel.getAttribute("height"));
   const rows: KeyRow[] = [
     [t(lang, key.classList.contains("culture-legend") ? "keyPeopleBorder" : "keyBorder"), borderMark],

@@ -404,15 +404,24 @@ describe("the map-only view holds the map and its scrubber as one block", () => 
     expect(focus(".map-with-list")).toMatch(/align-items:\s*start/);
     expect(focus(".map-with-list")).not.toMatch(/flex:\s*1\b/);
   });
-  it("stands the scrubber right under the map, and the block in the middle", () => {
+  it("stands the scrubber right under the map, and the block in the middle — where it fits", () => {
     expect(focus(".timeline-strip")).toMatch(/margin-top:\s*0/);
     expect(focus(".stage")).toMatch(/justify-content:\s*center/);
+    // a block taller than the window (a short window where the height sizes the map, under a finger: the
+    // scrubber is 79px there) centred plainly would put its top above the window, where nothing reaches it
+    expect(focus(".stage")).toMatch(/justify-content:\s*safe center/);
   });
   it("sizes the map and its scrubber alike, by the chrome that is on the screen", () => {
-    expect(ruleIn(css(), "body.map-focus")).toMatch(/--focus-w:\s*min\(100%, calc\(\(100vh - 91px\)/);
-    expect(ruleIn(blocksOf("@supports (height: 100svh)"), "body.map-focus")).toMatch(/--focus-w:\s*min\(100%, calc\(\(100svh - 91px\)/);
+    const base = ruleIn(css(), "body.map-focus");
+    expect(base).toMatch(/--focus-chrome:\s*91px/);
+    expect(base).toMatch(/--focus-w:\s*min\(100%, calc\(\(100vh - var\(--focus-chrome\)\)/);
+    expect(ruleIn(blocksOf("@supports (height: 100svh)"), "body.map-focus")).toMatch(/--focus-w:\s*min\(100%, calc\(\(100svh - var\(--focus-chrome\)\)/);
     expect(focus(".map-frame")).toMatch(/width:\s*var\(--focus-w\)/);
     expect(focus(".timeline-strip")).toMatch(/width:\s*var\(--focus-w\)/);
+    // the chrome is more where the scrubber stands in the grid (its 12px gap, narrow windows) and under a
+    // finger (a 79px scrubber): 95 and 107, where 91 overflowed the window by 4 and 16
+    expect(ruleIn(blocksOf("@media (max-width: 900px)"), "body.map-focus")).toMatch(/--focus-chrome:\s*95px/);
+    expect(ruleIn(blocksOf("@media (pointer: coarse)"), "body.map-focus")).toMatch(/--focus-chrome:\s*107px/);
   });
   it("takes the whole window, and spends none of it on the column the view hides", () => {
     // ⚠ `#app > .stage` caps the stage by the page's measure with an id's weight: a `body.map-focus .stage`

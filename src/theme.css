@@ -257,10 +257,13 @@ body.map-focus .first-hint { display: none; }
 .rename-toggle { top: 47px; }
 .rename-toggle.active { background: #d8b25a; border-color: #b08a3a; font-weight: 600; }
 
-/* `--focus-w` is the map's width here, and its scrubber's: sized by the chrome that is on the screen — the
-   stage's 8px above and below, its 8px gap, the scrubber's 67px (its caption is hidden here). 90 left 13px
-   over, which the stage's old cap happened to hide. */
-body.map-focus { overflow: hidden; --focus-w: min(100%, calc((100vh - 91px) * 10 / 7)); }
+/* `--focus-w` is the map's width here, and its scrubber's: sized by the chrome that is on the screen —
+   `--focus-chrome`, the stage's 8px above and below, its 8px gap, the scrubber's 67px (its caption is hidden
+   here). 90 left 13px over, which the stage's old cap happened to hide. On a narrow window the scrubber
+   stands in the map's grid with its 12px gap (95), and under a finger it is 79px tall (107). */
+body.map-focus { overflow: hidden; --focus-chrome: 91px; --focus-w: min(100%, calc((100vh - var(--focus-chrome)) * 10 / 7)); }
+/* (the 95 and the 107 are set in the narrow and the coarse media blocks below — ⚠ not in blocks of their own here,
+   and not even NAMED here: the stylesheet tests take the first narrow-window media block they find, comments included) */
 body.map-focus .app-title,
 body.map-focus .controls,
 body.map-focus .city-list,
@@ -277,8 +280,10 @@ body.map-focus #app > .stage { max-width: none; }
 body.map-focus .stage {
   position: fixed; inset: 0; z-index: 40; margin: 0; padding: 8px;
   border: 0; border-radius: 0; box-shadow: none;
-  /* the map and its scrubber as one block, in the middle of a window whose width (not height) sizes the map */
-  display: flex; flex-direction: column; gap: 8px; justify-content: center;
+  /* the map and its scrubber as one block, in the middle of a window whose width (not height) sizes the map —
+     and from the top where the block is taller than the window (`safe`: centred plainly, half of it would
+     stand above a window that cannot be scrolled; `center` alone is the fallback where `safe` is unknown) */
+  display: flex; flex-direction: column; gap: 8px; justify-content: center; justify-content: safe center;
 }
 /* ★ The frame takes the map's own height. Stretched to its row — the grid's `align-items: stretch`, and
    the grid given the window's height — it stood 797px for a 775px map at 1440x900: the zoom controls,
@@ -668,6 +673,8 @@ svg.city .road-minor-casing, svg.city .tree, svg.city .stilt, svg.city .ward-lab
 svg.city .wall-seg, svg.city .wall-seg-inner, svg.city .tower, svg.city .gate { pointer-events: none; }
 
 @media (pointer: coarse) {
+  /* the map-only view's chrome under a finger: the scrubber is 79px tall here (see `--focus-chrome`) */
+  body.map-focus { --focus-chrome: 107px; }
   /* ★ The one height a finger is owed. Everything that spends `--control-h` grows with this line
      and nothing has to name 44 for itself — which is how the home link came to name it in a way
      that measured 62 (see the shared rule above). */
@@ -972,6 +979,8 @@ svg.city .wall-seg, svg.city .wall-seg-inner, svg.city .tower, svg.city .gate { 
 }
 
 @media (max-width: 900px) {
+  /* the map-only view's chrome: the scrubber stands in the map's grid here, with its 12px gap (see `--focus-chrome`) */
+  body.map-focus { --focus-chrome: 95px; }
   .map-with-list { grid-template-columns: minmax(0, 1fr); grid-template-rows: none; }
   /* stacked, so the column placements above must let go */
   .map-with-list > .map-frame, .map-with-list > .map-side {
@@ -1123,6 +1132,6 @@ svg.city .wall-seg, svg.city .wall-seg-inner, svg.city .tower, svg.city .gate { 
       grid-template-columns: min(calc(100% - 222px), calc(100svh - var(--plate-chrome, 150px))) 210px;
     }
   }
-  body.map-focus { --focus-w: min(100%, calc((100svh - 91px) * 10 / 7)); }
+  body.map-focus { --focus-w: min(100%, calc((100svh - var(--focus-chrome)) * 10 / 7)); }
   body.map-focus .stage.plate > .map-frame { width: min(100%, calc(100svh - 16px)); }
 }

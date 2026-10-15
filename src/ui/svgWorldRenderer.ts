@@ -347,13 +347,15 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
   // geographic feature names (above the political fills, below the settlements).
   // Cartographic convention: AREA (land) features are set upright + UPPERCASE with wide
   // letter-spacing to reinforce their extent; WATER (seas) are italic + blue like rivers.
-  // ★ Not on the realms' or the peoples' view. There the regions are somebody else's subject — the ground the
-  // realms are drawn on — and faded to 45% they were still the largest words on the map, gold on red and
-  // purple, over a realm's name of 11 units (design review 2026-10-15, items 3 and 7). The provinces' view is
-  // a geography and keeps them, faint; the terrain view is theirs.
+  // ★ The land's names are not on the realms' or the peoples' view. There the regions are somebody else's
+  // subject — the ground the realms are drawn on — and faded to 45% they were still the largest words on the
+  // map, gold on red and purple, over a realm's name of 11 units (design review 2026-10-15, items 3 and 7).
+  // The provinces' view is a geography and keeps them, faint; the terrain view is theirs. A sea's name is on
+  // every view: it sits on water, under no realm's fill.
   const regionLabels = svgEl("g", { class: "region-labels" });
-  const regionsNamed = view === "terrain" || view === "province";
-  for (const [gi, r] of regionsNamed ? world.regions.entries() : []) {
+  const landNamed = view === "terrain" || view === "province";
+  for (const [gi, r] of world.regions.entries()) {
+    if (!landNamed && r.kind !== OCEAN) continue;
     // Type size is a map's first signal of what kind of thing a word names, and the three classes
     // used to overlap: regions ran 9.4-16.0, cities 8.5-10.5, rivers 9.4-10.4, so anything in the
     // 9.4-10.5 band gave the reader no way to tell a mountain range from a village. The bands are
@@ -390,7 +392,7 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
     t.textContent = isSea || lang === "ko" ? regionName : regionName.toUpperCase();
     regionLabels.appendChild(t);
   }
-  if (regionsNamed) root.appendChild(regionLabels);
+  root.appendChild(regionLabels);
 
   // river labels follow the water's course (rotated to the local flow direction), lifted
   // just off the line, never upside-down — the standard hydrographic labelling treatment.

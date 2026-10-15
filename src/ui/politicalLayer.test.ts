@@ -5,6 +5,7 @@ import { DEFAULT_PARAMS } from "../types/world";
 import { simulateHistory } from "../engine/history";
 import { politicalLayer, keepOffOf, type KeepOff } from "./politicalLayer";
 import { nationColor } from "./nationPalette";
+import type { Point } from "../engine/geometry";
 
 const small = { ...DEFAULT_PARAMS, width: 300, height: 300, cellCount: 400, townCount: 6 };
 const { world } = generateWorld({ ...small, seed: 1 });
@@ -208,5 +209,61 @@ describe("a realm's name keeps off the roads", () => {
     const keep = keepOffOf([10, 20, 30, 40, 50, 60], [{ cells: [0, 2] }], [{ x: 7, y: 8 }]);
     expect(keep.roads).toEqual([[[10, 20], [50, 60]]]);
     expect(keep.towns).toEqual([[7, 8]]);
+  });
+});
+
+// a square lattice of n x n cells, `cell` units across: a grid whose cells stand exactly where its points say
+function lattice(n: number, cell: number) {
+  const count = n * n, points: number[] = new Array(count * 2).fill(0), polygons: number[][][] = [], neighbors: number[][] = [];
+  for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
+    const k = j * n + i, x = i * cell, y = j * cell;
+    points[k * 2] = x + cell / 2; points[k * 2 + 1] = y + cell / 2;
+    polygons.push([[x, y], [x + cell, y], [x + cell, y + cell], [x, y + cell]]);
+    const nb: number[] = [];
+    if (i > 0) nb.push(k - 1); if (i < n - 1) nb.push(k + 1); if (j > 0) nb.push(k - n); if (j < n - 1) nb.push(k + n);
+    neighbors.push(nb);
+  }
+  return { count, points, polygons, neighbors, width: n * cell, height: n * cell };
+}
+
+// ...and on its own realm. A step that clears the road but stands the name on the sea or on a neighbour is worse
+// than the road: a reviewer's probe over six worlds found 23 of 245 moved names with their middle off their realm,
+// two of them on the sea in year 0 (2026-10-15). A line whose middle stands in another's cell costs more than any
+// road — and the name steps one line, not two.
+describe("a realm's name stays on its realm", () => {
+  const grid = lattice(40, 5);                                     // 200 x 200, cells 5 across
+  // one realm: the cells whose middles the predicate takes; a band is the rows between y0 and y1
+  const owned = (take: (x: number, y: number) => boolean) => {
+    const owner = new Int32Array(grid.count).fill(-1);
+    for (let k = 0; k < grid.count; k++) if (take(grid.points[k * 2], grid.points[k * 2 + 1])) owner[k] = 0;
+    return owner;
+  };
+  const band = (y0: number, y1: number) => owned((_, y) => y > y0 && y < y1);
+  const at = (owner: Int32Array, roads: Point[][]): [number, number] => {
+    const t = politicalLayer(grid, owner, [{ id: 0, name: "Realm" }], { labels: true, keepOff: { roads, towns: [] } }).querySelector(".nation-label")!;
+    return [Number(t.getAttribute("x")), Number(t.getAttribute("y"))];
+  };
+  const across = (y: number): Point[][] => [[[0, y], [200, y]]];
+  // (the name's anchor is the realm's cell nearest its centroid — nationPalette.ts — so it is read, not assumed)
+
+  it("steps onto its own land, not off it, to clear a road", () => {
+    // the realm: the rows 50..75 across, and a tongue of two more rows (75..85) three cells wide under its
+    // middle — so one line below its name's line is its own land, and one line above is the sea
+    const owner = owned((x, y) => (y > 50 && y < 75) || (y > 75 && y < 85 && x > 90 && x < 105));
+    const [cx, cy] = at(owner, []);
+    expect([cx, cy]).toEqual([97.5, 62.5]);
+    expect(at(owner, across(cy))).toEqual([cx, cy + 13]);
+  });
+
+  it("stays on the road where no line of its own realm is clear of it", () => {
+    const owner = band(55, 65), [cx, cy] = at(owner, []);   // two rows: a line up or down stands the middle off them
+    expect(at(owner, across(cy))).toEqual([cx, cy]);
+  });
+
+  it("steps one line at most", () => {
+    // ten rows of realm, and roads along the name's line and one line above and below it: a second line would be
+    // clear, and is not taken
+    const owner = band(40, 90), [cx, cy] = at(owner, []);
+    expect(at(owner, [...across(cy), ...across(cy - 13), ...across(cy + 13)])).toEqual([cx, cy]);
   });
 });

@@ -56,11 +56,24 @@ export interface PoliticalOpts {
 
 const MIN_LABEL_CELLS = 25;
 const LEGEND_W = LEGEND_W_NAMED;
-// a realm's name: 13 units (see the label below), and the lines it may step to
+// a realm's name: 13 units (see the label below), and the lines it may step to — one up or one down. (Two were
+// allowed at first, and a probe over six worlds found 23 of 245 stepped names standing off their realm.)
 const NAME_SIZE = 13;
-const LINE_STEPS = [0, -1, 1, -2, 2];
+const LINE_STEPS = [0, -1, 1];
 // how far round a town its mark and its name are taken to stand
 const TOWN_ROOM = 10;
+// a line whose middle stands off the realm — on the sea, or on a neighbour — costs more than any road
+const OFF_REALM = 100;
+
+// the cell a point stands in: the grid is a Voronoi diagram (engine/grid.ts), so it is the nearest site's
+function cellAt(grid: GridLike, x: number, y: number): number {
+  let best = -1, bestD = Infinity;
+  for (let i = 0; i < grid.count; i++) {
+    const dx = grid.points[i * 2] - x, dy = grid.points[i * 2 + 1] - y, d = dx * dx + dy * dy;
+    if (d < bestD) { bestD = d; best = i; }
+  }
+  return best;
+}
 
 interface Box { x0: number; y0: number; x1: number; y1: number }
 
@@ -80,18 +93,21 @@ function crosses([ax, ay]: Point, [bx, by]: Point, b: Box): boolean {
 /**
  * Where a realm's name stands: at its realm's centroid — where, measured on world 1's political view, a road
  * crossed 7 of the 8 names (5 of 8 on world 12 — design review 2026-10-15, item 3), since the roads run
- * between the capitals and a realm's middle is on the way. So the name steps a line up or down, up to two,
- * to the place the fewest roads cross and no town stands under, the nearer step first and the centroid
- * where no step is better. The box is estimated — nothing is measured at draw time, and the file has no
- * browser — at a Latin small-cap letter 0.62 em wide and a Hangul syllable a full em.
+ * between the capitals and a realm's middle is on the way. So the name steps a line up or down to the place
+ * the fewest roads cross and no town stands under — and that is its own realm's: a word on the sea or on a
+ * neighbour is worse than a road through it, so a line whose anchor `onRealm` denies costs more than any road.
+ * (The anchor, not the word's middle: the centroid's own anchor is a cell of the realm by construction, and a
+ * name on a realm two cells deep has its middle in the row above its anchor.) The centroid itself stays where
+ * no step is better. The box is estimated — nothing is measured at draw
+ * time, and the file has no browser — at a Latin small-cap letter 0.62 em wide and a Hangul syllable a full em.
  */
-function nameLine(name: string, x: number, y: number, lang: Lang | undefined, keep: KeepOff): number {
+function nameLine(name: string, x: number, y: number, lang: Lang | undefined, keep: KeepOff, onRealm: (x: number, y: number) => boolean): number {
   const fs = NAME_SIZE, w = name.length * (lang === "ko" ? 1 : 0.62) * fs;
   let best = y, bestCost = Infinity;
   for (const step of LINE_STEPS) {
     const cy = y + step * fs;
     const box: Box = { x0: x - w / 2, y0: cy - 0.8 * fs, x1: x + w / 2, y1: cy + 0.25 * fs };
-    let cost = 0;
+    let cost = onRealm(x, cy) ? 0 : OFF_REALM;
     for (const road of keep.roads) for (let i = 1; i < road.length; i++) if (crosses(road[i - 1], road[i], box)) cost += 1;
     for (const [tx, ty] of keep.towns) {
       if (tx >= box.x0 - TOWN_ROOM && tx <= box.x1 + TOWN_ROOM && ty >= box.y0 - TOWN_ROOM && ty <= box.y1 + TOWN_ROOM) cost += 3;
@@ -194,7 +210,8 @@ export function politicalLayer(
         // it was the smallest, faintest word on the political map — 10.5px at 1440x900 — and the roads cut
         // through its 2.5 halo (design review 2026-10-15, item 3).
         const t = svgEl("text", {
-          class: "nation-label", "data-name": `r${id}`, x: c.x, y: opts.keepOff ? nameLine(name, c.x, c.y, opts.lang, opts.keepOff) : c.y,
+          class: "nation-label", "data-name": `r${id}`, x: c.x,
+          y: opts.keepOff ? nameLine(name, c.x, c.y, opts.lang, opts.keepOff, (px, py) => owner[cellAt(grid, px, py)] === id) : c.y,
           "text-anchor": "middle",
           "font-size": NAME_SIZE,
           fill: "#2a2118", stroke: "#f3ead2", "stroke-width": 3.5,
