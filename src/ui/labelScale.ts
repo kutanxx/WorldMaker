@@ -32,6 +32,22 @@ const READER_SIZE: [string, number][] = [
 const readerSize = (el: Element) =>
   READER_SIZE.find(([cls]) => el.classList.contains(cls))?.[1] ?? 1;
 
+/**
+ * ★ The world map's floor, by window: the smallest a name may stand on screen at rest.
+ *
+ * 8px was measured for a 336px phone map and rode along to the desktop (design review 2026-10-15,
+ * item 10). Measured over worlds 1..12 with the page's own passes (probe `out/floorcensus.html`):
+ * at the 950px a 1440x900 window gives the map, no name at rest is under 10px in any case — the
+ * floors 8, 10 and 11 keep exactly the same names at every zoom — so the floor there costs nothing
+ * and lifts only the scale bar's caption (8 → 10px). At the 593px of a 1366x650 window the small
+ * regions' names stood at 8px; at 10 they stand at 10 for 4 names of 243 lost to the cull (1.6%),
+ * at 11 for 6. A narrow window keeps 8: its names were a 4.4px median before the floor existed, and
+ * its map is bound by width, where every lift costs a name.
+ */
+export function worldLabelFloor(narrow: boolean): { minPx: number } {
+  return { minPx: narrow ? 8 : 10 };
+}
+
 // How fast the lettering grows as the reader zooms in. 0 would hold every name at a fixed size on
 // screen — what a map application does, and at 8x it leaves the words looking detached from a land
 // eight times their size. 1 would let them grow with the map, which is what this map used to do: a

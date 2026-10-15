@@ -25,7 +25,7 @@ import { politicalLayer, keepOffOf } from "./politicalLayer";
 import { cultureLayer } from "./cultureLayer";
 import { provinceLayer, snapOwnersToProvinces } from "./provinceLayer";
 import { deconflictLabels, clearMarks, clearCastleName, coveredBy, placeRoadEnds } from "./deconflict";
-import { applyLabelScale, applyMarkerScale, floorLabelSize } from "./labelScale";
+import { applyLabelScale, applyMarkerScale, floorLabelSize, worldLabelFloor } from "./labelScale";
 import { layOutLabelsForExport } from "./exportLabels";
 import { type Page, pageOf, putOnPage, fitRiverNames } from "./regionPage";
 import { type Lang, t } from "./i18n";
@@ -417,7 +417,9 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
   // for in names — the cull hides what no longer fits — and 8 was chosen from the measured trade:
   // terrain 202 -> 169 names at rest (-16%, capitals 91 -> 84), political 265 -> 222; 9px would
   // cost a quarter of them. What it hides comes back on a pinch. A desktop map is past it already.
-  const WORLD_LABEL_FLOOR = { minPx: 8 };
+  // by window (labelScale.ts): 10px beside a wide window's map, 8 under a narrow one's — read at every
+  // relayout, so a window resized across the narrow line takes the other floor with its next layout
+  const WORLD_LABEL_FLOOR = () => worldLabelFloor(isNarrowWindow());
   const CITY_KEY_FOLD_KEY = "wm:fold:cityKey";
   /**
    * Where the map stops being able to carry its own furniture. The same line the town list already
@@ -1099,7 +1101,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
         if (relayout) return;
         relayout = requestAnimationFrame(() => {
           relayout = 0;
-          applyLabelScale(svg, pendingScale, WORLD_LABEL_FLOOR);
+          applyLabelScale(svg, pendingScale, WORLD_LABEL_FLOOR());
           applyMarkerScale(svg, pendingScale);
           deconflictLabels(svg, pendingScale, { clear: underControls() });
         });
@@ -1165,7 +1167,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
       // Bring them to whatever zoom the reader is at before working out what fits, or a nation's
       // name would come back full-size on a map zoomed to 8x.
       const z = worldZoom?.scale() ?? 1;
-      applyLabelScale(svg, z, WORLD_LABEL_FLOOR);
+      applyLabelScale(svg, z, WORLD_LABEL_FLOOR());
       applyMarkerScale(svg, z);
       deconflictLabels(svg, z, { clear: underControls() }); // hide colliding lower-priority labels, and those the zoom has not earned yet
       // ⚠ After `fillSlot`, always: outside terrain the key is drawn INSIDE the slot that was just
@@ -1196,11 +1198,11 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     }
     // The scale bar is drawn in map units too, and at 1440x900 its two lines came out 7.8 and 6.8px:
     // held at the names' minimum, for the size the drawing ended up (and again when the window changes)
-    floorScaleCaption(svg, WORLD_LABEL_FLOOR.minPx);
+    floorScaleCaption(svg, WORLD_LABEL_FLOOR().minPx);
     relayoutLabels = () => {
       const z = worldZoom?.scale() ?? 1;
-      floorScaleCaption(svg, WORLD_LABEL_FLOOR.minPx);
-      applyLabelScale(svg, z, WORLD_LABEL_FLOOR);
+      floorScaleCaption(svg, WORLD_LABEL_FLOOR().minPx);
+      applyLabelScale(svg, z, WORLD_LABEL_FLOOR());
       applyMarkerScale(svg, z);
       deconflictLabels(svg, z, { clear: underControls() });
       // the column is wider or narrower now, and the key may want one column or two

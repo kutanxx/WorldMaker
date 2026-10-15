@@ -1,5 +1,17 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from "vitest";
+import { worldLabelFloor } from "./labelScale";
+
+// The 8px floor was measured for a phone and rode along to the desktop (design review 2026-10-15, item 10).
+// Measured over worlds 1..12 (probe out/floorcensus.html): at a 1440x900 window's 950px map no name at rest
+// is under 10px anyway, so 10 costs nothing there and lifts the scale caption; at a 1366x650 window's 593px
+// it lifts the small regions' names from 8 to 10 for 4 of 243 names (1.6%); a narrow window keeps 8.
+describe("the world map's floor follows the window", () => {
+  it("is 10px beside a wide window's map and 8 under a narrow one's", () => {
+    expect(worldLabelFloor(false)).toEqual({ minPx: 10 });
+    expect(worldLabelFloor(true)).toEqual({ minPx: 8 });
+  });
+});
 import { applyLabelScale, applyMarkerScale, floorLabelSize, applyPageScale } from "./labelScale";
 import { CITY_LABEL_DX } from "./renderer";
 
