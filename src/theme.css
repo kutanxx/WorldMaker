@@ -99,6 +99,13 @@ body {
 html:lang(en) .seed-label > span {
   position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap;
 }
+/* ★ Every sign on the page is one drawing in its control's own ink (icons.ts): the bar carried colour
+   emoji (🎲 📜 🏠), text glyphs (⬇ ✎ ▶ ⏸ ✕ ←) and one drawn chain at once, and an emoji is drawn by the
+   reader's OS — in colour on Windows, as a white silhouette in a headless window — which read as a chat
+   app's beside a parchment page (design review 2026-10-15, item 5). The drawing sits on the words' baseline
+   the way the chain did; its words stand a space off it. */
+.icon { display: inline-block; vertical-align: -3px; flex: none; }
+.icon + .icon-words { margin-left: 6px; }
 .seed-group input[type=number] { border-radius: 4px 0 0 4px; }
 .seed-group button { border-radius: 0 4px 4px 0; border-left: none; }
 
@@ -299,6 +306,9 @@ body.map-focus .map-frame { width: var(--focus-w); margin-inline: auto; }
    1440x900); the strip's own 12px is its room under the map on the page, and here the stage's gap is that room */
 body.map-focus .timeline-strip { width: var(--focus-w); margin-inline: auto; margin-top: 0; box-sizing: border-box; }
 .stage svg { display: block; width: 100%; height: auto; }
+/* ...the DRAWINGS: a sign in a chip or a button on the card (icons.ts) keeps its own 15px — stretched to
+   the card's width, the rename chip's pencil stood 60px tall over the plate (2x shot, 2026-10-15) */
+.stage svg.icon { display: inline-block; width: auto; height: auto; }
 /* The plan is the town's own square, 460x460, and like the world map it is sized by the vertical
    room the chrome leaves it rather than by a fixed number: 1008px was derived from the old 1040px
    page and stopped following it, so the plate was both cut off at the fold AND the one surface
@@ -544,7 +554,8 @@ svg.lang-ko .region-land { font-weight: 700; }
    controls in one coat is what ㉕ measured in the toolbar; this is the same drift on the front page. */
 .name-map, .name-daily { background: none; }
 .name-map:hover, .name-daily:hover { background: #efe6cf; }
-.choice-icon { font-size: 40px; line-height: 1; margin-bottom: 10px; }
+.choice-icon { height: 40px; line-height: 1; margin-bottom: 10px; }
+.choice-icon .icon { display: block; margin: 0 auto; vertical-align: 0; }
 .choice-title { font-family: 'Cinzel', 'Gowun Batang', serif; font-weight: 600; font-size: 18px; margin: 0 0 4px; color: #3c2f1c; letter-spacing: .03em; }
 .choice-desc { font-size: 14px; line-height: 1.55; margin: 0; color: #4a3f2c; }
 

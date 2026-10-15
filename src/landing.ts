@@ -12,6 +12,7 @@ import { applyLabelScale, applyMarkerScale } from "./ui/labelScale";
 import { floorScaleCaption } from "./ui/scaleBar";
 import { readRecent, forgetWorld, clearRecent, whenSaid, RECENT_SHOW } from "./ui/recentWorlds";
 import { worldNameIn } from "./engine/featureLabel";
+import { icon, sign } from "./ui/icons";
 import type { WorldParams } from "./types/world";
 
 type StorageLike = Pick<Storage, "getItem" | "setItem">;
@@ -73,21 +74,26 @@ export function renderChooser(root: HTMLElement, storage?: StorageLike | null, n
     <div class="landing-preview" hidden></div>
     <div class="landing">
       <a class="choice-card primary" href="map.html">
-        <div class="choice-icon">🗺</div>
+        <div class="choice-icon"></div>
         <div class="choice-title">${esc(s("landingCardTitle"))}</div>
         <p class="choice-desc">${esc(s("landingCardDesc"))}</p>
       </a>
     </div>
     <div class="landing-name">
       <input class="name-seed" maxlength="40" placeholder="${esc(s("landingNamePlaceholder"))}" />
-      <button class="name-map">🗺 ${esc(s("landingCreate"))}</button>
+      <button class="name-map"></button>
     </div>
     <section class="landing-recent"></section>
     <div class="landing-daily">
-      <button class="name-daily">🗓 ${esc(s("landingDaily"))} — ${dailyName(new Date()).slice(6)}</button>
+      <button class="name-daily"></button>
       <p class="landing-daily-sub">${esc(s("landingDailySub"))}</p>
     </div>`;
 
+  // the signs are drawn, not emoji (icons.ts): 🗺 came out a white silhouette in one window and in colour in
+  // another, and neither belonged on a parchment page
+  (root.querySelector(".choice-icon") as HTMLElement).appendChild(icon("map", 40));
+  sign(root.querySelector(".name-map") as HTMLElement, "map", s("landingCreate"));
+  sign(root.querySelector(".name-daily") as HTMLElement, "calendar", `${s("landingDaily")} — ${dailyName(new Date()).slice(6)}`);
   const input = root.querySelector(".name-seed") as HTMLInputElement;
   const go = () => {
     const target = nameTargets(input.value);
@@ -144,7 +150,8 @@ function fillRecent(slot: HTMLElement | null, lang: Lang, storage: StorageLike |
     const a = el("a", undefined, w.name);
     a.href = w.url;
     const meta = el("span", "recent-meta", `${t(lang, "recentNames").replace("{n}", String(w.count))} · ${whenSaid(w.at, now, lang)}`);
-    const drop = el("button", "recent-forget", "✕");
+    const drop = el("button", "recent-forget");
+    drop.appendChild(icon("close", 12));
     drop.type = "button";
     drop.title = t(lang, "recentForget");
     drop.setAttribute("aria-label", `${t(lang, "recentForget")} — ${w.name}`);

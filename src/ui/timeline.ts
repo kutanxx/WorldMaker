@@ -1,3 +1,5 @@
+import { sign } from "./icons";
+
 // Structural source type: Version A's History and play mode's SimState both satisfy it.
 export interface TimelineSource {
   snapshots: { year: number }[];
@@ -29,10 +31,11 @@ export function createTimeline(
 
   const playBtn = document.createElement("button");
   playBtn.className = "timeline-play";
-  const say = (glyph: string, name: string) => {
-    playBtn.textContent = glyph; playBtn.setAttribute("aria-label", name); playBtn.title = name;
+  // the sign is drawn (icons.ts): ⏸ is a colour emoji on Windows, beside a ▶ that is not
+  const say = (glyph: "play" | "pause", name: string) => {
+    sign(playBtn, glyph); playBtn.setAttribute("aria-label", name); playBtn.title = name;
   };
-  say("▶", labels.play);
+  say("play", labels.play);
 
   const slider = document.createElement("input");
   slider.type = "range";
@@ -88,12 +91,12 @@ export function createTimeline(
 
   function stop(): void {
     if (timer !== null) { clearTimeout(timer); timer = null; }
-    say("▶", labels.play);
+    say("play", labels.play);
   }
 
   function play(): void {
     if (index >= max) apply(0); // replay from the dawn
-    say("⏸", labels.pause);
+    say("pause", labels.pause);
     // one timeout per frame rather than an interval, so each frame can ask for its own time — and
     // the frame it starts on too: pressed at year 0, the founding would otherwise go by unread
     const next = () => {

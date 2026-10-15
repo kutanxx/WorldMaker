@@ -31,6 +31,7 @@ import { type Page, pageOf, putOnPage, fitRiverNames } from "./regionPage";
 import { type Lang, t } from "./i18n";
 import { makeFold, readFoldPref, writeFoldPref, type Fold } from "./fold";
 import { legendSheet, placeLegend, scrollbarWidth } from "./legendSheet";
+import { icon, sign } from "./icons";
 import { measureChrome, fitChrome, oneRowWidth } from "./chromeBudget";
 import { LEGEND_ROW } from "./renderer";
 import { detectLang, saveLang } from "./lang";
@@ -105,6 +106,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
   // the page (theme.css) — its 68px, and the second row the bar wrapped to, were the map's.
   const homeIcon = document.createElement("span");
   homeIcon.className = "home-icon";
+  homeIcon.appendChild(icon("home"));   // drawn, not the 🏠 emoji: every sign in the bar is one drawing (icons.ts)
   const homeWord = document.createElement("span");
   homeWord.className = "home-word";
   homeWord.textContent = "WorldMaker";
@@ -148,7 +150,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
   exportGroup.className = "export-group";
   const exportIcon = document.createElement("span");
   exportIcon.className = "export-icon";
-  exportIcon.textContent = "⬇";
+  exportIcon.appendChild(icon("download"));
   const jsonBtn = document.createElement("button");
   // the world's data: on a town's plate the PNG and the SVG are the plate, and this was still the world's
   jsonBtn.className = "world-only";
@@ -166,22 +168,9 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
   const linkBtn = document.createElement("button");
   linkBtn.type = "button";
   linkBtn.className = "copy-link";
-  // two links of a chain, in the bar's own ink (the 🔗 emoji came out a pale lilac beside the formats' words)
-  {
-    const NS = "http://www.w3.org/2000/svg";
-    const icon = document.createElementNS(NS, "svg");
-    icon.setAttribute("viewBox", "0 0 16 16");
-    icon.setAttribute("width", "15");
-    icon.setAttribute("height", "15");
-    icon.setAttribute("aria-hidden", "true");
-    // two pills along one diagonal, each through the other's end
-    for (const [cx, cy] of [[5.4, 10.6], [10.6, 5.4]]) {
-      const link = document.createElementNS(NS, "rect");
-      for (const [k, v] of Object.entries({ x: cx - 4.6, y: cy - 2.3, width: 9.2, height: 4.6, rx: 2.3, fill: "none", stroke: "currentColor", "stroke-width": 1.6, transform: `rotate(-45 ${cx} ${cy})` })) link.setAttribute(k, String(v));
-      icon.appendChild(link);
-    }
-    linkBtn.appendChild(icon);
-  }
+  // two links of a chain, in the bar's own ink (the 🔗 emoji came out a pale lilac beside the formats' words) —
+  // the first drawn sign in the bar, and the one the rest were drawn to match (icons.ts)
+  linkBtn.appendChild(icon("link"));
   let copiedFor = 0;
   linkBtn.addEventListener("click", async () => {
     const url = location.href;
@@ -329,14 +318,13 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     fingerprintWord.textContent = t(lang, "fingerprint");
     fingerprintNote.textContent = t(lang, "fingerprintNote");
     for (const d of dialRows) { d.name.textContent = t(lang, d.key as never); d.name.title = t(lang, `${d.key}Title`); }
-    homeIcon.textContent = t(lang, "home");
-    backBtn.textContent = "← " + t(lang, "backToWorld");
+    sign(backBtn, "back", t(lang, "backToWorld"));
     homeBtn.title = t(lang, "homeLabel"); // the house carries it; the word cost the toolbar a second row
     regenBtn.textContent = t(lang, "generate");
     regenBtn.title = t(lang, "seedTitle");
     seedWord.textContent = t(lang, "seedLabel");
     seedInput.title = t(lang, "seedTitle");
-    randomBtn.textContent = "🎲 " + t(lang, "newWorld");
+    sign(randomBtn, "die", t(lang, "newWorld"));
     jsonBtn.textContent = t(lang, "exportJson");
     // a data file that looks like a save and is not one: nothing here can open it again
     jsonBtn.title = t(lang, "exportJsonTitle");
@@ -346,7 +334,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     pngBtn.title = t(lang, "exportPngTitle");
     svgBtn.title = t(lang, "exportSvgTitle");
     exportIcon.title = t(lang, "exportLabel"); // the verb, said once for the group
-    gazBtn.textContent = "📜 " + t(lang, "gazetteer");
+    sign(gazBtn, "book", t(lang, "gazetteer"));
     gazBtn.title = t(lang, "gazetteerTitle");
     linkBtn.setAttribute("aria-label", t(lang, "copyLink"));
     linkBtn.title = t(lang, "copyLinkTitle");
@@ -507,7 +495,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     words.textContent = t(lang, "firstHint");
     const close = document.createElement("button");
     close.type = "button";
-    close.textContent = "✕";
+    close.appendChild(icon("close", 12));
     close.setAttribute("aria-label", t(lang, "firstHintClose"));
     close.title = t(lang, "firstHintClose");
     close.addEventListener("click", () => {
@@ -576,7 +564,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     if (was && !on) refitChrome();
     if (!focusBtn) return;
     focusBtn.setAttribute("aria-pressed", String(on));
-    focusBtn.textContent = t(lang, on ? "focusExit" : "focusEnter");
+    if (on) sign(focusBtn, "close", t(lang, "focusExit")); else focusBtn.textContent = t(lang, "focusEnter");
     focusBtn.title = t(lang, on ? "focusExitHint" : "focusEnterHint");
   }
   function addFocusToggle(frame: HTMLElement): void {
@@ -603,7 +591,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     const b = document.createElement("button");
     b.type = "button";
     b.className = "rename-toggle";
-    b.textContent = t(lang, "renameToggle");
+    sign(b, "pencil", t(lang, "renameToggle"));
     b.title = t(lang, "renameTitle");
     b.setAttribute("aria-pressed", String(renaming));
     b.classList.toggle("active", renaming);

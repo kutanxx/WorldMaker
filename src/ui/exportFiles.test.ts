@@ -62,7 +62,7 @@ describe("a file is named for what it holds", () => {
     expect(await press(button, "PNG")).toBe("소덴드.png");
     expect(await press(button, "SVG")).toBe("소덴드.svg");
     expect(await press(button, "JSON")).toBe("소덴드.json");
-    expect(await press(button, "📜")).toBe("소덴드.md");
+    expect(await press(button, "안내서")).toBe("소덴드.md");
   }, 20000);
 
   it("says the view, the year and the ink when they are not the map's first", async () => {

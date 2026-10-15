@@ -84,7 +84,7 @@ describe("createApp", () => {
     expect(home!.getAttribute("href")).toBe("index.html");
     // the word moved to the tooltip when the toolbar ran out of room; the house is the visible part,
     // but the link must still SAY what it is to a hover or a screen reader
-    expect(home!.textContent).toContain("🏠");
+    expect(home!.querySelector(".home-icon svg.icon-home"), "no house drawn in the link").not.toBeNull();
     expect(home!.getAttribute("title")).toMatch(/Home|홈/);
   });
   // A desktop window shows the site's name here instead of the house, and the big title over the bar
@@ -95,7 +95,7 @@ describe("createApp", () => {
     createApp(root, small);
     const home = root.querySelector(".controls a.home")!;
     expect(home.querySelector(".home-word")?.textContent).toBe("WorldMaker");
-    expect(home.querySelector(".home-icon")?.textContent).toBe("🏠");
+    expect(home.querySelector(".home-icon svg.icon-home")).not.toBeNull();
   });
   it("shows a timeline and a political layer over the world", () => {
     const root = document.createElement("div");

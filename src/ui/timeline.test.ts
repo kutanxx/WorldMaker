@@ -41,7 +41,8 @@ describe("createTimeline", () => {
     btn.click();
     vi.advanceTimersByTime(1300); // steps at 300/600/900 -> 1,2,3 ; 1200 -> stop
     expect(seen).toEqual([1, 2, 3]);
-    expect(btn.textContent).toBe("▶");
+    expect(btn.querySelector("svg.icon-play"), "the button does not offer to play again").not.toBeNull();
+    expect(btn.querySelector("svg.icon-pause")).toBeNull();
   });
 
   // ★ A step the caller asks to stay on is stayed on: the caption under the scrubber changed on 360
