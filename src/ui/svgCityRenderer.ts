@@ -1,11 +1,11 @@
 import { svgEl, legendPanel, legendRow, compassRose, mapFrame, FRAME_INSET, INK, PARCHMENT } from "./renderer";
 import { paintedPeak } from "./inkStyle";
 import { scaleBar, scaleBarAbove, METRES_PER_UNIT } from "./scaleBar";
-import type { CityLayout } from "../engine/city";
+import { isHamlet, type CityLayout } from "../engine/city";
 import type { WardType } from "../engine/city/zoning";
 import type { Point, Polygon, Polyline } from "../engine/geometry";
 import { pointInPolygon } from "../engine/geometry";
-import { type Lang, WARD_NAME, t, featureName, type FeatureKey } from "./i18n";
+import { type Lang, wardName, t, featureName, type FeatureKey } from "./i18n";
 import { properName } from "./properName";
 import { datan2, dcos, dhypot, dpow, dsin } from "../engine/dmath";
 
@@ -237,6 +237,8 @@ export interface CityRenderOpts {
 
 export function renderCity(layout: CityLayout, lang: Lang = "en", opts: CityRenderOpts = {}): SVGSVGElement {
   const fn = (k: FeatureKey) => featureName(lang, k);
+  // a hamlet's quarters are named as a hamlet's — its green and its houses — in the key, on the plan and on hover
+  const hamlet = isHamlet(layout);
   // A town's name is one invented word, so it is transliterated rather than rebuilt: it has no
   // common noun in it to translate.
   const townName = properName(lang, layout.name);
@@ -568,7 +570,7 @@ export function renderCity(layout: CityLayout, lang: Lang = "en", opts: CityRend
     clipped.appendChild(named(svgEl("polygon", {
       class: "ward", points: pts(ward.polygon),
       ...(tint ? { fill: tint, "fill-opacity": WASH } : { fill: "none", "pointer-events": "all" }),
-    }), WARD_NAME[lang][ward.type] ?? ward.type));
+    }), wardName(lang, ward.type, hamlet) ?? ward.type));
   }
 
   // Re-draw the water channel over the ground + district tints but UNDER the buildings, so a
@@ -600,7 +602,7 @@ export function renderCity(layout: CityLayout, lang: Lang = "en", opts: CityRend
   // ridge of the roof drawn along them: a cross-shaped church reads as a church before any label.
   for (const m of layout.landmarks) {
     const [fill, edge, ridge] = m.kind === "cathedral" ? ["#a78fbe", "#4f3f63", "#d9cce6"] : ["#95ab76", "#4a5a33", "#cddbb8"];
-    const g = named(svgEl("g", { class: m.kind === "cathedral" ? "cathedral-church" : "guild-hall" }), WARD_NAME[lang][m.kind] ?? m.kind);
+    const g = named(svgEl("g", { class: m.kind === "cathedral" ? "cathedral-church" : "guild-hall" }), wardName(lang, m.kind, hamlet) ?? m.kind);
     g.appendChild(svgEl("polygon", { points: pts(m.outline), fill, stroke: edge, "stroke-width": 0.7, "stroke-linejoin": "round" }));
     for (const [a, b] of m.ridges) g.appendChild(svgEl("line", { x1: a[0].toFixed(1), y1: a[1].toFixed(1), x2: b[0].toFixed(1), y2: b[1].toFixed(1), stroke: ridge, "stroke-width": 0.6, "stroke-linecap": "round" }));
     clipped.appendChild(g);
@@ -816,7 +818,7 @@ export function renderCity(layout: CityLayout, lang: Lang = "en", opts: CityRend
       class: "ward-label" + (l.landmark ? " ward-landmark" : "") + (l.type === "castle" ? " castle-name" : ""), x: l.x, y: l.y, "font-size": 7, "text-anchor": "middle",
       fill: "#42341f", stroke: PARCHMENT, "stroke-width": 2.2, "paint-order": "stroke",
     });
-    tx.textContent = WARD_NAME[lang][l.type] ?? "";
+    tx.textContent = wardName(lang, l.type, hamlet) ?? "";
     labelsG.appendChild(tx);
   }
   // ★ Where each road out goes, written where it leaves the plate — as an old town plan wrote "to
@@ -888,7 +890,7 @@ export function renderCity(layout: CityLayout, lang: Lang = "en", opts: CityRend
   const order: WardType[] = ["plaza", "market", "guildhall", "cathedral", "castle", "merchant", "patriciate", "craftsmen", "slum", "military", "park"];
   const present = order.filter((wt) => TINT[wt] && layout.wards.some((wd) => wd.type === wt));
   const items: [string, string, WardType?][] = [
-    ...present.map((wt) => [roofOf(TINT[wt]!, 0), WARD_NAME[lang][wt] ?? "", wt] as [string, string, WardType]),
+    ...present.map((wt) => [roofOf(TINT[wt]!, 0), wardName(lang, wt, hamlet) ?? "", wt] as [string, string, WardType]),
     ["#9fc1d6", t(lang, "water")], ["#d8b65e", t(lang, "mainRoad")],
   ];
   // ★ ...and the plate's own marks, drawn as the plate draws them, each where the plate has one: the

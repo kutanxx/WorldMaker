@@ -1,5 +1,5 @@
 import type { CityMarker, World } from "../types/world";
-import type { CityLayout } from "../engine/city";
+import { isHamlet, type CityLayout } from "../engine/city";
 import type { GovernmentForm } from "../engine/government";
 import { t, type Lang } from "./i18n";
 import { properName, polityLabeller } from "./properName";
@@ -108,7 +108,8 @@ export function cityFacts(
     founded: foundings.find((f) => f.cityId === city.id)?.year ?? null,
     realm,
     year: at?.year ?? null,
-    kind: t(lang, `kind_${layout.archetype.id}` as never),
+    // ...told of a hamlet in a hamlet's words: "a timber town in the forest" over a rank of "Hamlet" was a town's
+    kind: t(lang, `${isHamlet(layout) ? "hamletKind" : "kind"}_${layout.archetype.id}` as never),
     rank: t(lang, `rank${city.size}` as never),
     population: `${groups(lo)}–${groups(hi)}`,
     neighbours,

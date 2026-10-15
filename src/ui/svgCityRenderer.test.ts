@@ -857,9 +857,38 @@ describe("a hamlet's plate", () => {
 
   it("keys the parish church and the green, not a wall or a cathedral", () => {
     expect(keyWords).toContain("Parish church");
-    expect(keyWords).toContain("Market Square");
+    expect(keyWords).toContain("Village Green");
     for (const w of ["Town wall", "Gate", "Barbican", "Cathedral", "Guildhall", "Castle", "Slums", "Barracks"]) expect(keyWords, w).not.toContain(w);
     expect(svg.querySelectorAll(".parish-church").length).toBeGreaterThan(0);
+  });
+
+  // ...and its green and its houses are called a hamlet's — "Market Square" and "Craftsmen" were a city's
+  // words on a plan of 150–400 people — in the key, on the plan and on hover, in both languages
+  it("names its green and its houses as a hamlet's, in the key, on the plan and on hover", () => {
+    const words = (root: SVGSVGElement, sel: string) => [...root.querySelectorAll(sel)].map((e) => e.textContent);
+    expect(keyWords).toContain("Houses");
+    for (const w of ["Market Square", "Craftsmen"]) expect(keyWords, w).not.toContain(w);
+    expect(words(svg, ".ward-label")).toContain("Village Green");
+    expect(words(svg, ".ward-label")).not.toContain("Market Square");
+    const hover = words(svg, ".ward > title");
+    expect(hover).toContain("Village Green");
+    expect(hover).toContain("Houses");
+    for (const w of ["Market Square", "Craftsmen"]) expect(hover, w).not.toContain(w);
+    const ko = renderCity(layout, "ko");
+    const koKey = words(ko, ".legend-row text");
+    expect(koKey).toContain("마을 광장");
+    expect(koKey).toContain("집");
+    for (const w of ["시장 광장", "장인 구역"]) expect(koKey, w).not.toContain(w);
+    expect(words(ko, ".ward-label")).toContain("마을 광장");
+  });
+
+  it("leaves a walled town its market square and its craftsmen", () => {
+    const town = generateCityLayout(cityContext(marker), 7);     // a capital of size 5
+    expect(town.wall).not.toBeNull();
+    const key = [...renderCity(town, "en").querySelectorAll(".legend-row text")].map((t) => t.textContent);
+    expect(key).toContain("Market Square");
+    if (town.wards.some((w) => w.type === "craftsmen")) expect(key).toContain("Craftsmen");
+    for (const w of ["Village Green", "Houses"]) expect(key, w).not.toContain(w);
   });
 });
 

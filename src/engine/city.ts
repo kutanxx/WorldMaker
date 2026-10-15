@@ -253,6 +253,12 @@ const LORD_SEAT_MIN_SIZE = 3;
 // the facts beside it said 150–400 people (plate review, 2026-10-15). Its lanes still run out where
 // they reach its edge, toward the world's roads, as a walled town's do through its gates.
 const HAMLET_SIZE = 1;
+/**
+ * Whether a layout is a hamlet's (HAMLET_SIZE). A hamlet is the one town that builds no wall, and the plate's
+ * words — its kind, its green, its houses — read that off the layout rather than off a flag of its own, so
+ * that the layouts' bytes, and the lock on them (city.test), stay where they are.
+ */
+export const isHamlet = (layout: Pick<CityLayout, "wall">): boolean => layout.wall === null;
 const LORD_SEAT_ODDS = 1 / 3;
 // the castle's own rng stream, beside the lord-seat pick (+4300) and the mountain form pick (+4200)
 const CASTLE_SALT = 4500;

@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { generateWorld } from "./world";
 import { DEFAULT_PARAMS } from "../types/world";
-import { generateCityLayout, cityContext } from "./city";
+import { generateCityLayout, cityContext, isHamlet } from "./city";
 
 // ★ A hamlet of 150–400 people was drawn with a capital's kit: over twelve worlds, all 72 size-1 towns
 // had a stone wall with towers, a cathedral, a guildhall and 8–12 wards of slums, barracks and parks
@@ -59,5 +59,12 @@ describe("a hamlet is not a walled town", () => {
 
   it("leaves every larger town its wall", () => {
     for (const { c, l } of towns2) expect(l.wall, `${c.name} (size ${c.size}) lost its wall`).not.toBeNull();
+  });
+
+  // the plate's words (its kind, its green, its houses) tell a hamlet from a town by its layout alone — the
+  // layout carries no flag of its own, so that the plates' bytes stay where they are
+  it("is known for one by its layout", () => {
+    for (const { c, l } of hamlets) expect(isHamlet(l), `${c.name} does not read as a hamlet`).toBe(true);
+    for (const { c, l } of towns2) expect(isHamlet(l), `${c.name} (size ${c.size}) reads as a hamlet`).toBe(false);
   });
 });

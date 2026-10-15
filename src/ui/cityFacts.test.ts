@@ -5,6 +5,7 @@ import { simulateHistory } from "../engine/history";
 import { generateCityLayout, cityContext } from "../engine/city";
 import { DEFAULT_PARAMS } from "../types/world";
 import { KM_PER_UNIT } from "./scaleBar";
+import { t } from "./i18n";
 import type { GovernmentForm } from "../engine/government";
 
 // A plate carried its name and nothing else — no realm, no size, no sense of what kind of place it
@@ -269,5 +270,39 @@ describe("the realm a plate names is the realm of a stated year", () => {
   it("carries the year the answer is true of", () => {
     expect(at(history.snapshots.length - 1).year).toBe(500);
     expect(at(0).year).toBe(0);
+  });
+});
+
+// A hamlet (city.ts HAMLET_SIZE) is drawn as houses round a green — and the facts beside it still said
+// "a timber town in the forest" / "숲속의 목재 도시", the kind of TOWN its archetype makes, over a rank that
+// said "Hamlet". The kind is told of a hamlet in a hamlet's words now; a town's words are untouched.
+describe("a hamlet's facts call it a hamlet", () => {
+  const world = generateWorld({ ...DEFAULT_PARAMS, seed: 1 }).world;
+  const hamlets = world.cities.filter((c) => c.size === 1 && !c.isCapital);
+  const towns = world.cities.filter((c) => c.size > 1 || c.isCapital);
+
+  it("has hamlets to speak of", () => {
+    expect(hamlets.length).toBeGreaterThan(2);
+  });
+
+  it("says what kind of hamlet it is, not what kind of town, in both languages", () => {
+    for (const c of hamlets) {
+      const layout = generateCityLayout(cityContext(c), 1);
+      const en = cityFacts(world, c, layout, "en", KM_PER_UNIT);
+      const ko = cityFacts(world, c, layout, "ko", KM_PER_UNIT);
+      expect(en.kind, `${c.name}: ${en.kind}`).toMatch(/hamlet/);
+      expect(en.kind, `${c.name}: ${en.kind}`).not.toMatch(/town|fortress|market/i);
+      expect(ko.kind, `${c.name}: ${ko.kind}`).toMatch(/마을|어촌/);
+      expect(ko.kind, `${c.name}: ${ko.kind}`).not.toMatch(/도시|요새|장터/);
+      expect(en.rank).toBe("Hamlet");
+    }
+  });
+
+  it("keeps every larger town's words", () => {
+    for (const c of towns) {
+      const layout = generateCityLayout(cityContext(c), 1);
+      expect(cityFacts(world, c, layout, "en", KM_PER_UNIT).kind).toBe(t("en", `kind_${layout.archetype.id}`));
+      expect(cityFacts(world, c, layout, "ko", KM_PER_UNIT).kind).toBe(t("ko", `kind_${layout.archetype.id}`));
+    }
   });
 });
