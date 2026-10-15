@@ -44,6 +44,24 @@ describe("the page's chrome, for a first visit", () => {
     expect(css()).not.toMatch(/html:lang\(en\) \.seed-label > span/);
   });
 
+  // A laptop's 1366x650 stood the card's foot at the window's foot and the two other ways in — the name row,
+  // today's world — 19 and 63px under it, out of sight (item 17). The reader chose the two-column mock
+  // (2026-10-15): under 720px tall and over 1000 wide, the picture stands on the left and the ways in beside it.
+  it("stands the front page in two columns where the window is short and wide", () => {
+    const c = css();
+    const at = c.indexOf("@media (min-width: 1000px) and (max-height: 720px)");
+    expect(at, "no short-and-wide layout").toBeGreaterThan(-1);
+    const block = c.slice(at, c.indexOf("\n}", at));
+    expect(block).toMatch(/#landing\s*\{[^}]*grid-template-columns:\s*var\(--preview-w\)/);
+    expect(block, "the picture is sized by the height alone there").toMatch(/--preview-w:[^;]*calc\(\(100vh - \d+px\) \* 10 \/ 7/);
+    expect(block).toMatch(/\.landing-preview\s*\{[^}]*grid-column:\s*1/);
+    expect(block).toMatch(/\.landing-name\s*\{[^}]*grid-column:\s*2/);
+    expect(block).toMatch(/\.landing-daily\s*\{[^}]*grid-column:\s*2/);
+    expect(block).toMatch(/\.landing-recent\s*\{[^}]*grid-column:\s*2/);
+    // the layout stops at the phone block's width and leaves tall windows alone
+    expect(c.indexOf("@media (min-width: 1000px) and (max-height: 720px)", at + 1), "the block is written once before @supports").toBeGreaterThan(c.indexOf("@supports (height: 100svh)"));
+  });
+
   it("gives both pages a main landmark and a colour for the browser's own chrome", () => {
     for (const f of ["map.html", "index.html"]) {
       expect(html(f), f).toMatch(/<main id="(app|landing)">/);

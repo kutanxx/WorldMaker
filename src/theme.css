@@ -657,6 +657,30 @@ html:lang(ko) .landing-tagline, html:lang(ko) .landing-preview-cap, html:lang(ko
 .landing-daily { margin-top: 10px; text-align: center; padding: 0 16px; }
 .landing-daily-sub { margin: 6px 0 0; font-size: 0.85em; opacity: 0.75; }
 .name-daily { padding: 8px 18px; cursor: pointer; }
+/* ★ A short, wide window — a laptop's 1366x650 — stood the card's foot at the window's foot and the two other
+   ways in, the name row and today's world, 19 and 63px under it, out of sight (design review 2026-10-15,
+   item 17; the reader chose this layout from a mock). Under 720px tall and over 1000 wide the page uses the
+   width it has: the picture on the left, the three ways in and the recent list in a 400px column beside
+   it, all of it above the fold. The picture is sized by the height alone here — the column takes nothing
+   off it — so it stands LARGER than the one column gave it: 620px at 1366x650 against 462. The 190 is the
+   hero (98), the picture's own margin and caption (14 + 25), its frame and the air under it. Taller windows
+   keep the one column, and the phone block below the width never meets this one. */
+@media (min-width: 1000px) and (max-height: 720px) {
+  #landing {
+    --preview-w: max(300px, min(620px, calc((100vh - 190px) * 10 / 7 + 2px)));
+    display: grid; grid-template-columns: var(--preview-w) 400px; column-gap: 40px; justify-content: center; align-items: start;
+    /* the picture spans the column's rows and a 1fr row under them: without that row the picture's height was
+       dealt out among the rows it spans, and with no recent list the daily button sank 200px under the name row */
+    grid-template-rows: auto auto auto auto auto 1fr;
+  }
+  .landing-hero { grid-column: 1 / -1; }
+  .landing-preview { grid-column: 1; grid-row: 2 / span 5; max-width: none; margin: 14px 0 0; padding: 0; }
+  .landing { grid-column: 2; grid-row: 2; padding: 14px 0 0; margin: 0; max-width: none; }
+  .choice-card { flex: 1 1 auto; max-width: none; }
+  .landing-name { grid-column: 2; grid-row: 3; margin: 12px 0 0; padding: 0; max-width: none; }
+  .landing-recent { grid-column: 2; grid-row: 4; margin: 12px 0 0; padding: 0; max-width: none; }
+  .landing-daily { grid-column: 2; grid-row: 5; margin-top: 12px; padding: 0; }
+}
 
 /* Touch ergonomics: devices whose PRIMARY pointer is coarse (phones/tablets) get comfortable — not
    merely minimum — targets and no double-tap-zoom delay. Fine-pointer desktops, including
@@ -1162,6 +1186,9 @@ svg.city .wall-seg, svg.city .wall-seg-inner, svg.city .tower, svg.city .gate { 
 }
 @supports (height: 100svh) {
   #landing { --preview-w: max(300px, min(620px, calc((100svh - 328px) * 10 / 7 + 2px))); }
+  @media (min-width: 1000px) and (max-height: 720px) {
+    #landing { --preview-w: max(300px, min(620px, calc((100svh - 190px) * 10 / 7 + 2px))); }
+  }
   #app { --page: max(620px, calc((100svh - var(--chrome, 290px)) * 10 / 7 + 222px)); }
   #app { --plate-page: calc(100svh - var(--plate-chrome, 150px) + 222px); }
   .stage.plate > .map-frame { max-width: min(100%, calc(100svh - var(--plate-chrome, 150px))); }
