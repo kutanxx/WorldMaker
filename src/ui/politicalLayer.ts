@@ -4,6 +4,18 @@ import { cellPath, segPath } from "./svgPaths";
 import { politicalBorders } from "../engine/borders";
 import { nationColor, nationCentroids } from "./nationPalette";
 import type { Lang } from "./i18n";
+import type { Point } from "../engine/geometry";
+
+/** What a realm's name keeps off, in map units: the roads, each a line through its cells' centres, and the towns. */
+export interface KeepOff { roads: Point[][]; towns: Point[] }
+
+/** The roads and the towns as `keepOff` wants them, from the world's own arrays. */
+export function keepOffOf(points: ArrayLike<number>, roads: { cells: number[] }[], towns: { x: number; y: number }[]): KeepOff {
+  return {
+    roads: roads.map((r) => r.cells.map((c): Point => [points[c * 2], points[c * 2 + 1]])),
+    towns: towns.map((t): Point => [t.x, t.y]),
+  };
+}
 
 type GridLike = Pick<World["grid"], "count" | "polygons" | "neighbors" | "points" | "width" | "height">;
 
@@ -38,10 +50,57 @@ export interface PoliticalOpts {
    * design review 2026-10-15, item 6). Defaults to a Latin reader.
    */
   lang?: Lang;
+  /** the roads and the towns a realm's name steps off (`keepOffOf`); without them it stands at the centroid */
+  keepOff?: KeepOff;
 }
 
 const MIN_LABEL_CELLS = 25;
 const LEGEND_W = LEGEND_W_NAMED;
+// a realm's name: 13 units (see the label below), and the lines it may step to
+const NAME_SIZE = 13;
+const LINE_STEPS = [0, -1, 1, -2, 2];
+// how far round a town its mark and its name are taken to stand
+const TOWN_ROOM = 10;
+
+interface Box { x0: number; y0: number; x1: number; y1: number }
+
+// whether the segment a–b crosses the box (Liang–Barsky, in + − × ÷ alone)
+function crosses([ax, ay]: Point, [bx, by]: Point, b: Box): boolean {
+  const dx = bx - ax, dy = by - ay;
+  let t0 = 0, t1 = 1;
+  for (const [p, q] of [[-dx, ax - b.x0], [dx, b.x1 - ax], [-dy, ay - b.y0], [dy, b.y1 - ay]]) {
+    if (p === 0) { if (q < 0) return false; continue; }
+    const t = q / p;
+    if (p < 0) { if (t > t0) t0 = t; } else if (t < t1) t1 = t;
+    if (t0 > t1) return false;
+  }
+  return true;
+}
+
+/**
+ * Where a realm's name stands: at its realm's centroid — where, measured on world 1's political view, a road
+ * crossed 7 of the 8 names (5 of 8 on world 12 — design review 2026-10-15, item 3), since the roads run
+ * between the capitals and a realm's middle is on the way. So the name steps a line up or down, up to two,
+ * to the place the fewest roads cross and no town stands under, the nearer step first and the centroid
+ * where no step is better. The box is estimated — nothing is measured at draw time, and the file has no
+ * browser — at a Latin small-cap letter 0.62 em wide and a Hangul syllable a full em.
+ */
+function nameLine(name: string, x: number, y: number, lang: Lang | undefined, keep: KeepOff): number {
+  const fs = NAME_SIZE, w = name.length * (lang === "ko" ? 1 : 0.62) * fs;
+  let best = y, bestCost = Infinity;
+  for (const step of LINE_STEPS) {
+    const cy = y + step * fs;
+    const box: Box = { x0: x - w / 2, y0: cy - 0.8 * fs, x1: x + w / 2, y1: cy + 0.25 * fs };
+    let cost = 0;
+    for (const road of keep.roads) for (let i = 1; i < road.length; i++) if (crosses(road[i - 1], road[i], box)) cost += 1;
+    for (const [tx, ty] of keep.towns) {
+      if (tx >= box.x0 - TOWN_ROOM && tx <= box.x1 + TOWN_ROOM && ty >= box.y0 - TOWN_ROOM && ty <= box.y1 + TOWN_ROOM) cost += 3;
+    }
+    if (cost < bestCost) { best = cy; bestCost = cost; }
+    if (bestCost === 0) break;
+  }
+  return best;
+}
 
 const FREE_COLOR = "#b7b1a4"; // neutral grey for independent free cities
 
@@ -135,8 +194,9 @@ export function politicalLayer(
         // it was the smallest, faintest word on the political map — 10.5px at 1440x900 — and the roads cut
         // through its 2.5 halo (design review 2026-10-15, item 3).
         const t = svgEl("text", {
-          class: "nation-label", "data-name": `r${id}`, x: c.x, y: c.y, "text-anchor": "middle",
-          "font-size": 13,
+          class: "nation-label", "data-name": `r${id}`, x: c.x, y: opts.keepOff ? nameLine(name, c.x, c.y, opts.lang, opts.keepOff) : c.y,
+          "text-anchor": "middle",
+          "font-size": NAME_SIZE,
           fill: "#2a2118", stroke: "#f3ead2", "stroke-width": 3.5,
           "paint-order": "stroke", "stroke-linejoin": "round",
         });

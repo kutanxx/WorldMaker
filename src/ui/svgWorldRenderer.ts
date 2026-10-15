@@ -8,7 +8,7 @@ import { reliefBands } from "./relief";
 import { type Lang, biomeName, t } from "./i18n";
 import { coastline } from "../engine/borders";
 import { cellPath, segPath } from "./svgPaths";
-import { politicalLayer, type PoliticalOpts } from "./politicalLayer";
+import { politicalLayer, keepOffOf, type PoliticalOpts, type KeepOff } from "./politicalLayer";
 import { properName, polityLabeller } from "./properName";
 import { featureLabel, worldNameIn } from "../engine/featureLabel";
 import { riverPaths } from "./riverCourse";
@@ -41,11 +41,14 @@ const VIGNETTE = "#6b4f2a";
 // to work it out from, so the layer never learns about Hangul or about the i18n table.
 export function politicalOpts(view: MapView, lang: Lang = "en", colorOf?: (id: number) => string,
                               labelOf: (id: number, name: string) => string = polityLabeller(lang),
-                              freePorts = false): PoliticalOpts {
+                              freePorts = false,
+                              // the roads and the towns the realms' names step off (`keepOffOf`) — the screen's year
+                              // refill passes the same ones, so a name stands where the first drawing put it
+                              keepOff?: KeepOff): PoliticalOpts {
   // the title comes in as a finished string so politicalLayer stays free of the i18n table — and so do
   // the rows under the realms, which say what the marks drawn over them are
   return view === "political"
-    ? { fills: true, labels: true, legend: true, legendTitle: t(lang, "legendRealms"), colorOf, labelOf, keyRows: settlementKeyRows(lang, freePorts), lang }
+    ? { fills: true, labels: true, legend: true, legendTitle: t(lang, "legendRealms"), colorOf, labelOf, keyRows: settlementKeyRows(lang, freePorts), lang, keepOff }
     : { labelOf };
 }
 
@@ -283,7 +286,7 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
         // ZERO, and a free city is something the simulation declares later — `world.polities` has no
         // `free` flag at all. The per-year layer app.ts swaps into this slot is where free realms
         // have to survive the snap; see snapOwnersToProvinces.
-        : politicalLayer(grid, snapOwnersToProvinces(grid.count, world.provinceOf, world.provinces, world.polityOf), world.polities, politicalOpts(view, lang, colorOf, labelOf, econZones.length > 0)));
+        : politicalLayer(grid, snapOwnersToProvinces(grid.count, world.provinceOf, world.provinces, world.polityOf), world.polities, politicalOpts(view, lang, colorOf, labelOf, econZones.length > 0, keepOffOf(grid.points, world.roads, world.cities))));
   root.appendChild(slot);
 
   // rivers — above the political/culture fills, below labels & markers; shown in all views

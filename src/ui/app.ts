@@ -21,7 +21,7 @@ import { classifyGovernments, type GovernmentForm } from "../engine/government";
 import { renderChronicleCaption } from "./chronicle";
 import { createTimeline, type Timeline } from "./timeline";
 import { attachZoomPan, type ZoomPan } from "./zoomPan";
-import { politicalLayer } from "./politicalLayer";
+import { politicalLayer, keepOffOf } from "./politicalLayer";
 import { cultureLayer } from "./cultureLayer";
 import { provinceLayer, snapOwnersToProvinces } from "./provinceLayer";
 import { deconflictLabels, clearMarks, clearCastleName, coveredBy, placeRoadEnds } from "./deconflict";
@@ -743,7 +743,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     } else {
       // nation ownership snapped to whole provinces so terrain/political borders match the province view
       const snapped = snapOwnersToProvinces(world.grid.count, world.provinceOf, world.provinces, snap.owner, freeRealms);
-      slot.replaceChildren(politicalLayer(world.grid, snapped, history.polities, politicalOpts(view, lang, colorOf, polityLabeller(lang, governmentForms), freePorts)));
+      slot.replaceChildren(politicalLayer(world.grid, snapped, history.polities, politicalOpts(view, lang, colorOf, polityLabeller(lang, governmentForms), freePorts, keepOffOf(world.grid.points, world.roads, world.cities))));
     }
     // the year's layer arrives in its colours; on an ink map it goes into ink with the rest
     if (mapStyle === "ink") inkSlot(slot, lang);

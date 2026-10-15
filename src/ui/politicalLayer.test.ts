@@ -3,7 +3,7 @@ import { describe, it, expect } from "vitest";
 import { generateWorld } from "../engine/world";
 import { DEFAULT_PARAMS } from "../types/world";
 import { simulateHistory } from "../engine/history";
-import { politicalLayer } from "./politicalLayer";
+import { politicalLayer, keepOffOf, type KeepOff } from "./politicalLayer";
 import { nationColor } from "./nationPalette";
 
 const small = { ...DEFAULT_PARAMS, width: 300, height: 300, cellCount: 400, townCount: 6 };
@@ -170,5 +170,43 @@ describe("politicalLayer takes the colouring it is given", () => {
     const g = politicalLayer(grid, owner, polities, opts);
     const fills = [...g.querySelectorAll("path.territory")].map((p) => p.getAttribute("fill"));
     expect(fills).toContain(nationColor(0));
+  });
+});
+
+// A realm's name stood at its realm's centroid, where the roads between the capitals run: measured on world 1's
+// political view at 1440x900, a road crossed 7 of the 8 names, 5 of 8 on world 12 (design review 2026-10-15,
+// item 3). Given the roads and the towns, the name steps a line up or down, up to two, to where the fewest roads
+// cross it and no town stands under it — and stays at the centroid where no step is better.
+describe("a realm's name keeps off the roads", () => {
+  const one = new Int32Array(world.grid.count).fill(0);   // one realm: its name at the land's centroid
+  const at = (keepOff?: KeepOff): [number, number] => {
+    const t = politicalLayer(world.grid, one, [{ id: 0, name: "Realm" }], { labels: true, keepOff }).querySelector(".nation-label")!;
+    return [Number(t.getAttribute("x")), Number(t.getAttribute("y"))];
+  };
+  const [cx, cy] = at();
+
+  it("stands at its realm's centroid when nothing crosses it", () => {
+    expect(at({ roads: [[[0, 0], [1, 0]]], towns: [] })).toEqual([cx, cy]);
+  });
+
+  it("steps one line up off a road that runs through it", () => {
+    const [x, y] = at({ roads: [[[cx - 100, cy], [cx + 100, cy]]], towns: [] });
+    expect(x).toBe(cx);
+    expect(y, "the name did not move off the road").toBe(cy - 13);
+  });
+
+  it("steps the other way when a town stands where it would go", () => {
+    const [, y] = at({ roads: [[[cx - 100, cy], [cx + 100, cy]]], towns: [[cx, cy - 13]] });
+    expect(y).toBe(cy + 13);
+  });
+
+  it("stays put where every step is as crossed", () => {
+    expect(at({ roads: [[[cx, cy - 100], [cx, cy + 100]]], towns: [] })[1]).toBe(cy);
+  });
+
+  it("is told the roads and the towns in map units", () => {
+    const keep = keepOffOf([10, 20, 30, 40, 50, 60], [{ cells: [0, 2] }], [{ x: 7, y: 8 }]);
+    expect(keep.roads).toEqual([[[10, 20], [50, 60]]]);
+    expect(keep.towns).toEqual([[7, 8]]);
   });
 });
