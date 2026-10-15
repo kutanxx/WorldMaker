@@ -3,6 +3,7 @@ import { describe, it, expect } from "vitest";
 import { generateCityLayout, cityContext } from "../engine/city";
 import { renderCity, KEY_STRIP, fitTitle } from "./svgCityRenderer";
 import { GRASSLAND, WETLAND, TAIGA, ALPINE, DESERT, TUNDRA } from "../engine/biome";
+import { GROUND_MARK_FOOT } from "../engine/city/countryside";
 import { pointInPolygon } from "../engine/geometry";
 import type { Polygon } from "../engine/geometry";
 import type { CityMarker } from "../types/world";
@@ -976,6 +977,18 @@ describe("the plate marks its marsh, its sand and its frozen ground", () => {
     const line = svg.querySelector(".ground-mark.paint-hill")!.getAttribute("stroke")!;
     const lum = (hex: string) => [1, 3, 5].reduce((s, i) => s + parseInt(hex.slice(i, i + 2), 16), 0) / 3;
     expect(lum(line), `its line ${line} against the ground #e8e7de`).toBeLessThan(lum("#e8e7de") - 90);
+  });
+
+  // the engine keeps a mark's drawn footprint clear of everything (countryside.ts GROUND_MARK_FOOT): what the plate
+  // draws must fit inside it, or the clearance is a fiction
+  it("draws each mark no wider than the footprint the engine keeps clear for it", () => {
+    const { svg: marsh } = plate(WETLAND), { svg: desert } = plate(DESERT), { svg: tundra } = plate(TUNDRA);
+    const HUNDREDTH = 0.011;   // (the plate writes its coordinates to the hundredth, so a width can carry half of one each side)
+    const tuft = /^M([\d.-]+),[\d.-]+L([\d.-]+),[\d.-]+M/.exec(marsh.querySelector(".ground-mark.paint-marsh")!.getAttribute("d")!)!;
+    expect((Number(tuft[2]) - Number(tuft[1])) / 2, "a tuft's half-width").toBeLessThanOrEqual(GROUND_MARK_FOOT.marsh + HUNDREDTH);
+    expect(Number(desert.querySelector(".ground-mark.paint-dune")!.getAttribute("r")), "a grain's radius").toBeLessThanOrEqual(GROUND_MARK_FOOT.dune + HUNDREDTH);
+    const hill = /^M([\d.-]+),[\d.-]+Q[\d.-]+,[\d.-]+ ([\d.-]+),[\d.-]+$/.exec(tundra.querySelector(".ground-mark.paint-hill")!.getAttribute("d")!)!;
+    expect((Number(hill[2]) - Number(hill[1])) / 2, "a hummock's half-width").toBeLessThanOrEqual(GROUND_MARK_FOOT.hummock + HUNDREDTH);
   });
 
   it("marks no plain, and keys none", () => {

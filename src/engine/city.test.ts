@@ -2310,11 +2310,17 @@ describe("a plate is the same plate, byte for byte", () => {
   // tundra; seed 1: 3, 4, 7, 12, 15, 17, 21, 22, 23, 24, 27; seed 12: 2, 6, 9, 22, 24), no archetype or castle
   // changed, the other 222 hashed byte for byte the same, and with `marks` taken out of the hash all 336 did
   // (platehash2 NOMARKS=1). Was seed 1 2523319262, seed 12 767090854.
+  // Re-pinned 2026-10-15 once a mark stood clear of everything AS DRAWN (countryside.ts GROUND_MARK_FOOT): placed by
+  // its point alone, 450 of 18,313 marks over twelve worlds had stood on a fence, a field's edge, a shore, a tree or
+  // the wall; now 0 of 18,296. 111 of the 114 marked plates moved (seed 1: the same 11; seed 12: the same 5; three
+  // small towns — 3:23, 8:27, 11:22 — placed every mark as before), no archetype or castle changed, the other 222
+  // hashed byte for byte the same, and with `marks` taken out of both sides all 336 did. Was seed 1 1348073997,
+  // seed 12 1914871185.
   it("draws seed 1's twenty-eight towns exactly as it did", () => {
-    expect(worldHash(1, drawing)).toEqual({ h: 1348073997, n: 28 });
+    expect(worldHash(1, drawing)).toEqual({ h: 295337322, n: 28 });
   });
   it("draws seed 12's twenty-eight towns exactly as it did", () => {
-    expect(worldHash(12, drawing)).toEqual({ h: 1914871185, n: 28 });
+    expect(worldHash(12, drawing)).toEqual({ h: 4173160641, n: 28 });
   });
   it("sends seed 1's and seed 12's roads out where they went", () => {
     expect([worldHash(1, destinations), worldHash(12, destinations)]).toEqual([{ h: 422798723, n: 28 }, { h: 964394477, n: 28 }]);

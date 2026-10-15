@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { mulberry32 } from "../rng";
-import { generateCountryside } from "./countryside";
+import { generateCountryside, GROUND_MARK_FOOT } from "./countryside";
 import { pointInPolygon, centroid, polysOverlap, pointSegDist } from "../geometry";
 import type { Polygon } from "../geometry";
 import { GRASSLAND, DESERT, TAIGA, TUNDRA, ALPINE, TROPICAL, TEMPERATE_FOREST, WETLAND } from "../biome";
@@ -375,5 +375,50 @@ describe("the ground of a marsh, a desert and a tundra carries its mark", () => 
     for (const biome of [GRASSLAND, TAIGA, TEMPERATE_FOREST, TROPICAL, ALPINE]) {
       expect("marks" in withBiome(biome), `biome ${biome}`).toBe(false);
     }
+  });
+});
+
+// ★ A mark is placed by its point and drawn at a size — a tuft 3.6 across, a hummock 4.4 — and placed by the point
+// alone, 450 of 18,313 marks over twelve worlds stood on a pasture's fence, a field's edge, a shore, a tree or the
+// town's wall (2.5%; the plate census, 2026-10-15). It stands clear of everything AS DRAWN: its footprint
+// (GROUND_MARK_FOOT, the drawn half-width) off every patch, house, shore, mountain, tree, wall, moat and road.
+describe("the ground's marks stand clear of everything as drawn", () => {
+  type P = [number, number];
+  const edgeNear = (p: P, poly: P[], d: number) => { for (let i = 0; i < poly.length; i++) if (pointSegDist(p, poly[i], poly[(i + 1) % poly.length]) < d) return true; return false; };
+  const lineNear = (p: P, line: P[], d: number) => { for (let i = 0; i + 1 < line.length; i++) if (pointSegDist(p, line[i], line[i + 1]) < d) return true; return false; };
+  const hits: string[] = [];
+  let marks = 0, plates = 0;
+  for (const seed of [1, 2, 3]) {
+    const { world } = generateWorld({ ...DEFAULT_PARAMS, seed });
+    for (const c of world.cities) {
+      const L = generateCityLayout(cityContext(c), seed);
+      const M = L.countryside.marks;
+      if (!M) continue;
+      plates++;
+      const r = GROUND_MARK_FOOT[M.kind], cs = L.countryside, where = `${c.name} (seed ${seed}, ${M.kind})`;
+      const polys: [string, P[]][] = [
+        ...cs.fields.map((f): [string, P[]] => ["field", f.polygon]), ...cs.pastures.map((p): [string, P[]] => ["pasture", p.fence]),
+        ...cs.orchards.map((o): [string, P[]] => ["orchard", o.polygon]), ...cs.gardens.map((g): [string, P[]] => ["garden", g]),
+        ...cs.farmsteads.flatMap((f): [string, P[]][] => [["farmstead", f.house], ["farmstead", f.barn], ...(f.yard ? [["farmstead", f.yard] as [string, P[]]] : [])]),
+        ...cs.villages.flatMap((v): [string, P[]][] => [["hamlet", v.green], ...v.houses.map((h): [string, P[]] => ["hamlet", h]), ...v.crofts.map((h): [string, P[]] => ["hamlet", h]), ...(v.pond ? [["hamlet", v.pond] as [string, P[]]] : [])]),
+        ...L.suburbs.map((s): [string, P[]] => ["suburb", s]), ...L.water.bodies.map((b): [string, P[]] => ["water", b]),
+        ...L.mountains.map((m): [string, P[]] => ["mountain", m.polygon]), ["town", L.boundary],
+      ];
+      for (const p of M.at) {
+        marks++;
+        for (const [k, poly] of polys) if (pointInPolygon(p, poly) || edgeNear(p, poly, r)) hits.push(`${where}: on a ${k}`);
+        if (cs.woods.some((t) => Math.hypot(t[0] - p[0], t[1] - p[1]) < r + 3)) hits.push(`${where}: under a tree`);
+        if (L.wall && L.wall.segments.some((s) => lineNear(p, s, r + 2))) hits.push(`${where}: on the ${L.wall.palisade ? "palisade" : "wall"}`);
+        if (L.moat && L.moat.some((s) => lineNear(p, s, r + 2.5))) hits.push(`${where}: in the moat`);
+        if (L.suburbRoads.some((rd) => lineNear(p, rd, r + 0.8))) hits.push(`${where}: on a road`);
+      }
+    }
+  }
+  it("has marked plates and marks to speak of", () => {
+    expect(plates).toBeGreaterThan(20);
+    expect(marks).toBeGreaterThan(2000);
+  });
+  it("stands every mark clear, by its drawn footprint", () => {
+    expect(hits.slice(0, 12), `${hits.length} of ${marks} marks on something`).toEqual([]);
   });
 });

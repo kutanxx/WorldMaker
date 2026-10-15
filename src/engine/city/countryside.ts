@@ -87,6 +87,10 @@ const GROUND_MARKS: Partial<Record<number, { kind: GroundMark; count: number; ga
   [TUNDRA]: { kind: "hummock", count: 140, gap: 5 },
 };
 const GROUND_MARK_CLEARING = 8;
+// ...and a mark's footprint: the half-width it is DRAWN at (svgCityRenderer GROUND_MARK_SCALE × the world map's mark
+// widths in inkStyle.ts — a tuft 6 × 0.6, a grain 0.9 × 1.4, a hummock 8 × 0.55), which the placement keeps clear of
+// everything on the plate. A renderer test holds the drawing inside it.
+export const GROUND_MARK_FOOT: Record<GroundMark, number> = { marsh: 1.8, dune: 0.63, hummock: 2.2 };
 
 interface Profile { fields: number; pastures: number; orchards: number; woods: number; dry: boolean; animal: "sheep" | "cattle" }
 export function countrysideProfile(biome: number, size: number): Profile {
@@ -491,15 +495,41 @@ export function generateCountryside(rng: Rng, opts: CountrysideOpts): Countrysid
   let marks: Countryside["marks"];
   if (ground) {
     const clearing = wallR + moatOff + GROUND_MARK_CLEARING;
+    const foot = GROUND_MARK_FOOT[ground.kind];
+    // ...and clear of everything AS DRAWN, not by its point alone: placed by the point, 450 of 18,313 marks over
+    // twelve worlds stood on a pasture's fence, a field's edge, a shore, a tree or the wall (2.5%). The wall is
+    // drawn 4 wide on the boundary, the moat ring 5 wide, a wood's copse reaches 3 from its tree, a road is 1.6.
+    const edgeNear = (p: Point, poly: Polygon, d: number) => {
+      for (let i = 0; i < poly.length; i++) if (pointSegDist(p, poly[i], poly[(i + 1) % poly.length]) < d) return true;
+      return false;
+    };
+    const lineNear = (p: Point, line: Polyline, d: number) => {
+      for (let i = 0; i + 1 < line.length; i++) if (pointSegDist(p, line[i], line[i + 1]) < d) return true;
+      return false;
+    };
+    const clearAsDrawn = (p: Point) => {
+      if (edgeNear(p, boundary, foot + 2)) return false;
+      if (opts.moat.some((m) => lineNear(p, m, foot + 2.5))) return false;
+      for (const body of water.bodies) if (edgeNear(p, body, foot)) return false;
+      for (const m of mountains) if (edgeNear(p, m.polygon, foot)) return false;
+      for (let i = 0; i < claimedPolys.length; i++) {
+        const b = claimedBoxes[i];
+        if (p[0] < b.minX - foot || p[0] > b.maxX + foot || p[1] < b.minY - foot || p[1] > b.maxY + foot) continue;
+        if (edgeNear(p, claimedPolys[i], foot)) return false;
+      }
+      // (a farmstead claims its house and its barn, not its yard — 15 marks of twelve worlds stood in one)
+      for (const f of farmsteads) if (f.yard && (pointInPolygon(p, f.yard) || edgeNear(p, f.yard, foot))) return false;
+      return true;
+    };
     const at: Point[] = [];
     for (let tries = 0; tries < ground.count * 8 && at.length < ground.count; tries++) {
       const p: Point = [6 + rng() * (bounds.w - 12), 6 + rng() * (bounds.h - 12)];
       if (dhypot(p[0] - bc[0], p[1] - bc[1]) < clearing) continue;
       if (blocked(p)) continue;
       if (obstacles.some((o) => dhypot(o[0] - p[0], o[1] - p[1]) < 6)) continue;
-      if (woods.some((w2) => dhypot(w2[0] - p[0], w2[1] - p[1]) < 4)) continue;
+      if (woods.some((w2) => dhypot(w2[0] - p[0], w2[1] - p[1]) < foot + 3)) continue;
       if (at.some((q) => dhypot(q[0] - p[0], q[1] - p[1]) < ground.gap)) continue;
-      if (onClaimed(p) || distToRoads(p) < 3) continue;
+      if (onClaimed(p) || distToRoads(p) < 3 || !clearAsDrawn(p)) continue;
       at.push(p);
     }
     marks = { kind: ground.kind, at };
