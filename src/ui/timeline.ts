@@ -15,8 +15,9 @@ export function createTimeline(
   history: TimelineSource,
   onIndex: (i: number) => void,
   formatYear: (y: number) => string = (y) => `${y}년`,
-  // what the button does when pressed, in each state — the glyph alone named nothing
-  labels: { play: string; pause: string } = { play: "재생", pause: "일시정지" },
+  // what the button does when pressed, in each state — the glyph alone named nothing — and what the slider
+  // scrubs, for a screen reader, which read it as "slider, 0" (design review 2026-10-15, item 15)
+  labels: { play: string; pause: string; year?: string } = { play: "재생", pause: "일시정지", year: "연도" },
   // How long the player should stay on frame `i`, in ms — the caption asks for time to be read on
   // the big news. Never less than a step: a frame with nothing to read keeps the old pace.
   dwellAt: (i: number) => number = () => 0,
@@ -36,6 +37,7 @@ export function createTimeline(
   const slider = document.createElement("input");
   slider.type = "range";
   slider.className = "timeline-slider";
+  slider.setAttribute("aria-label", labels.year ?? "연도");
   slider.min = "0";
   slider.max = String(max);
   slider.step = "1";

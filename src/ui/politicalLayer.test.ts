@@ -66,6 +66,17 @@ describe("politicalLayer", () => {
     const label = g.querySelector(".free-city-markers .free-city-label") as SVGElement;
     expect(label.textContent).toBe("Freeport");
   });
+  // the name under the banner is in italic, a Latin device; a Korean map's face has no italic, and slanted
+  // Hangul is the browser's own smear (design review 2026-10-15, item 6)
+  it("sets a free city's name upright on a Korean map", () => {
+    const owner = new Int32Array(world.grid.count).fill(-1);
+    owner[0] = 0; owner[1] = 1;
+    const polities = [{ id: 0, name: "Realm", free: false }, { id: 1, name: "Freeport", free: true }];
+    const en = politicalLayer(world.grid, owner, polities, { fills: true }).querySelector(".free-city-label")!;
+    const ko = politicalLayer(world.grid, owner, polities, { fills: true, lang: "ko" }).querySelector(".free-city-label")!;
+    expect(en.getAttribute("font-style")).toBe("italic");
+    expect(ko.getAttribute("font-style") ?? "normal").toBe("normal");
+  });
   it("omits free-city markers when there are no fills (terrain view)", () => {
     const owner = new Int32Array(world.grid.count).fill(-1);
     owner[0] = 0; owner[1] = 1;

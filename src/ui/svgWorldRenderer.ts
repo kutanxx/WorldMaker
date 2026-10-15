@@ -45,7 +45,7 @@ export function politicalOpts(view: MapView, lang: Lang = "en", colorOf?: (id: n
   // the title comes in as a finished string so politicalLayer stays free of the i18n table — and so do
   // the rows under the realms, which say what the marks drawn over them are
   return view === "political"
-    ? { fills: true, labels: true, legend: true, legendTitle: t(lang, "legendRealms"), colorOf, labelOf, keyRows: settlementKeyRows(lang, freePorts) }
+    ? { fills: true, labels: true, legend: true, legendTitle: t(lang, "legendRealms"), colorOf, labelOf, keyRows: settlementKeyRows(lang, freePorts), lang }
     : { labelOf };
 }
 
@@ -359,6 +359,10 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
     // the deconflict order, because in the province view a region label and a province label sat at
     // the same priority and a collision between them was decided by a coin toss.
     const faint = view !== "terrain";
+    // ★ The sea's italic is a Latin device: Gowun Batang has no italic, and the browser's own slant smears
+    // Hangul (design review 2026-10-15, item 6). The Korean map sets a sea upright, in the water's blue —
+    // which is what says "water" there — tracked a little, half the land's, so it still reads as an area.
+    const slanted = isSea && lang !== "ko";
     const t = svgEl("text", {
       class: "region-label " + (isSea ? "region-sea" : "region-land") + (faint ? " region-faint" : ""),
       // what it names, for the reader who renames it (nameBook.ts keys)
@@ -367,8 +371,8 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
       x: r.centroid[0].toFixed(1), y: r.centroid[1].toFixed(1),
       "text-anchor": "middle", "font-size": fs.toFixed(1),
       fill: isSea ? "#3f5d78" : "#42341f",
-      "font-style": isSea ? "italic" : "normal",
-      "letter-spacing": isSea ? "0" : (fs * 0.16).toFixed(1),
+      "font-style": slanted ? "italic" : "normal",
+      "letter-spacing": isSea ? (lang === "ko" ? (fs * 0.08).toFixed(1) : "0") : (fs * 0.16).toFixed(1),
       stroke: PARCHMENT, "stroke-width": 2, "paint-order": "stroke",
     });
     // UPPERCASE is an English typographic device for a region name and does nothing whatever to
@@ -389,7 +393,9 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
     const t = svgEl("text", {
       class: "river-label", "data-name": `v${vi}`, x: lx.toFixed(1), y: ly.toFixed(1),
       "text-anchor": "middle", "font-size": fs.toFixed(1), fill: "#3f5d78",
-      stroke: PARCHMENT, "stroke-width": 1.8, "paint-order": "stroke", "font-style": "italic",
+      stroke: PARCHMENT, "stroke-width": 1.8, "paint-order": "stroke",
+      // in italic where the face has one (the seas' note above): a Korean river's name is upright
+      ...(lang === "ko" ? {} : { "font-style": "italic" }),
       transform: `rotate(${deg.toFixed(1)} ${lx.toFixed(1)} ${ly.toFixed(1)})`,
     });
     t.textContent = featureLabel(r.label, lang);
@@ -601,7 +607,7 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
   {
     const units = WORLD_BAR_UNITS;
     const km = Math.round(units * KM_PER_UNIT);
-    root.appendChild(scaleBar(grid.width / 2 - units / 2, scaleBarAbove(grid.height - FRAME_INSET, units, true), units, `${km} km`, walkCaption(km, lang)));
+    root.appendChild(scaleBar(grid.width / 2 - units / 2, scaleBarAbove(grid.height - FRAME_INSET, units, true), units, `${km} km`, walkCaption(km, lang), units, lang));
   }
   root.appendChild(mapFrame(grid.width, grid.height));
 

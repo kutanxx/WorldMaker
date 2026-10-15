@@ -57,6 +57,10 @@ export function nameTargets(name: string): { map: string } | null {
 export function renderChooser(root: HTMLElement, storage?: StorageLike | null, navLang?: string): void {
   const store = storage === undefined ? undefined : storage;
   const lang: Lang = store === undefined ? detectLang(navLang) : detectLang(navLang, store);
+  // ...and the document says so: a screen reader and the stylesheet's `:lang()` go by `<html lang>`, which
+  // the page's static "ko" left wrong for an English reader, and through every switch (design review
+  // 2026-10-15, item 15). The map page has set it since 07-12f.
+  document.documentElement.lang = lang;
   const s = (k: string) => t(lang, k);
   const esc = (v: string) => v.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;");
 

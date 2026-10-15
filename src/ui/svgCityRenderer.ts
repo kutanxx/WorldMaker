@@ -833,7 +833,9 @@ export function renderCity(layout: CityLayout, lang: Lang = "en", opts: CityRend
     const tx = svgEl("text", {
       class: "road-end", "data-road": i,
       x: (ex - ux * 16 - uy * side * 6).toFixed(1), y: (ey - uy * 16 + ux * side * 6 + 2.5).toFixed(1),
-      "font-size": 7, "font-style": "italic", "text-anchor": "middle",
+      // in italic where the face has one: Gowun Batang has none, and a slanted Hangul is the browser's own
+      // smear (design review 2026-10-15, item 6) — the Korean note is upright, a shade off the ink still
+      "font-size": 7, ...(lang === "ko" ? {} : { "font-style": "italic" }), "text-anchor": "middle",
       fill: ROAD_END_INK, stroke: PARCHMENT, "stroke-width": 2.2, "paint-order": "stroke",
     });
     const [before, after] = t(lang, "roadTo").split("{towns}");

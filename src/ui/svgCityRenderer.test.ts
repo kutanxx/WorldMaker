@@ -1045,6 +1045,15 @@ describe("a road says where it goes where it leaves the plate", () => {
     }
   });
 
+  // in italic in English — a note on the road rather than a place's name; upright in Korean, whose face has
+  // no italic to set it in (the browser's own slant smears Hangul — design review 2026-10-15, item 6)
+  it("sets the note in italic in English and upright in Korean", () => {
+    const en = renderCity(layout, "en", { townName }).querySelector("text.road-end")!;
+    const ko = renderCity(layout, "ko", { townName }).querySelector("text.road-end")!;
+    expect(en.getAttribute("font-style")).toBe("italic");
+    expect(ko.getAttribute("font-style") ?? "normal").toBe("normal");
+  });
+
   // each name is a span of its own that carries its town: the page opens that town's plate on a click
   it("gives each town's name on it the town it stands for", () => {
     const svg = renderCity(layout, "en", { townName });

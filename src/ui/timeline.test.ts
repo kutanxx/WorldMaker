@@ -27,6 +27,13 @@ describe("createTimeline", () => {
     expect((t.element.querySelector(".timeline-year") as HTMLElement).textContent).toBe("30년");
   });
 
+  // a screen reader read the scrubber as "slider, 0": nothing said what it scrubs (design review 2026-10-15, item 15)
+  it("names the slider for a screen reader, in the reader's language", () => {
+    const slider = (t: ReturnType<typeof createTimeline>) => t.element.querySelector("input") as HTMLInputElement;
+    expect(slider(createTimeline(fakeHistory(3), () => {})).getAttribute("aria-label")).toBe("연도");
+    expect(slider(createTimeline(fakeHistory(3), () => {}, undefined, { play: "Play", pause: "Pause", year: "Year" })).getAttribute("aria-label")).toBe("Year");
+  });
+
   it("play advances the index each step and stops at the last frame", () => {
     const seen: number[] = [];
     const t = createTimeline(fakeHistory(4), (i) => seen.push(i));

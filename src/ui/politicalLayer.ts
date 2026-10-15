@@ -3,6 +3,7 @@ import { svgEl, legendPanel, legendRow, INK, LEGEND_TITLE_H, LEGEND_TEXT, LEGEND
 import { cellPath, segPath } from "./svgPaths";
 import { politicalBorders } from "../engine/borders";
 import { nationColor, nationCentroids } from "./nationPalette";
+import type { Lang } from "./i18n";
 
 type GridLike = Pick<World["grid"], "count" | "polygons" | "neighbors" | "points" | "width" | "height">;
 
@@ -31,6 +32,12 @@ export interface PoliticalOpts {
   labelOf?: (id: number, name: string) => string;
   /** rows the key carries under the realms, worded and drawn by the caller (settlementKey.ts) */
   keyRows?: KeyRow[];
+  /**
+   * The reader's language — for the type alone, since the words come in through `labelOf`: a free city's
+   * name is set in italic, which a Korean face does not have (the browser's own slant smears Hangul —
+   * design review 2026-10-15, item 6). Defaults to a Latin reader.
+   */
+  lang?: Lang;
 }
 
 const MIN_LABEL_CELLS = 25;
@@ -104,7 +111,7 @@ export function politicalLayer(
       if (name) {
         const tx = svgEl("text", {
           class: "free-city-label", x: c.x, y: c.y + 5.5, "text-anchor": "middle",
-          "font-size": 6.5, fill: "#5a5346", "font-style": "italic",
+          "font-size": 6.5, fill: "#5a5346", ...(opts.lang === "ko" ? {} : { "font-style": "italic" }),
           stroke: "#f3ead2", "stroke-width": 1.4, "paint-order": "stroke",
         });
         tx.textContent = name;

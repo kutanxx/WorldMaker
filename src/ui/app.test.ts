@@ -125,12 +125,18 @@ describe("createApp", () => {
     const btns = Array.from(root.querySelectorAll(".view-toggle button")) as HTMLButtonElement[];
     const political = btns.find((b) => b.textContent === "Political")!;
     const terrain = btns.find((b) => b.textContent === "Terrain")!;
+    // the view that is showing is SAID, not only coloured: the four say it with aria-pressed, as the ink,
+    // map-only and rename chips already did (design review 2026-10-15, item 15)
+    const pressed = () => btns.map((b) => b.getAttribute("aria-pressed"));
+    expect(pressed()).toEqual(["true", "false", "false", "false"]);
     political.click();
     expect(root.querySelector("svg.world.view-political")).not.toBeNull();
     expect(root.querySelector(".political-slot .territory")).not.toBeNull();
     expect(root.querySelector(".nation-label")).not.toBeNull();
+    expect(pressed()).toEqual(["false", "true", "false", "false"]);
     terrain.click();
     expect(root.querySelector(".political-slot .territory")).toBeNull();
+    expect(pressed()).toEqual(["true", "false", "false", "false"]);
   });
   it("has a 문화 view toggle that shows culture areas", () => {
     const root = document.createElement("div");

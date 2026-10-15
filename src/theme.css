@@ -577,6 +577,14 @@ svg.lang-ko .region-land { font-weight: 700; }
 .landing-preview-cap {
   margin: 6px 0 0; text-align: center; font-size: 12.5px; color: #6b5a3f; font-style: italic;
 }
+/* ★ Gowun Batang has no italic. Wherever the page asked for one — this caption, the tagline over the card, the
+   century lines under the scrubber — the browser slanted the myeongjo itself, which smears its strokes
+   (design review 2026-10-15, item 6). A Korean page asks for no slant, and lets none be synthesized: the
+   colour that quietens a caption is kept. ⚠ Korean only: EB Garamond is loaded without its italic face, so
+   the English page's italics (the seas, the rivers, these captions) are synthesized on purpose, and the
+   files the map writes — which carry no stylesheet — slant the same way. */
+html:lang(ko) { font-synthesis: weight; }
+html:lang(ko) .landing-tagline, html:lang(ko) .landing-preview-cap, html:lang(ko) .chronicle-caption.evt-century { font-style: normal; }
 @keyframes wm-preview-in { from { opacity: 0; } to { opacity: 1; } }
 /* the language toggle sits with the title rather than in the flow of the choices */
 /* lined up with the right edge of today's world under it: half of `.landing-preview`'s 620px (it was a

@@ -186,6 +186,22 @@ describe("renderWorld label hierarchy (cartographic conventions)", () => {
       expect(sea.getAttribute("fill")).toBe("#3f5d78");
     }
   });
+  // A myeongjo has no italic: the browser slanted the Korean water names itself, and slanted Hangul smears
+  // (design review 2026-10-15, item 6). The Korean map sets its seas and rivers upright — a sea tracked a
+  // little, in the water's blue, which is what says "water" there — and the file carries no slant to synthesize.
+  it("sets the Korean map's water names upright, the sea tracked, the river plain", () => {
+    const ko = renderWorld(world, "terrain", [], "ko");
+    const seas = [...ko.querySelectorAll(".region-sea")], rivers = [...ko.querySelectorAll(".river-label")];
+    expect(seas.length + rivers.length).toBeGreaterThan(0);
+    for (const t of [...seas, ...rivers]) expect(t.getAttribute("font-style") ?? "normal", t.textContent ?? "").toBe("normal");
+    for (const s of seas) {
+      expect(s.getAttribute("fill")).toBe("#3f5d78");
+      expect(Number(s.getAttribute("letter-spacing"))).toBeCloseTo(Number(s.getAttribute("font-size")) * 0.08, 1);
+    }
+    for (const r of rivers) expect(r.getAttribute("letter-spacing")).toBeNull();
+    // ...and the English map keeps its italics, a Latin face's own device
+    for (const t of svg.querySelectorAll(".river-label")) expect(t.getAttribute("font-style")).toBe("italic");
+  });
   it("promotes capital labels (larger, bold) over towns (smaller, muted)", () => {
     const cap = svg.querySelector(".city-capital");
     const town = svg.querySelector(".city-town");

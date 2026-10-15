@@ -374,6 +374,21 @@ describe("the front page's card", () => {
 // height with the map and floated mid-screen. The frame takes the map's own height now, the scrubber stands
 // right under it, and the two sit as one block centred in the window; the map is sized by the chrome that
 // is actually on the screen (the stage's 16px, the 8px gap, the scrubber's 67px), where 90 left 13px over.
+// ★ Gowun Batang has no italic. Wherever the page said `font-style: italic` — the front page's tagline and
+// caption, the century captions under the scrubber — the browser slanted the myeongjo itself, which smears its
+// strokes (design review 2026-10-15, item 6). A Korean page never asks for a slant now, and never lets one be
+// synthesized. (The English page keeps its slants: EB Garamond is loaded without its italic face, so there they
+// are synthesized on purpose, and the files the map writes slant the same way.)
+describe("a Korean page sets nothing in a slant its face does not have", () => {
+  it("synthesizes weight only", () => {
+    expect(ruleIn(css(), "html:lang(ko)")).toMatch(/font-synthesis:\s*weight/);
+  });
+  it("sets the tagline, the caption and the century line upright", () => {
+    const rule = ruleIn(css(), "html:lang(ko) .landing-tagline, html:lang(ko) .landing-preview-cap, html:lang(ko) .chronicle-caption.evt-century");
+    expect(rule).toMatch(/font-style:\s*normal/);
+  });
+});
+
 describe("the map-only view holds the map and its scrubber as one block", () => {
   const focus = (sel: string) => ruleIn(css(), `body.map-focus ${sel}`);
   it("does not stretch the frame to the grid's height, nor the grid to the window's", () => {

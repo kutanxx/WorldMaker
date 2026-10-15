@@ -944,10 +944,11 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     root.classList.remove("plate-screen");
     timeline?.destroy();
     stage.innerHTML = "";
-    terrainBtn.classList.toggle("active", currentView === "terrain");
-    politicalBtn.classList.toggle("active", currentView === "political");
-    cultureBtn.classList.toggle("active", currentView === "culture");
-    provinceBtn.classList.toggle("active", currentView === "province");
+    // the view that is showing, said as well as coloured (aria-pressed, as the ink and map-only chips say it)
+    for (const [b, v] of [[terrainBtn, "terrain"], [politicalBtn, "political"], [cultureBtn, "culture"], [provinceBtn, "province"]] as const) {
+      b.classList.toggle("active", currentView === v);
+      b.setAttribute("aria-pressed", String(currentView === v));
+    }
     const svg = renderWorld(generated.world, currentView, history.economicZones.map((z) => z.cell), lang, new Set(), colorOf, polityLabeller(lang, governmentForms), mapStyle);
     const cityIdOf = (el: Element | null) => {
       const id = el?.getAttribute("data-city");
@@ -1171,7 +1172,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     // ...in the reader's language. Without this the timeline took its own Korean default and an
     // English reader was shown "500년" on the scrubber.
     timeline = createTimeline(history, renderYear, (y) => t(lang, "year").replace("{y}", String(y)),
-      { play: t(lang, "play"), pause: t(lang, "pause") }, caption.dwellAt);
+      { play: t(lang, "play"), pause: t(lang, "pause"), year: t(lang, "timelineYear") }, caption.dwellAt);
     timelineStrip = document.createElement("div");
     timelineStrip.className = "timeline-strip";
     timelineStrip.append(timeline.element, caption.element);

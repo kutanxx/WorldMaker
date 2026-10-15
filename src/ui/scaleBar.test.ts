@@ -113,6 +113,13 @@ describe("the maps say how far", () => {
     expect(Number(chain[0].getAttribute("height")), "the whole map's chain").toBeCloseTo(4.2, 6);
   });
 
+  // the days on foot are a note under the bar, in italic — in English; Korean's face has no italic to set it in
+  it("sets the days on foot upright in Korean", () => {
+    const sub = (lang: "en" | "ko", words: string) => scaleBar(430, 674, 120, "360 km", words, 120, lang).querySelector(".scale-bar-sub")!;
+    expect(sub("en", "12 days on foot").getAttribute("font-style")).toBe("italic");
+    expect(sub("ko", "도보 12일").getAttribute("font-style") ?? "normal").toBe("normal");
+  });
+
   it("keeps a town the size a walled town was", () => {
     // the wall's radius is 60 + 12*size, so a size-3 market town is 192 units across
     expect(192 * METRES_PER_UNIT).toBeGreaterThan(400);

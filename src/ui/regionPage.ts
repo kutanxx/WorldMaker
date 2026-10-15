@@ -101,7 +101,7 @@ export function putOnPage(svg: SVGSVGElement, page: Page, world: World, lang: La
   const old = furniture.querySelector(".scale-bar");
   if (old) {
     const km = roundKm((WORLD_BAR_UNITS * KM_PER_UNIT) / page.z), units = (km / KM_PER_UNIT) * page.z;
-    const bar = scaleBar(width / 2 - units / 2, scaleBarAbove(height - FRAME_INSET, WORLD_BAR_UNITS, true), units, `${km} km`, walkCaption(km, lang), WORLD_BAR_UNITS);
+    const bar = scaleBar(width / 2 - units / 2, scaleBarAbove(height - FRAME_INSET, WORLD_BAR_UNITS, true), units, `${km} km`, walkCaption(km, lang), WORLD_BAR_UNITS, lang);
     // in the inks the whole map's bar was drawn in — an ink map's are black and white
     const was = [old, ...old.querySelectorAll("*")], now = [bar, ...bar.querySelectorAll("*")];
     now.forEach((e, i) => { for (const a of ["fill", "stroke"]) { const v = was[i]?.getAttribute(a); if (v !== null && v !== undefined) e.setAttribute(a, v); } });

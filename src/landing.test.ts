@@ -167,6 +167,16 @@ describe("the landing speaks one language, and the one the reader already chose"
     expect(s.map.get("wm:lang")).toBe("ko");
     expect(root.textContent).toContain("세계 만들기");   // and it re-rendered in the new language
   });
+
+  // `<html lang>` is what a screen reader and the stylesheet's `:lang()` go by, and the page's static "ko"
+  // stayed through a switch to English (design review 2026-10-15, item 15); the map page has set it since 07-12f
+  it("tells the document which language it is in, and again on a switch", () => {
+    const root = document.createElement("div");
+    renderChooser(root, store("en"));
+    expect(document.documentElement.lang).toBe("en");
+    (root.querySelector(".landing-lang") as HTMLButtonElement).click();
+    expect(document.documentElement.lang).toBe("ko");
+  });
 });
 
 // The front page of a map generator showed no map. The one it shows now is not decoration: it is

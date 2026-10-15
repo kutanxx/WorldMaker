@@ -102,7 +102,7 @@ export const UI: Record<Lang, Record<string, string>> = {
     roadTo: "to {towns}",
     legendToggle: "Key", legendShow: "Show the key", legendHide: "Hide the key",
     moreToggle: "More", lessToggle: "Less", moreShow: "More controls", moreHide: "Fewer controls",
-    zoomIn: "Zoom in", zoomOut: "Zoom out", zoomReset: "Reset view", play: "Play", pause: "Pause",
+    zoomIn: "Zoom in", zoomOut: "Zoom out", zoomReset: "Reset view", play: "Play", pause: "Pause", timelineYear: "Year",
     focusEnter: "Map only", focusExit: "✕ Leave", focusEnterHint: "Show only the map (Esc to return)", focusExitHint: "Back to the page (Esc)",
     exportChoice: "What to export", exportWhole: "Whole map", exportVisible: "Visible area",
     // the link is where a world and the reader's names for it are kept
@@ -161,7 +161,7 @@ export const UI: Record<Lang, Record<string, string>> = {
     roadTo: "{towns} 방면",
     legendToggle: "범례", legendShow: "범례 펼치기", legendHide: "범례 접기",
     moreToggle: "더 보기", lessToggle: "접기", moreShow: "컨트롤 더 보기", moreHide: "컨트롤 접기",
-    zoomIn: "확대", zoomOut: "축소", zoomReset: "전체 보기", play: "재생", pause: "일시정지",
+    zoomIn: "확대", zoomOut: "축소", zoomReset: "전체 보기", play: "재생", pause: "일시정지", timelineYear: "연도",
     focusEnter: "지도만", focusExit: "✕ 닫기", focusEnterHint: "지도만 크게 보기 (Esc로 돌아오기)", focusExitHint: "원래 화면으로 (Esc)",
     exportChoice: "내보낼 범위", exportWhole: "전체 지도", exportVisible: "보이는 부분",
     fileRegion: "부분",

@@ -71,7 +71,7 @@ export function scaleBarAbove(line: number, type: number, sub: boolean): number 
  * The tablet holds every word: it reaches `scaleBarDepth` under the chain's foot. (It used to stop short of
  * the last word's baseline — 3.7 units on the world map, where the days on foot hung off it over the sea.)
  */
-export function scaleBar(x: number, y: number, units: number, caption: string, sub?: string, type = units): SVGElement {
+export function scaleBar(x: number, y: number, units: number, caption: string, sub?: string, type = units, lang: Lang = "en"): SVGElement {
   const g = svgEl("g", { class: "scale-bar" });
   const words = barWords(type, !!sub);
   const h = words.h;
@@ -93,9 +93,11 @@ export function scaleBar(x: number, y: number, units: number, caption: string, s
   label.textContent = caption;
   g.appendChild(label);
   if (sub) {
+    // a note under the bar, in italic — where the face has one: Gowun Batang has none, and a slanted Hangul is
+    // the browser's own smear (design review 2026-10-15, item 6), so the Korean line is upright
     const s = svgEl("text", {
       class: "scale-bar-sub", x: x + units / 2, y: y + words.sub,
-      "text-anchor": "middle", "font-size": type * SUB, fill: "#6b5d42", "font-style": "italic",
+      "text-anchor": "middle", "font-size": type * SUB, fill: "#6b5d42", ...(lang === "ko" ? {} : { "font-style": "italic" }),
     });
     s.textContent = sub;
     g.appendChild(s);
