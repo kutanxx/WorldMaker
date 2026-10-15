@@ -257,7 +257,10 @@ body.map-focus .first-hint { display: none; }
 .rename-toggle { top: 47px; }
 .rename-toggle.active { background: #d8b25a; border-color: #b08a3a; font-weight: 600; }
 
-body.map-focus { overflow: hidden; }
+/* `--focus-w` is the map's width here, and its scrubber's: sized by the chrome that is on the screen — the
+   stage's 8px above and below, its 8px gap, the scrubber's 67px (its caption is hidden here). 90 left 13px
+   over, which the stage's old cap happened to hide. */
+body.map-focus { overflow: hidden; --focus-w: min(100%, calc((100vh - 91px) * 10 / 7)); }
 body.map-focus .app-title,
 body.map-focus .controls,
 body.map-focus .city-list,
@@ -267,18 +270,29 @@ body.map-focus .city-facts,
 body.map-focus .plate-side,
 body.map-focus .advanced { display: none; }
 body.map-focus #app { max-width: none; padding: 0; }
+/* ★ The stage takes the whole window. `#app > .stage` caps it by the page's measure with an id's weight,
+   and a `body.map-focus .stage { max-width: none }` never lifted that cap: measured 2026-10-15, the stage
+   stood 1135px wide in a 1440px window, and the map, sized by that width, left 22px of its row empty. */
+body.map-focus #app > .stage { max-width: none; }
 body.map-focus .stage {
-  position: fixed; inset: 0; z-index: 40; margin: 0; padding: 8px; max-width: none;
+  position: fixed; inset: 0; z-index: 40; margin: 0; padding: 8px;
   border: 0; border-radius: 0; box-shadow: none;
-  display: flex; flex-direction: column; gap: 8px;
+  /* the map and its scrubber as one block, in the middle of a window whose width (not height) sizes the map */
+  display: flex; flex-direction: column; gap: 8px; justify-content: center;
 }
+/* ★ The frame takes the map's own height. Stretched to its row — the grid's `align-items: stretch`, and
+   the grid given the window's height — it stood 797px for a 775px map at 1440x900: the zoom controls,
+   14px up from the frame's foot, hung 8px below the map, and 42px of parchment stood between the map and
+   the scrubber (design review 2026-10-15, item 4). The column beside the map is hidden here, but as an
+   empty grid item it still took the grid's 12px gap off the map. */
 body.map-focus .map-with-list {
-  max-width: none; grid-template-columns: minmax(0, 1fr); flex: 1; min-height: 0;
+  max-width: none; grid-template-columns: minmax(0, 1fr); flex: 0 0 auto; min-height: 0; align-items: start;
 }
-body.map-focus .map-frame {
-  width: min(100%, calc((100vh - 90px) * 10 / 7)); margin-inline: auto;
-}
-body.map-focus .timeline { margin: 0; }
+body.map-focus .map-side { display: none; }
+body.map-focus .map-frame { width: var(--focus-w); margin-inline: auto; }
+/* the scrubber as wide as the map it scrubs (a full-width stage would run it 133px past the map each side at
+   1440x900); the strip's own 12px is its room under the map on the page, and here the stage's gap is that room */
+body.map-focus .timeline-strip { width: var(--focus-w); margin-inline: auto; margin-top: 0; box-sizing: border-box; }
 .stage svg { display: block; width: 100%; height: auto; }
 /* The plan is the town's own square, 460x460, and like the world map it is sized by the vertical
    room the chrome leaves it rather than by a fixed number: 1008px was derived from the old 1040px
@@ -1099,6 +1113,6 @@ svg.city .wall-seg, svg.city .wall-seg-inner, svg.city .tower, svg.city .gate { 
       grid-template-columns: min(calc(100% - 222px), calc(100svh - var(--plate-chrome, 150px))) 210px;
     }
   }
-  body.map-focus .map-frame { width: min(100%, calc((100svh - 90px) * 10 / 7)); }
+  body.map-focus { --focus-w: min(100%, calc((100svh - 91px) * 10 / 7)); }
   body.map-focus .stage.plate > .map-frame { width: min(100%, calc(100svh - 16px)); }
 }

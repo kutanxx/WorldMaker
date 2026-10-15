@@ -366,3 +366,34 @@ describe("the front page's card", () => {
     expect(Number(pad![2]) + nameTop, "room under the card").toBe(Number(pad![1]));
   });
 });
+
+// ★ The map-only view, measured at 1440x900 on 2026-10-15 (design review, item 4): the grid stretched the
+// frame to its row — 797px for a 775px map — so the zoom controls, 14px up from the frame's foot, hung 8px
+// below the map, and 42px of parchment stood between the map and the scrubber (22 of the frame's slack, the
+// gap, the strip's own margin). On a 390px phone the scrubber, which is in the grid there, shared the grid's
+// height with the map and floated mid-screen. The frame takes the map's own height now, the scrubber stands
+// right under it, and the two sit as one block centred in the window; the map is sized by the chrome that
+// is actually on the screen (the stage's 16px, the 8px gap, the scrubber's 67px), where 90 left 13px over.
+describe("the map-only view holds the map and its scrubber as one block", () => {
+  const focus = (sel: string) => ruleIn(css(), `body.map-focus ${sel}`);
+  it("does not stretch the frame to the grid's height, nor the grid to the window's", () => {
+    expect(focus(".map-with-list")).toMatch(/align-items:\s*start/);
+    expect(focus(".map-with-list")).not.toMatch(/flex:\s*1\b/);
+  });
+  it("stands the scrubber right under the map, and the block in the middle", () => {
+    expect(focus(".timeline-strip")).toMatch(/margin-top:\s*0/);
+    expect(focus(".stage")).toMatch(/justify-content:\s*center/);
+  });
+  it("sizes the map and its scrubber alike, by the chrome that is on the screen", () => {
+    expect(ruleIn(css(), "body.map-focus")).toMatch(/--focus-w:\s*min\(100%, calc\(\(100vh - 91px\)/);
+    expect(ruleIn(blocksOf("@supports (height: 100svh)"), "body.map-focus")).toMatch(/--focus-w:\s*min\(100%, calc\(\(100svh - 91px\)/);
+    expect(focus(".map-frame")).toMatch(/width:\s*var\(--focus-w\)/);
+    expect(focus(".timeline-strip")).toMatch(/width:\s*var\(--focus-w\)/);
+  });
+  it("takes the whole window, and spends none of it on the column the view hides", () => {
+    // ⚠ `#app > .stage` caps the stage by the page's measure with an id's weight: a `body.map-focus .stage`
+    // alone never lifted it (measured: the stage stood 1135px wide in a 1440px window)
+    expect(ruleIn(css(), "body.map-focus #app > .stage")).toMatch(/max-width:\s*none/);
+    expect(focus(".map-side")).toMatch(/display:\s*none/);
+  });
+});
