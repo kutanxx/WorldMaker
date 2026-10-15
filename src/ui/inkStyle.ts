@@ -423,6 +423,14 @@ export function inkWorld(svg: SVGSVGElement, world: World, lang: Lang, page?: Pa
   for (const p of svg.querySelectorAll(".road-casing")) p.setAttribute("stroke", PAPER);
   for (const p of svg.querySelectorAll(".road")) { p.setAttribute("stroke", INK); p.setAttribute("stroke-width", "0.9"); p.setAttribute("stroke-dasharray", "4 1.6"); }
   for (const text of svg.querySelectorAll("text")) { text.setAttribute("fill", INK); if (text.getAttribute("stroke")) text.setAttribute("stroke", PAPER); }
+  // ★ A region's name — 9.5px, tracked, in a light face — lay over the trees' and the peaks' hatching and half
+  // vanished ("트리아노르크 침엽수림", design review 2026-10-15, item 11). Every region name keeps a paper halo
+  // of 3 here, up from the colour map's 2, and a land name is set bold where the face has a bold: Gowun
+  // Batang's 700 is loaded, EB Garamond's is not and a synthesized bold smears, so the English keeps its weight.
+  for (const text of svg.querySelectorAll(".region-label")) {
+    text.setAttribute("stroke-width", "3");
+    if (lang === "ko" && text.classList.contains("region-land")) text.setAttribute("font-weight", "700");
+  }
   const key = svg.querySelector(":scope > .biome-legend");
   if (key) key.replaceWith(inkKey(marks, lang, world.grid.height, world.roads.length > 0, (world.seaRoutes?.length ?? 0) > 0, svg.querySelector(".econ-zones") !== null));
   twoInks(svg);
