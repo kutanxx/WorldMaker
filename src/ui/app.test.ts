@@ -97,6 +97,27 @@ describe("createApp", () => {
     expect(home.querySelector(".home-word")?.textContent).toBe("WorldMaker");
     expect(home.querySelector(".home-icon svg.icon-home")).not.toBeNull();
   });
+  // The English bar had no room for the word "Seed" (shown, it wrapped the bar at 1366x650), and hidden it
+  // left an English reader a bare number: the word is a sign on screen and the box names itself (item 13)
+  it("names the seed box, and shows a sign for it where the word does not fit", () => {
+    const root = document.createElement("div");
+    createApp(root, small);
+    try {
+      const box = root.querySelector<HTMLInputElement>(".seed-group input")!;
+      const word = root.querySelector(".seed-label > span")!;
+      const said = () => [box.getAttribute("aria-label"), word.textContent];
+      const first = said();
+      expect(first[0]).toMatch(/^(Seed|세계 번호)$/);
+      expect(first[1]).toMatch(/^(#|번호)$/);
+      (root.querySelector(".lang-toggle") as HTMLButtonElement).click();   // the other language (saved in wm:lang)
+      const second = said();
+      expect(second[0]).toMatch(/^(Seed|세계 번호)$/);
+      expect(second[1]).toMatch(/^(#|번호)$/);
+      expect(second, "the sign and the name do not follow the language").not.toEqual(first);
+    } finally {
+      localStorage.removeItem("wm:lang");
+    }
+  });
   it("shows a timeline and a political layer over the world", () => {
     const root = document.createElement("div");
     createApp(root, small);
@@ -947,7 +968,8 @@ describe("a plate tells you where you are and where you can go", () => {
     expect(realm.querySelector(".city-fact-key")?.textContent).toBe("Realm");
     const value = realm.querySelector(".city-fact-value")!;
     expect(value.firstChild?.textContent, "the year is still in the realm's name").not.toMatch(/·|AY/);
-    expect(value.querySelector(".city-fact-when")?.textContent).toMatch(/^as of \d+ AY$/);
+    // "year 0", not "0 AY": AY was explained nowhere on the page (design review 2026-10-15)
+    expect(value.querySelector(".city-fact-when")?.textContent).toMatch(/^as of year \d+$/);
     const labels = rows.map((r) => r.querySelector(".city-fact-key")?.textContent);
     expect(labels).toContain("ID");
     expect(labels).not.toContain("Fingerprint");
@@ -985,7 +1007,7 @@ describe("a plate tells you where you are and where you can go", () => {
       const o = world.cities.find((c) => chip.textContent!.startsWith(properName("en", c.name) + " ·"))!;
       const y = foundedIn.get(o.id) ?? 0;
       const note = chip.querySelector(".neighbour-later")?.textContent ?? null;
-      if (y > 0) { later++; expect(note, o.name).toBe(`founded ${y} AY`); }
+      if (y > 0) { later++; expect(note, o.name).toBe(`founded in year ${y}`); }
       else expect(note, o.name).toBeNull();
     }
     expect(later).toBeGreaterThan(0);
@@ -1188,7 +1210,8 @@ describe("the towns arrive as the chronicle founds them", () => {
       at(v);
       const ids = listed();
       expect(new Set(ids), `year index ${v}`).toEqual(onMap());
-      expect(count(), `year index ${v}: the head counts what the list shows`).toBe(String(ids.length));
+      // "8 / 28": what stands now of what there will be (design review 2026-10-15, item 18)
+      expect(count(), `year index ${v}: the head counts what the list shows`).toBe(`${ids.length} / ${world.cities.length}`);
       // a town arrives in its own place in the list — the year's capitals first, then by size — not at
       // the end (the year's: a capital that falls goes back among the towns, see yearCapitals.test)
       const rows = [...root.querySelectorAll<HTMLLIElement>(".city-list li")].filter((li) => !li.hidden)
@@ -1726,7 +1749,7 @@ describe("a window too narrow to carry the map's furniture", () => {
     // world lands 14 of them once capitals are seated) — and in the list means shown in this year.
     const rows = [...root.querySelectorAll<HTMLLIElement>(".city-list li")].filter((li) => !li.hidden).length;
     expect(rows).toBeGreaterThan(0);
-    expect(titled(/Cities/)!.querySelector(".fold-count")!.textContent).toBe(String(rows));
+    expect(titled(/Cities/)!.querySelector(".fold-count")!.textContent).toMatch(new RegExp(`^${rows} / \\d+$`));
   });
 
   // The plate has the same disease: 568 units drawn 321px wide is x0.565, and the district key

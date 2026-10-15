@@ -53,6 +53,9 @@ describe("makeFold", () => {
     const f = makeFold({ title: "Cities", open: false, count: 28 });
     f.setCount(8);
     expect(f.head.querySelector(".fold-count")!.textContent).toBe("8");
+    // ...and says what there will be, where the caller knows: "Cities 8" read as a small world at year 0
+    f.setCount(8, 28);
+    expect(f.head.querySelector(".fold-count")!.textContent).toBe("8 / 28");
   });
 
   it("leaves the count out when there is nothing to count", () => {

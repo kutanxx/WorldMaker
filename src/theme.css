@@ -93,12 +93,10 @@ body {
 .seed-group { display: inline-flex; align-items: center; gap: 0; }
 /* the box's own word, wrapping it (app.ts): "번호 [967042] 열기" rather than a bare number */
 .seed-label { display: inline-flex; align-items: center; gap: 6px; cursor: text; }
+/* In English the word is a sign, "#": "Seed" shown took the bar to two rows at 1366x650 (measured
+   2026-10-15: 1103px of 1123 used and it wrapped), and hidden it left an English reader a bare number
+   with no name (design review, item 13). The box itself says "Seed" to a screen reader (aria-label). */
 .seed-label > span { font-size: 13px; color: #6b5a3f; }
-/* ...said only to a screen reader in English: "Seed" is the word a map tool's English reader already has,
-   and the English bar had no 28px to spare for it (measured at 1440x900, it took the bar to two rows) */
-html:lang(en) .seed-label > span {
-  position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap;
-}
 /* ★ Every sign on the page is one drawing in its control's own ink (icons.ts): the bar carried colour
    emoji (🎲 📜 🏠), text glyphs (⬇ ✎ ▶ ⏸ ✕ ←) and one drawn chain at once, and an emoji is drawn by the
    reader's OS — in colour on Windows, as a white silhouette in a headless window — which read as a chat
@@ -364,10 +362,11 @@ body.map-focus .stage.plate > .map-frame { width: min(100%, calc(100vh - 16px));
    edge — so a mark placed at a flat percentage of the track points slightly wide, and the error is
    biggest exactly where a reader checks it, at 0 and at 500. `--thumb` is what the positions below
    are inset by; it is the one number to change if the thumb is ever styled. */
-.timeline-ticks { position: relative; height: 12px; --thumb: 16px; }
+.timeline-ticks { position: relative; height: 14px; --thumb: 16px; }
+/* 11px: at 9.5 the centuries were the smallest words on the page (design review 2026-10-15) */
 .timeline-tick {
   position: absolute; transform: translateX(-50%);
-  font-size: 9.5px; color: #6b5d42; font-variant-numeric: tabular-nums; user-select: none;
+  font-size: 11px; color: #6b5d42; font-variant-numeric: tabular-nums; user-select: none;
 }
 .timeline-year { min-width: 56px; font-variant-numeric: tabular-nums; font-weight: 600; }
 .political .territory { pointer-events: none; }
@@ -404,17 +403,19 @@ svg.lang-ko .region-land { font-weight: 700; }
    It keeps the per-kind colours the rows had: a fall is not a founding, and one line can say so as
    well as forty could. */
 .timeline-strip { margin-top: 12px; }
+/* ★ A caption, not a box: bordered and filled, it read as an input field under the scrubber (design
+   review 2026-10-15). It stands on a rule, in the page's own parchment, as a caption does under a picture. */
 .chronicle-caption {
-  max-width: 940px; margin: 6px auto 0; padding: 6px 12px; min-height: 1.5em;
+  max-width: 940px; margin: 8px auto 0; padding: 7px 12px 0; min-height: 1.5em;
   font-family: 'EB Garamond', 'Gowun Batang', Georgia, serif; font-size: 15px; line-height: 1.4; text-align: center;
-  color: #4a3f2f; background: #f6efdd; border: 1px solid #cbb784; border-radius: 6px;
+  color: #4a3f2f; background: none; border: 0; border-top: 1px solid #d8c9a3; border-radius: 0;
 }
 /* `display: flex` on a narrow window would beat the [hidden] the caption sets when it has nothing to say */
 .chronicle-caption[hidden] { display: none; }
 .chronicle-caption.evt-conquer { color: #7a2f2f; }
 .chronicle-caption.evt-civilwar { color: #8a3a1a; }
 .chronicle-caption.evt-independence { color: #2f6f4a; }
-.chronicle-caption.evt-goldenage { color: #9a6a1a; }
+.chronicle-caption.evt-goldenage { color: #7a5a1a; }   /* #9a6a1a measured 4.11 at 15px, under AA */
 .chronicle-caption.evt-staple { color: #2f5a7a; }
 /* The two kinds that describe the SHAPE of the record rather than a moment in it — the century
    standings, and the accessions that fill the stretches where borders held — are quietened
@@ -474,6 +475,10 @@ svg.lang-ko .region-land { font-weight: 700; }
 }
 .export-choice button:hover, .export-choice button:focus-visible { background: #efe6cf; }
 .export-choice .export-choice-size { color: #6b5d42; font-size: 12px; }
+/* ★ The menu drops from the bar's right end onto the map's top-right corner, where the chips stand: at
+   1440x900 it covered 675px² of "지도만" in Korean and 1917 of "Map only" in English (design review, item
+   19). While it is open the chips step aside; it closes on a choice, Escape or a press elsewhere. */
+.export-choosing .focus-toggle, .export-choosing .rename-toggle { visibility: hidden; }
 
 .view-toggle { display: inline-flex; gap: 0; }
 .view-toggle button { border-radius: 0; }
@@ -499,6 +504,11 @@ svg.lang-ko .region-land { font-weight: 700; }
   box-shadow: 0 2px 10px rgba(40, 28, 10, 0.3);
 }
 .name-editor:focus { outline: 2px solid #d8b25a; outline-offset: 1px; }
+/* the caption under the box (app.ts openNameEditor): Enter keeps, Esc leaves — a tooltip said it to a hover only */
+.name-editor-hint {
+  position: absolute; z-index: 7; transform: translate(-50%, 0); pointer-events: none; white-space: nowrap;
+  padding: 1px 7px; font-size: 11px; color: #6b5d42; background: rgba(255, 250, 240, 0.92); border-radius: 3px;
+}
 /* ...and on an ink map a pointer's tint is ink too, not the colour map's red */
 .world.ink .marker-hit:hover { fill: rgba(27, 22, 18, 0.10); }
 .world.ink .marker-hit:active { fill: rgba(27, 22, 18, 0.20); }
@@ -658,6 +668,9 @@ html:lang(ko) .landing-tagline, html:lang(ko) .landing-preview-cap, html:lang(ko
    focusable element on the page at all. */
 .marker-hit { outline: none; }
 .marker-hit:focus-visible { outline: 2px solid #7a2f2f; outline-offset: 2px; }
+/* ...and every other control takes the same ring: the browser's own was an orange auto ring in one
+   browser and a 2px black one in another, and only the marker had the page's (design review, item 15) */
+button:focus-visible, a:focus-visible, input:focus-visible, summary:focus-visible { outline: 2px solid #7a2f2f; outline-offset: 2px; }
 /* ★ A mark says nothing about being pressable until it is pressed, and the reader's report was
    "몇몇 도시는 클릭이 안돼 … 클릭 자체 표시가 안뜨거나": half of that was a target stealing the
    click, and the other half is this — a page with a keyboard focus ring and nothing for a mouse.
@@ -907,7 +920,8 @@ svg.city .wall-seg, svg.city .wall-seg-inner, svg.city .tower, svg.city .gate { 
 }
 .fold-head:hover:not(:disabled) { background: #e7d9b6; }
 .fold-title { flex: 1; }
-.fold-count { font-variant: tabular-nums; font-weight: 400; color: #8a7a5c; letter-spacing: 0; }
+/* #6b5d42, the palette's darkest muted tone (5.60): #8a7a5c measured 3.65 on the panel, under AA */
+.fold-count { font-variant: tabular-nums; font-weight: 400; color: #6b5d42; letter-spacing: 0; }
 /* 16px, not the head's 13: at 13 the triangle was a speck at the far end of a 336px head, and it is
    the only thing on the head that says the head opens */
 .fold-mark { font-size: 16px; line-height: 1; }
@@ -1139,6 +1153,13 @@ svg.city .wall-seg, svg.city .wall-seg-inner, svg.city .tower, svg.city .gate { 
    ⚠ An `@supports` block, not a second declaration under each rule: three of these carry a
    `var()`, and a declaration with a `var()` is accepted at parse time — on a browser without `svh`
    it fails at computed time and drops to the property's initial value, not back to the `vh` line. */
+/* A reader who asked their OS for less motion gets none: the fold marks' turn, the cards' lift and the
+   front page's fade are the page's only motion (design review 2026-10-15). */
+@media (prefers-reduced-motion: reduce) {
+  .fold-mark::before, .advanced > summary::before, .choice-card { transition: none; }
+  .choice-card:hover { transform: none; }
+  .landing-preview-link { animation: none; }
+}
 @supports (height: 100svh) {
   #landing { --preview-w: max(300px, min(620px, calc((100svh - 328px) * 10 / 7 + 2px))); }
   #app { --page: max(620px, calc((100svh - var(--chrome, 290px)) * 10 / 7 + 222px)); }

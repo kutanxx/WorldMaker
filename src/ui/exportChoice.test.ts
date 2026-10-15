@@ -56,6 +56,8 @@ describe("exporting what is on the screen", () => {
     expect(items.map((b) => b.dataset.scope)).toEqual(["whole", "visible"]);
     expect(items[1].textContent, "the part on screen says how much ground it holds").toMatch(/\d+\s*[x×]\s*\d+\s*km/);
     expect(document.activeElement, "the question takes the keyboard").toBe(items[0]);
+    // the map's chips stand in the corner the menu drops onto: they step aside while it is open (item 19)
+    expect(root.classList.contains("export-choosing"), "the chips are not told to step aside").toBe(true);
   }, 20000);
 
   it("writes the part on screen, at the print size, set on its own page", async () => {
@@ -107,6 +109,7 @@ describe("exporting what is on the screen", () => {
     expect(root.querySelector(".export-choice")).toBeNull();
     expect(drawn.length + saved.length).toBe(0);
     expect(document.activeElement).toBe(png);
+    expect(root.classList.contains("export-choosing"), "the chips are still hidden after the menu closed").toBe(false);
   }, 20000);
 
   it("closes when the reader clicks elsewhere", async () => {

@@ -91,10 +91,13 @@ describe("the reader's names", () => {
       expect(root.querySelector("svg.world"), "a click on a name opened the plate while renaming").not.toBeNull();
       expect(editor(), "no box to type in").not.toBeNull();
       expect(editor()!.value).toBe(was);
+      // ...with its keys said under it, not only in a tooltip (design review 2026-10-15)
+      expect(root.querySelector(".name-editor-hint")?.textContent).toMatch(/Enter/);
       // Escape leaves it as it was
       editor()!.value = "Nope";
       editor()!.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
       expect(editor()).toBeNull();
+      expect(root.querySelector(".name-editor-hint"), "the caption outlived its box").toBeNull();
       expect(label().textContent).toBe(was);
       // Enter keeps it — as typed, and in the link
       label().dispatchEvent(new MouseEvent("click", { bubbles: true }));

@@ -323,6 +323,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     regenBtn.textContent = t(lang, "generate");
     regenBtn.title = t(lang, "seedTitle");
     seedWord.textContent = t(lang, "seedLabel");
+    seedInput.setAttribute("aria-label", t(lang, "seedName"));   // the English word is a sign ("#") on screen
     seedInput.title = t(lang, "seedTitle");
     sign(randomBtn, "die", t(lang, "newWorld"));
     jsonBtn.textContent = t(lang, "exportJson");
@@ -492,7 +493,9 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     bar.className = "first-hint";
     bar.setAttribute("role", "note");
     const words = document.createElement("span");
-    words.textContent = t(lang, "firstHint");
+    // two sentences, one for each place the list stands: under a narrow window it is BELOW the map and a
+    // finger pinches, and the desktop's "list on the right" was simply wrong there (design review, item 14)
+    words.textContent = t(lang, isNarrowWindow() ? "firstHintNarrow" : "firstHint");
     const close = document.createElement("button");
     close.type = "button";
     close.appendChild(icon("close", 12));
@@ -715,7 +718,11 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
       li.hidden = hidden.has(id);
       if (!li.hidden) shown++;
     }
-    listFold?.setCount(shown);
+    // "8 / 28": what stands now of what there will be — "Cities 8" read as a small world at year 0, and the
+    // second number is the one sign on arrival that the scrubber has a history to show (design review, item 18)
+    const all = generated.world.cities.length;
+    listFold?.setCount(shown, all);
+    if (listFold) listFold.head.title = t(lang, "cityCountHint").replace("{a}", String(shown)).replace("{b}", String(all));
   }
 
   function fillSlot(slot: SVGGElement, view: MapView, yearIndex: number): void {
@@ -770,7 +777,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
 
   // ── Renaming ──────────────────────────────────────────────────────────────────────────────────────
   // The box a name is typed into, standing where the name stands on the map; one at a time.
-  let editor: { key: string; input: HTMLInputElement; follow: MutationObserver } | null = null;
+  let editor: { key: string; input: HTMLInputElement; hint: HTMLElement; follow: MutationObserver } | null = null;
 
   /** Which name a click on the map landed on: a label says (`data-name`); a town's dot, or where a
    * plate's road goes, says which town. */
@@ -831,6 +838,11 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     input.spellcheck = false;
     input.setAttribute("aria-label", t(lang, "renameLabel"));
     input.title = t(lang, "renameHint");
+    // ...and said under the box, not only in its tooltip: "Enter keeps it · Esc leaves it" was found by
+    // nobody who did not hover (design review 2026-10-15)
+    const hint = document.createElement("span");
+    hint.className = "name-editor-hint";
+    hint.textContent = t(lang, "renameHint");
     let anchor = at;
     const place = () => {
       if (!anchor.isConnected) {
@@ -844,11 +856,14 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
       input.style.left = `${r.left - f.left + r.width / 2}px`;
       input.style.top = `${r.top - f.top + r.height / 2}px`;
       input.style.width = `${Math.round(Math.max(150, Math.min(340, r.width + 36)))}px`;
+      // the caption hangs under the box: its middle, and the box's half-height (its own line and padding) below
+      hint.style.left = input.style.left;
+      hint.style.top = `${r.top - f.top + r.height / 2 + input.offsetHeight / 2 + 4}px`;
     };
     const follow = new MutationObserver(place);
     follow.observe(map, { attributes: true, attributeFilter: ["viewBox"] });
-    editor = { key, input, follow };
-    frame.appendChild(input);
+    editor = { key, input, hint, follow };
+    frame.append(input, hint);
     place();
     input.addEventListener("keydown", (e) => {
       // A syllable still being put together (a Korean one, always, until the next key) is the input
@@ -868,10 +883,11 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
 
   function closeNameEditor(keep: boolean): void {
     if (!editor) return;
-    const { key, input, follow } = editor;
+    const { key, input, hint, follow } = editor;
     editor = null;
     follow.disconnect();
     input.remove();
+    hint.remove();
     if (keep) setName(key, input.value);
   }
 
@@ -1681,6 +1697,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     document.removeEventListener("pointerdown", away, true);
     trigger.setAttribute("aria-expanded", "false");
     menu.remove();
+    root.classList.remove("export-choosing");
   }
   function askWhatToExport(trigger: HTMLButtonElement, write: (page?: Page) => void): void {
     closeExportChoice();
@@ -1721,6 +1738,8 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     const away = (e: Event) => { if (!menu.contains(e.target as Node)) closeExportChoice(); };
     document.addEventListener("pointerdown", away, true);
     exportGroup.appendChild(menu);
+    // the map's chips stand in the corner the menu drops onto (theme.css .export-choosing): they step aside
+    root.classList.add("export-choosing");
     trigger.setAttribute("aria-expanded", "true");
     exportChoice = { menu, trigger, away };
     items[0].focus();

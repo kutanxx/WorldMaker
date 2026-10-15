@@ -29,6 +29,33 @@ describe("a first visit is told how the map is used", () => {
     expect(hint!.compareDocumentPosition(root.querySelector(".map-frame")!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
+  // The list stands BESIDE a wide window's map and UNDER a narrow one's, and the one sentence said "the list
+  // on the right" to both (design review 2026-10-15, item 14); a narrow window pinches where a desktop wheels
+  it("tells a narrow window where its list is, and how it zooms", () => {
+    (window as unknown as { matchMedia: unknown }).matchMedia = (media: string) => ({
+      media, matches: true, addEventListener() {}, removeEventListener() {},
+    });
+    try {
+      const { root } = open("ko");
+      const words = root.querySelector(".first-hint span")!.textContent!;
+      expect(words).toMatch(/아래 목록/);
+      expect(words).not.toMatch(/오른쪽|휠/);
+      expect(words).toMatch(/도면/);
+      expect(words).toMatch(/링크/);
+      document.body.replaceChildren();
+      localStorage.clear();
+      const en = open("en");
+      const said = en.root.querySelector(".first-hint span")!.textContent!;
+      expect(said).toMatch(/below/);
+      expect(said).not.toMatch(/beside|wheel/);
+    } finally {
+      delete (window as unknown as { matchMedia?: unknown }).matchMedia;
+    }
+    // ...and a wide window keeps its own words: the list beside the map, the wheel
+    const wide = open("ko");
+    expect(wide.root.querySelector(".first-hint span")!.textContent).toMatch(/오른쪽 목록/);
+  });
+
   it("is put away for good once closed", () => {
     const { root } = open("en");
     const close = root.querySelector<HTMLButtonElement>(".first-hint button")!;

@@ -17,8 +17,12 @@ export interface Fold {
   setOpen(on: boolean): void;
   /** Wide windows show these sections outright; the head stands down to a plain heading. */
   setFoldable(on: boolean): void;
-  /** A new count for the head — the town list follows the scrubbed year, so what it holds changes. */
-  setCount(n: number): void;
+  /**
+   * A new count for the head — the town list follows the scrubbed year, so what it holds changes. With
+   * `of`, the head says "8 / 28": what stands now of what there will be. A world opens at year 0 with
+   * its eight capitals, and "Cities 8" read as a small world; the 28 says the scrubber has something to show.
+   */
+  setCount(n: number, of?: number): void;
 }
 
 export interface FoldOpts {
@@ -82,7 +86,7 @@ export function makeFold(opts: FoldOpts): Fold {
     section, head, body,
     setOpen(on) { open = on; paint(); },
     setFoldable(on) { foldable = on; head.disabled = !on; paint(); },
-    setCount(n) { if (count) count.textContent = String(n); },
+    setCount(n, of) { if (count) count.textContent = of === undefined ? String(n) : `${n} / ${of}`; },
   };
 }
 
