@@ -964,6 +964,20 @@ describe("the plate marks its marsh, its sand and its frozen ground", () => {
     });
   }
 
+  // At 0.45 of the map's hill a hummock was 3.6 units across with a 0.27 line in pale grey on pale ground — at
+  // the plate's own size (1 unit ≈ 1.6px) it could not be seen (after2-ground-s1c3-d-ko.png). A mark the ground
+  // is known by is at least as long as a house (4 units) and drawn in a line darker than the marsh's tuft is.
+  it("draws a hummock no smaller than a house, in a line that shows on the frozen ground", () => {
+    const { svg } = plate(TUNDRA);
+    const d = svg.querySelector(".ground-mark.paint-hill")!.getAttribute("d")!;
+    const m = /^M([\d.-]+),([\d.-]+)Q[\d.-]+,[\d.-]+ ([\d.-]+),([\d.-]+)$/.exec(d)!;
+    expect(m, d).not.toBeNull();
+    expect(Number(m[3]) - Number(m[1]), "its width").toBeGreaterThanOrEqual(4.2);
+    const line = svg.querySelector(".ground-mark.paint-hill")!.getAttribute("stroke")!;
+    const lum = (hex: string) => [1, 3, 5].reduce((s, i) => s + parseInt(hex.slice(i, i + 2), 16), 0) / 3;
+    expect(lum(line), `its line ${line} against the ground #e8e7de`).toBeLessThan(lum("#e8e7de") - 90);
+  });
+
   it("marks no plain, and keys none", () => {
     const { layout, svg } = plate(GRASSLAND, 9);
     expect("marks" in layout.countryside).toBe(false);

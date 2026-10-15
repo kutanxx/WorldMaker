@@ -117,7 +117,8 @@ const BRIDGE_EDGE = "#5f5a4e";
 const PALISADE = { stake: "#6b4f34", rail: "#8a6a44", dash: "1.2 1" };
 // the ground's own marks (countryside.ts `marks`), at a share of the world map's size — a tuft at 1 is six units
 // across, and the plate's houses are two — and the key's word for each
-const GROUND_MARK_SCALE: Record<GroundMark, number> = { marsh: 0.6, dune: 1.4, hummock: 0.45 };
+// (a hummock at 0.45 was 3.6 units across in a pale line and could not be seen at the plate's own size)
+const GROUND_MARK_SCALE: Record<GroundMark, number> = { marsh: 0.6, dune: 1.4, hummock: 0.55 };
 const GROUND_MARK_NAME: Record<GroundMark, FeatureKey> = { marsh: "marsh", dune: "sand", hummock: "frozenGround" };
 // a slope shorter than this carries no hachure: the ground there hardly falls
 const HILL_STROKE_MIN = 1.5;

@@ -213,7 +213,8 @@ export function paintedPeak(x: number, y: number, w: number): SVGElement {
 }
 
 // a tundra's frost hummock: the hill mark, snow-white with a cold grey line — the one ground the world map leaves blank
-const HUMMOCK: MarkPalette = { ...PAINT_MARKS, hill: "#f4f2ec", hillLine: "#9a978c" };
+// (the line is darker than the hill's own grey: on the tundra's pale ground, #e8e7de, a #9a978c line vanished)
+const HUMMOCK: MarkPalette = { ...PAINT_MARKS, hill: "#f6f4ee", hillLine: "#7f7c70" };
 /**
  * One of the ground's marks for a town plate's country (countryside.ts `marks`), standing on (x, y) at `s` of its
  * size: a marsh's tuft and a desert's sand in the colour map's own palette, a tundra's hummock in snow.
