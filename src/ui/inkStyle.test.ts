@@ -56,8 +56,13 @@ describe("the colour map, untouched by the ink style", () => {
     // towns' layer, the marks and the keys taken out (restyle.ts, EXTRA=":scope > .markers"), nothing else moved.
     // Were full [3173089081, 4265279183, 2636380727, 2647918915], keyless [3579962823, 1867888997, 3390429026,
     // 3960239445], ink [2366848923, 370124978, 1707344935, 1616361766].)
-    expect(keyless, "the map moved, not only its key").toEqual([3438479088, 3512652036, 2969924679, 237570426]);
-    expect(hashes).toEqual([3854388807, 578052463, 327942045, 2330132253]);
+    // (2026-10-15: the scale bar stands clear of the frame — its tablet just above the inner rule, holding every
+    // word; every view moved, colour and ink, keys and all. With the bar taken out, every view hashes as it did
+    // (colour [2085063253, 1025870845, 300815235, 3607686147], ink [1541742692, 3885689301, 1863976610,
+    // 1454650691], before and after). Were keyless [3438479088, 3512652036, 2969924679, 237570426], full
+    // [3854388807, 578052463, 327942045, 2330132253].)
+    expect(keyless, "the map moved, not only its key").toEqual([623362807, 3125955355, 2135848034, 234716753]);
+    expect(hashes).toEqual([2863374946, 1737343242, 4069225680, 2935363920]);
   });
 });
 
@@ -146,7 +151,9 @@ describe("the ink map", () => {
     });
     // (pinned with their keys taken out as well, as the colour map's are, so the next change to a key can show
     // it touched nothing else — read on the commit before the realms' and the peoples' ink keys were made)
-    expect(keyless, "the ink map moved, not only its key").toEqual([292007065, 3737655174, 1348684571, 1189182329]);
+    // (2026-10-15, the scale bar moved up off the frame — see the colour map's pin: barless, every view is as it was.
+    // Were [292007065, 3737655174, 1348684571, 1189182329].)
+    expect(keyless, "the ink map moved, not only its key").toEqual([245233316, 1420225361, 2043666062, 2860611588]);
     // (the province view's ink map re-pinned with the colour map's, for the same words: was 2924723875, and the
     // new drawing with the old words put back hashes to exactly that)
     // (2026-10-12: re-pinned with the colour map's restyle — the ink map took its rivers, frame, rose and title
@@ -155,7 +162,8 @@ describe("the ink map", () => {
     // (2026-10-15: the realms' and the peoples' views gained a key in ink — the border and the marks, where the key
     // of colours used to be dropped — and only those two moved, from 3737655174 and 1348684571, which were also
     // their keyless hashes: the ink map had no key there. Keyless, all four are as they were.)
-    expect(hashes).toEqual([3989428746, 3450551405, 703491356, 3120728551]);   // (the towns' marks and clearings, as above)
+    // (...and then the scale bar, from [3989428746, 3450551405, 703491356, 3120728551].)
+    expect(hashes).toEqual([1601221493, 278637416, 2957279375, 59890426]);
   });
 
   // The colour key lists colours, which an ink map does not have: the ink key lists its marks, drawn as

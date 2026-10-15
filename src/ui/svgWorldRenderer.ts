@@ -1,7 +1,7 @@
 import type { World } from "../types/world";
-import { svgEl, legendPanel, legendRow, starPath, compassRose, mapFrame, INK, PARCHMENT, TOWN_R, TOWN_RING, CAPITAL_OUT, CAPITAL_IN, CAPITAL_RING, LEGEND_TITLE_H, LEGEND_TEXT, LEGEND_ROW, LEGEND_SWATCH, LEGEND_GAP, LEGEND_W_FIXED, CITY_LABEL_DX, ROAD_INK, ROAD_W, ROAD_CASING_W, roadMark, SEA_ROUTE_INK, SEA_ROUTE_W, SEA_ROUTE_DASH, seaRouteMark, FREE_PORT_FILL, FREE_PORT_EDGE, diamondPath } from "./renderer";
+import { svgEl, legendPanel, legendRow, starPath, compassRose, mapFrame, FRAME_INSET, INK, PARCHMENT, TOWN_R, TOWN_RING, CAPITAL_OUT, CAPITAL_IN, CAPITAL_RING, LEGEND_TITLE_H, LEGEND_TEXT, LEGEND_ROW, LEGEND_SWATCH, LEGEND_GAP, LEGEND_W_FIXED, CITY_LABEL_DX, ROAD_INK, ROAD_W, ROAD_CASING_W, roadMark, SEA_ROUTE_INK, SEA_ROUTE_W, SEA_ROUTE_DASH, seaRouteMark, FREE_PORT_FILL, FREE_PORT_EDGE, diamondPath } from "./renderer";
 import { settlementKeyRows } from "./settlementKey";
-import { scaleBar, KM_PER_UNIT, WORLD_BAR_UNITS, walkCaption } from "./scaleBar";
+import { scaleBar, scaleBarAbove, KM_PER_UNIT, WORLD_BAR_UNITS, walkCaption } from "./scaleBar";
 import { displayBiomes } from "./displayBiome";
 import { OCEAN, ALPINE, BIOME_COLORS } from "../engine/biome";
 import { reliefBands } from "./relief";
@@ -596,11 +596,12 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
   // how far the ground is, which neither map said. Bottom CENTRE: the legend has the bottom-left
   // corner and the zoom controls the bottom-right, and the bar sat on the legend when it was put
   // beside it. Drawn in map units so it grows with the zoom, as a scale bar should — it says how
-  // far the ground is, and the ground does not change when the reader leans in.
+  // far the ground is, and the ground does not change when the reader leans in. Its tablet stands
+  // just above the frame's inner rule, under which the frame's mat covers the map.
   {
     const units = WORLD_BAR_UNITS;
     const km = Math.round(units * KM_PER_UNIT);
-    root.appendChild(scaleBar(grid.width / 2 - units / 2, grid.height - 26, units, `${km} km`, walkCaption(km, lang)));
+    root.appendChild(scaleBar(grid.width / 2 - units / 2, scaleBarAbove(grid.height - FRAME_INSET, units, true), units, `${km} km`, walkCaption(km, lang)));
   }
   root.appendChild(mapFrame(grid.width, grid.height));
 

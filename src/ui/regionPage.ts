@@ -10,8 +10,8 @@
 // (`.claude/probes/out/region-preview.html`, 2026-09-28).
 import { pointInPolygon, type Point } from "../engine/geometry";
 import type { World } from "../types/world";
-import { svgEl } from "./renderer";
-import { scaleBar, KM_PER_UNIT, WORLD_BAR_UNITS, walkCaption } from "./scaleBar";
+import { svgEl, FRAME_INSET } from "./renderer";
+import { scaleBar, scaleBarAbove, KM_PER_UNIT, WORLD_BAR_UNITS, walkCaption } from "./scaleBar";
 import type { Lang } from "./i18n";
 import { riverNameAt, riverNameSize } from "./riverName";
 import { FRAME_PAD } from "./deconflict";
@@ -101,7 +101,7 @@ export function putOnPage(svg: SVGSVGElement, page: Page, world: World, lang: La
   const old = furniture.querySelector(".scale-bar");
   if (old) {
     const km = roundKm((WORLD_BAR_UNITS * KM_PER_UNIT) / page.z), units = (km / KM_PER_UNIT) * page.z;
-    const bar = scaleBar(width / 2 - units / 2, height - 26, units, `${km} km`, walkCaption(km, lang), WORLD_BAR_UNITS);
+    const bar = scaleBar(width / 2 - units / 2, scaleBarAbove(height - FRAME_INSET, WORLD_BAR_UNITS, true), units, `${km} km`, walkCaption(km, lang), WORLD_BAR_UNITS);
     // in the inks the whole map's bar was drawn in — an ink map's are black and white
     const was = [old, ...old.querySelectorAll("*")], now = [bar, ...bar.querySelectorAll("*")];
     now.forEach((e, i) => { for (const a of ["fill", "stroke"]) { const v = was[i]?.getAttribute(a); if (v !== null && v !== undefined) e.setAttribute(a, v); } });

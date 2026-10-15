@@ -217,9 +217,15 @@ export function compassRose(cx: number, cy: number, r: number, north: string): S
 // scale of an engraved map's neatline), a fine inner rule — the drawing's edge at 8, as it always was.
 // Under them, the sheet's own paper over everything outside that edge: a port's sea runs to the plate's edge,
 // and it showed round the outer rule and through every gap in the band.
+/**
+ * How far in from the map's edge the frame's inner rule runs. The paper mat covers everything outside it,
+ * so what stands at the foot of the map (its scale bar) stands above this line — see `scaleBarAbove`.
+ */
+export const FRAME_INSET = 8;
 export function mapFrame(w: number, h: number, paper: string = PARCHMENT): SVGElement {
   const g = svgEl("g", { class: "map-frame" });
-  g.appendChild(svgEl("path", { class: "frame-mat", d: `M0,0H${w}V${h}H0ZM8,8V${h - 8}H${w - 8}V8Z`, fill: paper, "fill-rule": "evenodd" }));
+  const I = FRAME_INSET;
+  g.appendChild(svgEl("path", { class: "frame-mat", d: `M0,0H${w}V${h}H0ZM${I},${I}V${h - I}H${w - I}V${I}Z`, fill: paper, "fill-rule": "evenodd" }));
   g.appendChild(svgEl("rect", { x: 4, y: 4, width: w - 8, height: h - 8, fill: "none", stroke: INK, "stroke-width": 1.4 }));
   const IN = 4.7, OUT = 7.3, STEP = 25;
   let d = "";
@@ -228,12 +234,12 @@ export function mapFrame(w: number, h: number, paper: string = PARCHMENT): SVGEl
     for (let i = 0; i < n; i += 2) d += piece(from + i * len, from + (i + 1) * len);
   };
   const f = (v: number) => v.toFixed(1);
-  band(8, w - 8, (a, b) => `M${f(a)},${IN}H${f(b)}V${OUT}H${f(a)}Z`);
-  band(8, w - 8, (a, b) => `M${f(w - b)},${h - OUT}H${f(w - a)}V${h - IN}H${f(w - b)}Z`);
-  band(8, h - 8, (a, b) => `M${IN},${f(h - b)}V${f(h - a)}H${OUT}V${f(h - b)}Z`);
-  band(8, h - 8, (a, b) => `M${w - OUT},${f(a)}V${f(b)}H${w - IN}V${f(a)}Z`);
+  band(I, w - I, (a, b) => `M${f(a)},${IN}H${f(b)}V${OUT}H${f(a)}Z`);
+  band(I, w - I, (a, b) => `M${f(w - b)},${h - OUT}H${f(w - a)}V${h - IN}H${f(w - b)}Z`);
+  band(I, h - I, (a, b) => `M${IN},${f(h - b)}V${f(h - a)}H${OUT}V${f(h - b)}Z`);
+  band(I, h - I, (a, b) => `M${w - OUT},${f(a)}V${f(b)}H${w - IN}V${f(a)}Z`);
   g.appendChild(svgEl("path", { class: "frame-scale", d, fill: INK }));
-  g.appendChild(svgEl("rect", { x: 8, y: 8, width: w - 16, height: h - 16, fill: "none", stroke: INK, "stroke-width": 0.6 }));
+  g.appendChild(svgEl("rect", { x: I, y: I, width: w - 2 * I, height: h - 2 * I, fill: "none", stroke: INK, "stroke-width": 0.6 }));
   for (const [x, y] of [[4, 4], [w - 8, 4], [4, h - 8], [w - 8, h - 8]]) {
     g.appendChild(svgEl("rect", { class: "frame-corner", x, y, width: 4, height: 4, fill: INK }));
   }

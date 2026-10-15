@@ -1,6 +1,6 @@
-import { svgEl, legendPanel, legendRow, compassRose, mapFrame, INK, PARCHMENT } from "./renderer";
+import { svgEl, legendPanel, legendRow, compassRose, mapFrame, FRAME_INSET, INK, PARCHMENT } from "./renderer";
 import { paintedPeak } from "./inkStyle";
-import { scaleBar, METRES_PER_UNIT } from "./scaleBar";
+import { scaleBar, scaleBarAbove, METRES_PER_UNIT } from "./scaleBar";
 import type { CityLayout } from "../engine/city";
 import type { WardType } from "../engine/city/zoning";
 import type { Point, Polygon, Polyline } from "../engine/geometry";
@@ -1080,8 +1080,9 @@ export function renderCity(layout: CityLayout, lang: Lang = "en", opts: CityRend
   }
   {
     const units = 90;
-    // the plate's legend lives in the right-hand strip, so the bottom-left corner is free here
-    root.appendChild(scaleBar(20, h - 18, units, `${Math.round(units * METRES_PER_UNIT)} m`));
+    // the plate's legend lives in the right-hand strip, so the bottom-left corner is free here; the bar's
+    // tablet stands just above the frame's inner rule, under which the frame's mat covers the plate
+    root.appendChild(scaleBar(20, scaleBarAbove(h - FRAME_INSET, units, false), units, `${Math.round(units * METRES_PER_UNIT)} m`));
   }
   root.appendChild(mapFrame(w + LEGW, h, PLATE_PAPER));
 

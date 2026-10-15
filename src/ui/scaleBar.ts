@@ -33,6 +33,32 @@ export function walkCaption(km: number, lang: Lang): string {
   return days >= 1.5 ? t(lang, "walkDays").replace("{d}", String(Math.round(days))) : t(lang, "walkDay");
 }
 
+// Where a bar's words sit under its chain's foot `y`, all in shares of `type`: the chain's height, the
+// caption's baseline under the chain, the second line's under that, and a descender's room under the last.
+const CHAIN_H = 0.035, CAPTION = 0.075, SUB = 0.065, SUB_DROP = 0.085, DESCENDER = 0.3;
+function barWords(type: number, sub: boolean): { h: number; caption: number; sub: number; depth: number } {
+  const h = type * CHAIN_H;
+  const caption = h * 0.6 + 6, subLine = caption + type * SUB_DROP;
+  return { h, caption, sub: subLine, depth: sub ? subLine + type * SUB * DESCENDER : caption + type * CAPTION * DESCENDER };
+}
+
+/** How far under its chain's foot `y` a bar's tablet reaches: its words, and a descender's room under the last. */
+export function scaleBarDepth(type: number, sub: boolean): number {
+  return barWords(type, sub).depth;
+}
+
+/** air between a bar's tablet and the line it stands over */
+export const BAR_AIR = 2;
+
+/**
+ * The `y` that stands a bar's tablet `BAR_AIR` above `line` — the frame's inner rule (`FRAME_INSET` in from
+ * the map's edge), under which the frame's paper mat covers the map. The bar used to be anchored by its
+ * chain at a round number from the edge, and its second line fell under the rule (design review 2026-10-15).
+ */
+export function scaleBarAbove(line: number, type: number, sub: boolean): number {
+  return line - BAR_AIR - scaleBarDepth(type, sub);
+}
+
 /**
  * A bar of `units` map units, ticked in halves, captioned with what that distance is.
  *
@@ -41,12 +67,16 @@ export function walkCaption(km: number, lang: Lang): string {
  *
  * `type` is the length its chain's height and its words are sized by: its own, unless it stands for
  * another bar — a region's page (regionPage.ts) measures the bar again, shorter, in the whole map's type.
+ *
+ * The tablet holds every word: it reaches `scaleBarDepth` under the chain's foot. (It used to stop short of
+ * the last word's baseline — 3.7 units on the world map, where the days on foot hung off it over the sea.)
  */
 export function scaleBar(x: number, y: number, units: number, caption: string, sub?: string, type = units): SVGElement {
   const g = svgEl("g", { class: "scale-bar" });
-  const h = type * 0.035;
+  const words = barWords(type, !!sub);
+  const h = words.h;
   g.appendChild(svgEl("rect", {
-    x: x - 3, y: y - h - 11, width: units + 6, height: h + (sub ? 26 : 18),
+    x: x - 3, y: y - h - 11, width: units + 6, height: h + 11 + words.depth,
     fill: PARCHMENT, "fill-opacity": 0.9, stroke: "none",
   }));
   // an alternating black-and-white chain, the way a printed map rules one
@@ -57,15 +87,15 @@ export function scaleBar(x: number, y: number, units: number, caption: string, s
     }));
   }
   const label = svgEl("text", {
-    class: "scale-bar-text", x: x + units / 2, y: y + h * 0.6 + 6,
-    "text-anchor": "middle", "font-size": type * 0.075, fill: INK,
+    class: "scale-bar-text", x: x + units / 2, y: y + words.caption,
+    "text-anchor": "middle", "font-size": type * CAPTION, fill: INK,
   });
   label.textContent = caption;
   g.appendChild(label);
   if (sub) {
     const s = svgEl("text", {
-      class: "scale-bar-sub", x: x + units / 2, y: y + h * 0.6 + 6 + type * 0.085,
-      "text-anchor": "middle", "font-size": type * 0.065, fill: "#6b5d42", "font-style": "italic",
+      class: "scale-bar-sub", x: x + units / 2, y: y + words.sub,
+      "text-anchor": "middle", "font-size": type * SUB, fill: "#6b5d42", "font-style": "italic",
     });
     s.textContent = sub;
     g.appendChild(s);
@@ -76,8 +106,11 @@ export function scaleBar(x: number, y: number, units: number, caption: string, s
 /**
  * Hold a scale bar's caption at a screen minimum — the bar is drawn in map units, and on a plate
  * drawn small its "270 m" came out 4.6px on a 390px phone and 4.2px in a 1280x600 laptop window.
- * The caption grows DOWN from under the bar (its top stays where it was, clear of the chain), and
- * its tablet grows to hold it. A caption already big enough is left exactly as it was.
+ * The caption grows down from under the chain (its top stays clear of the chain), its tablet grows to
+ * hold it — and then the whole bar moves UP by as much, so its foot stays where the drawing put it: the
+ * bar stands over the frame's inner rule, under which the frame's paper mat covers the map, and grown
+ * down its second line stood half under the frame at every desktop window and wholly below it on a
+ * phone (design review 2026-10-15, item 2). A caption already big enough is left exactly as it was.
  * `drawnPx` is the drawing's width on screen; unmeasured (jsdom, not mounted), nothing changes.
  */
 export function floorScaleCaption(svg: SVGSVGElement, minPx: number, drawnPx: number = svg.getBoundingClientRect().width): void {
@@ -98,6 +131,9 @@ export function floorScaleCaption(svg: SVGSVGElement, minPx: number, drawnPx: nu
     const sfs = Number(sub?.getAttribute("font-size"));
     const grow = Math.max(0, want - fs), subGrow = sub && sfs > 0 ? Math.max(0, want - sfs) : 0;
     if (!grow && !subGrow) continue;
+    // the foot as the drawing put it — remembered the first time, since the page floors again at every relayout
+    const foot = Number(g.getAttribute("data-foot") ?? (Number(back.getAttribute("y")) + Number(back.getAttribute("height"))));
+    g.setAttribute("data-foot", String(foot));
     let bottom = Number(back.getAttribute("y")) + Number(back.getAttribute("height"));
     if (grow) {
       const baseline = Number(text.getAttribute("y")) + grow * 0.8;
@@ -112,5 +148,8 @@ export function floorScaleCaption(svg: SVGSVGElement, minPx: number, drawnPx: nu
       bottom = Math.max(bottom, subBase + size * 0.3);
     }
     back.setAttribute("height", (bottom - Number(back.getAttribute("y"))).toFixed(2));
+    // ...and up by what it grew: the chain, the tablet and the words together
+    const up = bottom - foot;
+    if (up > 0) for (const el of g.querySelectorAll("[y]")) el.setAttribute("y", (Number(el.getAttribute("y")) - up).toFixed(2));
   }
 }
