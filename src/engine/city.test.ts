@@ -2304,11 +2304,17 @@ describe("a plate is the same plate, byte for byte", () => {
   // 94 size-2 towns of twelve worlds' 336 moved (seed 1: towns 9, 10, 17, 20, 24, 27; seed 12: 8, 10, 11, 15,
   // 18, 20, 22, 24, 25), no archetype or castle changed, and the other 242 — the 72 hamlets among them —
   // hashed byte for byte the same (run.sh ab). Was seed 1 224396364, seed 12 3377165760.
+  // Re-pinned 2026-10-15 for the ground's marks (countryside.ts `marks`): a wetland, desert or tundra plate
+  // carries the world map's marks for its ground — marsh tufts, sand, frost hummocks — in its open country, drawn
+  // last from the end of the stream. Exactly the 114 plates of those biomes moved (53 wetland, 13 desert, 48
+  // tundra; seed 1: 3, 4, 7, 12, 15, 17, 21, 22, 23, 24, 27; seed 12: 2, 6, 9, 22, 24), no archetype or castle
+  // changed, the other 222 hashed byte for byte the same, and with `marks` taken out of the hash all 336 did
+  // (platehash2 NOMARKS=1). Was seed 1 2523319262, seed 12 767090854.
   it("draws seed 1's twenty-eight towns exactly as it did", () => {
-    expect(worldHash(1, drawing)).toEqual({ h: 2523319262, n: 28 });
+    expect(worldHash(1, drawing)).toEqual({ h: 1348073997, n: 28 });
   });
   it("draws seed 12's twenty-eight towns exactly as it did", () => {
-    expect(worldHash(12, drawing)).toEqual({ h: 767090854, n: 28 });
+    expect(worldHash(12, drawing)).toEqual({ h: 1914871185, n: 28 });
   });
   it("sends seed 1's and seed 12's roads out where they went", () => {
     expect([worldHash(1, destinations), worldHash(12, destinations)]).toEqual([{ h: 422798723, n: 28 }, { h: 964394477, n: 28 }]);

@@ -41,7 +41,11 @@ export interface Countryside {
   woods: Point[];
   dry: boolean;
   vocabulary: CountryVocabulary;
+  /** the ground's own marks where it has one — a marsh's tufts, a desert's sand, a tundra's frost hummocks — in the
+   *  open country, clear of everything on it. Only on a plate of those biomes: a plain's carries no field at all. */
+  marks?: { kind: GroundMark; at: Point[] };
 }
+export type GroundMark = "marsh" | "dune" | "hummock";
 export interface CountrysideOpts {
   bounds: { w: number; h: number };
   boundary: Polygon;
@@ -75,6 +79,14 @@ export function countryVocabulary(biome: number): CountryVocabulary {
 
 // a wooded country's forest past its farmland: how many trees at most, and how far past the walls it starts
 const DEEP_WOODS = 320, DEEP_WOODS_CLEARING = 50;
+// the ground's own marks past the walls (`Countryside.marks`): which ground has one, how many at most, how close
+// two may stand, and how far past the walls they start (the gardens lie there; a mark keeps off every patch anyway)
+const GROUND_MARKS: Partial<Record<number, { kind: GroundMark; count: number; gap: number }>> = {
+  [WETLAND]: { kind: "marsh", count: 160, gap: 4.5 },
+  [DESERT]: { kind: "dune", count: 240, gap: 3 },
+  [TUNDRA]: { kind: "hummock", count: 140, gap: 5 },
+};
+const GROUND_MARK_CLEARING = 8;
 
 interface Profile { fields: number; pastures: number; orchards: number; woods: number; dry: boolean; animal: "sheep" | "cattle" }
 export function countrysideProfile(biome: number, size: number): Profile {
@@ -469,5 +481,29 @@ export function generateCountryside(rng: Rng, opts: CountrysideOpts): Countrysid
     }
   }
 
-  return { gardens, fields, pastures, farmsteads, orchards, villages, woods, dry: prof.dry, vocabulary: vocab };
+  // ★ ...and the ground of a marsh, a desert and a tundra, which the plate painted in a tint of the paper alone
+  // (wetland #dfe4dc, desert #ece0c2, tundra #e8e7de — the only thing that told their country from a plain's),
+  // while the world map gives each its mark: a tuft of marsh grass, the dots of sand, and (for the frozen ground
+  // the world map leaves blank) a frost hummock. The same marks stand in the open country here, clear of every
+  // field, road, tree and house, drawn last from the end of the stream so nothing else on the plate moves; a
+  // plate of any other biome carries no such field, and its bytes stay (plate review, 2026-10-15).
+  const ground = GROUND_MARKS[opts.biome];
+  let marks: Countryside["marks"];
+  if (ground) {
+    const clearing = wallR + moatOff + GROUND_MARK_CLEARING;
+    const at: Point[] = [];
+    for (let tries = 0; tries < ground.count * 8 && at.length < ground.count; tries++) {
+      const p: Point = [6 + rng() * (bounds.w - 12), 6 + rng() * (bounds.h - 12)];
+      if (dhypot(p[0] - bc[0], p[1] - bc[1]) < clearing) continue;
+      if (blocked(p)) continue;
+      if (obstacles.some((o) => dhypot(o[0] - p[0], o[1] - p[1]) < 6)) continue;
+      if (woods.some((w2) => dhypot(w2[0] - p[0], w2[1] - p[1]) < 4)) continue;
+      if (at.some((q) => dhypot(q[0] - p[0], q[1] - p[1]) < ground.gap)) continue;
+      if (onClaimed(p) || distToRoads(p) < 3) continue;
+      at.push(p);
+    }
+    marks = { kind: ground.kind, at };
+  }
+
+  return { gardens, fields, pastures, farmsteads, orchards, villages, woods, dry: prof.dry, vocabulary: vocab, ...(marks ? { marks } : {}) };
 }

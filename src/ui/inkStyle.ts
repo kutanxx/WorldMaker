@@ -18,6 +18,7 @@ import { settlementKeyRows } from "./settlementKey";
 import { ALPINE, TAIGA, TEMPERATE_FOREST, TROPICAL, WETLAND, DESERT } from "../engine/biome";
 import { OCEAN } from "../engine/terrain";
 import { pointInPolygon, type Point } from "../engine/geometry";
+import type { GroundMark } from "../engine/city/countryside";
 import { type Page, PAGE_MARGIN, cellHash, onPage, spreadInCell } from "./regionPage";
 
 export const INK = "#1b1612";
@@ -207,6 +208,18 @@ export function inkMarks(world: World, page?: Page, pal: MarkPalette = INK_MARKS
 /** One painted peak (the colour map's), its foot on (x, y), `w` across — for a town plate's mountains. */
 export function paintedPeak(x: number, y: number, w: number): SVGElement {
   const el = mark("peak", x, y, w, 1, PAINT_MARKS);
+  el.setAttribute("data-x", x.toFixed(1)); el.setAttribute("data-y", y.toFixed(1));
+  return el;
+}
+
+// a tundra's frost hummock: the hill mark, snow-white with a cold grey line — the one ground the world map leaves blank
+const HUMMOCK: MarkPalette = { ...PAINT_MARKS, hill: "#f4f2ec", hillLine: "#9a978c" };
+/**
+ * One of the ground's marks for a town plate's country (countryside.ts `marks`), standing on (x, y) at `s` of its
+ * size: a marsh's tuft and a desert's sand in the colour map's own palette, a tundra's hummock in snow.
+ */
+export function paintedGround(kind: GroundMark, x: number, y: number, s: number): SVGElement {
+  const el = kind === "hummock" ? mark("hill", x, y, 12, s, HUMMOCK) : mark(kind, x, y, 12, s, PAINT_MARKS);
   el.setAttribute("data-x", x.toFixed(1)); el.setAttribute("data-y", y.toFixed(1));
   return el;
 }

@@ -2,7 +2,7 @@
 import { describe, it, expect } from "vitest";
 import { generateCityLayout, cityContext } from "../engine/city";
 import { renderCity, KEY_STRIP, fitTitle } from "./svgCityRenderer";
-import { GRASSLAND, WETLAND, TAIGA, ALPINE, DESERT } from "../engine/biome";
+import { GRASSLAND, WETLAND, TAIGA, ALPINE, DESERT, TUNDRA } from "../engine/biome";
 import { pointInPolygon } from "../engine/geometry";
 import type { Polygon } from "../engine/geometry";
 import type { CityMarker } from "../types/world";
@@ -428,6 +428,8 @@ describe("the town plan's key names its marks", () => {
           ["Inn", L.inns.length > 0], ["Abbey", !!L.abbey], ["Cemetery", !!L.cemetery], ["Gallows", !!L.gallows],
           ["Leper house", !!L.leperHouse], ["Fairground", !!L.fairground],
           ["Tannery", L.riversideTrades.some((t) => t.kind === "tanner")], ["Dyer's yard", L.riversideTrades.some((t) => t.kind === "dyer")],
+          // the ground's own marks (countryside.ts `marks`): a marsh's tufts, a desert's sand, a tundra's hummocks
+          ["Marsh", cs.marks?.kind === "marsh"], ["Sand", cs.marks?.kind === "dune"], ["Frozen ground", cs.marks?.kind === "hummock"],
         ];
         for (const [name, present] of has) expect(rows.has(name), `${name} in the key of ${c.name} (seed ${seed})`).toBe(present);
         // the castle's own row, its district's colour, carries its keep
@@ -930,6 +932,43 @@ describe("a village's plate", () => {
     expect(key).toContain("Town wall");
     expect(key).not.toContain("Palisade");
     expect(town.querySelectorAll(".wall-seg.palisade").length).toBe(0);
+  });
+});
+
+// The plate painted a marsh, a desert and a tundra in a tint of the paper alone, while the world map gave each its
+// mark. The plate's open country carries the world map's marks now (countryside.ts `marks`), in the colour map's own
+// palette, and the key names them; a plain's country carries none.
+describe("the plate marks its marsh, its sand and its frozen ground", () => {
+  const plate = (biome: number, seed = 7) => {
+    const layout = generateCityLayout(cityContext({ ...marker, coastal: false, elevation: 0.4, biome }), seed);
+    return { layout, svg: renderCity(layout, "en") };
+  };
+  const keyWords = (svg: SVGSVGElement) => [...svg.querySelectorAll(".legend-row text")].map((t) => t.textContent);
+  const cases: [number, string, string, string, string][] = [
+    [WETLAND, "marsh", ".paint-marsh", "Marsh", "습지"],
+    [DESERT, "dune", ".paint-dune", "Sand", "모래"],
+    [TUNDRA, "hummock", ".paint-hill", "Frozen ground", "언 땅"],
+  ];
+  for (const [biome, kind, sel, en, ko] of cases) {
+    it(`draws every ${kind} mark the country has, and keys it as "${en}" / "${ko}"`, () => {
+      const { layout, svg } = plate(biome);
+      expect(layout.countryside.marks?.kind).toBe(kind);
+      expect(layout.countryside.marks!.at.length).toBeGreaterThan(20);
+      // on the plate, one for one (the key's own copy is not a ground mark)
+      expect(svg.querySelectorAll(`.ground-mark${sel}`).length).toBe(layout.countryside.marks!.at.length);
+      expect(keyWords(svg)).toContain(en);
+      expect(keyWords(renderCity(layout, "ko"))).toContain(ko);
+      // ...and in the key's row, drawn as the plate draws it
+      const row = [...svg.querySelectorAll(".legend .legend-row")].find((r) => r.querySelector("text")?.textContent === en)!;
+      expect(row.querySelector(`.legend-symbol ${sel}`), "the mark in its row").toBeTruthy();
+    });
+  }
+
+  it("marks no plain, and keys none", () => {
+    const { layout, svg } = plate(GRASSLAND, 9);
+    expect("marks" in layout.countryside).toBe(false);
+    expect(svg.querySelectorAll(".ground-mark").length).toBe(0);
+    for (const w of ["Marsh", "Sand", "Frozen ground"]) expect(keyWords(svg), w).not.toContain(w);
   });
 });
 

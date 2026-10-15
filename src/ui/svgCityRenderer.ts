@@ -1,5 +1,6 @@
 import { svgEl, legendPanel, legendRow, compassRose, mapFrame, FRAME_INSET, INK, PARCHMENT } from "./renderer";
-import { paintedPeak } from "./inkStyle";
+import { paintedPeak, paintedGround } from "./inkStyle";
+import type { GroundMark } from "../engine/city/countryside";
 import { scaleBar, scaleBarAbove, METRES_PER_UNIT } from "./scaleBar";
 import { kitOf, type CityLayout } from "../engine/city";
 import type { WardType } from "../engine/city/zoning";
@@ -114,6 +115,10 @@ const BRIDGE_EDGE = "#5f5a4e";
 // a village's palisade (city.ts VILLAGE_SIZE): a thin rail with the stakes along it, in timber whatever the
 // country builds in — the stake row is dashed, each dash a stake seen from above. The key draws the same three.
 const PALISADE = { stake: "#6b4f34", rail: "#8a6a44", dash: "1.2 1" };
+// the ground's own marks (countryside.ts `marks`), at a share of the world map's size — a tuft at 1 is six units
+// across, and the plate's houses are two — and the key's word for each
+const GROUND_MARK_SCALE: Record<GroundMark, number> = { marsh: 0.6, dune: 1.4, hummock: 0.45 };
+const GROUND_MARK_NAME: Record<GroundMark, FeatureKey> = { marsh: "marsh", dune: "sand", hummock: "frozenGround" };
 // a slope shorter than this carries no hachure: the ground there hardly falls
 const HILL_STROKE_MIN = 1.5;
 const BRIDGE_DECK = "#a8a294";
@@ -429,6 +434,13 @@ export function renderCity(layout: CityLayout, lang: Lang = "en", opts: CityRend
     for (const t2 of or.trees) {
       env.appendChild(treeGlyph(t2, cs.vocabulary.tree === "palm" ? "palm" : "round", "orchard-tree", 1.4));
     }
+  }
+  // the ground's own marks — a marsh's tufts, a desert's sand, a tundra's frost hummocks — in the colour map's palette,
+  // under the trees (countryside.ts `marks`; a plain's country has none). The key's copy of one is not a ground mark.
+  if (cs.marks) for (const p of cs.marks.at) {
+    const m = paintedGround(cs.marks.kind, p[0], p[1], GROUND_MARK_SCALE[cs.marks.kind]);
+    m.setAttribute("class", `${m.getAttribute("class")} ground-mark`);
+    env.appendChild(m);
   }
   // each tree of a wood stands in a copse: two smaller trees about it, a little either side and behind
   for (const t2 of cs.woods) {
@@ -998,6 +1010,15 @@ export function renderCity(layout: CityLayout, lang: Lang = "en", opts: CityRend
   if (cs.gardens.length) mark(fn("garden"), (g, x, y) => {
     el(g, "rect", { x, y: y - 6, width: 8, height: 8, fill: "#c9d0a0", stroke: "#8a8a5f", "stroke-width": 0.3 });
   });
+  // ...and the ground itself where it has a mark of its own — a marsh's tuft, a desert's sand, a tundra's hummock —
+  // drawn as the plate draws it, in the 8x8 a swatch fills
+  if (cs.marks) {
+    const kind = cs.marks.kind;
+    mark(fn(GROUND_MARK_NAME[kind]), (g, x, y) => {
+      if (kind === "dune") for (const [dx, dy] of [[2, -1], [4.5, -3.5], [6.5, -0.5]] as [number, number][]) g.appendChild(paintedGround("dune", x + dx, y + dy, GROUND_MARK_SCALE.dune));
+      else g.appendChild(paintedGround(kind, x + 4, y + 1, kind === "marsh" ? 1 : 0.9));
+    });
+  }
   if (cs.villages.length) mark(fn("hamlet"), (g, x, y) => {
     el(g, "ellipse", { cx: x + 4, cy: y - 2, rx: 2.2, ry: 1.6, fill: "#bcd0a0", stroke: "#8a8a5f", "stroke-width": 0.3 });
     for (const [hx, hy] of [[0.2, -5.6], [5.8, -5.6], [0.2, 0.4], [5.8, 0.4]]) el(g, "rect", { x: x + hx, y: y + hy, width: 2, height: 1.6, fill: "#e0d6c0", stroke: "#9a8a70", "stroke-width": 0.3 });

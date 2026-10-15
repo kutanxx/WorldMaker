@@ -3,7 +3,7 @@ import { mulberry32 } from "../rng";
 import { generateCountryside } from "./countryside";
 import { pointInPolygon, centroid, polysOverlap, pointSegDist } from "../geometry";
 import type { Polygon } from "../geometry";
-import { GRASSLAND, DESERT, TAIGA, TUNDRA, ALPINE, TROPICAL, TEMPERATE_FOREST } from "../biome";
+import { GRASSLAND, DESERT, TAIGA, TUNDRA, ALPINE, TROPICAL, TEMPERATE_FOREST, WETLAND } from "../biome";
 import { buildWater } from "./water";
 import type { CountrysideOpts } from "./countryside";
 
@@ -341,6 +341,39 @@ describe("a wooded country is wooded beyond its farmland", () => {
     for (const p of cs.woods) {
       for (const poly of patches) expect(pointInPolygon(p, poly)).toBe(false);
       for (const r of small(TEMPERATE_FOREST).roads) for (let i = 0; i + 1 < r.length; i++) expect(pointSegDist(p, r[i], r[i + 1])).toBeGreaterThanOrEqual(3);
+    }
+  });
+});
+
+// The plate painted a marsh, a desert and a tundra in a tint of the paper alone — the only thing that told their
+// country from a plain's — while the world map gives each its mark: a tuft of marsh grass, the dots of sand, and
+// (for the frozen ground the world map leaves blank) a frost hummock. The same marks stand in the plate's open
+// country now, clear of everything on it, drawn last from the end of the stream; a plate of any other biome
+// carries no such field at all, so its bytes stay.
+describe("the ground of a marsh, a desert and a tundra carries its mark", () => {
+  const withBiome = (biome: number) => generateCountryside(mulberry32(9), { ...plainOpts(), biome });
+  const want: [number, "marsh" | "dune" | "hummock", number][] = [[WETLAND, "marsh", 40], [DESERT, "dune", 60], [TUNDRA, "hummock", 40]];
+
+  for (const [biome, kind, atLeast] of want) {
+    it(`scatters ${kind} marks over the country of biome ${biome}, and keeps them off everything on it`, () => {
+      const cs = withBiome(biome);
+      expect(cs.marks?.kind).toBe(kind);
+      expect(cs.marks!.at.length).toBeGreaterThan(atLeast);
+      const o = plainOpts();
+      const patches = [...cs.fields.map((f) => f.polygon), ...cs.pastures.map((p) => p.fence), ...cs.orchards.map((x) => x.polygon), ...cs.gardens,
+        ...cs.villages.flatMap((v) => [v.green, ...v.houses, ...v.crofts]), ...cs.farmsteads.flatMap((f) => [f.house, f.barn])];
+      for (const p of cs.marks!.at) {
+        expect(pointInPolygon(p, o.boundary), "a mark inside the town").toBe(false);
+        for (const poly of patches) expect(pointInPolygon(p, poly), "a mark on a patch").toBe(false);
+        for (const r of o.roads) for (let i = 0; i + 1 < r.length; i++) expect(pointSegDist(p, r[i], r[i + 1]), "a mark on a road").toBeGreaterThanOrEqual(3);
+        for (const w of cs.woods) expect(Math.hypot(w[0] - p[0], w[1] - p[1]), "a mark under a tree").toBeGreaterThanOrEqual(4);
+      }
+    });
+  }
+
+  it("marks no other country, so those plates' bytes stay", () => {
+    for (const biome of [GRASSLAND, TAIGA, TEMPERATE_FOREST, TROPICAL, ALPINE]) {
+      expect("marks" in withBiome(biome), `biome ${biome}`).toBe(false);
     }
   });
 });
