@@ -934,6 +934,38 @@ describe("a plate tells you where you are and where you can go", () => {
     expect(year(values[1]), "the realm is dated before its town stood").toBe(standing);
   });
 
+  // "Realm — Ceusdu Kingdom · 0 AY": the year the realm is true of hung off the realm's name as if it
+  // were part of it, and in the 210px column it broke as "· 0 / AY" (plate review, 2026-10-15). It is a
+  // line of its own under the name now, in the facts' quiet register — and the fingerprint's English label,
+  // "Fingerprint", was the widest word in the label column and cost every value 45px of its room.
+  it("dates the realm on a line of its own, and keeps the labels short", () => {
+    const root = document.createElement("div");
+    const app = createApp(root, small);
+    app.openCity(0);
+    const rows = [...root.querySelectorAll(".city-fact")];
+    const realm = rows[1];
+    expect(realm.querySelector(".city-fact-key")?.textContent).toBe("Realm");
+    const value = realm.querySelector(".city-fact-value")!;
+    expect(value.firstChild?.textContent, "the year is still in the realm's name").not.toMatch(/·|AY/);
+    expect(value.querySelector(".city-fact-when")?.textContent).toMatch(/^as of \d+ AY$/);
+    const labels = rows.map((r) => r.querySelector(".city-fact-key")?.textContent);
+    expect(labels).toContain("ID");
+    expect(labels).not.toContain("Fingerprint");
+  });
+
+  it("dates the realm in Korean too", () => {
+    localStorage.setItem("wm:lang", "ko");
+    try {
+      const root = document.createElement("div");
+      const app = createApp(root, small);
+      app.openCity(0);
+      const when = root.querySelectorAll(".city-fact")[1].querySelector(".city-fact-when");
+      expect(when?.textContent).toMatch(/^\d+년 기준$/);
+    } finally {
+      localStorage.removeItem("wm:lang");
+    }
+  });
+
   // Every world opens at year 0, and there about half the towns the roads lead to are not founded
   // yet: the row keeps them — the gates and the road ends are named for them — and says when.
   it("says when a town next door is founded, if the plate's year is before it", () => {

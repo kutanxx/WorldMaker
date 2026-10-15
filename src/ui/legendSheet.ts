@@ -45,11 +45,19 @@ export function legendSheet(): SVGSVGElement {
  * the other case: its key is drawn once on the map root and nothing redraws it, so finding no key
  * on the map must not be read as "empty the sheet".
  */
+/**
+ * Leave to draw the key SMALLER than `scale` so that two columns fit the room, down to `minScale` —
+ * a town plate's 30-row key beside a desktop's plate (see `fitToKey`). Without it a key that two
+ * columns would overflow keeps one column at its scale.
+ */
+export interface KeyFit { minScale: number }
+
 export function placeLegend(
   map: SVGSVGElement, sheet: SVGSVGElement, outside: boolean, scale = 1,
   // two on a phone, where the key stands under the map with most of 336px beside it; one where it
   // stands in the 210px column beside a desktop's map, which two would overflow
   columns = 1,
+  fit?: KeyFit,
 ): void {
   const fresh = map.querySelector(".legend");
   const held = sheet.firstElementChild;
@@ -57,11 +65,11 @@ export function placeLegend(
     // the sheet already holds the only key there is — but fit it again: it may have been fitted
     // while its fold was closed (no layout, every word 0 wide), or for the other side of the
     // narrow line. Opened on a phone after a folded fit, five realm names ran into the second column.
-    if (!fresh) { if (held) fitToKey(sheet, held, scale, columns); return; }
+    if (!fresh) { if (held) fitToKey(sheet, held, scale, columns, fit); return; }
     if (held) held.remove();       // a redraw made a new one; the old one is stale
     home.set(fresh, { parent: fresh.parentNode as Node, next: fresh.nextSibling });
     sheet.appendChild(fresh);
-    fitToKey(sheet, fresh, scale, columns);
+    fitToKey(sheet, fresh, scale, columns, fit);
     return;
   }
   if (!held) return;
@@ -89,7 +97,7 @@ export function placeLegend(
  * one and 64% for the other, so the caller says which scale its key was drawn for. The viewBox is
  * untouched: those are the key's own coordinates either way.
  */
-function fitToKey(sheet: SVGSVGElement, legend: Element, scale: number, columns = 1): void {
+function fitToKey(sheet: SVGSVGElement, legend: Element, scale: number, columns = 1, fit?: KeyFit): void {
   const panel = legend.querySelector(".legend-panel");
   const rect = panel?.querySelector("rect");
   if (!rect) return;
@@ -120,43 +128,67 @@ function fitToKey(sheet: SVGSVGElement, legend: Element, scale: number, columns 
   // in two. getBBox is the browser's own measure of the word; without layout (jsdom, or a sheet not
   // yet in the page) the cartouche's width is all there is to go on. Measured before any row moves:
   // a row's transform is on the group, so the word's own box is in the layer's coordinates.
+  // ...and each column's own, where the key may stand in two: the first column's longest word and the
+  // second's, from the key's left (a town plate's wards are short words, its countryside's marks long
+  // ones — "나병자 수용소" — so the two columns are not the same width)
+  const per = Math.ceil(rows.length / 2);
+  // (`w1w`/`w2w` are the columns' words alone; `w1` keeps the cartouche's width as its floor, as `vw` does)
+  let w1w = 0, w2w = 0, measured = false;
   const words = legend.querySelectorAll<SVGGraphicsElement>(".legend-row text");
-  for (const w of words) {
+  [...words].forEach((w, i) => {
     try {
       const b = w.getBBox();
-      if (b.width > 0) vw = Math.max(vw, Math.ceil(b.x + b.width + 2 - vx));
-    } catch { break; }
-  }
+      if (!(b.width > 0)) return;
+      measured = true;
+      const right = Math.ceil(b.x + b.width + 2 - vx);
+      vw = Math.max(vw, right);
+      if (i < per) w1w = Math.max(w1w, right); else w2w = Math.max(w2w, right);
+    } catch { /* no layout (jsdom): the cartouche's width is all there is */ }
+  });
+  const w1 = Math.max(vw, w1w), w2 = measured ? w2w : vw;
   // The key's MEASURE: the room it stands in, less the heading's inset on each side, in the key's
   // own units (a plate's key is drawn at 11-unit rows and shown x1.545). Pixels are what the page
   // lines up, so the gap and the air are said in pixels and turned into units here.
   const room = (sheet.parentElement as HTMLElement | null)?.clientWidth ?? 0;
-  const measure = room > 0 ? (room - KEY_INSET * 2) / scale : 0;
+  const roomPx = room > 0 ? room - KEY_INSET * 2 : 0;
+  const measure = roomPx > 0 ? roomPx / scale : 0;
   const gap = COL_GAP / scale, air = KEY_AIR / scale;
   // two columns only where they fit; an unmeasured room (jsdom, a folded panel) is not a "no" —
   // opening the fold places the key again and measures it then
-  const fits = !(measure > 0) || vw * 2 + gap <= measure;
-  if (columns >= 2 && rows.length >= 4 && pitch > 0 && fits) {
-    const per = Math.ceil(rows.length / 2);
+  const fits = !(measure > 0) || w1 + gap + w2 <= measure;
+  // ★ ...or where the key may be drawn smaller until they do (`fit`): a town plate's key is 30-32
+  // rows, 554px beside a desktop's plate in a column whose fold holds 451 at 1440x900 and 257 at
+  // 1366x650 — a scroll nobody notices, 27 and 12 rows seen (plate review, 2026-10-15). Drawn at the
+  // scale two columns of its WORDS fit at (the cartouche's width is no floor here: a plate's wards
+  // are short words), each column as wide as its own and no air between the rows, it stands whole —
+  // never larger than it was asked for, and below the floor the caller sets it keeps its one readable
+  // column instead.
+  const shrink = !fits && fit !== undefined && measured && w1w + w2w > 0 ? Math.min(scale, (roomPx - COL_GAP) / (w1w + w2w)) : 0;
+  let drawn = scale;
+  if (columns >= 2 && rows.length >= 4 && pitch > 0 && (fits || (fit !== undefined && shrink >= fit.minScale))) {
+    const tight = !fits;
+    if (tight) drawn = shrink;
+    const gapNow = COL_GAP / drawn, airNow = tight ? 0 : air, measureNow = roomPx > 0 ? roomPx / drawn : 0;
     // ★ The second column starts at the middle of the measure, not just past the first column's
     // words: measured on a phone, "just past" put it at x=144 of a panel running to 363, lined up
     // with nothing and with the right third of the panel empty — a block shoved into a corner.
     // Split evenly, it sits the way the town list under it does. And each row gets a few pixels of
     // air: at the map's own 17 the key was a dense block between a heading and 44px list rows.
-    const offset = Math.max(vw + gap, measure / 2);
+    // (A shrunk key has no room to spread or to breathe: its second column starts just past the first.)
+    const offset = tight ? w1w + gapNow : Math.max(w1 + gapNow, measureNow / 2);
     const fmt = (v: number) => +v.toFixed(2);
     rows.forEach((r, i) => {
       const c = i < per ? 0 : 1, k = i - c * per;
-      const dx = c * offset, dy = -c * per * pitch + k * air;
+      const dx = c * offset, dy = -c * per * pitch + k * airNow;
       if (dx === 0 && dy === 0) r.removeAttribute("transform");
       else r.setAttribute("transform", `translate(${fmt(dx)} ${fmt(dy)})`);
     });
-    vh += -(rows.length - per) * pitch + (per - 1) * air;
-    vw = Math.max(offset + vw, measure);
+    vh += -(rows.length - per) * pitch + (per - 1) * airNow;
+    vw = tight ? offset + w2w : Math.max(offset + vw, measureNow);
   } else {
     for (const r of rows) r.removeAttribute("transform");
   }
   sheet.setAttribute("viewBox", `${vx} ${vy} ${vw} ${vh}`);
-  sheet.setAttribute("width", String(vw * scale));
-  sheet.setAttribute("height", String(vh * scale));
+  sheet.setAttribute("width", String(vw * drawn));
+  sheet.setAttribute("height", String(vh * drawn));
 }

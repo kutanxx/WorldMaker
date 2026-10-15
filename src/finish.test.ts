@@ -389,6 +389,17 @@ describe("a Korean page sets nothing in a slant its face does not have", () => {
   });
 });
 
+// The year a plate's realm is true of stands on a line of its own under the realm's name (app.ts, the facts):
+// the value is a wrapping flex row, so the line takes the whole row to start under the name, in the facts'
+// quiet register.
+describe("the plate's realm is dated on its own line", () => {
+  it("takes the row's whole width, in the muted register", () => {
+    const rule = ruleIn(css(), ".city-fact-when");
+    expect(rule).toMatch(/flex-basis:\s*100%/);
+    expect(rule).toMatch(/color:\s*#6b5d42/);
+  });
+});
+
 // The English realm name is Cinzel small caps, tracked 0.10 em: at 10.5px the tracking read as air between
 // letters that did not belong together, and the word fell apart (design review 2026-10-15, item 3). Tracked
 // 0.04 em, set 13 units, it reads as one word.

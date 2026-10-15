@@ -216,6 +216,8 @@ const COMPASS_AT = 32;   // from the plate's right and bottom edges to the rose'
  * instead of to 11px — one product, one size, however the drawing around it is scaled.
  */
 export const CITY_LEGEND_ROW = 11;
+/** ...and its words' size, in the plate's units (9 x 1.554 = 14px on a desktop); the sheet's floor is set against it */
+export const CITY_LEGEND_TEXT = 9;
 
 export interface CityRenderOpts {
   /**
@@ -1045,7 +1047,7 @@ export function renderCity(layout: CityLayout, lang: Lang = "en", opts: CityRend
   const x0 = w + 12, y0 = 20 + CITY_TITLE_H; // in the right-hand strip, clear of the map
   legend.appendChild(legendPanel(x0 - 4, y0 - 8 - CITY_TITLE_H, 92, rowsN * CITY_LEGEND_ROW + 12 + CITY_TITLE_H, t(lang, "legendPlate"), 7.5));
   const labelled = (row: SVGElement, y: number, label: string) => {
-    const txt = svgEl("text", { x: x0 + 14, y, "font-size": 9, fill: "#42341f", "letter-spacing": 0.3 });
+    const txt = svgEl("text", { x: x0 + 14, y, "font-size": CITY_LEGEND_TEXT, fill: "#42341f", "letter-spacing": 0.3 });
     txt.textContent = label;
     row.appendChild(txt);
     legend.appendChild(row);

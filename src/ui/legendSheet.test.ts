@@ -271,6 +271,74 @@ describe("placeLegend sizes a column to its words", () => {
     placeLegend(map, sheet, true, 1, 2);
     expect([...legend.querySelectorAll(".legend-row")].some((r) => r.hasAttribute("transform"))).toBe(false);
   });
+
+// ★ A town plate's key is 30–32 rows — its wards, its walls and churches, the countryside's marks — and
+// beside a desktop's plate it stands in a 210px column: at 1440x900, 554px of key in a 451px fold (27
+// rows seen, the rest a scroll nobody notices), at 1366x650 12 rows of 32 (plate review, 2026-10-15).
+// Two columns would not fit the column at the key's own scale, so when the caller allows it the key is
+// drawn SMALLER until they do — each column as wide as its own longest word, no air between the rows —
+// down to a floor the caller sets, below which the key keeps its one readable column.
+describe("placeLegend shrinks a key into two columns where it is let", () => {
+  // words [60, 102, 70, 50 | 40, 30, 20, 10] at x=35, the key's left at 13: the first column's words
+  // reach 126 units from it, the second's 64 — 190 of key plus the 12px gap, in a 200px room (188 inside)
+  const shrunk = (minScale: number) => {
+    const { map, legend } = keyWithWords([60, 102, 70, 50, 40, 30, 20, 10]);
+    const sheet = legendSheet();
+    const room = document.createElement("div");
+    Object.defineProperty(room, "clientWidth", { value: 200 });
+    room.appendChild(sheet);
+    placeLegend(map, sheet, true, 1, 2, { minScale });
+    return { legend, sheet };
+  };
+  const move = (legend: Element, i: number) => {
+    const m = /translate\(([-\d.]+) ([-\d.]+)\)/.exec(legend.querySelectorAll(".legend-row")[i].getAttribute("transform") ?? "");
+    return m ? [Number(m[1]), Number(m[2])] : null;
+  };
+
+  it("draws the key at the scale two columns fit at, each column as wide as its own words", () => {
+    const { legend, sheet } = shrunk(0.8);
+    // (188 - 12) / 190: the key at 0.926 of its scale, the gap kept at its pixels
+    const [dx, dy] = move(legend, 4)!;
+    expect(dx).toBeCloseTo(126 + 12 / 0.9263, 1);
+    expect(dy, "air between the rows: the point was to be short").toBeCloseTo(-4 * 17, 6);
+    expect(Number(sheet.getAttribute("width")), "the key does not fill the room").toBeCloseTo(188, 0);
+    expect(Number(sheet.getAttribute("height"))).toBeCloseTo((4 * 17 + 14 + 20 - 20 - 4) * 0.9263, 0);
+  });
+
+  it("sizes the first column by its words, not the cartouche — a plate's wards are short words", () => {
+    // words [20 x4 | 60 x4] in a cartouche 104 wide: with the cartouche as the first column's floor two
+    // columns need 104 + 12 + 84 = 200 of 188 and would shrink; by the words they need 44 + 12 + 84 = 140
+    // and stand at the scale they were asked for
+    const { map, legend } = keyWithWords([20, 20, 20, 20, 60, 60, 60, 60]);
+    const sheet = legendSheet();
+    const room = document.createElement("div");
+    Object.defineProperty(room, "clientWidth", { value: 200 });
+    room.appendChild(sheet);
+    placeLegend(map, sheet, true, 1, 2, { minScale: 0.8 });
+    const [dx, dy] = move(legend, 4)!;
+    expect([dx, dy]).toEqual([44 + 12, -4 * 17]);
+    expect(Number(sheet.getAttribute("width"))).toBe(140);
+    expect(Number(sheet.getAttribute("height")), "drawn smaller than it was asked for").toBe(4 * 17 + 14 + 20 - 20 - 4);
+  });
+
+  it("keeps one readable column rather than shrink below the floor it is given", () => {
+    const { legend, sheet } = shrunk(0.95);
+    expect([...legend.querySelectorAll(".legend-row")].some((r) => r.hasAttribute("transform"))).toBe(false);
+    expect(Number(sheet.getAttribute("width"))).toBe(126);   // one column, at its own scale, as wide as its longest word
+  });
+
+  it("stands two columns at the scale it was given where they already fit", () => {
+    const { map, legend } = keyWithWords([60, 102, 70, 50, 40, 30, 20, 10]);
+    const sheet = legendSheet();
+    const room = document.createElement("div");
+    Object.defineProperty(room, "clientWidth", { value: 336 });
+    room.appendChild(sheet);
+    placeLegend(map, sheet, true, 1, 2, { minScale: 0.8 });
+    const [dx] = move(legend, 4)!;
+    expect(dx).toBe(Math.max(126 + 12, (336 - 12) / 2));   // spread across the room, as a phone's is
+    expect(move(legend, 5)![1], "the air a phone's key keeps between its rows").toBeGreaterThan(-4 * 17);
+  });
+});
 });
 
 // ⚠ Found on the live page the first time this shipped: the key's fold starts CLOSED on a phone,

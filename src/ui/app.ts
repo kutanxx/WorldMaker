@@ -5,7 +5,7 @@ import { waysInUse } from "../engine/worldRoads";
 import { renderWorld, restyleTowns, politicalOpts, type MapView, type MapStyle, type TownYear } from "./svgWorldRenderer";
 import { settlementKeyRows } from "./settlementKey";
 import { inkSlot, forPrint } from "./inkStyle";
-import { renderCity, CITY_LEGEND_ROW, fitTitle } from "./svgCityRenderer";
+import { renderCity, CITY_LEGEND_ROW, CITY_LEGEND_TEXT, fitTitle } from "./svgCityRenderer";
 import { generateCityLayout, cityContext, type CityLayout } from "../engine/city";
 import { cityFacts } from "./cityFacts";
 import { KM_PER_UNIT, floorScaleCaption } from "./scaleBar";
@@ -1322,12 +1322,18 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     // The plate's key opens by default, where the world map's stays folded: a terrain key annotates
     // a map whose places are also named, but a plate's quarters have nothing but their colour.
     const keySheet = legendSheet();
+    // ★ Two columns, wherever the key stands. Under a narrow plate they fit at ㉗'s size; beside a
+    // desktop's plate they do not, and the key is drawn smaller until they do — 30-32 rows (554px) stood
+    // in a fold of 451px at 1440x900 and 257px at 1366x650, a scroll nobody notices (plate review,
+    // 2026-10-15) — but never under 10px type: below that it keeps one readable column.
+    const PLATE_KEY_MIN_PX = 10;
+    const placePlateKey = () => placeLegend(citySvg, keySheet, true, LEGEND_ROW / CITY_LEGEND_ROW, 2, { minScale: PLATE_KEY_MIN_PX / CITY_LEGEND_TEXT });
     const keyFold = makeFold({
       title: t(lang, "legendPlate"), open: readFoldPref(CITY_KEY_FOLD_KEY, true),
       onToggle: (on) => {
         writeFoldPref(CITY_KEY_FOLD_KEY, on);
         // measured again now that it has a width — see the world key's fold
-        if (on) placeLegend(citySvg, keySheet, true, LEGEND_ROW / CITY_LEGEND_ROW, keyColumns());
+        if (on) placePlateKey();
       },
     });
     keyFold.section.classList.add("legend-fold");
@@ -1335,7 +1341,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     // ㉗'s one size, arrived at from the other direction: the plate's key is drawn in 11-unit rows
     // because the plate is drawn big. Standing it at 1:1 would put an 11px row beside the world
     // map's 17px one on the same phone.
-    placeLegend(citySvg, keySheet, true, LEGEND_ROW / CITY_LEGEND_ROW, keyColumns());
+    placePlateKey();
 
     // ⚠ One watcher, dropped on the way out — see the leak note in showWorld.
     dropWidthWatch?.();
@@ -1374,11 +1380,19 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
       d.append(k, v);
       return d;
     };
+    // The year the realm is true of stands on a line of its own under the name, in the facts' quiet
+    // register: hung off the name ("케우스두 왕국 · 0년", "Ceusdu Kingdom · 0 AY") it read as part of it, and
+    // in the 210px column the English broke as "· 0 / AY" (plate review, 2026-10-15).
+    const realmRow = row(t(lang, "factRealm"), facts.realm ?? t(lang, "factUnclaimed"));
+    if (facts.year !== null) {
+      const when = document.createElement("small");
+      when.className = "city-fact-when";
+      when.textContent = t(lang, "factAsOf").replace("{y}", String(facts.year));
+      realmRow.querySelector(".city-fact-value")!.appendChild(when);
+    }
     panel.append(
       row(t(lang, "factKind"), facts.kind),
-      row(t(lang, "factRealm"), facts.year === null
-        ? (facts.realm ?? t(lang, "factUnclaimed"))
-        : `${facts.realm ?? t(lang, "factUnclaimed")} · ${t(lang, "year").replace("{y}", String(facts.year))}`),
+      realmRow,
       row(t(lang, "factPeople"), `${facts.rank} · ${facts.population}`),
       row(t(lang, "factFounded"), facts.founded === null
         ? t(lang, "factAncient")
@@ -1425,7 +1439,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     // ...and fitted again now that it stands in the page: the fit above ran before the card was in
     // the document, with no room to measure, so the plate's key came out a compact block (271px of
     // a 324px measure on a phone) where the world's spans its panel.
-    placeLegend(citySvg, keySheet, true, LEGEND_ROW / CITY_LEGEND_ROW, keyColumns());
+    placePlateKey();
     // and sized by what the page actually spends around it, before its names are floored
     relayoutLabels = null;
     fitPlateChrome();
