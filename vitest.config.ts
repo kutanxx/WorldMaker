@@ -9,5 +9,7 @@ export default defineConfig({
     // second copy of every test file. That double-counts the suite and lets stale worktree code fail
     // a run of the main checkout. Only ever test the files in this working tree.
     exclude: [...configDefaults.exclude, "**/.claude/**"],
+    // a jsdom that lets go of the pages a test made (see the file)
+    setupFiles: ["./vitest.setup.ts"],
   },
 });

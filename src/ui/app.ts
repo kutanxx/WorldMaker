@@ -34,6 +34,8 @@ export interface App {
   regenerate(p: WorldParams): void;
   openCity(cityId: number): void;
   showWorld(): void;
+  /** let go of the window and the document: the page's listeners, its scrubber and its zooms */
+  destroy(): void;
 }
 
 /**
@@ -51,6 +53,16 @@ export interface App {
  */
 export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARAMS, askedName?: string): App {
   root.innerHTML = "";
+  // ★ Everything this page hangs off the window and the document is tied to this one signal, and a page
+  // whose root has left the document lets go of them the next time the browser speaks to it (see
+  // `destroy`). Without it a page's listeners outlived the page, and each held its world: a test file
+  // that opened 96 pages kept 96 worlds, and its worker died of it on CI (2026-10-16 — the run was red
+  // with no failed test; locally the same under Node 20 with two workers, "Worker exited unexpectedly").
+  const alive = new AbortController();
+  const signal = alive.signal;
+  // (a page made on a root that was never in the document — a test's — is its maker's to destroy)
+  const attached = root.isConnected;
+  const gone = (): boolean => attached && !root.isConnected;
   let lang: Lang = detectLang();
   // The reader's own names for this world's places (nameBook.ts), kept in the address beside it: read
   // from the link the page was opened with — when that link is this world.
@@ -237,10 +249,20 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
   // Once, for the app: a window that is resized, and the web fonts arriving (the title's Cinzel sets
   // the height of the row above the bar), both change what the page spends.
   let refitFrame = 0;
+  // ★ The frames a screen has asked for and not yet had — its names' relayout after a zoom, the plate's — are
+  // the page's to cancel when the screen goes: a frame still pending holds the screen it was asked for, and
+  // under jsdom, where frames never come, every page a test made stayed whole in the window's frame queue
+  // (the heap snapshot of 2026-10-16: Window → mapOfAnimationFrameCallbacks → the key's sheet → the map).
+  let worldFrame = 0, plateFrame = 0;
+  const dropFrames = (): void => {
+    cancelAnimationFrame(worldFrame); worldFrame = 0;
+    cancelAnimationFrame(plateFrame); plateFrame = 0;
+  };
   window.addEventListener("resize", () => {
+    if (gone()) { destroy(); return; }
     cancelAnimationFrame(refitFrame);
     refitFrame = requestAnimationFrame(refitChrome);
-  });
+  }, { signal });
   void document.fonts?.ready.then(() => refitChrome());
   /** drops the world screen's width watcher; see the listener leak note in showWorld */
   let dropWidthWatch: (() => void) | null = null;
@@ -298,8 +320,9 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     applyFocus(false);
   }
   document.addEventListener("keydown", (e) => {
+    if (gone()) { destroy(); return; }
     if (e.key === "Escape" && document.body.classList.contains("map-focus")) applyFocus(false);
-  });
+  }, { signal });
 
   /**
    * Renaming (nameBook.ts): while it is on, a name on the map opens a box where it stands, in place of the
@@ -620,15 +643,16 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     // the words do not, and the room that opens up is filled from the priority order the pass
     // already has — nation, capital, region, river, town. No per-tier zoom thresholds to tune.
     // Coalesced to one pass per frame: a wheel gesture fires dozens of scale changes.
-    let relayout = 0, pendingScale = 1;
+    dropFrames();
+    let pendingScale = 1;
     worldZoom = attachZoomPan(svg, frame, {
       restore,
       labels: zoomLabels(),
       onScale: (scale) => {
         pendingScale = scale;   // the newest scale of the gesture, not the one that scheduled the frame
-        if (relayout) return;
-        relayout = requestAnimationFrame(() => {
-          relayout = 0;
+        if (worldFrame) return;
+        worldFrame = requestAnimationFrame(() => {
+          worldFrame = 0;
           applyLabelScale(svg, pendingScale, WORLD_LABEL_FLOOR());
           applyMarkerScale(svg, pendingScale);
           deconflictLabels(svg, pendingScale, { clear: underControls() });
@@ -677,7 +701,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     // on every regenerate and every trip to a city plate and back — the same trap the Escape
     // handler above was moved out of.
     dropWidthWatch?.();
-    narrow?.addEventListener("change", applyWidth);
+    narrow?.addEventListener("change", applyWidth, { signal });
     dropWidthWatch = () => { narrow?.removeEventListener("change", applyWidth); dropWidthWatch = null; };
 
     const slot = svg.querySelector(".political-slot") as SVGGElement;
@@ -880,7 +904,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     dropWidthWatch?.();
     const narrowNow = typeof matchMedia === "function" ? matchMedia(NARROW) : null;
     const replate = () => { if (openCityId === cityId) openCity(cityId, "none"); };
-    narrowNow?.addEventListener("change", replate);
+    narrowNow?.addEventListener("change", replate, { signal });
     dropWidthWatch = () => { narrowNow?.removeEventListener("change", replate); dropWidthWatch = null; };
 
     // what is said about the plate (plateFacts.ts), over the key, in the column made above
@@ -906,7 +930,8 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     worldZoom?.destroy(); worldZoom = null;
     cityZoom?.destroy();
     // the ward names hold their size here for the same reason the world's names do
-    let cityRelayout = 0, cityScale = 1;
+    dropFrames();
+    let cityScale = 1;
     // ★ The zoom's buttons go on the plate BEFORE its names are laid out, at the view it opens with, so
     // the names can keep out from under them: put on after, they stood on a road's destination on 7 of
     // 34 plates at 1440x900 (measured live, 2026-09-28). The view the reader had zoomed to, when the
@@ -915,9 +940,9 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
       labels: zoomLabels(),
       onScale: (scale) => {
         cityScale = scale;
-        if (cityRelayout) return;
-        cityRelayout = requestAnimationFrame(() => {
-          cityRelayout = 0;
+        if (plateFrame) return;
+        plateFrame = requestAnimationFrame(() => {
+          plateFrame = 0;
           applyLabelScale(citySvg, cityScale);
           deconflictLabels(citySvg);
         });
@@ -993,9 +1018,22 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
   svgBtn.addEventListener("click", () => files.ask(svgBtn, files.writeSvg));
   gazBtn.addEventListener("click", () => files.writeGazetteer());
 
+  /** The page let go: its listeners off the window and the document, its scrubber and its zooms stopped. */
+  function destroy(): void {
+    alive.abort();
+    cancelAnimationFrame(refitFrame); refitFrame = 0;
+    dropFrames();
+    dropWidthWatch?.();
+    timeline?.destroy(); timeline = null;
+    worldZoom?.destroy(); worldZoom = null;
+    cityZoom?.destroy(); cityZoom = null;
+    files.closeChoice();
+  }
+
   // follow the browser: Back off a plate returns to the world, Forward opens it again
   window.addEventListener("popstate", () => {
-    // a screen that has been taken out of the document does not answer the browser any more
+    // a screen that has been taken out of the document does not answer the browser any more — and lets go
+    if (gone()) { destroy(); return; }
     if (!root.isConnected) return;
     // ...and Back past a new world is the world before it, made again from its address as it was left: its
     // dials, its names, and the name it was asked for
@@ -1008,12 +1046,12 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     const id = initialCity(location.hash);
     if (id === null) { if (openCityId !== null) showWorld(); return; }
     if (id !== openCityId) openCity(id, "none");
-  });
+  }, { signal });
 
   // read before showWorld, which rewrites the address to the world's own form
   const linked = initialCity(location.hash);
   showWorld();
   // ...and a link that names a city opens onto its plate rather than the world map
   if (linked !== null) openCity(linked, "replace");
-  return { regenerate, openCity, showWorld };
+  return { regenerate, openCity, showWorld, destroy };
 }

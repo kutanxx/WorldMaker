@@ -1,7 +1,20 @@
 // @vitest-environment jsdom
 import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
 import { DEFAULT_PARAMS } from "../types/world";
-import { createApp } from "./app";
+import v8 from "node:v8";
+import vm from "node:vm";
+import { createApp as makePage, type App } from "./app";
+
+// Every page this file makes is let go of after its test (app.ts `destroy`): most are made on a root that is
+// never put in the document, so the page cannot tell for itself that its test is over — and each one left
+// alive kept its world through its window listeners. 96 pages, 3.8 GB, and the file's worker died of it on
+// CI (2026-10-16, a red run with no failed test).
+const pages: App[] = [];
+const createApp: typeof makePage = (root, initial, askedName) => {
+  const app = makePage(root, initial, askedName);
+  pages.push(app);
+  return app;
+};
 import { hashStringToSeed } from "../engine/rng";
 import { initialCity, decodeParams } from "./urlState";
 import { generateWorld } from "../engine/world";
@@ -19,9 +32,37 @@ afterEach(() => { location.hash = ""; });
 // ...and a page a test left in the document still answers the browser: since a world in the address is one
 // Back can return to (keepWork.test), an app left behind remade its world from the next test's address and
 // took the keyboard with it. One page at a time, as a browser has.
-afterEach(() => { document.body.replaceChildren(); });
+afterEach(() => { document.body.replaceChildren(); for (const p of pages.splice(0)) p.destroy(); });
+// How the leak was measured, kept for the next one. `HEAP_GC=1` with `--logHeapUsage`: the garbage is collected
+// after each test, so the heap logged is what the file RETAINS (3.8 GB at 90 tests before; under 300 MB after,
+// with vitest.setup.ts emptying jsdom's selector caches). `HEAP_SNAP=<n> HEAP_SNAP_DIR=<dir>` writes a heap
+// snapshot after the n-th test, to trace what holds a page (`.claude/probes/heap-retainers.mjs` reads it). The
+// collector is reached through v8's flags, since a worker gets no `--expose-gc` of its own.
+let tested = 0;
+afterEach(() => {
+  if (!process.env.HEAP_GC && !process.env.HEAP_SNAP) return;
+  try { v8.setFlagsFromString("--expose-gc"); (vm.runInNewContext("gc") as () => void)(); } catch { /* no collector to reach */ }
+  if (++tested === Number(process.env.HEAP_SNAP) && process.env.HEAP_SNAP_DIR) v8.writeHeapSnapshot(`${process.env.HEAP_SNAP_DIR}/app-${tested}.heapsnapshot`);
+});
 
 describe("createApp", () => {
+  // The page's own half of that contract, pinned: its window listeners carry one signal, and a page that was
+  // in the document and is no longer aborts it the next time the browser speaks to it.
+  it("lets go of the window once its root has left the document", () => {
+    const root = document.createElement("div");
+    document.body.appendChild(root);
+    const spy = vi.spyOn(window, "addEventListener");
+    const app = createApp(root, small);
+    const signals = spy.mock.calls.map(([, , opts]) => (typeof opts === "object" ? opts?.signal : undefined)).filter((s): s is AbortSignal => !!s);
+    spy.mockRestore();
+    expect(signals.length, "the page's window listeners carry no signal to let go by").toBeGreaterThanOrEqual(2);
+    expect(signals.every((s) => !s.aborted)).toBe(true);
+    root.remove();
+    window.dispatchEvent(new PopStateEvent("popstate"));
+    expect(signals.every((s) => s.aborted), "a page out of the document still listens").toBe(true);
+    app.destroy();   // and again does no harm
+  });
+
   it("renders a world svg on init", () => {
     const root = document.createElement("div");
     createApp(root, small);
