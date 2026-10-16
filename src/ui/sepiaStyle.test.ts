@@ -97,7 +97,7 @@ describe("the sepia map", () => {
         for (const h of svg.querySelectorAll(".political-slot .ink-border-halo")) expect(h.getAttribute("stroke")).toBe(SEPIA.paper);
       }
     }
-  });
+  }, 20000);   // (three views drawn and put into sepia: 2.1 s locally, more under a full run or on CI)
 
   it("keeps a scrubbed year in sepia", () => {
     const svg = sepia("political");
@@ -120,7 +120,7 @@ describe("the sepia map", () => {
     // (the shadow's bands took `vector-effect: non-scaling-stroke` before the first commit: were [3823197687,
     //  66622902, 3607061001, 3342209289] with the bands in map units)
     expect(hashes).toEqual([2283568839, 2612778008, 1168694617, 3479229223]);
-  });
+  }, 20000);   // (four views: 2.8 s locally)
 
   it("keeps a town's new mark in sepia when the year changes its standing", () => {
     const svg = sepia();

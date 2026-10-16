@@ -74,7 +74,16 @@ describe("a file is named for what it holds", () => {
     expect(await press(button, "PNG")).toBe("소덴드_정치_250년.png");
     (root.querySelector(".ink-toggle") as HTMLButtonElement).click();
     expect(await press(button, "SVG")).toBe("소덴드_정치_250년_흑백.svg");
-    // ...and the sepia (sepiaStyle.ts, 2026-10-16), the third of the styles
+  }, 20000);
+
+  // ...and the sepia (sepiaStyle.ts, 2026-10-16), the third of the styles. Its own test: a third file in the
+  // one above took it to 19.9 of its 20 s locally, and CI, slower, failed the suite on it (2026-10-16).
+  it("says the sepia when the map is drawn in it", async () => {
+    const { root, button } = open("ko");
+    ([...root.querySelectorAll<HTMLButtonElement>(".view-toggle button")].find((b) => b.textContent === "정치")!).click();
+    const slider = root.querySelector(".timeline-slider") as HTMLInputElement;
+    slider.value = "25";
+    slider.dispatchEvent(new Event("input", { bubbles: true }));
     (root.querySelector(".sepia-toggle") as HTMLButtonElement).click();
     expect(await press(button, "SVG")).toBe("소덴드_정치_250년_세피아.svg");
   }, 20000);
