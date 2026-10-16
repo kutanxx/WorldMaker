@@ -16,7 +16,7 @@
 
 **세계 지도**
 - 대륙·바다·산맥·강·기후에 따른 생물군계를 가진 세계를 만듭니다. 강은 수원에서 바다까지 흐르고, 해안은 물결선으로 그린 손그림 지도처럼 그려집니다.
-- 네 가지 보기: **지형 · 정치 · 문화 · 행정 구역**. 인쇄용 **흑백** 지도도 있습니다.
+- 네 가지 보기: **지형 · 정치 · 문화 · 행정 구역**. 그리는 방식은 셋 — **컬러**, 오래된 지도책 같은 **세피아**, 인쇄용 **흑백**.
 - 확대·이동, 지도만 크게 보기, 범례와 도시 목록.
 
 **500년의 역사**
@@ -59,7 +59,7 @@ A **fantasy world map generator** for novelists and tabletop game masters. One c
 
 **World map**
 - Continents, seas, mountain ranges, rivers and climate-driven biomes. Rivers run from source to sea, and the coast is drawn with ripple lines like a hand-drawn atlas.
-- Four views: **Terrain · Political · Culture · Provinces**, plus a black-and-white **Ink** map for print.
+- Four views: **Terrain · Political · Culture · Provinces**, drawn in one of three styles — **Colour**, **Sepia** like an old atlas, or a black-and-white **Ink** map for print.
 - Zoom and pan, a map-only view, a key and a town list.
 
 **500 years of history**
