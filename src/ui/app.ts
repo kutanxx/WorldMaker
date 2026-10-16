@@ -61,7 +61,7 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     // a dial released: the world it asks for — and back where it was if the reader chose to stay
     onDial: (key, value) => regenerate({ ...ws.params, [key]: value }),
   });
-  const { controls, backBtn, randomBtn, seedInput, regenBtn, terrainBtn, politicalBtn, cultureBtn, provinceBtn, inkBtn, exportGroup, jsonBtn, pngBtn, svgBtn, gazBtn, langBtn, fingerprintCode } = bar;
+  const { controls, backBtn, randomBtn, seedInput, regenBtn, terrainBtn, politicalBtn, cultureBtn, provinceBtn, colourBtn, sepiaBtn, inkBtn, exportGroup, jsonBtn, pngBtn, svgBtn, gazBtn, langBtn, fingerprintCode } = bar;
   const stage = document.createElement("div");
   stage.className = "stage";
   root.append(controls, stage);
@@ -98,12 +98,15 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
   politicalBtn.addEventListener("click", () => setView("political"));
   cultureBtn.addEventListener("click", () => setView("culture"));
   provinceBtn.addEventListener("click", () => setView("province"));
-  inkBtn.addEventListener("click", () => {
-    mapStyle = mapStyle === "ink" ? "colour" : "ink";
-    inkBtn.setAttribute("aria-pressed", String(mapStyle === "ink"));
-    inkBtn.classList.toggle("active", mapStyle === "ink");
+  // the style is one choice of three (toolbar.ts); the pressed one is said again by every showWorld
+  function setStyle(s: MapStyle): void {
+    if (s === mapStyle) return;
+    mapStyle = s;
     showWorld(worldZoom?.viewBox());
-  });
+  }
+  colourBtn.addEventListener("click", () => setStyle("colour"));
+  sepiaBtn.addEventListener("click", () => setStyle("sepia"));
+  inkBtn.addEventListener("click", () => setStyle("ink"));
   backBtn.addEventListener("click", () => backToWorld());
   // whether a name on the map opens a box to type in (see addRenameToggle)
   let renaming = false;
@@ -474,6 +477,10 @@ export function createApp(root: HTMLElement, initial: WorldParams = DEFAULT_PARA
     for (const [b, v] of [[terrainBtn, "terrain"], [politicalBtn, "political"], [cultureBtn, "culture"], [provinceBtn, "province"]] as const) {
       b.classList.toggle("active", currentView === v);
       b.setAttribute("aria-pressed", String(currentView === v));
+    }
+    for (const [b, s] of [[colourBtn, "colour"], [sepiaBtn, "sepia"], [inkBtn, "ink"]] as const) {
+      b.classList.toggle("active", mapStyle === s);
+      b.setAttribute("aria-pressed", String(mapStyle === s));
     }
     const world = ws.generated.world;
     const svg = renderWorld(world, currentView, ws.history.economicZones.map((z) => z.cell), lang, new Set(), ws.colorOf, polityLabeller(lang, ws.governmentForms), mapStyle);

@@ -319,8 +319,8 @@ describe("export follows the screen", () => {
       const svgBtn = [...root.querySelectorAll("button")].find((b) => b.textContent === "SVG")!;
       const file = await captureDownload(() => svgBtn.click());
       expect(file!.text, "the file is not the ink map").toContain("ink-marks");
-      // ...and back
-      (root.querySelector(".ink-toggle") as HTMLButtonElement).click();
+      // ...and back, on the style group's first button: the styles are one choice of three (2026-10-16)
+      (root.querySelector(".colour-toggle") as HTMLButtonElement).click();
       await new Promise((r) => setTimeout(r, 0));
       expect(map().classList.contains("ink")).toBe(false);
     } finally {
@@ -328,6 +328,51 @@ describe("export follows the screen", () => {
     }
     // (the whole app drawn in ink at several years and written to a file: 10-12 s alone in jsdom, and past 20
     // under a full run's load — 2026-10-12, the same before and after that day's last change)
+  }, 40000);
+
+  // The map as an old atlas (sepiaStyle.ts, 2026-10-16): a third way of drawing the same map, chosen in one
+  // group of three with the colour map and the ink one, and kept through the scrubber.
+  it("offers the sepia map beside the ink one, in one group of three", async () => {
+    const root = document.createElement("div");
+    document.body.appendChild(root);
+    try {
+      createApp(root, { ...DEFAULT_PARAMS, seed: 1 });
+      await new Promise((r) => setTimeout(r, 0));
+      const group = root.querySelector(".style-toggle")!;
+      expect(group, "no style group in the bar").not.toBeNull();
+      const pressed = () => [...group.querySelectorAll("button")].map((b) => b.getAttribute("aria-pressed"));
+      expect(group.querySelectorAll("button").length).toBe(3);
+      expect(pressed()).toEqual(["true", "false", "false"]);
+      expect(group.getAttribute("role")).toBe("group");
+      const map = () => root.querySelector("svg.world")!;
+      (root.querySelector(".sepia-toggle") as HTMLButtonElement).click();
+      await new Promise((r) => setTimeout(r, 0));
+      expect(map().classList.contains("sepia")).toBe(true);
+      expect(map().querySelector(".land-shadow")).not.toBeNull();
+      expect(pressed()).toEqual(["false", "true", "false"]);
+      // the realms' view, scrubbed: the year's layer arrives in colour and must go into sepia with it
+      const political = [...root.querySelectorAll(".view-toggle button")].find((b) => /Political|정치/.test(b.textContent ?? "")) as HTMLButtonElement;
+      political.click();
+      await new Promise((r) => setTimeout(r, 0));
+      const slider = root.querySelector(".timeline input[type=range]") as HTMLInputElement;
+      slider.value = String(Math.floor(Number(slider.max) / 2)); slider.dispatchEvent(new Event("input"));
+      expect(map().classList.contains("sepia"), "the realms' view left sepia").toBe(true);
+      const fills = [...map().querySelectorAll(".political-slot .territory")].map((t) => t.getAttribute("fill"));
+      expect(fills.length).toBeGreaterThan(0);
+      expect(new Set(fills), "a realm painted in colour").toEqual(new Set(["none"]));
+      // the ink is the third choice, and colour the first
+      (root.querySelector(".ink-toggle") as HTMLButtonElement).click();
+      await new Promise((r) => setTimeout(r, 0));
+      expect(map().classList.contains("ink")).toBe(true);
+      expect(map().classList.contains("sepia")).toBe(false);
+      expect(pressed()).toEqual(["false", "false", "true"]);
+      (root.querySelector(".colour-toggle") as HTMLButtonElement).click();
+      await new Promise((r) => setTimeout(r, 0));
+      expect(map().classList.contains("ink")).toBe(false);
+      expect(pressed()).toEqual(["true", "false", "false"]);
+    } finally {
+      root.remove();
+    }
   }, 40000);
 
   it("writes the city a reader is looking at, not the world behind it", async () => {

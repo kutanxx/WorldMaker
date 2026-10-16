@@ -12,6 +12,7 @@ import { cultureLayer } from "./cultureLayer";
 import { provinceLayer, snapOwnersToProvinces } from "./provinceLayer";
 import { settlementKeyRows } from "./settlementKey";
 import { inkSlot } from "./inkStyle";
+import { sepiaSlot } from "./sepiaStyle";
 import { polityLabeller } from "./properName";
 import type { Lang } from "./i18n";
 
@@ -30,6 +31,7 @@ export function fillSlot(slot: SVGGElement, view: MapView, yearIndex: number, ws
     const snapped = snapOwnersToProvinces(world.grid.count, world.provinceOf, world.provinces, snap.owner, ws.freeRealms);
     slot.replaceChildren(politicalLayer(world.grid, snapped, ws.history.polities, politicalOpts(view, lang, ws.colorOf, polityLabeller(lang, ws.governmentForms), freePorts, keepOffOf(world.grid.points, world.roads, world.cities))));
   }
-  // the year's layer arrives in its colours; on an ink map it goes into ink with the rest
+  // the year's layer arrives in its colours; on an ink map it goes into ink with the rest, on a sepia one into sepia
   if (style === "ink") inkSlot(slot, lang);
+  else if (style === "sepia") sepiaSlot(slot, lang);
 }

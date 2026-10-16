@@ -74,6 +74,9 @@ describe("a file is named for what it holds", () => {
     expect(await press(button, "PNG")).toBe("소덴드_정치_250년.png");
     (root.querySelector(".ink-toggle") as HTMLButtonElement).click();
     expect(await press(button, "SVG")).toBe("소덴드_정치_250년_흑백.svg");
+    // ...and the sepia (sepiaStyle.ts, 2026-10-16), the third of the styles
+    (root.querySelector(".sepia-toggle") as HTMLButtonElement).click();
+    expect(await press(button, "SVG")).toBe("소덴드_정치_250년_세피아.svg");
   }, 20000);
 
   it("names a town's plate for its town and its world", async () => {

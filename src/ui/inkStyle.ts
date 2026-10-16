@@ -229,8 +229,8 @@ export function paintedGround(kind: GroundMark, x: number, y: number, s: number)
  * The marks the colour map draws over a kind of ground, drawn onto its swatch in the key (the swatch's top
  * left at (x, y - 9), 12 across) — none for the ground that has none. `hills` for the hills' own row.
  */
-export function paintedKey(ground: number | "hills", x: number, y: number): SVGElement[] {
-  const P = PAINT_MARKS, out: SVGElement[] = [];
+export function paintedKey(ground: number | "hills", x: number, y: number, P: MarkPalette = PAINT_MARKS): SVGElement[] {
+  const out: SVGElement[] = [];
   const two = (kind: Kind) => out.push(mark(kind, x + 3.4, y + 1.6, 12, 0.8, P), mark(kind, x + 8.6, y + 1.6, 12, 0.8, P));
   if (ground === "hills") out.push(mark("hill", x + 6, y + 0.5, 12, 1, P));
   else if (ground === ALPINE) out.push(mark("peak", x + 6, y + 1.8, 10, 1, P));

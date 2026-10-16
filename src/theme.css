@@ -111,7 +111,7 @@ body {
   background: var(--paper-2); border: 1px solid var(--line); border-radius: 6px; margin-bottom: 12px;
 }
 /* make a world | look at it | take it away — the zones, said with space */
-.controls > .seed-group, .controls > .view-toggle, .controls > .export-group { margin-left: 12px; }
+.controls > .seed-group, .controls > .view-toggle, .controls > .style-toggle, .controls > .export-group { margin-left: 12px; }
 .controls > .lang-toggle { margin-left: auto; }        /* furniture, at the far end */
 
 /* The one primary. Filled in the ink the chronicle already uses for its hegemon lines, on the
@@ -514,16 +514,15 @@ svg.lang-ko .region-land { font-weight: 700; }
    19). While it is open the chips step aside; it closes on a choice, Escape or a press elsewhere. */
 .export-choosing .focus-toggle, .export-choosing .rename-toggle { visibility: hidden; }
 
-.view-toggle { display: inline-flex; gap: 0; }
-.view-toggle button { border-radius: 0; }
-.view-toggle button:first-child { border-radius: 4px 0 0 4px; }
-.view-toggle button:last-child { border-radius: 0 4px 4px 0; }
-.view-toggle button:not(:first-child) { border-left: none; }
+/* the four views, and the three styles (colour · sepia · ink) drawn the same way beside them */
+.view-toggle, .style-toggle { display: inline-flex; gap: 0; }
+.view-toggle button, .style-toggle button { border-radius: 0; }
+.view-toggle button:first-child, .style-toggle button:first-child { border-radius: 4px 0 0 4px; }
+.view-toggle button:last-child, .style-toggle button:last-child { border-radius: 0 4px 4px 0; }
+.view-toggle button:not(:first-child), .style-toggle button:not(:first-child) { border-left: none; }
 .culture-label { font-family: 'Cinzel', 'Gowun Batang', serif; font-weight: 600; }
-.view-toggle button.active { background: var(--gold); font-weight: 600; }
-/* The ink toggle stands beside the views and says it is on the way they do: it is how a view is drawn,
-   pressed or not. */
-.ink-toggle.active { background: var(--gold); font-weight: 600; }
+/* The styles stand beside the views and say which is on the way the views do: a style is how a view is drawn. */
+.view-toggle button.active, .style-toggle button.active { background: var(--gold); font-weight: 600; }
 /* While renaming, every name on the map says it can be typed over, and a box stands where a name is being
    typed (app.ts, openNameEditor) — over the map's chips, and in the page's own face, which has the Hangul
    the map's display face does not. */
@@ -547,6 +546,10 @@ svg.lang-ko .region-land { font-weight: 700; }
 .world.ink .marker-hit:hover { fill: rgba(27, 22, 18, 0.10); }
 .world.ink .marker-hit:active { fill: rgba(27, 22, 18, 0.20); }
 .world.ink .city-label:hover { fill: #555; }
+/* ...and on a sepia map (sepiaStyle.ts) the tint is its own ink */
+.world.sepia .marker-hit:hover { fill: rgba(47, 33, 20, 0.12); }
+.world.sepia .marker-hit:active { fill: rgba(47, 33, 20, 0.22); }
+.world.sepia .city-label:hover { fill: #7a5a34; }
 
 /* `position: relative` is the language toggle's anchor — see `.landing-lang` below. */
 .landing-hero { position: relative; text-align: center; padding: 8px 16px 0; }
@@ -1099,7 +1102,7 @@ svg.city .wall-seg, svg.city .wall-seg-inner, svg.city .tower, svg.city .gate { 
      wrapped row. Measured at 390x844: the bar's first row began at x=29 and its second at x=41,
      and opened it was four rows with three left edges and the language toggle alone on the last.
      On a phone the rows are what separate the zones. */
-  .controls > .seed-group, .controls > .view-toggle, .controls > .export-group { margin-left: 0; }
+  .controls > .seed-group, .controls > .view-toggle, .controls > .style-toggle, .controls > .export-group { margin-left: 0; }
   /* The scrubber is moved INTO the map's grid here (app.ts), and the grid's own 12px gap is already
      the space above it — with the strip's margin on top, measured 36px under the map before the
      scrubber's own margin went, and 24 after. */

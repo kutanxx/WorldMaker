@@ -14,11 +14,13 @@ import { featureLabel, worldNameIn } from "../engine/featureLabel";
 import { riverPaths } from "./riverCourse";
 import { waysInUse } from "../engine/worldRoads";
 import { inkWorld, reInk, inkMarks, PAINT_MARKS, paintedKey } from "./inkStyle";
+import { sepiaWorld, reSepia, sepiaColour, SEPIA_MARKS } from "./sepiaStyle";
 import type { Page } from "./regionPage";
 import { riverNameAt, riverNameSize } from "./riverName";
 
 /** How the map is drawn: in its colours, or in one ink on white paper for print (inkStyle.ts). */
-export type MapStyle = "colour" | "ink";
+// in colour; as an old atlas in sepia (sepiaStyle.ts); in one ink on white paper for print (inkStyle.ts)
+export type MapStyle = "colour" | "sepia" | "ink";
 import { cultureLayer } from "./cultureLayer";
 import { provinceLayer, snapOwnersToProvinces } from "./provinceLayer";
 import { dhypot } from "../engine/dmath";
@@ -136,7 +138,7 @@ const townLabelLook = (seat: boolean) => seat
  * new mark, and nothing a click may be landing on is thrown away. A map in ink keeps its ink.
  */
 export function restyleTowns(svg: SVGSVGElement, world: World, lang: Lang, towns: (c: World["cities"][number]) => TownYear): void {
-  const ink = svg.classList.contains("ink");
+  const ink = svg.classList.contains("ink"), sepia = svg.classList.contains("sepia");
   let reach: Map<number, number> | undefined;
   const retitle = (el: Element, text: string) => {
     const tl = el.querySelector(":scope > title");
@@ -152,7 +154,7 @@ export function restyleTowns(svg: SVGSVGElement, world: World, lang: Lang, towns
     const mark = svg.querySelector<SVGElement>(`.markers .marker-capital[data-city="${c.id}"], .markers .marker-town[data-city="${c.id}"]`);
     if (mark && mark.classList.contains("marker-capital") !== y.seat) {
       const next = named(townMarker(c, y.seat, (reach ??= markReach(world)).get(c.id)), title);
-      if (ink) reInk(next);
+      if (ink) reInk(next); else if (sepia) reSepia(next);
       next.style.display = mark.style.display;
       mark.replaceWith(next);
     } else if (mark) retitle(mark, title);
@@ -164,7 +166,7 @@ export function restyleTowns(svg: SVGSVGElement, world: World, lang: Lang, towns
       label.dataset.fs = String(look.size);
       label.setAttribute("font-size", String(look.size));
       label.setAttribute("font-weight", String(look.weight));
-      if (!ink) label.setAttribute("fill", look.fill);
+      if (!ink) label.setAttribute("fill", sepia ? sepiaColour(look.fill) : look.fill);
     }
   }
 }
@@ -265,8 +267,10 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
   // fills only tint, and they are what tells a hand-drawn map from a coloured grid. Over the realms', the
   // peoples' and the provinces' colours they are faded with the ground they stand for. The ink map draws
   // its own (inkWorld), so it is spared drawing these first.
+  // (the sepia map draws the same marks in its browns)
+  const marksPalette = style === "sepia" ? SEPIA_MARKS : PAINT_MARKS;
   if (style !== "ink") {
-    const marks = inkMarks(world, page, PAINT_MARKS);
+    const marks = inkMarks(world, page, marksPalette);
     root.appendChild(svgEl("g", view !== "terrain" ? { class: "reliefs", opacity: OVERLAY_BIOME_OPACITY } : { class: "reliefs" })).appendChild(marks);
   }
 
@@ -525,13 +529,13 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
       const y = y0 + i * LEGEND_ROW;
       const row = legendRow(LEGEND_ROW);
       row.appendChild(svgEl("rect", { class: "legend-item", x: x0, y: y - 9, width: LEGEND_SWATCH, height: LEGEND_SWATCH, fill: BIOME_COLORS[bm], stroke: INK, "stroke-width": 0.6, "vector-effect": "non-scaling-stroke" }));
-      for (const m of paintedKey(bm, x0, y)) row.appendChild(m);
+      for (const m of paintedKey(bm, x0, y, marksPalette)) row.appendChild(m);
       labelled(row, y, biomeName(lang, bm));
     });
     if (hills) {
       const y = y0 + present.length * LEGEND_ROW;
       const row = legendRow(LEGEND_ROW);
-      for (const m of paintedKey("hills", x0, y)) row.appendChild(m);
+      for (const m of paintedKey("hills", x0, y, marksPalette)) row.appendChild(m);
       labelled(row, y, t(lang, "keyHills"));
     }
     if (world.roads.length) {
@@ -621,7 +625,8 @@ export function renderWorld(world: World, view: MapView = "terrain", econZones: 
   }
   root.appendChild(mapFrame(grid.width, grid.height));
 
-  // ...and for print, the same map in one ink on white paper (inkStyle.ts)
+  // ...and for print, the same map in one ink on white paper (inkStyle.ts); or as an old atlas (sepiaStyle.ts)
   if (style === "ink") inkWorld(root, world, lang, page);
+  else if (style === "sepia") sepiaWorld(root, lang);
   return root;
 }

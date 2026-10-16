@@ -81,6 +81,7 @@ export function createExporter(ctx: ExportCtx): Exporter {
         view !== "terrain" && t(lang, view),
         year > 0 && t(lang, "year").replace("{y}", String(year)),
         style === "ink" && t(lang, "inkToggle"),
+        style === "sepia" && t(lang, "sepiaToggle"),
         page && t(lang, "fileRegion"),
       ]),
       width: PRINT_PX, height: Math.round((PRINT_PX * ws.params.height) / ws.params.width),

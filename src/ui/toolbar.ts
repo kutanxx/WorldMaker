@@ -22,6 +22,10 @@ export interface Toolbar {
   politicalBtn: HTMLButtonElement;
   cultureBtn: HTMLButtonElement;
   provinceBtn: HTMLButtonElement;
+  /** the map's style, one of three: in colour, in sepia, in ink */
+  styleToggle: HTMLDivElement;
+  colourBtn: HTMLButtonElement;
+  sepiaBtn: HTMLButtonElement;
   inkBtn: HTMLButtonElement;
   moreBtn: HTMLButtonElement;
   exportGroup: HTMLDivElement;
@@ -155,12 +159,27 @@ export function createToolbar(opts: ToolbarOpts): Toolbar {
   const cultureBtn = document.createElement("button");
   const provinceBtn = document.createElement("button");
   viewToggle.append(terrainBtn, politicalBtn, cultureBtn, provinceBtn);
-  // The map for print: one ink on white paper. Beside the views and not among them — it is how any of
-  // them is drawn, not another thing to look at.
-  const inkBtn = document.createElement("button");
-  inkBtn.type = "button";
-  inkBtn.className = "ink-toggle world-only";
-  inkBtn.setAttribute("aria-pressed", "false");
+  // How the map is drawn — in colour, as an old atlas in sepia (sepiaStyle.ts), or in one ink on white
+  // paper for print (inkStyle.ts). One group of three beside the views and not among them: a style is how
+  // any view is drawn, not another thing to look at. (It was one toggle, "Ink", until the sepia came,
+  // 2026-10-16: a second toggle would have left two of them pressed at once.)
+  const styleToggle = document.createElement("div");
+  // (its own class, drawn like the view group by the stylesheet: a `.view-toggle button` is one of the four views
+  //  to the tests and the review driver)
+  styleToggle.className = "style-toggle world-only";
+  styleToggle.setAttribute("role", "group");
+  const styleButton = (cls: string, pressed: boolean) => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = cls;
+    b.setAttribute("aria-pressed", String(pressed));
+    b.classList.toggle("active", pressed);
+    return b;
+  };
+  const colourBtn = styleButton("colour-toggle", true);
+  const sepiaBtn = styleButton("sepia-toggle", false);
+  const inkBtn = styleButton("ink-toggle", false);
+  styleToggle.append(colourBtn, sepiaBtn, inkBtn);
   // The engine has read all of these from the URL since it was written — seaLevel, mountainLevel,
   // polityCount, townCount, cellCount — and there was no way to reach any of them from the page, so
   // a reader could only ever have the one world the defaults describe. Folded away, because the
@@ -257,7 +276,7 @@ export function createToolbar(opts: ToolbarOpts): Toolbar {
   // to x=216 — the one control that must never move under a thumb. On a wide window the zone reads
   // the same either way round: the die, then the way to a particular world.
   exportGroup.appendChild(linkBtn);
-  controls.append(homeBtn, backBtn, randomBtn, seedGroup, viewToggle, inkBtn, moreBtn, exportGroup, gazBtn, langBtn);
+  controls.append(homeBtn, backBtn, randomBtn, seedGroup, viewToggle, styleToggle, moreBtn, exportGroup, gazBtn, langBtn);
   syncMore(false);
   advanced.appendChild(fingerprint);
 
@@ -299,6 +318,11 @@ export function createToolbar(opts: ToolbarOpts): Toolbar {
     politicalBtn.textContent = t(l, "political");
     cultureBtn.textContent = t(l, "culture");
     provinceBtn.textContent = t(l, "province");
+    styleToggle.setAttribute("aria-label", t(l, "styleGroup"));
+    colourBtn.textContent = t(l, "styleColour");
+    colourBtn.title = t(l, "styleColourTitle");
+    sepiaBtn.textContent = t(l, "sepiaToggle");
+    sepiaBtn.title = t(l, "sepiaTitle");
     inkBtn.textContent = t(l, "inkToggle");
     inkBtn.title = t(l, "inkTitle");
     langBtn.textContent = t(l, "langToggle");
@@ -312,7 +336,7 @@ export function createToolbar(opts: ToolbarOpts): Toolbar {
 
   return {
     controls, homeBtn, backBtn, randomBtn, seedGroup, seedInput, regenBtn, viewToggle,
-    terrainBtn, politicalBtn, cultureBtn, provinceBtn, inkBtn, moreBtn,
+    terrainBtn, politicalBtn, cultureBtn, provinceBtn, styleToggle, colourBtn, sepiaBtn, inkBtn, moreBtn,
     exportGroup, jsonBtn, pngBtn, svgBtn, linkBtn, gazBtn, langBtn,
     advanced, dialRows, fingerprintCode, applyLang, syncMore, showParams,
   };
