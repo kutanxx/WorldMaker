@@ -24,7 +24,9 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
-      - run: npm test
+      # the github-actions reporter writes each failed test as an annotation, which the API shows without a
+      # sign-in (the job's log needs one): how a red run is read from outside
+      - run: npm test -- --reporter=default --reporter=github-actions
       - run: npm run build
       - uses: actions/configure-pages@v5
         with:
